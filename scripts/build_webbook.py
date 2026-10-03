@@ -144,9 +144,29 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
         stem = f"{idx:02d}-{fig_no:02d}"
         svg_path = diagdir / f"{stem}.svg"
         png_path = diagdir / f"{stem}.png"
-        svg_path.write_text(str(svg), encoding="utf-8")
+
+        # Inline SVG from the print source may rely on CSS/layout and therefore
+        # omit intrinsic dimensions. GitBook/CDN and CairoSVG both behave more
+        # reliably when standalone SVG assets have xmlns + explicit dimensions.
+        svg["xmlns"] = "http://www.w3.org/2000/svg"
+        viewbox = svg.get("viewBox") or svg.get("viewbox")
+        if viewbox:
+            parts = [float(x) for x in str(viewbox).replace(",", " ").split()]
+            if len(parts) == 4:
+                vb_w, vb_h = parts[2], parts[3]
+                if not svg.get("width"):
+                    svg["width"] = str(int(vb_w) if vb_w.is_integer() else vb_w)
+                if not svg.get("height"):
+                    svg["height"] = str(int(vb_h) if vb_h.is_integer() else vb_h)
+        if not svg.get("width"):
+            svg["width"] = "900"
+        if not svg.get("height"):
+            svg["height"] = "320"
+
+        svg_bytes = str(svg).encode("utf-8")
+        svg_path.write_bytes(svg_bytes)
         cairosvg.svg2png(
-            bytestring=str(svg).encode("utf-8"),
+            bytestring=svg_bytes,
             write_to=str(png_path),
             output_width=1800,
         )
