@@ -5,6 +5,8 @@ on:
   push:
     paths:
       - "book/AX_Agent_Infrastructure_Book_RU.html"
+      - "assets/cover.svg"
+      - "scripts/inject_cover.py"
       - ".github/workflows/build-pdf.yml"
 
 permissions:
@@ -30,11 +32,15 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
           python -m pip install --upgrade pip
-          python -m pip install "weasyprint==68.0"
+          python -m pip install "weasyprint==68.0" beautifulsoup4
+
+      - name: Inject publication cover
+        run: |
+          python scripts/inject_cover.py             book/AX_Agent_Infrastructure_Book_RU.html             book/.print-source.html
 
       - name: Build and validate PDF
         run: |
-          weasyprint             book/AX_Agent_Infrastructure_Book_RU.html             book/AX_Agent_Infrastructure_Book_RU.pdf
+          weasyprint             book/.print-source.html             book/AX_Agent_Infrastructure_Book_RU.pdf
 
           pages="$(pdfinfo book/AX_Agent_Infrastructure_Book_RU.pdf | awk '/^Pages:/ {print $2}')"
           echo "Generated PDF pages: $pages"
@@ -55,7 +61,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Generated artifacts are unchanged."
           else
-            git commit -m "build: refresh PDF artifact [skip ci]"
+            git commit -m "build: refresh PDF with publication cover [skip ci]"
             git fetch origin main
             git rebase origin/main
             git push origin HEAD:main
@@ -69,3 +75,4 @@ jobs:
             book/AX_Agent_Infrastructure_Book_RU.pdf
             book/AX_Agent_Infrastructure_Book_RU.html
             book/CHECKSUMS.sha256
+            assets/cover.svg
