@@ -7,6 +7,7 @@ on:
       - "book/AX_Agent_Infrastructure_Book_RU.html"
       - "assets/cover.svg"
       - "assets/social-preview.svg"
+      - "assets/favicon.svg"
       - "scripts/build_webbook.py"
       - ".github/workflows/build-webbook.yml"
 
@@ -29,22 +30,31 @@ jobs:
 
       - name: Install converter dependencies
         run: |
+          sudo apt-get update
+          sudo apt-get install -y libcairo2 libffi-dev
           python -m pip install --upgrade pip
-          python -m pip install beautifulsoup4 markdownify
+          python -m pip install beautifulsoup4 markdownify cairosvg
 
-      - name: Generate GitBook Markdown
+      - name: Generate GitBook Markdown and raster assets
         run: python scripts/build_webbook.py
 
       - name: Validate web edition
         run: |
           test -f docs/README.md
           test -f docs/SUMMARY.md
+          test -f docs/gitbook-docs.yaml
+          test -f docs/.gitbook/assets/cover.png
+          test -f docs/.gitbook/assets/social-preview.png
+          test -f docs/.gitbook/assets/favicon.png
           pages="$(find docs -maxdepth 1 -name '*.md' | wc -l)"
-          diagrams="$(find docs/.gitbook/assets/diagrams -name '*.svg' | wc -l)"
+          svg_diagrams="$(find docs/.gitbook/assets/diagrams -name '*.svg' | wc -l)"
+          png_diagrams="$(find docs/.gitbook/assets/diagrams -name '*.png' | wc -l)"
           echo "Markdown files: $pages"
-          echo "Diagrams: $diagrams"
+          echo "SVG diagrams: $svg_diagrams"
+          echo "PNG diagrams: $png_diagrams"
           test "$pages" = "49"
-          test "$diagrams" = "41"
+          test "$svg_diagrams" = "41"
+          test "$png_diagrams" = "41"
 
       - name: Commit generated web edition
         run: |
@@ -54,7 +64,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Web edition is unchanged."
           else
-            git commit -m "docs: refresh GitBook web edition [skip ci]"
+            git commit -m "docs: rasterize GitBook images for reliable rendering [skip ci]"
             git fetch origin main
             git rebase origin/main
             git push origin HEAD:main
