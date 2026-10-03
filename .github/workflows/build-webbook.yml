@@ -1,0 +1,61 @@
+name: Build GitBook web edition
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "book/AX_Agent_Infrastructure_Book_RU.html"
+      - "assets/cover.svg"
+      - "assets/social-preview.svg"
+      - "scripts/build_webbook.py"
+      - ".github/workflows/build-webbook.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+
+      - name: Install converter dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install beautifulsoup4 markdownify
+
+      - name: Generate GitBook Markdown
+        run: python scripts/build_webbook.py
+
+      - name: Validate web edition
+        run: |
+          test -f docs/README.md
+          test -f docs/SUMMARY.md
+          pages="$(find docs -maxdepth 1 -name '*.md' | wc -l)"
+          diagrams="$(find docs/.gitbook/assets/diagrams -name '*.svg' | wc -l)"
+          echo "Markdown files: $pages"
+          echo "Diagrams: $diagrams"
+          test "$pages" = "49"
+          test "$diagrams" = "41"
+
+      - name: Commit generated web edition
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          if git diff --cached --quiet; then
+            echo "Web edition is unchanged."
+          else
+            git commit -m "docs: refresh GitBook web edition [skip ci]"
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
+          fi
