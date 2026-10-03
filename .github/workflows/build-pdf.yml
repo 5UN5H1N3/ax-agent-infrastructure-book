@@ -1,10 +1,10 @@
-name: Publish book
+name: Build book PDF
 
 on:
   workflow_dispatch:
   push:
     paths:
-      - "book/source/html-gz/**"
+      - "book/AX_Agent_Infrastructure_Book_RU.html"
       - ".github/workflows/build-pdf.yml"
 
 permissions:
@@ -19,16 +19,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Reconstruct HTML source
-        shell: bash
-        run: |
-          cat             book/source/html-gz/part-00.b64             book/source/html-gz/part-01.b64             book/source/html-gz/part-02.b64             book/source/html-gz/rem-00.b64             book/source/html-gz/rem-01.b64             book/source/html-gz/rem-02.b64             book/source/html-gz/rem-03.b64             book/source/html-gz/rem-04.b64             > /tmp/book.html.gz.b64
-
-          base64 -d /tmp/book.html.gz.b64 > /tmp/book.html.gz
-          gzip -dc /tmp/book.html.gz > book/AX_Agent_Infrastructure_Book_RU.html
-
-          echo "f6907ff5a9a676d9685620ca19acdf09d8a69b6926c50bda8cf0006c867f10e0  book/AX_Agent_Infrastructure_Book_RU.html" | sha256sum -c -
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -55,16 +45,16 @@ jobs:
             sha256sum               AX_Agent_Infrastructure_Book_RU.pdf               AX_Agent_Infrastructure_Book_RU.html               > CHECKSUMS.sha256
           )
 
-      - name: Commit generated artifacts
+      - name: Commit generated PDF and checksums
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add             book/AX_Agent_Infrastructure_Book_RU.html             book/AX_Agent_Infrastructure_Book_RU.pdf             book/CHECKSUMS.sha256
+          git add             book/AX_Agent_Infrastructure_Book_RU.pdf             book/CHECKSUMS.sha256
 
           if git diff --cached --quiet; then
             echo "Generated artifacts are unchanged."
           else
-            git commit -m "build: publish book artifacts [skip ci]"
+            git commit -m "build: refresh PDF artifact [skip ci]"
             git push
           fi
 
