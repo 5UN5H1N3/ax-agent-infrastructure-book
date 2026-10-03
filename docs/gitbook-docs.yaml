@@ -1,0 +1,13 @@
+$schema: https://api.gitbook.com/gitbook-docs.yaml
+
+site:
+  title: AX & Agent Infrastructure
+  structure:
+    - type: space
+      key: ax-agent-infrastructure
+      title: AX & Agent Infrastructure
+      path: ax-agent-infrastructure
+      default: true
+      content:
+        directory: ./
+        language: ru
