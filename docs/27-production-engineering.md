@@ -1,6 +1,6 @@
 # Production engineering: HA, persistence, upgrades и DR
 
-![Production-like topology: failure domains должны быть явными](.gitbook/assets/diagrams/27-24.svg)  
+![Production-like topology: failure domains должны быть явными](.gitbook/assets/diagrams/27-24.png)  
 *Production-like topology: failure domains должны быть явными*
 
 Production-like AX/Substrate нужно рассматривать как несколько независимых stateful planes, а не как один application Deployment.

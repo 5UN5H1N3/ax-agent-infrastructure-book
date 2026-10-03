@@ -1,6 +1,6 @@
 # Полный lifecycle Task: от YAML до suspend/resume
 
-![AX Task: путь от декларации до выполняемого агента](.gitbook/assets/diagrams/19-16.svg)  
+![AX Task: путь от декларации до выполняемого агента](.gitbook/assets/diagrams/19-16.png)  
 *AX Task: путь от декларации до выполняемого агента*
 
 Разберём Task как распределённую state machine, а не как «контейнер, который стартовал».

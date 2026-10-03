@@ -1,6 +1,6 @@
 # Runner: PID 1 как платформенный контракт
 
-![Runner contract: почему PID 1 здесь является частью платформенного API](.gitbook/assets/diagrams/18-15.svg)  
+![Runner contract: почему PID 1 здесь является частью платформенного API](.gitbook/assets/diagrams/18-15.png)  
 *Runner contract: почему PID 1 здесь является частью платформенного API*
 
 Runner - одна из самых важных и при этом недооценённых частей AX. Control plane не запускает `spec.command` напрямую. Он запускает `/usr/local/bin/ax-task-runner` как PID 1; уже runner читает `AX_TASK_YAML`, `AX_WORKSPACES_YAML`, env, подготавливает workspace, запускает child command и обслуживает control endpoints.

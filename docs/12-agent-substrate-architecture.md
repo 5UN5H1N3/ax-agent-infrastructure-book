@@ -2,7 +2,7 @@
 
 **Статус:** `IMPLEMENTED / VERIFIED` · `MAIN DELTA where noted` · `ROADMAP kept separate`
 
-![Agent Substrate: operational data path](.gitbook/assets/diagrams/12-11.svg)  
+![Agent Substrate: operational data path](.gitbook/assets/diagrams/12-11.png)  
 *Agent Substrate: operational data path*
 
 Agent Substrate позиционируется как runtime для большого количества sandboxed stateful actors поверх Kubernetes. Он намеренно не является agent SDK: внутренняя reasoning logic остаётся приложению. Его задача - lifecycle, placement, isolation, snapshot/restore и routing.

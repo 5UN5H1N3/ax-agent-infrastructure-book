@@ -1,6 +1,6 @@
 # Production security, secrets и disaster recovery
 
-![Disaster recovery: backup sets are interdependent and external side effects remain](.gitbook/assets/diagrams/42-40.svg)  
+![Disaster recovery: backup sets are interdependent and external side effects remain](.gitbook/assets/diagrams/42-40.png)  
 *Disaster recovery: backup sets are interdependent and external side effects remain*
 
 ### Классифицируйте secrets по назначению

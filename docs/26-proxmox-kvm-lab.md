@@ -1,6 +1,6 @@
 # Лабораторный стенд на Proxmox/KVM: Kind, k3s или kubeadm
 
-![Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX](.gitbook/assets/diagrams/26-23.svg)  
+![Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX](.gitbook/assets/diagrams/26-23.png)  
 *Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX*
 
 Для первой воспроизводимой установки выбираем **Kind внутри одной Debian/Ubuntu VM на Proxmox/KVM**, потому что Substrate current quickstart имеет автоматизированный Kind path и локально поднимает зависимые PostgreSQL/RustFS. Это учебный выбор, не production recommendation.

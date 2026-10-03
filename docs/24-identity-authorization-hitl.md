@@ -1,6 +1,6 @@
 # Identity, authorization и Human-in-the-loop
 
-![Controlled action pattern: observe → diagnose → propose → approve → execute → verify](.gitbook/assets/diagrams/24-21.svg)  
+![Controlled action pattern: observe → diagnose → propose → approve → execute → verify](.gitbook/assets/diagrams/24-21.png)  
 *Controlled action pattern: observe → diagnose → propose → approve → execute → verify*
 
 Authorization для agents должна отвечать не «кто запустил Pod», а «какой logical Task сейчас просит какое действие над каким объектом». Это сложнее обычного service account, потому что один agent способен породить дерево child tasks.

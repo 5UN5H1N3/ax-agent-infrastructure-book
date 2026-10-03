@@ -1,6 +1,6 @@
 # Substrate resources: Atespace, WorkerPool, ActorTemplate, Actor, Tag
 
-![Golden snapshot и жизненный цикл stateful Actor](.gitbook/assets/diagrams/13-12.svg)  
+![Golden snapshot и жизненный цикл stateful Actor](.gitbook/assets/diagrams/13-12.png)  
 *Golden snapshot и жизненный цикл stateful Actor*
 
 ### Atespace

@@ -1,6 +1,6 @@
 # AX & Agent Infrastructure
 
-![Обложка книги](.gitbook/assets/cover.svg)
+![Обложка книги](.gitbook/assets/cover.png)
 
 **Практическое руководство по архитектуре и эксплуатации AI-агентов.**
 

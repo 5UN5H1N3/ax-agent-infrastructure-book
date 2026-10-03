@@ -1,6 +1,6 @@
 # Практикум: 14 последовательных лабораторных работ
 
-![Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX](.gitbook/assets/diagrams/32-26.svg)  
+![Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX](.gitbook/assets/diagrams/32-26.png)  
 *Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX*
 
 Ниже - маршрут от чистой VM до двух multi-agent systems. Команды намеренно ориентированы на понимание процесса; exact flags текущего релиза необходимо сверить с pinned README/release notes перед запуском.
@@ -75,8 +75,8 @@ Coordinator создаёт Researcher/Implementer/Tester/Reviewer Tasks. Каж�
 
 **Критерий успеха:** agent не может расширить scope собственным prompt'ом и не может выполнить write до approval.
 
-![Практика: software-engineering multi-agent workflow](.gitbook/assets/diagrams/32-27.svg)  
+![Практика: software-engineering multi-agent workflow](.gitbook/assets/diagrams/32-27.png)  
 *Практика: software-engineering multi-agent workflow*
 
-![Практика: инфраструктурная диагностика с контролируемым изменением](.gitbook/assets/diagrams/32-28.svg)  
+![Практика: инфраструктурная диагностика с контролируемым изменением](.gitbook/assets/diagrams/32-28.png)  
 *Практика: инфраструктурная диагностика с контролируемым изменением*

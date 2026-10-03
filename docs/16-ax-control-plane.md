@@ -2,7 +2,7 @@
 
 **Статус:** `IMPLEMENTED / VERIFIED` · `MAIN DELTA where noted` · `ROADMAP kept separate`
 
-![AX Task: путь от декларации до выполняемого агента](.gitbook/assets/diagrams/16-14.svg)  
+![AX Task: путь от декларации до выполняемого агента](.gitbook/assets/diagrams/16-14.png)  
 *AX Task: путь от декларации до выполняемого агента*
 
 AX даёт Kubernetes-подобный declarative UX для agent workloads, но не является Kubernetes API extension. Это принципиальная деталь архитектуры.

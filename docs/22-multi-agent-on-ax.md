@@ -1,6 +1,6 @@
 # Multi-agent на AX: как делегировать без task explosion
 
-![Практика: software-engineering multi-agent workflow](.gitbook/assets/diagrams/22-19.svg)  
+![Практика: software-engineering multi-agent workflow](.gitbook/assets/diagrams/22-19.png)  
 *Практика: software-engineering multi-agent workflow*
 
 AX Task удобно использовать как unit isolation для специализированных workers. Но Task не должен создаваться на каждый микрошаг. Граница Task оправдана, когда нужны отдельные resources, security scope, Workspace, lifecycle или parallelism.

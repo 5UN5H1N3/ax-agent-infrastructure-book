@@ -1,6 +1,6 @@
 # LLM как вычислительный компонент агентной системы
 
-![Local inference: путь запроса через batching, prefill, KV cache и decode](.gitbook/assets/diagrams/02-02.svg)  
+![Local inference: путь запроса через batching, prefill, KV cache и decode](.gitbook/assets/diagrams/02-02.png)  
 *Local inference: путь запроса через batching, prefill, KV cache и decode*
 
 Для эксплуатации agent infrastructure не требуется выводить формулы attention, но нужно понимать, какие свойства модели определяют latency, стоимость и надёжность системы.
