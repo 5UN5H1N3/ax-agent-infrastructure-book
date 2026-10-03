@@ -1,13 +1,18 @@
 # AX & Agent Infrastructure
 
+<p align="center">
+  <img src="assets/social-preview.svg" alt="AX & Agent Infrastructure" width="100%">
+</p>
+
+
 > Практическое инженерное руководство по архитектуре, оркестрации и эксплуатации AI-агентов: от LLM и agent harness до MCP, Agent Substrate, Google AX, sandboxing, локального inference и production-эксплуатации.
 
 **Язык книги:** русский  
-**Формат:** PDF / исходный HTML  
+**Формат:** PDF / исходный HTML / GitBook-ready web edition  
 **Объём:** 100 страниц, 44 главы, 33 технические схемы, 14 лабораторных работ  
 **Целевая аудитория:** системные и сетевые инженеры, SRE/DevOps, архитекторы инфраструктуры, разработчики agentic-платформ и технические руководители.
 
-[Скачать PDF](book/AX_Agent_Infrastructure_Book_RU.pdf) · [Исходный HTML](book/AX_Agent_Infrastructure_Book_RU.html) · [Google AX](https://github.com/google/ax) · [Agent Substrate](https://github.com/agent-substrate/substrate)
+[Скачать PDF](book/AX_Agent_Infrastructure_Book_RU.pdf) · [Исходный HTML](book/AX_Agent_Infrastructure_Book_RU.html) · [Web-book source](docs/README.md) · [Google AX](https://github.com/google/ax) · [Agent Substrate](https://github.com/agent-substrate/substrate)
 
 ---
 
@@ -312,6 +317,21 @@ Verification Agent
 ```
 
 PDF собирается автоматически из HTML через **WeasyPrint 68.0**, что позволяет хранить текстовый источник в Git и воспроизводимо получать публикуемый документ.
+
+## Web-книга / GitBook
+
+Каталог `docs/` генерируется из HTML-источника как отдельная веб-редакция: одна тема — одна Markdown-страница, с отдельным `SUMMARY.md`, SVG-схемами и конфигурацией `.gitbook.yaml`.
+
+GitBook Git Sync использует корень:
+
+```yaml
+root: ./docs/
+structure:
+  readme: README.md
+  summary: SUMMARY.md
+```
+
+Изменения печатного HTML автоматически обновляют и PDF, и web edition через GitHub Actions.
 
 ## Статус
 
