@@ -49,13 +49,16 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add             book/AX_Agent_Infrastructure_Book_RU.pdf             book/CHECKSUMS.sha256
 
           if git diff --cached --quiet; then
             echo "Generated artifacts are unchanged."
           else
             git commit -m "build: refresh PDF artifact [skip ci]"
-            git push
+            git fetch origin main
+            git rebase origin/main
+            git push origin HEAD:main
           fi
 
       - name: Upload workflow artifact
