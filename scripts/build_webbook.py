@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify as md
 from pathlib import Path
 import re, shutil
+import cairosvg
 
 root = Path(__file__).resolve().parents[1]
 html_path = root / "book/AX_Agent_Infrastructure_Book_RU.html"
@@ -13,8 +14,21 @@ diagdir = assets / "diagrams"
 if docs.exists():
     shutil.rmtree(docs)
 diagdir.mkdir(parents=True, exist_ok=True)
-shutil.copy2(root / "assets/cover.svg", assets / "cover.svg")
-shutil.copy2(root / "assets/social-preview.svg", assets / "social-preview.svg")
+
+def svg_to_png(src: Path, dst: Path, width: int):
+    cairosvg.svg2png(
+        bytestring=src.read_bytes(),
+        write_to=str(dst),
+        output_width=width,
+    )
+
+# Keep vector sources for provenance, but use PNG in published GitBook pages.
+for name in ("cover.svg", "social-preview.svg", "favicon.svg"):
+    shutil.copy2(root / "assets" / name, assets / name)
+
+svg_to_png(root / "assets/cover.svg", assets / "cover.png", 1400)
+svg_to_png(root / "assets/social-preview.svg", assets / "social-preview.png", 1600)
+svg_to_png(root / "assets/favicon.svg", assets / "favicon.png", 512)
 
 soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
@@ -127,10 +141,17 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
         fig_no += 1
         cap = fig.find("figcaption")
         caption = norm(cap.get_text(" ", strip=True)) if cap else f"Схема {fig_no}"
-        fname = f"{idx:02d}-{fig_no:02d}.svg"
-        (diagdir / fname).write_text(str(svg), encoding="utf-8")
+        stem = f"{idx:02d}-{fig_no:02d}"
+        svg_path = diagdir / f"{stem}.svg"
+        png_path = diagdir / f"{stem}.png"
+        svg_path.write_text(str(svg), encoding="utf-8")
+        cairosvg.svg2png(
+            bytestring=str(svg).encode("utf-8"),
+            write_to=str(png_path),
+            output_width=1800,
+        )
         p = soup.new_tag("p")
-        im = soup.new_tag("img", src=f".gitbook/assets/diagrams/{fname}", alt=caption)
+        im = soup.new_tag("img", src=f".gitbook/assets/diagrams/{stem}.png", alt=caption)
         p.append(im)
         p.append(soup.new_tag("br"))
         em = soup.new_tag("em")
@@ -151,7 +172,7 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
 
 landing = """# AX & Agent Infrastructure
 
-![Обложка книги](.gitbook/assets/cover.svg)
+![Обложка книги](.gitbook/assets/cover.png)
 
 **Практическое руководство по архитектуре и эксплуатации AI-агентов.**
 
@@ -172,6 +193,12 @@ landing = """# AX & Agent Infrastructure
 ## Как читать
 
 Для последовательного освоения начните с [руководства по чтению](00-reading-guide.md) и двигайтесь по оглавлению. Для эксплуатационной задачи можно сразу перейти к AX, Substrate, security, local inference или troubleshooting.
+
+## Публичная веб-версия
+
+- [Читать книгу в GitBook](https://seriousbusiness-1.gitbook.io/ax-agent-infrastructure/)
+
+GitBook синхронизирован с каталогом `docs/` ветки `main`. Репозиторий остаётся source of truth для исходных материалов.
 
 ## Печатная версия
 
@@ -203,4 +230,21 @@ for group, indices in groups:
     summary.append("")
 (docs / "SUMMARY.md").write_text("\n".join(summary).rstrip() + "\n", encoding="utf-8")
 
-print(f"Generated {len(chapters)} Markdown pages and {fig_no} SVG diagrams.")
+# Site-level Git Sync manifest. Keep this generated so rebuilding docs never removes it.
+manifest = """$schema: https://api.gitbook.com/gitbook-docs.yaml
+
+site:
+  title: AX & Agent Infrastructure
+  structure:
+    - type: space
+      key: ax-agent-infrastructure
+      title: AX & Agent Infrastructure
+      path: ax-agent-infrastructure
+      default: true
+      content:
+        directory: ./
+        language: ru
+"""
+(docs / "gitbook-docs.yaml").write_text(manifest, encoding="utf-8")
+
+print(f"Generated {len(chapters)} Markdown pages and {fig_no} diagrams in SVG+PNG.")
