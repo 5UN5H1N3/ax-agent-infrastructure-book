@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#020817"/>
+      <stop offset="0.55" stop-color="#0b1d4f"/>
+      <stop offset="1" stop-color="#17205e"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop stop-color="#36DFFF" stop-opacity=".65"/>
+      <stop offset="1" stop-color="#36DFFF" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <circle cx="115" cy="365" r="190" fill="url(#glow)" opacity=".25"/>
+  <circle cx="410" cy="130" r="160" fill="url(#glow)" opacity=".18"/>
+  <g fill="none" stroke="#36DFFF" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" opacity=".72">
+    <path d="M82 365 L170 305 L257 344 L344 277 L430 324"/>
+    <circle cx="82" cy="365" r="12" fill="#36DFFF"/>
+    <circle cx="170" cy="305" r="12" fill="#36DFFF"/>
+    <circle cx="257" cy="344" r="12" fill="#36DFFF"/>
+    <circle cx="344" cy="277" r="12" fill="#36DFFF"/>
+    <circle cx="430" cy="324" r="12" fill="#36DFFF"/>
+  </g>
+  <text x="256" y="245" text-anchor="middle" font-family="Inter,DejaVu Sans,Arial,sans-serif" font-size="176" font-weight="800" fill="#F5F7FF">AX</text>
+  <rect x="70" y="78" width="372" height="356" rx="70" fill="none" stroke="#5B8CFF" stroke-width="4" opacity=".35"/>
+</svg>
