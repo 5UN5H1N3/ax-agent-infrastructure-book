@@ -8,11 +8,11 @@
 > Практическое инженерное руководство по архитектуре, оркестрации и эксплуатации AI-агентов: от LLM и agent harness до MCP, Agent Substrate, Google AX, sandboxing, локального inference и production-эксплуатации.
 
 **Язык книги:** русский  
-**Формат:** PDF / исходный HTML / GitBook-ready web edition  
+**Формат:** PDF / исходный HTML / опубликованная GitBook web edition  
 **Объём:** 100 страниц, 44 главы, 33 технические схемы, 14 лабораторных работ  
 **Целевая аудитория:** системные и сетевые инженеры, SRE/DevOps, архитекторы инфраструктуры, разработчики agentic-платформ и технические руководители.
 
-[Скачать PDF](book/AX_Agent_Infrastructure_Book_RU.pdf) · [Исходный HTML](book/AX_Agent_Infrastructure_Book_RU.html) · [Web-book source](docs/README.md) · [Google AX](https://github.com/google/ax) · [Agent Substrate](https://github.com/agent-substrate/substrate)
+[Читать онлайн](https://seriousbusiness-1.gitbook.io/ax-agent-infrastructure/) · [Скачать PDF](book/AX_Agent_Infrastructure_Book_RU.pdf) · [Исходный HTML](book/AX_Agent_Infrastructure_Book_RU.html) · [Web-book source](docs/README.md) · [Google AX](https://github.com/google/ax) · [Agent Substrate](https://github.com/agent-substrate/substrate)
 
 ---
 
