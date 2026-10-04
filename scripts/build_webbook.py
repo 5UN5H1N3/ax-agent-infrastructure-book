@@ -6,7 +6,7 @@ import re, shutil
 import cairosvg
 
 root = Path(__file__).resolve().parents[1]
-html_path = root / "book/AX_Agent_Infrastructure_Book_RU.html"
+html_path = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / "book/AX_Agent_Infrastructure_Book_RU.html"
 docs = root / "docs"
 assets = docs / ".gitbook/assets"
 diagdir = assets / "diagrams"
