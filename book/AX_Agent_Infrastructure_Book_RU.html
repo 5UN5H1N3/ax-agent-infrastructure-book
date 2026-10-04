@@ -457,20 +457,443 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 <li><a href="https://kubernetes.io/docs/concepts/">Kubernetes Concepts</a></li>
 <li><a href="https://modelcontextprotocol.io/specification/2026-07-28">Model Context Protocol specification</a></li>
 <li><a href="https://gvisor.dev/docs/">gVisor documentation</a></li>
-</ul></section><section class="chapter" id="ch-2"><div class="chapter-num">Глава 2</div><h1>LLM как вычислительный компонент агентной системы</h1><figure><figcaption>Local inference: путь запроса через batching, prefill, KV cache и decode</figcaption><svg class="diagram" viewBox="0 0 920 300" role="img" aria-label="Local inference: путь запроса через batching, prefill, KV cache и decode"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="142.5" x2="165" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="275" y1="142.5" x2="310" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="375.0" y1="175" x2="550.0" y2="30" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="462.5" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">batch</text><line x1="550.0" y1="95" x2="550.0" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="550.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">populate</text><line x1="550.0" y1="255" x2="725.0" y2="110" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="637.5" y="176.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="785" y1="142.5" x2="825" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="805.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">token</text><line x1="665" y1="142.5" x2="440" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="552.5" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">continuous batching</text><rect x="20" y="110" rx="12" ry="12" width="110" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="75.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Requests</text><text x="75.0" y="155" text-anchor="middle" font-size="11" fill="#465569">prompts</text><rect x="165" y="110" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="220.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tokenizer</text><text x="220.0" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text><rect x="310" y="110" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="375.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Scheduler</text><text x="375.0" y="155" text-anchor="middle" font-size="11" fill="#465569">batch/queue</text><rect x="485" y="30" rx="12" ry="12" width="130" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="550.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Prefill</text><text x="550.0" y="75" text-anchor="middle" font-size="11" fill="#465569">prompt compute</text><rect x="485" y="190" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="550.0" y="214" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">KV cache</text><text x="550.0" y="235" text-anchor="middle" font-size="11" fill="#465569">attention state</text><rect x="665" y="110" rx="12" ry="12" width="120" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="725.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Decode</text><text x="725.0" y="155" text-anchor="middle" font-size="11" fill="#465569">token loop</text><rect x="825" y="110" rx="12" ry="12" width="75" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="862.5" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Stream</text><text x="862.5" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text></svg></figure><p>Для эксплуатации agent infrastructure не требуется выводить формулы attention, но нужно понимать, какие свойства модели определяют latency, стоимость и надёжность системы.</p>
-<h3>Tokens, context и generation</h3>
-<p>Текст перед запросом разбивается tokenizer'ом на токены. Модель получает последовательность токенов контекста и предсказывает следующие. <strong>Context window</strong> - ограниченный бюджет для system instructions, пользовательской цели, истории, результатов tools, retrieved documents и промежуточного состояния. Когда агент «забывает», проблема часто не в memory module, а в том, что нужная информация не попала в текущий context или была выдавлена/сжата.</p>
-<p>Generation условно состоит из двух существенно разных стадий. <strong>Prefill</strong> обрабатывает входной контекст и строит KV-cache. <strong>Decode</strong> последовательно генерирует новые токены, многократно обращаясь к KV-cache. Большой context сильнее нагружает prefill и память, а большой объём output - decode. Это важно для планирования concurrency локального inference.</p>
-<h3>Tool calling и structured output</h3>
-<p>Современные API позволяют модели не только вернуть текст, но и выбрать tool и сформировать аргументы по схеме. Это не означает, что tool был выполнен. Ответ модели - лишь <strong>proposal</strong>. Harness должен валидировать имя инструмента, аргументы, полномочия, бюджеты и только затем вызвать внешнюю систему. Поэтому нельзя строить security boundary на фразе «модель обещала вызвать только read-only tool».</p>
-<p>Structured output уменьшает синтаксическую неопределённость, но не гарантирует семантическую корректность. Значение <code>router_id=17</code> может пройти JSON Schema и всё равно оказаться неправильной целью. Для destructive action нужна проверка объекта, scope и preconditions вне LLM.</p>
-<h3>Sampling и детерминизм</h3>
-<p>Температура и другие sampling parameters влияют на разнообразие генерации, но «temperature=0» не превращает сложную LLM систему в детерминированный автомат: остаются различия серверных реализаций, batching, model revisions, floating-point effects и неоднозначность самого запроса. Поэтому production pipeline должен быть устойчив к тому, что один и тот же logical step иногда даёт разные решения.</p>
-<h3>Stateless request против stateful agent</h3>
-<p>LLM endpoint обычно не является долговременной памятью приложения. Даже если API предлагает conversation/thread abstraction, архитектурно разумно считать модель заменяемым вычислительным сервисом, а authoritative state хранить в собственной системе. Это особенно важно при suspend/resume, смене модели или переходе между cloud и local inference.</p>
-<h3>Практическая формула</h3>
-<p>При проектировании каждого шага разделяйте четыре вещи: <strong>входные данные</strong>, <strong>контекст для модели</strong>, <strong>authoritative state</strong>, <strong>side effect</strong>. Модель может помочь решить, что делать; authoritative state и подтверждение результата должны жить вне неё.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://docs.vllm.ai/">vLLM docs</a></li><li><a href="https://github.com/ggml-org/llama.cpp">llama.cpp</a></li></ul></div></section><section class="chapter" id="ch-3"><div class="chapter-num">Глава 3</div><h1>Что такое агент: цикл, границы и критерии остановки</h1><figure><figcaption>Agent harness: минимальная операционная анатомия</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent harness: минимальная операционная анатомия"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent loop</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">decide next step</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p>Агент полезно определять как процесс, который многократно выбирает следующий шаг на основе цели и наблюдаемого состояния среды. Минимальный цикл выглядит так: <code>observe → assemble context → decide → act → observe</code>. Если действие само создаёт новую задачу, цикл превращается в дерево или граф.</p>
+</ul></section><section class="chapter" id="ch-2"><div class="chapter-num">Глава 2</div><h1>LLM как вычислительный компонент агентной системы</h1><figure><figcaption>Путь model request: tokenizer, scheduler, prefill, KV cache и decode</figcaption><svg aria-label="Путь model request: tokenizer, scheduler, prefill, KV cache и decode" class="diagram" role="img" viewbox="0 0 920 300"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="130" x2="165" y1="142.5" y2="142.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="275" x2="310" y1="142.5" y2="142.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="375.0" x2="550.0" y1="175" y2="30"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="462.5" y="96.5">batch</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="550.0" x2="550.0" y1="95" y2="190"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="550.0" y="136.5">populate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="550.0" x2="725.0" y1="255" y2="110"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="637.5" y="176.5">read/write</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="785" x2="825" y1="142.5" y2="142.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="805.0" y="136.5">token</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="665" x2="440" y1="142.5" y2="142.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="552.5" y="136.5">continuous batching</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="110" x="20" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="75.0" y="134">Requests</text><text fill="#465569" font-size="11" text-anchor="middle" x="75.0" y="155">prompts</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="110" x="165" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="220.0" y="134">Tokenizer</text><text fill="#465569" font-size="11" text-anchor="middle" x="220.0" y="155">tokens</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="130" x="310" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="375.0" y="134">Scheduler</text><text fill="#465569" font-size="11" text-anchor="middle" x="375.0" y="155">batch/queue</text><rect fill="#f8efff" height="65" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="130" x="485" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="550.0" y="54">Prefill</text><text fill="#465569" font-size="11" text-anchor="middle" x="550.0" y="75">prompt compute</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="130" x="485" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="550.0" y="214">KV cache</text><text fill="#465569" font-size="11" text-anchor="middle" x="550.0" y="235">attention state</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="120" x="665" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="725.0" y="134">Decode</text><text fill="#465569" font-size="11" text-anchor="middle" x="725.0" y="155">token loop</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="75" x="825" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="862.5" y="134">Stream</text><text fill="#465569" font-size="11" text-anchor="middle" x="862.5" y="155">tokens</text></svg></figure>
+<p>Представим, что команда строит агента для первичной диагностики сетевых инцидентов. На вход он получает описание симптома, фрагменты конфигурации, метрики, результаты DNS- и TLS-проверок. На выходе должен выбрать следующий read-only инструмент, объяснить гипотезу и при необходимости подготовить изменение для подтверждения человеком.</p>
+<p>Вопрос «какую LLM взять?» кажется главным. Команда сравнивает размер модели, длину context window и цену миллиона токенов. Но эти цифры не отвечают на более важные вопросы. Сможет ли модель правильно выбрать инструмент среди двадцати похожих? Не перепутает ли interface ID с VLAN ID? Как часто она сформирует синтаксически допустимый, но опасный вызов? Что произойдёт, если в context не поместится часть telemetry? Как изменится end-to-end latency, если каждый шаг агента передаёт модели всю историю заново?</p>
+<p>LLM в такой системе полезно рассматривать не как «разум агента», а как вычислительный компонент с вероятностным контрактом. Она получает конечный набор токенов и возвращает продолжение: текст, структурированный объект или предложение вызвать инструмент. Всё, что связано с актуальностью данных, полномочиями, долговременным состоянием, повтором операций и проверкой результата, остаётся обязанностью программы вокруг модели.</p>
+<p>Такой взгляд не обесценивает возможности LLM. Напротив, он позволяет использовать её там, где она сильна, и не требовать от неё гарантий, которых у неё нет.</p>
+<h3>Что происходит при одном запросе</h3>
+<p>Между массивом сообщений в приложении и первым символом ответа находится несколько стадий.</p>
+<ol>
+<li>Harness собирает system instructions, цель, состояние, найденные документы, результаты tools и формат ожидаемого ответа.</li>
+<li>Model adapter преобразует это в формат конкретного provider и применяет chat template модели.</li>
+<li>Tokenizer превращает текст и специальные маркеры в идентификаторы токенов.</li>
+<li>Inference server ставит запрос в очередь и назначает его вычислительным ресурсам.</li>
+<li>На стадии prefill модель обрабатывает входные токены и создаёт KV cache.</li>
+<li>На стадии decode модель генерирует новые токены по одному, каждый раз используя уже построенный cache.</li>
+<li>Токены преобразуются обратно в текст или structured output и передаются приложению потоком либо целиком.</li>
+<li>Harness интерпретирует результат, но не обязан ему доверять.</li>
+</ol>
+<p>На каждом переходе есть собственные ошибки. Неверный chat template способен ухудшить instruction following даже при правильных весах. Переполненный context приводит к отказу или truncation. Очередь inference server увеличивает задержку до первого токена. Оборванный stream оставляет harness с частичным JSON. Наконец, полностью успешный HTTP-ответ может содержать убедительный, но фактически неверный вывод.</p>
+<p>Поэтому метрика <code>request succeeded</code> доказывает только исправность transport и serving path. Она ничего не говорит об успешности инженерной задачи.</p>
+<h3>Токен - не слово и не символ</h3>
+<p>Tokenizer разбивает вход на элементы словаря модели. Распространённые семейства алгоритмов - BPE, WordPiece и Unigram - сохраняют частые фрагменты крупными токенами, а редкие последовательности раскладывают на более мелкие. Разные модели способны по-разному токенизировать один и тот же текст.</p>
+<p>Из этого следуют несколько практических выводов.</p>
+<p>Во-первых, длину запроса нельзя надёжно оценивать количеством слов или символов. Русский текст, исходный код, длинные идентификаторы, base64, JSON и таблицы могут иметь очень разную token density. Проверять лимит нужно tokenizer'ом конкретной model revision.</p>
+<p>Во-вторых, сообщения приложения не попадают в модель «как есть». Chat template добавляет role markers, разделители и специальные токены. Поэтому сумма токенов отдельных строк может не совпасть с фактической длиной итогового prompt.</p>
+<p>В-третьих, context budget расходуется не только пользовательским текстом. В него входят system policy, tools schemas, примеры, история, retrieved documents, observations и зарезервированное место для ответа. Список из сотни подробных tool descriptions иногда занимает больше контекста, чем сама задача.</p>
+<p>Наконец, токены - единица ограничения и стоимости, но не единица смысла. Два фрагмента одинаковой длины могут иметь совершенно разную ценность. Актуальное состояние интерфейса важнее трёх страниц общей документации, даже если оно занимает всего двадцать токенов.</p>
+<h3>Context window - рабочий стол, а не долговременная память</h3>
+<p>Context window задаёт максимальный объём последовательности, доступной модели в одном запросе. Это жёсткий технический лимит, но не обещание одинаково качественной работы с каждым токеном внутри него.</p>
+<p>Исследования long-context моделей показывают, что релевантная информация может использоваться хуже, если она находится в середине большого контекста. Кроме того, лишний текст увеличивает prefill latency, стоимость и вероятность того, что модель обратит внимание на правдоподобную, но нерелевантную деталь. Поэтому стратегия «положим в prompt всё» редко является хорошим context engineering.</p>
+<p>Полезно заранее разделить context на зоны:</p>
+<table>
+<thead>
+<tr>
+<th>Зона</th>
+<th>Что в ней находится</th>
+<th>Как обращаться</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Platform instructions</td>
+<td>Неизменяемые правила и границы поведения</td>
+<td>Формирует платформа, пользователь и документы не могут их переопределить</td>
+</tr>
+<tr>
+<td>Task objective</td>
+<td>Цель, scope и критерий завершения</td>
+<td>Должны быть короткими и проверяемыми</td>
+</tr>
+<tr>
+<td>Working state</td>
+<td>Текущая стадия, подтверждённые факты, открытые вопросы</td>
+<td>Пересобирается из durable state</td>
+</tr>
+<tr>
+<td>Evidence</td>
+<td>Telemetry, найденные документы, tool observations</td>
+<td>Содержит provenance, время получения и уровень доверия</td>
+</tr>
+<tr>
+<td>Action surface</td>
+<td>Доступные tools и их schemas</td>
+<td>Ограничивается текущей стадией и полномочиями</td>
+</tr>
+<tr>
+<td>Output contract</td>
+<td>Schema, формат объяснения, лимит ответа</td>
+<td>Проверяется после generation</td>
+</tr>
+</tbody>
+</table>
+<p>Context нужно собирать заново для каждого шага. В него включают не всю историю, а информацию, необходимую для следующего решения. Старый диалог можно свернуть в структурированное состояние; документы - отобрать retrieval-слоем; большие tool results - предварительно нормализовать; уже выполненные side effects - хранить в отдельном ledger.</p>
+<p>Если важный факт существует только в предыдущем model response, но не сохранён в authoritative state, система неизбежно потеряет его после compaction, restart или смены provider.</p>
+<h3>Prefill, decode и KV cache отвечают за разные задержки</h3>
+<p>Во время prefill модель обрабатывает входной prompt и вычисляет внутренние представления для его токенов. Эта стадия хорошо использует параллельные вычисления и становится особенно заметной при длинном context. Пользователь видит её как часть time to first token, или TTFT.</p>
+<p>Decode устроен иначе. Авторегрессионная модель выбирает следующий токен, добавляет его к последовательности и только затем может вычислить следующий. Эта зависимость делает generation последовательной. Задержка между токенами измеряется как inter-token latency, или ITL.</p>
+<p>Без KV cache на каждом decode step пришлось бы повторно вычислять attention для всей предыдущей последовательности. Cache сохраняет key/value представления уже обработанных токенов и позволяет переиспользовать их. За ускорение приходится платить памятью: cache растёт с числом активных sequences, длиной context и параметрами архитектуры модели.</p>
+<p>Для agent workload различие prefill и decode особенно важно:</p>
+<ul>
+<li>длинные policies, tool schemas и observations увеличивают TTFT;</li>
+<li>длинное объяснение или большой code patch увеличивают decode time;</li>
+<li>несколько параллельных агентов конкурируют не только за compute, но и за KV cache;</li>
+<li>повтор общей части prompt может получить выгоду от prefix caching, если server и provider это поддерживают;</li>
+<li>новый tool result обычно требует нового prefill хотя бы для добавленного контекста;</li>
+<li>короткий ответ модели не означает дешёвый запрос, если перед ним был передан огромный prompt.</li>
+</ul>
+<p>Inference server может объединять запросы в continuous batches, разбивать длинный prefill на chunks и приоритизировать decode. Эти механизмы улучшают использование GPU, но создают trade-off между throughput, TTFT и ITL. Глубокий capacity planning рассматривается позже; здесь важно понимать, почему «tokens per second» не описывает пользовательскую задержку целиком.</p>
+<h3>Модель выдаёт распределение вероятностей, а не факт</h3>
+<p>На каждом decode step модель оценивает вероятности следующего токена. Generation strategy выбирает один из кандидатов и продолжает цикл. Веса модели содержат статистические закономерности, полученные во время обучения, а не актуальную копию CMDB, репозитория или состояния кластера.</p>
+<p>Из этого не следует, что любой ответ модели случаен или бесполезен. Модель может очень хорошо извлекать структуру, сопоставлять признаки, объяснять гипотезы и строить план. Но уверенная формулировка не является доказательством.</p>
+<p>Полезно различать четыре типа утверждений:</p>
+<ul>
+<li><strong>дано во входе</strong> - факт присутствует в проверенном observation;</li>
+<li><strong>получено инструментом</strong> - факт связан с источником и временем чтения;</li>
+<li><strong>выведено моделью</strong> - гипотеза, классификация или интерпретация;</li>
+<li><strong>проверено системой</strong> - результат подтверждён независимым условием.</li>
+</ul>
+<p>Если итоговый отчёт смешивает эти категории, инженер не понимает, чему можно доверять. Хороший harness сохраняет provenance и просит модель маркировать предположения, но окончательное разделение выполняет программа.</p>
+<p>Пример: модель видит рост TLS errors после deployment и предполагает несовместимый cipher suite. Это полезная гипотеза. Подтверждённым фактом она станет только после чтения конфигурации и воспроизводимой TLS-проверки.</p>
+<h3>Sampling управляет разнообразием, но не создаёт гарантий</h3>
+<p>Greedy decoding выбирает наиболее вероятный токен на каждом шаге. Sampling выбирает токен из распределения. Temperature изменяет его форму, а top-p ограничивает множество кандидатов совокупной вероятностной массой. Параметр <code>max_new_tokens</code> ограничивает длину generation.</p>
+<p>Для инфраструктурных задач обычно нужен низкий уровень вариативности. Однако правило «всегда temperature=0» слишком примитивно.</p>
+<ul>
+<li>Короткое извлечение поля или выбор tool полезно делать максимально стабильным.</li>
+<li>Поиск нескольких независимых гипотез может выиграть от ограниченного разнообразия.</li>
+<li>Генерацию пользовательского объяснения можно отделить от принятия действия.</li>
+<li>Несколько candidates имеют смысл только тогда, когда существует evaluator, способный их сравнить.</li>
+</ul>
+<p>Даже greedy decoding не следует считать бизнес-гарантией детерминизма. Результат может измениться после обновления model revision, tokenizer, chat template, serving engine или provider-side configuration. Разные hardware kernels и batching также могут проявить различия возле близких вероятностей.</p>
+<p>Поэтому воспроизводимость строится выше модели: фиксируются version и параметры, сохраняется фактический request, результат проверяется тестами, а side effects защищаются idempotency и preconditions. Система должна оставаться корректной, даже если модель предложила другой допустимый план.</p>
+<h3>Structured output ограничивает форму, но не смысл</h3>
+<p>Обычный текст трудно надёжно разбирать. Structured output и constrained decoding позволяют ограничить generation JSON Schema или другой грамматикой. Tool calling добавляет модельный интерфейс, в котором ответ содержит имя инструмента и аргументы.</p>
+<p>Это серьёзно снижает количество синтаксических ошибок, но не превращает вывод модели в доверенную команду. Между model result и tool executor нужны четыре проверки.</p>
+<pre><code class="language-json">{
+  "tool": "set_interface_state",
+  "arguments": {
+    "device_id": "edge-17",
+    "interface": "xe-0/0/3",
+    "enabled": false
+  },
+  "reason": "Observed flapping after the last configuration change"
+}
+</code></pre>
+<p><strong>Schema validation</strong> проверяет наличие полей, типы и допустимый формат.</p>
+<p><strong>Domain validation</strong> проверяет, что устройство и интерфейс существуют, аргументы согласованы, а requested state имеет смысл.</p>
+<p><strong>Authorization and policy</strong> проверяют identity, scope, change window и необходимость human approval.</p>
+<p><strong>Outcome verification</strong> после вызова независимо читает состояние и убеждается, что intended result достигнут.</p>
+<p>JSON может быть идеально валидным и при этом выключать не тот порт. Tool name может существовать, но быть недоступным текущему пользователю. Поэтому structured output - это интерфейс между вероятностным компонентом и обычным кодом, а не обход обычного кода.</p>
+<p>Если schema сложна, лучше разбить решение на несколько шагов. Модели проще сначала выбрать тип действия, затем заполнить узкую schema конкретного tool, чем генерировать один универсальный объект с десятками условных полей.</p>
+<h3>Способности модели нельзя свести к одному рейтингу</h3>
+<p>Model size и публичный benchmark дают ориентир, но production-выбор зависит от конкретного workload. Для agent infrastructure важны разные способности.</p>
+<table>
+<thead>
+<tr>
+<th>Способность</th>
+<th>Как проверять на своей задаче</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Instruction following</td>
+<td>Выполняет ли модель platform policy при конфликтующем пользовательском или документном тексте</td>
+</tr>
+<tr>
+<td>Tool selection</td>
+<td>Выбирает ли правильный tool и умеет ли отказаться от лишнего вызова</td>
+</tr>
+<tr>
+<td>Argument filling</td>
+<td>Правильно ли переносит IDs, enums, units, time ranges и optional fields</td>
+</tr>
+<tr>
+<td>Long-context retrieval</td>
+<td>Находит ли нужный факт в типичных по длине и структуре observations</td>
+</tr>
+<tr>
+<td>Reasoning and planning</td>
+<td>Строит ли проверяемый план без пропущенных preconditions</td>
+</tr>
+<tr>
+<td>Multilingual quality</td>
+<td>Понимает ли русские описания, англоязычные логи и смешанную терминологию</td>
+</tr>
+<tr>
+<td>Code and configuration</td>
+<td>Корректно ли читает diff, YAML, policy и vendor-specific config</td>
+</tr>
+<tr>
+<td>Structured output</td>
+<td>Соблюдает ли schema и насколько часто требует repair/retry</td>
+</tr>
+<tr>
+<td>Calibration and abstention</td>
+<td>Признаёт ли недостаток данных вместо выдуманного ответа</td>
+</tr>
+<tr>
+<td>Latency and efficiency</td>
+<td>Укладывается ли TTFT и end-to-end latency в SLO при нужной concurrency</td>
+</tr>
+</tbody>
+</table>
+<p>Модель, которая выигрывает общий reasoning benchmark, может хуже заполнять аргументы конкретных сетевых tools. Большая модель может немного повысить task success, но не оправдать четырёхкратную задержку на каждом шаге. Меньшая модель может быть лучшим router, но плохим автором change plan.</p>
+<p>Следовательно, единицей выбора является не «лучшая модель вообще», а связка:</p>
+<p><code>model revision + tokenizer + chat template + serving configuration + prompt contract + tool schemas</code>.</p>
+<p>Изменение любого элемента требует хотя бы сокращённого regression eval.</p>
+<h3>Как строить eval до выбора модели</h3>
+<p>Правильный eval начинается с реальных типов задач, а не с случайного набора вопросов.</p>
+<ol>
+<li>Соберите репрезентативные cases: простые, типичные, редкие и опасные.</li>
+<li>Для каждого case зафиксируйте входные данные, допустимые действия и проверяемый ожидаемый результат.</li>
+<li>Добавьте adversarial cases: конфликтующие инструкции, устаревший документ, похожие IDs, отсутствующий обязательный факт.</li>
+<li>Разделите метрики: task success, tool choice, argument accuracy, unnecessary calls, unsafe proposals, latency, token usage и retries.</li>
+<li>Прогоните несколько повторов там, где используется sampling или допускается несколько корректных планов.</li>
+<li>Проводите shadow run без side effects, затем canary на ограниченном scope.</li>
+<li>Сохраняйте model revision, server version, параметры generation и полный trace.</li>
+</ol>
+<p>Для tool-using агента одного exact match недостаточно. Допустимы разные последовательности read-only проверок, если они приводят к подтверждённому результату в пределах бюджета. Поэтому evaluator часто сочетает детерминированные проверки и экспертную rubric.</p>
+<p>Пример минимальной scorecard:</p>
+<table>
+<thead>
+<tr>
+<th>Метрика</th>
+<th>Смысл</th>
+<th>Пример порога</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Verified task success</td>
+<td>Достигнут ли проверяемый результат</td>
+<td>не ниже 95% на типовых cases</td>
+</tr>
+<tr>
+<td>Unsafe action proposal</td>
+<td>Предложено ли запрещённое действие</td>
+<td>0 на safety-наборе</td>
+</tr>
+<tr>
+<td>Tool argument accuracy</td>
+<td>Все ли критичные аргументы правильны</td>
+<td>не ниже 99% для write proposals</td>
+</tr>
+<tr>
+<td>Unnecessary tool calls</td>
+<td>Лишние вызовы и стоимость</td>
+<td>p95 не более заданного бюджета</td>
+</tr>
+<tr>
+<td>Schema repair rate</td>
+<td>Доля повторов из-за формата</td>
+<td>достаточно мала для SLO</td>
+</tr>
+<tr>
+<td>End-to-end latency</td>
+<td>Время всего model step</td>
+<td>p95 соответствует UX/automation deadline</td>
+</tr>
+</tbody>
+</table>
+<p>Числа здесь являются примером формы, а не универсальными нормативами. Для read-only assistant и автоматического изменения routing policy допустимый риск будет разным.</p>
+<h3>Маленькая модель, большая модель или deterministic код</h3>
+<p>Не каждый шаг агента должен выполняться одной и той же LLM.</p>
+<table>
+<thead>
+<tr>
+<th>Тип шага</th>
+<th>Предпочтительный первый кандидат</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Проверка обязательных полей и типов</td>
+<td>Обычный код или schema validator</td>
+</tr>
+<tr>
+<td>Точное сопоставление по известному ключу</td>
+<td>SQL, search или deterministic rule</td>
+</tr>
+<tr>
+<td>Простая классификация с устойчивыми классами</td>
+<td>Малая модель после eval либо обычный classifier</td>
+</tr>
+<tr>
+<td>Извлечение структуры из неоднородного текста</td>
+<td>Малая или средняя LLM со structured output</td>
+</tr>
+<tr>
+<td>Сложная диагностика с несколькими гипотезами</td>
+<td>Более сильная reasoning model</td>
+</tr>
+<tr>
+<td>Генерация change plan для подтверждения</td>
+<td>Сильная модель плюс deterministic policy checks</td>
+</tr>
+<tr>
+<td>Проверка postcondition</td>
+<td>Инструмент и обычный код, не самооценка модели</td>
+</tr>
+</tbody>
+</table>
+<p>Router может снизить стоимость, направляя простые steps на меньшую модель. Но router сам становится источником ошибок. Экономия имеет смысл только тогда, когда измеряется итоговая стоимость успешной задачи, включая retries и неверную маршрутизацию.</p>
+<p>Хорошая стратегия начинается с одной модели и прозрачного baseline. Разделение на fast/strong модели добавляют после того, как traces показывают разные классы нагрузки и понятную границу routing.</p>
+<h3>Cloud API, локальный endpoint и hybrid path</h3>
+<p>Способ serving - отдельное решение от выбора model family.</p>
+<p><strong>Cloud API</strong> обычно ускоряет старт, даёт elasticity и снимает эксплуатацию GPU. Взамен появляются зависимость от внешнего provider, egress данных, rate limits, меняющаяся модель сервиса и стоимость по usage.</p>
+<p><strong>Local inference</strong> даёт контроль над model revision, данными, сетью и hardware. Он может быть экономичен при стабильной загрузке, но команда принимает на себя capacity planning, обновления, драйверы, observability и availability.</p>
+<p><strong>Hybrid</strong> позволяет использовать локальный endpoint для регулярной нагрузки, а внешний - для burst, fallback или более сложных steps. Такой путь требует проверки semantic compatibility: два API с похожим форматом могут по-разному поддерживать tools, schemas, token accounting и finish reasons.</p>
+<p>Выбор удобно начинать с вопросов:</p>
+<ul>
+<li>разрешено ли передавать данные внешнему provider;</li>
+<li>нужен ли offline или isolated режим;</li>
+<li>каков профиль burst и средняя utilization;</li>
+<li>какая model capability нужна именно этой задаче;</li>
+<li>допустима ли деградация при недоступности preferred model;</li>
+<li>кто будет эксплуатировать serving stack;</li>
+<li>как фиксируется revision и проводится rollback.</li>
+</ul>
+<p>Fallback не должен незаметно менять security или качество. Если основная модель отказалась от опасного действия, повтор на другой модели не является корректным retry. Если fallback имеет меньший context limit, harness обязан пересобрать context, а не обрезать его случайным образом.</p>
+<h3>Model adapter - контракт, а не тонкая обёртка над HTTP</h3>
+<p>Provider APIs различаются форматами сообщений, tool calls, streaming events, usage accounting, error codes и возможностями. Model adapter должен нормализовать общие части, но сохранять различия, важные для приложения.</p>
+<p>Полезный внутренний контракт включает:</p>
+<pre><code class="language-text">ModelRequest
+  model_profile
+  messages
+  tools
+  response_schema
+  max_output_tokens
+  deadline
+  trace_id
+
+ModelResult
+  content
+  tool_calls
+  finish_reason
+  input_tokens / output_tokens
+  provider_request_id
+  model_revision
+  raw_metadata
+
+ModelError
+  category
+  retryable
+  request_may_have_completed
+  provider_request_id
+</code></pre>
+<p>Особенно важен <code>finish_reason</code>. Остановка по normal end, достижение token limit, policy refusal и transport interruption требуют разных действий. Нельзя передавать truncated JSON в tool executor или автоматически повторять запрос, который мог уже вернуть часть результата.</p>
+<p>Capability profile должен быть явным: поддерживает ли endpoint tools, parallel tool calls, конкретный JSON Schema subset, vision, streaming, prefix caching и нужную длину context. Название «OpenAI-compatible» или похожий HTTP surface не доказывает одинаковую семантику.</p>
+<h3>Ошибки model step нужно классифицировать</h3>
+<p>Фраза «LLM не ответила» объединяет разные классы отказов.</p>
+<table>
+<thead>
+<tr>
+<th>Класс</th>
+<th>Пример</th>
+<th>Типичная реакция</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Capacity</td>
+<td>rate limit, queue timeout, overload</td>
+<td>bounded retry с backoff или другой capacity pool</td>
+</tr>
+<tr>
+<td>Transport</td>
+<td>connection reset, incomplete stream</td>
+<td>повтор только для model request, не для уже выполненного tool</td>
+</tr>
+<tr>
+<td>Input contract</td>
+<td>context too long, invalid schema</td>
+<td>пересобрать context или исправить request; слепой retry бесполезен</td>
+</tr>
+<tr>
+<td>Output contract</td>
+<td>truncated/malformed structured output</td>
+<td>repair или повтор в пределах бюджета</td>
+</tr>
+<tr>
+<td>Policy</td>
+<td>provider refusal или local guardrail</td>
+<td>зафиксировать причину; fallback только по явной policy</td>
+</tr>
+<tr>
+<td>Quality</td>
+<td>правдоподобный, но неверный вывод</td>
+<td>evaluator, дополнительное evidence, другая стратегия или модель</td>
+</tr>
+<tr>
+<td>Tool semantics</td>
+<td>верный JSON, неверный tool/arguments</td>
+<td>domain validation блокирует side effect</td>
+</tr>
+<tr>
+<td>Version drift</td>
+<td>изменилось поведение после update</td>
+<td>regression eval и rollback/pin revision</td>
+</tr>
+</tbody>
+</table>
+<p>Retry способен исправить временную перегрузку, но не плохой prompt, недостающий факт или систематическую ошибку модели. Несколько бездумных повторов иногда лишь повышают вероятность получить ответ, который пройдёт поверхностную проверку.</p>
+<h3>Где проходит граница AX</h3>
+<p>В AX ресурс <code>Model</code> связывает Task с model endpoint и его конфигурацией. Это полезная platform abstraction: Task не обязан знать физический GPU host или детали внешнего provider.</p>
+<p>Но Model resource не выбирает reasoning strategy и не доказывает пригодность модели для workload. AX не валидирует за приложение tool semantics, context composition, eval quality или postconditions. Эти обязанности остаются в harness и model adapter.</p>
+<p>Такое разделение позволяет менять cloud endpoint на local serving, не переписывая lifecycle Task. Однако переносимым будет только тот слой, который действительно описан общим контрактом. Provider-specific возможности должны оставаться в capability profile и тестироваться явно.</p>
+<h3>Практическое упражнение</h3>
+<p>Возьмите агента, который анализирует pull request и при необходимости предлагает patch.</p>
+<p>Подготовьте двадцать cases:</p>
+<ul>
+<li>небольшой безопасный diff;</li>
+<li>изменение access policy;</li>
+<li>скрытая ошибка в конфигурации;</li>
+<li>большой diff с нерелевантными файлами;</li>
+<li>конфликтующие инструкции внутри README;</li>
+<li>тесты с неоднозначным failure;</li>
+<li>отсутствующий контекст;</li>
+<li>похожие имена файлов;</li>
+<li>попытка вызвать запрещённый write tool;</li>
+<li>задача, где правильный ответ - запросить уточнение.</li>
+</ul>
+<p>Для двух candidate models измерьте:</p>
+<ul>
+<li>смогла ли модель выбрать нужные файлы;</li>
+<li>верно ли интерпретировала тесты;</li>
+<li>соблюла ли границу read/write;</li>
+<li>сколько tool calls сделала;</li>
+<li>сколько input/output tokens использовала;</li>
+<li>каковы TTFT и end-to-end latency;</li>
+<li>сколько раз потребовался schema repair;</li>
+<li>достигнут ли результат после независимой проверки.</li>
+</ul>
+<p>Затем повторите сравнение после сокращения context и удаления лишних tools. Если меньшая модель резко улучшилась, проблема была не только в её capability, но и в качестве контракта вокруг неё.</p>
+<h3>Если запомнить только главное</h3>
+<ul>
+<li>LLM - вероятностный вычислительный компонент, а не authoritative state и не исполнитель side effects.</li>
+<li>Фактический input определяется tokenizer'ом и chat template, а не количеством слов.</li>
+<li>Context window - ограниченный рабочий бюджет; большой лимит не гарантирует эффективного использования всего контекста.</li>
+<li>Prefill определяет значительную часть TTFT, decode - скорость появления следующих токенов, а KV cache - memory pressure.</li>
+<li>Structured output гарантирует форму только в пределах поддерживаемых constraints; смысл и полномочия проверяет обычный код.</li>
+<li>Temperature и sampling управляют разнообразием, но бизнес-корректность обеспечивается eval, validation и idempotency.</li>
+<li>Модель выбирают по собственным cases и нескольким метрикам, а не по одному публичному рейтингу.</li>
+<li>Cloud, local и hybrid serving имеют разные эксплуатационные и security trade-offs.</li>
+<li>Model adapter обязан нормализовать API, не скрывая capability differences и finish reasons.</li>
+<li>AX управляет ссылкой Task на Model, но качество model step остаётся ответственностью приложения.</li>
+</ul>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://arxiv.org/abs/1706.03762">Attention Is All You Need</a></li>
+<li><a href="https://huggingface.co/docs/transformers/tokenizer_summary">Hugging Face: tokenization algorithms</a></li>
+<li><a href="https://huggingface.co/docs/transformers/generation_strategies">Hugging Face: generation strategies</a></li>
+<li><a href="https://huggingface.co/docs/transformers/kv_cache">Hugging Face: KV cache strategies</a></li>
+<li><a href="https://docs.vllm.ai/en/latest/configuration/optimization/">vLLM: optimization and chunked prefill</a></li>
+<li><a href="https://docs.vllm.ai/en/latest/usage/metrics/">vLLM: production metrics</a></li>
+<li><a href="https://arxiv.org/abs/2307.03172">Lost in the Middle: How Language Models Use Long Contexts</a></li>
+<li><a href="https://arxiv.org/abs/2211.09110">Holistic Evaluation of Language Models</a></li>
+<li><a href="https://arxiv.org/abs/2501.10868">Generating Structured Outputs from Language Models</a></li>
+<li><a href="https://github.com/google/ax/blob/e70162a/docs/concepts.md">AX Core concepts, baseline e70162a</a></li>
+</ul></div></section><section class="chapter" id="ch-3"><div class="chapter-num">Глава 3</div><h1>Что такое агент: цикл, границы и критерии остановки</h1><figure><figcaption>Agent harness: минимальная операционная анатомия</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent harness: минимальная операционная анатомия"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent loop</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">decide next step</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p>Агент полезно определять как процесс, который многократно выбирает следующий шаг на основе цели и наблюдаемого состояния среды. Минимальный цикл выглядит так: <code>observe → assemble context → decide → act → observe</code>. Если действие само создаёт новую задачу, цикл превращается в дерево или граф.</p>
 <h3>Agent loop</h3>
 <ol>
 <li>Получить входное событие/goal.</li>
