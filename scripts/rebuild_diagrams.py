@@ -266,6 +266,13 @@ def render_svg(dot, caption):
     svg["class"] = "diagram diagram-redrawn"
     svg["role"] = "img"
     svg["aria-label"] = caption
+    # Graphviz reuses ids such as graph0/node1/edge1 for every standalone SVG.
+    # Inlining many of those in one HTML document creates duplicate anchors in
+    # WeasyPrint. They are not needed for rendering, so strip them.
+    svg.attrs.pop("id", None)
+    for tag in svg.find_all(True):
+        tag.attrs.pop("id", None)
+
     # Responsive inline SVG: viewBox is authoritative; width/height attributes
     # from Graphviz are unnecessary and sometimes cause clipping in GitBook.
     svg.attrs.pop("width", None)
