@@ -22,12 +22,11 @@ def svg_to_png(src: Path, dst: Path, width: int):
         output_width=width,
     )
 
-# Keep vector sources for provenance, but use PNG in published GitBook pages.
-for name in ("cover.svg", "social-preview.svg", "favicon.svg"):
-    shutil.copy2(root / "assets" / name, assets / name)
-
-svg_to_png(root / "assets/cover.svg", assets / "cover.png", 1400)
-svg_to_png(root / "assets/social-preview.svg", assets / "social-preview.png", 1600)
+# Canonical publication artwork is the original approved raster artwork.
+# Do not regenerate cover/social-preview from the later SVG approximations.
+shutil.copy2(root / "assets/cover.png", assets / "cover.png")
+shutil.copy2(root / "assets/social-preview.png", assets / "social-preview.png")
+shutil.copy2(root / "assets/favicon.svg", assets / "favicon.svg")
 svg_to_png(root / "assets/favicon.svg", assets / "favicon.png", 512)
 
 soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
