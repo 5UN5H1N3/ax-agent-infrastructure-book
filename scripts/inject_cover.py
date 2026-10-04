@@ -16,7 +16,7 @@ style.append("""
 
 old = soup.find("section", class_="cover")
 new = soup.new_tag("section", attrs={"class": "cover-image-page"})
-img = soup.new_tag("img", src="../assets/cover.svg", alt="AX & Agent Infrastructure")
+img = soup.new_tag("img", src="../assets/cover.png", alt="AX & Agent Infrastructure")
 new.append(img)
 if old:
     old.replace_with(new)
