@@ -5,8 +5,9 @@ on:
   push:
     paths:
       - "book/AX_Agent_Infrastructure_Book_RU.html"
-      - "assets/cover.svg"
+      - "assets/**"
       - "scripts/inject_cover.py"
+      - "scripts/rebuild_diagrams.py"
       - ".github/workflows/build-pdf.yml"
 
 permissions:
@@ -31,16 +32,20 @@ jobs:
         with:
           python-version: "3.13"
 
-      - name: Install PDF dependencies
+      - name: Install PDF and diagram dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
+          sudo apt-get install -y graphviz libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
           python -m pip install --upgrade pip
           python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0"
 
+      - name: Rebuild diagrams
+        run: |
+          python scripts/rebuild_diagrams.py             book/AX_Agent_Infrastructure_Book_RU.html             book/.diagram-source.html
+
       - name: Inject publication cover
         run: |
-          python scripts/inject_cover.py             book/AX_Agent_Infrastructure_Book_RU.html             book/.print-source.html
+          python scripts/inject_cover.py             book/.diagram-source.html             book/.print-source.html
 
       - name: Build and validate PDF
         run: |
@@ -48,7 +53,8 @@ jobs:
 
           pages="$(pdfinfo book/AX_Agent_Infrastructure_Book_RU.pdf | awk '/^Pages:/ {print $2}')"
           echo "Generated PDF pages: $pages"
-          test "$pages" = "100"
+          test "$pages" -ge 90
+          test "$pages" -le 120
 
           (
             cd book
@@ -65,7 +71,7 @@ jobs:
           if git diff --cached --quiet; then
             echo "Generated artifacts are unchanged."
           else
-            git commit -m "build: refresh PDF with publication cover [skip ci]"
+            git commit -m "build: refresh PDF with redrawn diagrams [skip ci]"
             git fetch origin main
             git rebase origin/main
             git push origin HEAD:main
@@ -79,4 +85,4 @@ jobs:
             book/AX_Agent_Infrastructure_Book_RU.pdf
             book/AX_Agent_Infrastructure_Book_RU.html
             book/CHECKSUMS.sha256
-            assets/cover.svg
+            assets/
