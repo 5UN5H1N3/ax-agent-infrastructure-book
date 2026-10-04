@@ -1,5 +1,5 @@
-<svg aria-label="State ownership: четыре хранилища отвечают за разные истины" class="diagram diagram-redrawn" height="231.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 749.92 231.92" width="749.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 218.96)">
+<svg aria-label="State ownership: четыре хранилища отвечают за разные истины" class="diagram diagram-redrawn" height="221.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 753.92 221.92" width="753.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 208.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
 <g class="edge" id="edge1">
@@ -25,22 +25,23 @@
 <!-- n3&#45;&gt;n4 -->
 <g class="edge" id="edge4">
 <title>n3-&gt;n4</title>
-<path d="M481.67,-114.89C515.32,-126.94 561,-143.3 598.16,-156.6" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="597.37,-159 604.99,-159.05 599.07,-154.25 597.37,-159" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="546.5" y="-150.56">dynamic state</text>
+<path d="M481.65,-113.58C516.2,-125 563.55,-140.65 601.8,-153.29" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="601.21,-155.75 608.84,-155.61 602.79,-150.96 601.21,-155.75" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="548.5" y="-147.56">dynamic state</text>
 </g>
 <!-- n3&#45;&gt;n5 -->
 <g class="edge" id="edge5">
 <title>n3-&gt;n5</title>
-<path d="M481.67,-98C516.04,-98 562.96,-98 600.53,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="600.71,-100.52 607.91,-98 600.71,-95.48 600.71,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M481.65,-98C516.93,-98 565.55,-98 604.21,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="604.61,-100.52 611.81,-98 604.61,-95.48 604.61,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="548.5" y="-100.56">snapshot blobs</text>
 </g>
 <!-- n3&#45;&gt;n6 -->
 <g class="edge" id="edge6">
 <title>n3-&gt;n6</title>
-<path d="M481.67,-82.14C515.81,-70.66 562.34,-55.01 599.79,-42.42" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="600.65,-44.79 606.67,-40.11 599.04,-40.02 600.65,-44.79" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="546.5" y="-72.56">capacity</text>
+<path d="M481.65,-82.42C516.83,-70.79 565.27,-54.79 603.87,-42.03" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="604.92,-44.34 610.96,-39.68 603.34,-39.55 604.92,-44.34" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="548.5" y="-72.56">capacity</text>
 </g>
 <!-- n0 -->
 <g class="node" id="node1">
@@ -73,24 +74,23 @@
 <!-- n4 -->
 <g class="node" id="node5">
 <title>n4</title>
-<path d="M712,-206C712,-206 617,-206 617,-206 611,-206 605,-200 605,-194 605,-194 605,-166 605,-166 605,-160 611,-154 617,-154 617,-154 712,-154 712,-154 718,-154 724,-160 724,-166 724,-166 724,-194 724,-194 724,-200 718,-206 712,-206" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="624" y="-187.4">PostgreSQL</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="627.5" y="-177">snapshot blobs</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="619" y="-167">Actor/Worker state</text>
+<path d="M716,-196C716,-196 621,-196 621,-196 615,-196 609,-190 609,-184 609,-184 609,-166 609,-166 609,-160 615,-154 621,-154 621,-154 716,-154 716,-154 722,-154 728,-160 728,-166 728,-166 728,-184 728,-184 728,-190 722,-196 716,-196" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="628" y="-177.4">PostgreSQL</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="623" y="-167">Actor/Worker state</text>
 </g>
 <!-- n5 -->
 <g class="node" id="node6">
 <title>n5</title>
-<path d="M709,-119C709,-119 620,-119 620,-119 614,-119 608,-113 608,-107 608,-107 608,-89 608,-89 608,-83 614,-77 620,-77 620,-77 709,-77 709,-77 715,-77 721,-83 721,-89 721,-89 721,-107 721,-107 721,-113 715,-119 709,-119" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="622" y="-100.4">Object store</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="639.5" y="-90">snapshots</text>
+<path d="M713,-119C713,-119 624,-119 624,-119 618,-119 612,-113 612,-107 612,-107 612,-89 612,-89 612,-83 618,-77 624,-77 624,-77 713,-77 713,-77 719,-77 725,-83 725,-89 725,-89 725,-107 725,-107 725,-113 719,-119 713,-119" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="626" y="-100.4">Object store</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="643.5" y="-90">snapshots</text>
 </g>
 <!-- n6 -->
 <g class="node" id="node7">
 <title>n6</title>
-<path d="M710,-42C710,-42 619,-42 619,-42 613,-42 607,-36 607,-30 607,-30 607,-12 607,-12 607,-6 613,0 619,0 619,0 710,0 710,0 716,0 722,-6 722,-12 722,-12 722,-30 722,-30 722,-36 716,-42 710,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="625" y="-23.4">Kubernetes</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="621" y="-13">WorkerPools/Pods</text>
+<path d="M714,-42C714,-42 623,-42 623,-42 617,-42 611,-36 611,-30 611,-30 611,-12 611,-12 611,-6 617,0 623,0 623,0 714,0 714,0 720,0 726,-6 726,-12 726,-12 726,-30 726,-30 726,-36 720,-42 714,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="629" y="-23.4">Kubernetes</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="625" y="-13">WorkerPools/Pods</text>
 </g>
 </g>
 </svg>

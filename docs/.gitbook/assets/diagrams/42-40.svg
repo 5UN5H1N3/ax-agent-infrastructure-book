@@ -22,8 +22,8 @@
 <!-- n3&#45;&gt;n6 -->
 <g class="edge" id="edge4">
 <title>n3-&gt;n6</title>
-<path d="M504.46,-167.96C458.85,-162.17 393.41,-153.87 340.65,-147.18" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="340.75,-144.65 333.29,-146.25 340.12,-149.65 340.75,-144.65" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M504.46,-199.09C458.76,-187.65 393.14,-171.22 340.33,-157.99" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
+<polygon fill="#7a6a8e" points="340.89,-155.54 333.29,-156.23 339.66,-160.42 340.89,-155.54" stroke="#7a6a8e" stroke-width="1.55"></polygon>
 </g>
 <!-- n4&#45;&gt;n6 -->
 <g class="edge" id="edge5">
@@ -40,9 +40,9 @@
 <!-- n6&#45;&gt;n7 -->
 <g class="edge" id="edge7">
 <title>n6-&gt;n7</title>
-<path d="M333.29,-126.02C378.81,-120.39 435.44,-113.39 480.71,-107.8" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="481.04,-110.3 487.88,-106.91 480.42,-105.29 481.04,-110.3" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="410.5" y="-124.56">reconcile, not rollback</text>
+<path d="M333.29,-136C378.72,-136 435.21,-136 480.43,-136" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="480.68,-138.52 487.88,-136 480.68,-133.48 480.68,-138.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="410.5" y="-138.56">reconcile, not rollback</text>
 </g>
 <!-- n0 -->
 <g class="node" id="node1">
@@ -68,9 +68,9 @@
 <!-- n3 -->
 <g class="node" id="node4">
 <title>n3</title>
-<path d="M605.5,-196C605.5,-196 516.5,-196 516.5,-196 510.5,-196 504.5,-190 504.5,-184 504.5,-184 504.5,-166 504.5,-166 504.5,-160 510.5,-154 516.5,-154 516.5,-154 605.5,-154 605.5,-154 611.5,-154 617.5,-160 617.5,-166 617.5,-166 617.5,-184 617.5,-184 617.5,-190 611.5,-196 605.5,-196" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="518.5" y="-177.4">Object store</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="536" y="-167">snapshots</text>
+<path d="M605.5,-234C605.5,-234 516.5,-234 516.5,-234 510.5,-234 504.5,-228 504.5,-222 504.5,-222 504.5,-204 504.5,-204 504.5,-198 510.5,-192 516.5,-192 516.5,-192 605.5,-192 605.5,-192 611.5,-192 617.5,-198 617.5,-204 617.5,-204 617.5,-222 617.5,-222 617.5,-228 611.5,-234 605.5,-234" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="518.5" y="-215.4">Object store</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="536" y="-205">snapshots</text>
 </g>
 <!-- n4 -->
 <g class="node" id="node5">
@@ -96,9 +96,9 @@
 <!-- n7 -->
 <g class="node" id="node8">
 <title>n7</title>
-<path d="M622,-119C622,-119 500,-119 500,-119 494,-119 488,-113 488,-107 488,-107 488,-89 488,-89 488,-83 494,-77 500,-77 500,-77 622,-77 622,-77 628,-77 634,-83 634,-89 634,-89 634,-107 634,-107 634,-113 628,-119 622,-119" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="502" y="-100.4">External systems</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="514" y="-90">side effects remain</text>
+<path d="M622,-157C622,-157 500,-157 500,-157 494,-157 488,-151 488,-145 488,-145 488,-127 488,-127 488,-121 494,-115 500,-115 500,-115 622,-115 622,-115 628,-115 634,-121 634,-127 634,-127 634,-145 634,-145 634,-151 628,-157 622,-157" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="502" y="-138.4">External systems</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="514" y="-128">side effects remain</text>
 </g>
 </g>
 </svg>

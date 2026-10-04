@@ -1,4 +1,4 @@
-<svg aria-label="Actor ≠ Worker: logical population can be larger than active capacity" class="diagram diagram-redrawn" height="307.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 542.92 307.92" width="542.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg aria-label="Actor ≠ Worker: logical population can be larger than active capacity" class="diagram diagram-redrawn" height="307.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 500.92 307.92" width="500.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 294.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n4 -->
@@ -6,13 +6,14 @@
 <title>n0-&gt;n4</title>
 <path d="M83.53,-96.24C110.83,-94.97 148.59,-93.22 182.26,-91.65" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="182.75,-94.15 189.83,-91.3 182.52,-89.12 182.75,-94.15" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="139.5" y="-97.56">placement</text>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="139.5" y="-96.56">placement</text>
 </g>
 <!-- n1&#45;&gt;n7 -->
 <g class="edge" id="edge5">
 <title>n1-&gt;n7</title>
 <path d="M89.11,-249.26C117.47,-241.63 155.14,-231.49 187.99,-222.65" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="189.06,-224.97 195.36,-220.67 187.75,-220.11 189.06,-224.97" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="139.5" y="-244.56">snapshot</text>
 </g>
 <!-- n2&#45;&gt;n4 -->
 <g class="edge" id="edge2">
@@ -26,20 +27,19 @@
 <title>n3-&gt;n7</title>
 <path d="M89.11,-187.84C117.47,-190.35 155.14,-193.67 187.99,-196.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="187.96,-199.09 195.36,-197.21 188.4,-194.07 187.96,-199.09" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="139.5" y="-196.56">snapshot</text>
 </g>
 <!-- n4&#45;&gt;n5 -->
 <g class="edge" id="edge3">
 <title>n4-&gt;n5</title>
-<path d="M334,-101.31C362.18,-106.6 393.98,-112.56 419.83,-117.41" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="419.42,-119.89 426.96,-118.74 420.35,-114.94 419.42,-119.89" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="380.5" y="-115.56">snapshot</text>
+<path d="M334.36,-104.77C348.88,-108.18 363.88,-111.7 377.54,-114.91" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="376.97,-117.36 384.56,-116.56 378.12,-112.46 376.97,-117.36" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n4&#45;&gt;n6 -->
 <g class="edge" id="edge4">
 <title>n4-&gt;n6</title>
-<path d="M334,-75.03C362.18,-69.88 393.98,-64.07 419.83,-59.35" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="420.33,-61.82 426.96,-58.05 419.43,-56.86 420.33,-61.82" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="380.5" y="-73.56">snapshot</text>
+<path d="M334.36,-71.66C348.75,-68.37 363.61,-64.97 377.17,-61.87" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="378.1,-64.24 384.56,-60.17 376.98,-59.32 378.1,-64.24" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n0 -->
 <g class="node" id="node1">
@@ -79,16 +79,16 @@
 <!-- n5 -->
 <g class="node" id="node6">
 <title>n5</title>
-<path d="M505,-148C505,-148 439,-148 439,-148 433,-148 427,-142 427,-136 427,-136 427,-118 427,-118 427,-112 433,-106 439,-106 439,-106 505,-106 505,-106 511,-106 517,-112 517,-118 517,-118 517,-136 517,-136 517,-142 511,-148 505,-148" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="441" y="-129.4">Worker 1</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="453.5" y="-119">hosts A</text>
+<path d="M463,-148C463,-148 397,-148 397,-148 391,-148 385,-142 385,-136 385,-136 385,-118 385,-118 385,-112 391,-106 397,-106 397,-106 463,-106 463,-106 469,-106 475,-112 475,-118 475,-118 475,-136 475,-136 475,-142 469,-148 463,-148" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="399" y="-129.4">Worker 1</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="411.5" y="-119">hosts A</text>
 </g>
 <!-- n6 -->
 <g class="node" id="node7">
 <title>n6</title>
-<path d="M505,-71C505,-71 439,-71 439,-71 433,-71 427,-65 427,-59 427,-59 427,-41 427,-41 427,-35 433,-29 439,-29 439,-29 505,-29 505,-29 511,-29 517,-35 517,-41 517,-41 517,-59 517,-59 517,-65 511,-71 505,-71" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="441" y="-52.4">Worker 2</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="453.5" y="-42">hosts C</text>
+<path d="M463,-71C463,-71 397,-71 397,-71 391,-71 385,-65 385,-59 385,-59 385,-41 385,-41 385,-35 391,-29 397,-29 397,-29 463,-29 463,-29 469,-29 475,-35 475,-41 475,-41 475,-59 475,-59 475,-65 469,-71 463,-71" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="399" y="-52.4">Worker 2</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="411.5" y="-42">hosts C</text>
 </g>
 <!-- n7 -->
 <g class="node" id="node8">
