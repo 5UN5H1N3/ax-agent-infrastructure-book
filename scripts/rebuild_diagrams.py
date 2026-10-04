@@ -317,7 +317,10 @@ figure svg.diagram-redrawn {
 }
 figcaption { margin-bottom:2.5mm; break-after:avoid-page; }
 """)
-    dst.write_text(str(soup), encoding="utf-8")
+    # WeasyPrint 68 warns about the unprefixed property even though the
+    # WebKit-prefixed declaration already provides the intended print color.
+    rendered = str(soup).replace(" print-color-adjust: exact;", "")
+    dst.write_text(rendered, encoding="utf-8")
     print(f"Rebuilt {rebuilt} diagrams")
 
 

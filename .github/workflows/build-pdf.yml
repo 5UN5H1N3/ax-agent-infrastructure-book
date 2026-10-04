@@ -8,13 +8,15 @@ on:
       - "assets/**"
       - "scripts/inject_cover.py"
       - "scripts/rebuild_diagrams.py"
+      - "scripts/publish_generated_artifacts.py"
       - ".github/workflows/build-pdf.yml"
 
 permissions:
   contents: write
 
 concurrency:
-  group: book-pdf-${{ github.ref }}
+  # PDF and web jobs both publish generated files to main.
+  group: book-publication-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -41,15 +43,21 @@ jobs:
 
       - name: Rebuild diagrams
         run: |
-          python scripts/rebuild_diagrams.py             book/AX_Agent_Infrastructure_Book_RU.html             book/.diagram-source.html
+          python scripts/rebuild_diagrams.py \
+            book/AX_Agent_Infrastructure_Book_RU.html \
+            book/.diagram-source.html
 
       - name: Inject publication cover
         run: |
-          python scripts/inject_cover.py             book/.diagram-source.html             book/.print-source.html
+          python scripts/inject_cover.py \
+            book/.diagram-source.html \
+            book/.print-source.html
 
       - name: Build and validate PDF
         run: |
-          weasyprint             book/.print-source.html             book/AX_Agent_Infrastructure_Book_RU.pdf
+          weasyprint \
+            book/.print-source.html \
+            book/AX_Agent_Infrastructure_Book_RU.pdf
 
           pages="$(pdfinfo book/AX_Agent_Infrastructure_Book_RU.pdf | awk '/^Pages:/ {print $2}')"
           echo "Generated PDF pages: $pages"
@@ -58,32 +66,19 @@ jobs:
 
           (
             cd book
-            sha256sum               AX_Agent_Infrastructure_Book_RU.pdf               AX_Agent_Infrastructure_Book_RU.html               > CHECKSUMS.sha256
+            sha256sum \
+              AX_Agent_Infrastructure_Book_RU.pdf \
+              AX_Agent_Infrastructure_Book_RU.html \
+              > CHECKSUMS.sha256
           )
 
       - name: Commit generated PDF and checksums
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add             book/AX_Agent_Infrastructure_Book_RU.pdf             book/CHECKSUMS.sha256
-
-          if git diff --cached --quiet; then
-            echo "Generated artifacts are unchanged."
-          else
-            git commit -m "build: refresh PDF with redrawn diagrams [skip ci]"
-            for attempt in 1 2 3 4; do
-              git fetch origin main
-              git rebase origin/main
-              if git push origin HEAD:main; then
-                exit 0
-              fi
-              echo "Push raced with another generated-artifact commit; retrying ($attempt/4)."
-              sleep $((attempt * 2))
-            done
-            echo "Failed to publish generated artifacts after retries." >&2
-            exit 1
-          fi
+          python scripts/publish_generated_artifacts.py \
+            --branch main \
+            --message "build: refresh PDF with redrawn diagrams [skip ci]" \
+            book/AX_Agent_Infrastructure_Book_RU.pdf \
+            book/CHECKSUMS.sha256
 
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v6

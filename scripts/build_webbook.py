@@ -11,6 +11,9 @@ docs = root / "docs"
 assets = docs / ".gitbook/assets"
 diagdir = assets / "diagrams"
 
+if not html_path.is_file():
+    raise SystemExit(f"HTML source not found: {html_path}")
+
 if docs.exists():
     shutil.rmtree(docs)
 diagdir.mkdir(parents=True, exist_ok=True)
@@ -151,9 +154,14 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
         viewbox = svg.get("viewBox") or svg.get("viewbox")
         vb_w, vb_h = 900.0, 320.0
         if viewbox:
-            parts = [float(x) for x in str(viewbox).replace(",", " ").split()]
+            try:
+                parts = [float(x) for x in re.split(r"[\s,]+", str(viewbox).strip())]
+            except ValueError:
+                parts = []
             if len(parts) == 4 and parts[2] > 0 and parts[3] > 0:
                 vb_w, vb_h = parts[2], parts[3]
+        svg["viewBox"] = f"0 0 {vb_w:g} {vb_h:g}"
+        svg.attrs.pop("viewbox", None)
         # Always replace inherited/percentage dimensions with absolute intrinsic
         # dimensions. CairoSVG cannot resolve a standalone width="100%" SVG.
         svg["width"] = str(int(vb_w) if vb_w.is_integer() else vb_w)

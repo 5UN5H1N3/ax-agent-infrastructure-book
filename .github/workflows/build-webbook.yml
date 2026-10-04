@@ -8,13 +8,15 @@ on:
       - "assets/**"
       - "scripts/build_webbook.py"
       - "scripts/rebuild_diagrams.py"
+      - "scripts/publish_generated_artifacts.py"
       - ".github/workflows/build-webbook.yml"
 
 permissions:
   contents: write
 
 concurrency:
-  group: book-web-${{ github.ref }}
+  # PDF and web jobs both publish generated files to main.
+  group: book-publication-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -42,7 +44,9 @@ jobs:
 
       - name: Rebuild diagrams
         run: |
-          python scripts/rebuild_diagrams.py             book/AX_Agent_Infrastructure_Book_RU.html             book/.web-source.html
+          python scripts/rebuild_diagrams.py \
+            book/AX_Agent_Infrastructure_Book_RU.html \
+            book/.web-source.html
 
       - name: Generate GitBook Markdown and raster assets
         run: python scripts/build_webbook.py book/.web-source.html
@@ -70,24 +74,7 @@ jobs:
 
       - name: Commit generated web edition
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-
-          git add docs/
-
-          if git diff --cached --quiet; then
-            echo "Web edition is unchanged."
-          else
-            git commit -m "docs: publish collision-free redrawn diagrams [skip ci]"
-            for attempt in 1 2 3 4; do
-              git fetch origin main
-              git rebase origin/main
-              if git push origin HEAD:main; then
-                exit 0
-              fi
-              echo "Push raced with another generated-artifact commit; retrying ($attempt/4)."
-              sleep $((attempt * 2))
-            done
-            echo "Failed to publish generated artifacts after retries." >&2
-            exit 1
-          fi
+          python scripts/publish_generated_artifacts.py \
+            --branch main \
+            --message "docs: publish collision-free redrawn diagrams [skip ci]" \
+            docs
