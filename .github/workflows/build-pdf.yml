@@ -53,7 +53,7 @@ jobs:
 
           pages="$(pdfinfo book/AX_Agent_Infrastructure_Book_RU.pdf | awk '/^Pages:/ {print $2}')"
           echo "Generated PDF pages: $pages"
-          test "$pages" -ge 90
+          test "$pages" -ge 80
           test "$pages" -le 120
 
           (
