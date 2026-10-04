@@ -72,9 +72,17 @@ jobs:
             echo "Generated artifacts are unchanged."
           else
             git commit -m "build: refresh PDF with redrawn diagrams [skip ci]"
-            git fetch origin main
-            git rebase origin/main
-            git push origin HEAD:main
+            for attempt in 1 2 3 4; do
+              git fetch origin main
+              git rebase origin/main
+              if git push origin HEAD:main; then
+                exit 0
+              fi
+              echo "Push raced with another generated-artifact commit; retrying ($attempt/4)."
+              sleep $((attempt * 2))
+            done
+            echo "Failed to publish generated artifacts after retries." >&2
+            exit 1
           fi
 
       - name: Upload workflow artifact
