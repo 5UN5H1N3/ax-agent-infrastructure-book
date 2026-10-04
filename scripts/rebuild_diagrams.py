@@ -84,96 +84,88 @@ def cluster(values, tol=55):
 
 
 def extract_graph(svg):
+    """Extract semantic nodes and edges from the book's generated SVG.
+
+    The source SVGs have a stable authoring pattern:
+      line -> optional text edge-label
+      ...
+      rect -> title/subtitle text -> next rect
+
+    Using DOM adjacency is substantially safer than geometrically guessing
+    whether a word belongs to a node or an edge.
+    """
+    children = [c for c in svg.children if getattr(c, "name", None)]
+
     rects = []
-    for i, el in enumerate(svg.find_all("rect")):
+    rect_element_to_id = {}
+    for el in children:
+        if el.name != "rect":
+            continue
         x, y = fnum(el.get("x")), fnum(el.get("y"))
         w, h = fnum(el.get("width")), fnum(el.get("height"))
         if w < 30 or h < 20:
             continue
-        rects.append({
+        r = {
             "id": len(rects), "x": x, "y": y, "w": w, "h": h,
             "cx": x + w/2, "cy": y + h/2,
             "fill": el.get("fill", "#f3f5f7"),
             "stroke": el.get("stroke", "#53657a"),
             "texts": [],
-        })
+        }
+        rect_element_to_id[id(el)] = r["id"]
+        rects.append(r)
 
-    texts = []
-    for el in svg.find_all("text"):
-        txt = " ".join(el.get_text(" ", strip=True).split())
-        if not txt:
+    # Node labels: only consecutive <text> elements directly following a rect.
+    # This prevents edge labels that happen to cross a card from becoming a
+    # subtitle of that card.
+    for i, el in enumerate(children):
+        if el.name != "rect" or id(el) not in rect_element_to_id:
             continue
-        texts.append({
-            "text": txt,
-            "x": fnum(el.get("x")), "y": fnum(el.get("y")),
-            "weight": str(el.get("font-weight", "")),
-            "size": fnum(el.get("font-size"), 11),
-            "assigned": False,
-        })
+        r = rects[rect_element_to_id[id(el)]]
+        j = i + 1
+        while j < len(children) and children[j].name == "text":
+            t = children[j]
+            txt = " ".join(t.get_text(" ", strip=True).split())
+            if txt:
+                r["texts"].append({
+                    "text": txt,
+                    "x": fnum(t.get("x")), "y": fnum(t.get("y")),
+                    "weight": str(t.get("font-weight", "")),
+                    "size": fnum(t.get("font-size"), 11),
+                })
+            j += 1
 
-    # Assign text to the containing card.  Allow a generous vertical margin:
-    # the old diagrams often placed the final subtitle just outside the card.
-    for t in texts:
-        candidates = []
-        for r in rects:
-            if r["x"] - 8 <= t["x"] <= r["x"] + r["w"] + 8 and r["y"] - 8 <= t["y"] <= r["y"] + r["h"] + 24:
-                candidates.append((abs(t["y"] - r["cy"]), r))
-        if candidates:
-            r = min(candidates, key=lambda z: z[0])[1]
-            r["texts"].append(t)
-            t["assigned"] = True
-
-    # Clean each node's label.  Ordering by y preserves title/subtitle.
-    for r in rects:
-        r["texts"].sort(key=lambda t: (t["y"], t["x"]))
-        # Remove accidental edge labels that happen to fall on a card.
-        kept = []
-        for t in r["texts"]:
-            if len(t["text"]) <= 28 or t["weight"] in ("700", "bold") or t["size"] >= 12:
-                kept.append(t)
-            else:
-                # Long subtitle lines are still legitimate when centred.
-                if abs(t["x"] - r["cx"]) < r["w"] * 0.25:
-                    kept.append(t)
-                else:
-                    t["assigned"] = False
-        r["texts"] = kept
-
-    lines = []
-    for el in svg.find_all("line"):
+    # Edges: the original generator writes an edge's label immediately after
+    # its <line>, before the next line/rect. Capture that exact relationship.
+    edges = []
+    for i, el in enumerate(children):
+        if el.name != "line":
+            continue
         x1,y1,x2,y2 = map(lambda k: fnum(el.get(k)), ("x1","y1","x2","y2"))
         if not rects:
             continue
         src = min(rects, key=lambda r: point_rect_distance(x1,y1,r))
         dst = min(rects, key=lambda r: point_rect_distance(x2,y2,r))
         if src["id"] == dst["id"]:
-            # fall back to centre distance for malformed endpoints
             others = [r for r in rects if r["id"] != src["id"]]
             if not others:
                 continue
             dst = min(others, key=lambda r: math.hypot(x2-r["cx"], y2-r["cy"]))
-        lines.append({
+
+        label = ""
+        if i + 1 < len(children) and children[i + 1].name == "text":
+            label = " ".join(children[i + 1].get_text(" ", strip=True).split())
+
+        edges.append({
             "src": src["id"], "dst": dst["id"],
             "x1":x1,"y1":y1,"x2":x2,"y2":y2,
-            "label":"",
+            "label":label,
         })
 
-    leftovers = [t for t in texts if not t["assigned"]]
-    notes = []
-    for t in leftovers:
-        if len(t["text"]) > 34:
-            notes.append(t["text"])
-            continue
-        if lines:
-            e = min(lines, key=lambda e: point_seg_distance(t["x"],t["y"],e["x1"],e["y1"],e["x2"],e["y2"]))
-            d = point_seg_distance(t["x"],t["y"],e["x1"],e["y1"],e["x2"],e["y2"])
-            if d < 90 and not e["label"]:
-                e["label"] = t["text"]
-                continue
-        # Short orphan text is better represented as a note than left floating.
-        notes.append(t["text"])
-
-    return rects, lines, notes
+    # Standalone/orphan source text is intentionally dropped. Every figure has
+    # a caption and surrounding prose; keeping orphan labels was the cause of
+    # long horizontal artifacts in the first redraw pass.
+    return rects, edges, []
 
 
 def node_label(r):
@@ -223,22 +215,41 @@ def build_dot(caption, rects, edges, notes):
             lines.append(f'{{ rank=same; {members}; }}')
 
     seen = set()
+    repeated = {}
+    for e in edges:
+        if e["label"]:
+            repeated[(e["src"], e["label"])] = repeated.get((e["src"], e["label"]), 0) + 1
+    emitted_repeated = set()
+
+    rect_by_id = {r["id"]: r for r in rects}
     for e in edges:
         key=(e["src"],e["dst"],e["label"])
         if key in seen:
             continue
         seen.add(key)
-        label = f', label="{esc(e["label"])}"' if e["label"] else ""
-        lines.append(f'n{e["src"]} -> n{e["dst"]} [minlen=1{label}];')
 
-    if notes:
-        note = " • ".join(dict.fromkeys(notes))
-        # Cap very long legacy explanatory notes; the figure caption/body already
-        # carries the full explanation and a huge line hurts diagram readability.
-        if len(note) > 150:
-            note = note[:147].rstrip() + "..."
-        lines.append(f'note [shape=plain, fontsize=9.5, fontcolor="#5d6c7b", label="{esc(note)}"];')
-        lines.append('{ rank=sink; note; }')
+        edge_label = e["label"]
+        rep_key = (e["src"], edge_label)
+        # Four identical "delegate"/"attenuate" labels around a fan-out add
+        # clutter but no information. Keep one representative label.
+        if edge_label and repeated.get(rep_key, 0) >= 3:
+            if rep_key in emitted_repeated:
+                edge_label = ""
+            else:
+                emitted_repeated.add(rep_key)
+
+        attrs = ["minlen=1"]
+        if edge_label:
+            attrs.append(f'label="{esc(edge_label)}"')
+
+        src_r, dst_r = rect_by_id[e["src"]], rect_by_id[e["dst"]]
+        backward = (rankdir == "TB" and src_r["cy"] > dst_r["cy"]) or \
+                   (rankdir == "LR" and src_r["cx"] > dst_r["cx"])
+        if backward:
+            attrs.append("constraint=false")
+            attrs.append('color="#7a6a8e"')
+
+        lines.append(f'n{e["src"]} -> n{e["dst"]} [' + ", ".join(attrs) + "];")
 
     lines.append("}")
     return "\n".join(lines)
