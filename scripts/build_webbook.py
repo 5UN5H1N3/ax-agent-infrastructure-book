@@ -150,25 +150,25 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
         # reliably when standalone SVG assets have xmlns + explicit dimensions.
         svg["xmlns"] = "http://www.w3.org/2000/svg"
         viewbox = svg.get("viewBox") or svg.get("viewbox")
+        vb_w, vb_h = 900.0, 320.0
         if viewbox:
             parts = [float(x) for x in str(viewbox).replace(",", " ").split()]
-            if len(parts) == 4:
+            if len(parts) == 4 and parts[2] > 0 and parts[3] > 0:
                 vb_w, vb_h = parts[2], parts[3]
-                if not svg.get("width"):
-                    svg["width"] = str(int(vb_w) if vb_w.is_integer() else vb_w)
-                if not svg.get("height"):
-                    svg["height"] = str(int(vb_h) if vb_h.is_integer() else vb_h)
-        if not svg.get("width"):
-            svg["width"] = "900"
-        if not svg.get("height"):
-            svg["height"] = "320"
+        # Always replace inherited/percentage dimensions with absolute intrinsic
+        # dimensions. CairoSVG cannot resolve a standalone width="100%" SVG.
+        svg["width"] = str(int(vb_w) if vb_w.is_integer() else vb_w)
+        svg["height"] = str(int(vb_h) if vb_h.is_integer() else vb_h)
 
         svg_bytes = str(svg).encode("utf-8")
         svg_path.write_bytes(svg_bytes)
+        out_w = 1800
+        out_h = max(240, int(round(out_w * vb_h / vb_w)))
         cairosvg.svg2png(
             bytestring=svg_bytes,
             write_to=str(png_path),
-            output_width=1800,
+            output_width=out_w,
+            output_height=out_h,
         )
         p = soup.new_tag("p")
         im = soup.new_tag("img", src=f".gitbook/assets/diagrams/{stem}.png", alt=caption)
