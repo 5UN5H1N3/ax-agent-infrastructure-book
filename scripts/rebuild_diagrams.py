@@ -288,9 +288,16 @@ def rebuild_html(src: Path, dst: Path):
     style = soup.find("style")
     if style:
         style.append("""
-figure { break-inside: avoid; margin: 5mm 0 6mm; }
-figure svg.diagram-redrawn { display:block; width:100%; max-width:100%; height:auto; margin:2mm auto; }
-figcaption { margin-bottom:2.5mm; }
+figure { break-inside: avoid-page !important; margin: 5mm 0 6mm; }
+figure svg.diagram-redrawn {
+  display:block;
+  width:auto !important;
+  max-width:100% !important;
+  height:auto !important;
+  max-height:178mm !important;
+  margin:2mm auto;
+}
+figcaption { margin-bottom:2.5mm; break-after:avoid-page; }
 """)
     dst.write_text(str(soup), encoding="utf-8")
     print(f"Rebuilt {rebuilt} diagrams")
