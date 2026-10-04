@@ -2,7 +2,7 @@
 from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify as md
 from pathlib import Path
-import re, shutil
+import re, shutil, sys
 import cairosvg
 
 root = Path(__file__).resolve().parents[1]
