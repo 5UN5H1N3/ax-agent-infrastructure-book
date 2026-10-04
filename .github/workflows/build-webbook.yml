@@ -14,17 +14,22 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: book-generated-artifacts-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -33,7 +38,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libcairo2 libffi-dev
           python -m pip install --upgrade pip
-          python -m pip install beautifulsoup4 markdownify cairosvg
+          python -m pip install             "beautifulsoup4==4.15.0"             "markdownify==1.2.3"             "CairoSVG==2.9.1"
 
       - name: Generate GitBook Markdown and raster assets
         run: python scripts/build_webbook.py
@@ -46,12 +51,15 @@ jobs:
           test -f docs/.gitbook/assets/cover.png
           test -f docs/.gitbook/assets/social-preview.png
           test -f docs/.gitbook/assets/favicon.png
+
           pages="$(find docs -maxdepth 1 -name '*.md' | wc -l)"
           svg_diagrams="$(find docs/.gitbook/assets/diagrams -name '*.svg' | wc -l)"
           png_diagrams="$(find docs/.gitbook/assets/diagrams -name '*.png' | wc -l)"
+
           echo "Markdown files: $pages"
           echo "SVG diagrams: $svg_diagrams"
           echo "PNG diagrams: $png_diagrams"
+
           test "$pages" = "49"
           test "$svg_diagrams" = "41"
           test "$png_diagrams" = "41"
@@ -60,7 +68,9 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
           git add docs/
+
           if git diff --cached --quiet; then
             echo "Web edition is unchanged."
           else
