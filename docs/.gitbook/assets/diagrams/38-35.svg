@@ -1,1 +1,96 @@
-<svg aria-label="State ownership: четыре хранилища отвечают за разные истины" class="diagram" height="315" role="img" viewbox="0 0 910 315" width="910" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="145" x2="190" y1="147.5" y2="147.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="167.5" y="141.5">apply</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="255.0" x2="440.0" y1="180" y2="25"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="347.5" y="96.5">persist</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="255.0" x2="440.0" y1="180" y2="205"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="347.5" y="186.5">reconcile</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="510" x2="565" y1="237.5" y2="237.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="537.5" y="231.5">dynamic state</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="510" x2="755" y1="237.5" y2="237.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="632.5" y="231.5">snapshot blobs</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="635.0" y1="270" y2="25"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="537.5" y="141.5">capacity</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="120" x="25" y="115"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="85.0" y="139">Manifest/API</text><text fill="#465569" font-size="11" text-anchor="middle" x="85.0" y="160">desired state</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="130" x="190" y="115"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="255.0" y="139">AX</text><text fill="#465569" font-size="11" text-anchor="middle" x="255.0" y="160">Task lifecycle</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="140" x="370" y="25"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="440.0" y="49">Redis</text><text fill="#465569" font-size="11" text-anchor="middle" x="440.0" y="70">AX specs/events</text><rect fill="#f8efff" height="65" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="140" x="370" y="205"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="440.0" y="229">Substrate</text><text fill="#465569" font-size="11" text-anchor="middle" x="440.0" y="250">Actor runtime</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="140" x="565" y="205"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="635.0" y="229">PostgreSQL</text><text fill="#465569" font-size="11" text-anchor="middle" x="635.0" y="250">Actor/Worker state</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="130" x="755" y="205"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="820.0" y="229">Object store</text><text fill="#465569" font-size="11" text-anchor="middle" x="820.0" y="250">snapshots</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="140" x="565" y="25"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="635.0" y="49">Kubernetes</text><text fill="#465569" font-size="11" text-anchor="middle" x="635.0" y="70">WorkerPools/Pods</text></svg>
+<svg aria-label="State ownership: четыре хранилища отвечают за разные истины" class="diagram diagram-redrawn" height="231.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 749.92 231.92" width="749.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 218.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n1</title>
+<path d="M115.14,-137C136.94,-137 161.77,-137 183.34,-137" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="183.62,-139.52 190.82,-137 183.62,-134.48 183.62,-139.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="153" y="-139.56">apply</text>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n2</title>
+<path d="M286.22,-146.2C311.82,-151.24 343.86,-157.55 371.42,-162.97" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="371.15,-165.49 378.7,-164.41 372.12,-160.54 371.15,-165.49" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="332.5" y="-161.56">persist</text>
+</g>
+<!-- n1&#45;&gt;n3 -->
+<g class="edge" id="edge3">
+<title>n1-&gt;n3</title>
+<path d="M286.22,-127.56C313.89,-121.97 349.07,-114.86 377.99,-109.01" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="378.65,-111.45 385.21,-107.56 377.65,-106.51 378.65,-111.45" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="332.5" y="-124.56">reconcile</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge" id="edge4">
+<title>n3-&gt;n4</title>
+<path d="M481.67,-114.89C515.32,-126.94 561,-143.3 598.16,-156.6" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="597.37,-159 604.99,-159.05 599.07,-154.25 597.37,-159" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="546.5" y="-150.56">dynamic state</text>
+</g>
+<!-- n3&#45;&gt;n5 -->
+<g class="edge" id="edge5">
+<title>n3-&gt;n5</title>
+<path d="M481.67,-98C516.04,-98 562.96,-98 600.53,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="600.71,-100.52 607.91,-98 600.71,-95.48 600.71,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n3&#45;&gt;n6 -->
+<g class="edge" id="edge6">
+<title>n3-&gt;n6</title>
+<path d="M481.67,-82.14C515.81,-70.66 562.34,-55.01 599.79,-42.42" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="600.65,-44.79 606.67,-40.11 599.04,-40.02 600.65,-44.79" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="546.5" y="-72.56">capacity</text>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M103,-158C103,-158 12,-158 12,-158 6,-158 0,-152 0,-146 0,-146 0,-128 0,-128 0,-122 6,-116 12,-116 12,-116 103,-116 103,-116 109,-116 115,-122 115,-128 115,-128 115,-146 115,-146 115,-152 109,-158 103,-158" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-139.4">Manifest/API</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="25.5" y="-129">desired state</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M274,-158C274,-158 203,-158 203,-158 197,-158 191,-152 191,-146 191,-146 191,-128 191,-128 191,-122 197,-116 203,-116 203,-116 274,-116 274,-116 280,-116 286,-122 286,-128 286,-128 286,-146 286,-146 286,-152 280,-158 274,-158" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="229" y="-139.4">AX</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="205" y="-129">Task lifecycle</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M476,-196C476,-196 391,-196 391,-196 385,-196 379,-190 379,-184 379,-184 379,-166 379,-166 379,-160 385,-154 391,-154 391,-154 476,-154 476,-154 482,-154 488,-160 488,-166 488,-166 488,-184 488,-184 488,-190 482,-196 476,-196" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="415" y="-177.4">Redis</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="393" y="-167">AX specs/events</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M469.5,-119C469.5,-119 397.5,-119 397.5,-119 391.5,-119 385.5,-113 385.5,-107 385.5,-107 385.5,-89 385.5,-89 385.5,-83 391.5,-77 397.5,-77 397.5,-77 469.5,-77 469.5,-77 475.5,-77 481.5,-83 481.5,-89 481.5,-89 481.5,-107 481.5,-107 481.5,-113 475.5,-119 469.5,-119" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="399.5" y="-100.4">Substrate</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="400" y="-90">Actor runtime</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M712,-206C712,-206 617,-206 617,-206 611,-206 605,-200 605,-194 605,-194 605,-166 605,-166 605,-160 611,-154 617,-154 617,-154 712,-154 712,-154 718,-154 724,-160 724,-166 724,-166 724,-194 724,-194 724,-200 718,-206 712,-206" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="624" y="-187.4">PostgreSQL</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="627.5" y="-177">snapshot blobs</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="619" y="-167">Actor/Worker state</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M709,-119C709,-119 620,-119 620,-119 614,-119 608,-113 608,-107 608,-107 608,-89 608,-89 608,-83 614,-77 620,-77 620,-77 709,-77 709,-77 715,-77 721,-83 721,-89 721,-89 721,-107 721,-107 721,-113 715,-119 709,-119" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="622" y="-100.4">Object store</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="639.5" y="-90">snapshots</text>
+</g>
+<!-- n6 -->
+<g class="node" id="node7">
+<title>n6</title>
+<path d="M710,-42C710,-42 619,-42 619,-42 613,-42 607,-36 607,-30 607,-30 607,-12 607,-12 607,-6 613,0 619,0 619,0 710,0 710,0 716,0 722,-6 722,-12 722,-12 722,-30 722,-30 722,-36 716,-42 710,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="625" y="-23.4">Kubernetes</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="621" y="-13">WorkerPools/Pods</text>
+</g>
+</g>
+</svg>

@@ -1,1 +1,78 @@
-<svg aria-label="Controlled action pattern: observe → diagnose → propose → approve → execute → verify" class="diagram" height="250" role="img" viewbox="0 0 920 250" width="920" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="140" x2="170" y1="152.5" y2="152.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="290" x2="320" y1="152.5" y2="152.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440" x2="470" y1="152.5" y2="152.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="590" x2="620" y1="152.5" y2="152.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="605.0" y="146.5">grant</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="740" x2="770" y1="152.5" y2="152.5"></line><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="120" x="20" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="80.0" y="144">Observe</text><text fill="#465569" font-size="11" text-anchor="middle" x="80.0" y="165">read-only</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="120" x="170" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="230.0" y="144">Diagnose</text><text fill="#465569" font-size="11" text-anchor="middle" x="230.0" y="165">no side effect</text><rect fill="#f8efff" height="65" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="120" x="320" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="380.0" y="144">Propose</text><text fill="#465569" font-size="11" text-anchor="middle" x="380.0" y="165">action plan</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="120" x="470" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="530.0" y="144">Approval</text><text fill="#465569" font-size="11" text-anchor="middle" x="530.0" y="165">human/policy</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="120" x="620" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="680.0" y="144">Execute</text><text fill="#465569" font-size="11" text-anchor="middle" x="680.0" y="165">scoped MCP</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="120" x="770" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="830.0" y="144">Verify</text><text fill="#465569" font-size="11" text-anchor="middle" x="830.0" y="165">post-check</text></svg>
+<svg aria-label="Controlled action pattern: observe → diagnose → propose → approve → execute → verify" class="diagram diagram-redrawn" height="67.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 834.92 67.92" width="834.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 54.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n1</title>
+<path d="M85.2,-21C98.82,-21 114.15,-21 128.54,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="128.76,-23.52 135.96,-21 128.76,-18.48 128.76,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n2</title>
+<path d="M231,-21C245.06,-21 260.52,-21 274.68,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="274.76,-23.52 281.96,-21 274.76,-18.48 274.76,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge" id="edge3">
+<title>n2-&gt;n3</title>
+<path d="M366.18,-21C379.76,-21 395.07,-21 409.47,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="409.69,-23.52 416.89,-21 409.69,-18.48 409.69,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge" id="edge4">
+<title>n3-&gt;n4</title>
+<path d="M512.04,-21C533.43,-21 558.84,-21 580.67,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="580.73,-23.52 587.93,-21 580.73,-18.48 580.73,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="550" y="-23.56">grant</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge" id="edge5">
+<title>n4-&gt;n5</title>
+<path d="M676.14,-21C689.95,-21 705.32,-21 719.43,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="719.48,-23.52 726.68,-21 719.48,-18.48 719.48,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M73,-42C73,-42 12,-42 12,-42 6,-42 0,-36 0,-30 0,-30 0,-12 0,-12 0,-6 6,0 12,0 12,0 73,0 73,0 79,0 85,-6 85,-12 85,-12 85,-30 85,-30 85,-36 79,-42 73,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-23.4">Observe</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="19" y="-13">read-only</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M219,-42C219,-42 148,-42 148,-42 142,-42 136,-36 136,-30 136,-30 136,-12 136,-12 136,-6 142,0 148,0 148,0 219,0 219,0 225,0 231,-6 231,-12 231,-12 231,-30 231,-30 231,-36 225,-42 219,-42" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="152" y="-23.4">Diagnose</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="150" y="-13">no side effect</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M354,-42C354,-42 294,-42 294,-42 288,-42 282,-36 282,-30 282,-30 282,-12 282,-12 282,-6 288,0 294,0 294,0 354,0 354,0 360,0 366,-6 366,-12 366,-12 366,-30 366,-30 366,-36 360,-42 354,-42" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="296" y="-23.4">Propose</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="296.5" y="-13">action plan</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M500,-42C500,-42 429,-42 429,-42 423,-42 417,-36 417,-30 417,-30 417,-12 417,-12 417,-6 423,0 429,0 429,0 500,0 500,0 506,0 512,-6 512,-12 512,-12 512,-30 512,-30 512,-36 506,-42 500,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="434.5" y="-23.4">Approval</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="431" y="-13">human/policy</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M664,-42C664,-42 600,-42 600,-42 594,-42 588,-36 588,-30 588,-30 588,-12 588,-12 588,-6 594,0 600,0 600,0 664,0 664,0 670,0 676,-6 676,-12 676,-12 676,-30 676,-30 676,-36 670,-42 664,-42" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="605" y="-23.4">Execute</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="602" y="-13">scoped MCP</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M797,-42C797,-42 739,-42 739,-42 733,-42 727,-36 727,-30 727,-30 727,-12 727,-12 727,-6 733,0 739,0 739,0 797,0 797,0 803,0 809,-6 809,-12 809,-12 809,-30 809,-30 809,-36 803,-42 797,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="748" y="-23.4">Verify</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="741" y="-13">post-check</text>
+</g>
+</g>
+</svg>

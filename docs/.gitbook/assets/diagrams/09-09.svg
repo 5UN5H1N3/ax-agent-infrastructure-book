@@ -1,1 +1,89 @@
-<svg aria-label="Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate" class="diagram" height="280" role="img" viewbox="0 0 900 280" width="900" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="145" x2="190" y1="132.5" y2="132.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="167.5" y="126.5">write</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="250.0" x2="420.0" y1="165" y2="20"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="335.0" y="86.5">persist</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="420.0" x2="420.0" y1="85" y2="180"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="420.0" y="126.5">watch</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="420.0" x2="250.0" y1="245" y2="100"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="335.0" y="166.5">update</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="310" x2="550" y1="132.5" y2="132.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="430.0" y="126.5">objects</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="680" x2="740" y1="132.5" y2="132.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="710.0" y="126.5">desired workload</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="120" x="25" y="100"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="85.0" y="124">Desired state</text><text fill="#465569" font-size="11" text-anchor="middle" x="85.0" y="145">YAML/API</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="120" x="190" y="100"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="250.0" y="124">API server</text><text fill="#465569" font-size="11" text-anchor="middle" x="250.0" y="145">validate/store</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="120" x="360" y="20"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="420.0" y="44">etcd</text><text fill="#465569" font-size="11" text-anchor="middle" x="420.0" y="65">cluster state</text><rect fill="#f8efff" height="65" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="120" x="360" y="180"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="420.0" y="204">Controller</text><text fill="#465569" font-size="11" text-anchor="middle" x="420.0" y="225">observe/diff</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="130" x="550" y="100"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="615.0" y="124">Actual state</text><text fill="#465569" font-size="11" text-anchor="middle" x="615.0" y="145">Pods/services</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="130" x="740" y="100"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="805.0" y="124">kubelet/runtime</text><text fill="#465569" font-size="11" text-anchor="middle" x="805.0" y="145">execute</text></svg>
+<svg aria-label="Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate" class="diagram diagram-redrawn" height="222.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 782.92 222.92" width="782.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 209.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n1</title>
+<path d="M121.09,-127C142.42,-127 166.38,-127 187.4,-127" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="187.5,-129.52 194.7,-127 187.5,-124.48 187.5,-129.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="158" y="-129.56">write</text>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n2</title>
+<path d="M294.14,-139.75C321.07,-146.8 354.49,-155.56 381.74,-162.7" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="381.28,-165.18 388.89,-164.57 382.56,-160.31 381.28,-165.18" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="336" y="-156.56">persist</text>
+</g>
+<!-- n1&#45;&gt;n4 -->
+<g class="edge" id="edge5">
+<title>n1-&gt;n4</title>
+<path d="M294.14,-119.72C317.49,-116.22 345.72,-111.99 370.58,-108.27" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="371.08,-110.74 377.83,-107.19 370.34,-105.76 371.08,-110.74" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="336" y="-117.56">objects</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge" id="edge3">
+<title>n2-&gt;n3</title>
+<path d="M402.83,-155C389.99,-146.21 378,-138 378,-138 378,-138 337.5,-87 337.5,-87 337.5,-87 337.5,-77 337.5,-77 337.5,-77 365.32,-60.77 391.01,-45.78" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="392.53,-47.82 397.48,-42.01 389.99,-43.46 392.53,-47.82" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="336" y="-79.56">watch</text>
+</g>
+<!-- n3&#45;&gt;n1 -->
+<g class="edge" id="edge4">
+<title>n3-&gt;n1</title>
+<path d="M385.35,-36.79C354.17,-47.23 319,-59 319,-59 319,-59 294.5,-81.66 273.79,-100.82" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="271.93,-99.12 268.35,-105.86 275.35,-102.82 271.93,-99.12" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="336" y="-61.56">update</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge" id="edge6">
+<title>n4-&gt;n5</title>
+<path d="M489.09,-99C525.19,-99 572.99,-99 612.63,-99" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="612.73,-101.52 619.93,-99 612.73,-96.48 612.73,-101.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="554.5" y="-101.56">desired workload</text>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M109,-148C109,-148 12,-148 12,-148 6,-148 0,-142 0,-136 0,-136 0,-118 0,-118 0,-112 6,-106 12,-106 12,-106 109,-106 109,-106 115,-106 121,-112 121,-118 121,-118 121,-136 121,-136 121,-142 115,-148 109,-148" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-129.4">Desired state</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="37.5" y="-119">YAML/API</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M282,-148C282,-148 207,-148 207,-148 201,-148 195,-142 195,-136 195,-136 195,-118 195,-118 195,-112 201,-106 207,-106 207,-106 282,-106 282,-106 288,-106 294,-112 294,-118 294,-118 294,-136 294,-136 294,-142 288,-148 282,-148" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="209" y="-129.4">API server</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="210.5" y="-119">validate/store</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M466,-197C466,-197 401,-197 401,-197 395,-197 389,-191 389,-185 389,-185 389,-167 389,-167 389,-161 395,-155 401,-155 401,-155 466,-155 466,-155 472,-155 478,-161 478,-167 478,-167 478,-185 478,-185 478,-191 472,-197 466,-197" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="418.5" y="-178.4">etcd</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="403" y="-168">cluster state</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M469.5,-42C469.5,-42 397.5,-42 397.5,-42 391.5,-42 385.5,-36 385.5,-30 385.5,-30 385.5,-12 385.5,-12 385.5,-6 391.5,0 397.5,0 397.5,0 469.5,0 469.5,0 475.5,0 481.5,-6 481.5,-12 481.5,-12 481.5,-30 481.5,-30 481.5,-36 475.5,-42 469.5,-42" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="399.5" y="-23.4">Controller</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="404.5" y="-13">observe/diff</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M477,-120C477,-120 390,-120 390,-120 384,-120 378,-114 378,-108 378,-108 378,-90 378,-90 378,-84 384,-78 390,-78 390,-78 477,-78 477,-78 483,-78 489,-84 489,-90 489,-90 489,-108 489,-108 489,-114 483,-120 477,-120" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="392" y="-101.4">Actual state</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="400" y="-91">Pods/services</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M745,-120C745,-120 632,-120 632,-120 626,-120 620,-114 620,-108 620,-108 620,-90 620,-90 620,-84 626,-78 632,-78 632,-78 745,-78 745,-78 751,-78 757,-84 757,-90 757,-90 757,-108 757,-108 757,-114 751,-120 745,-120" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="634" y="-101.4">kubelet/runtime</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="669" y="-91">execute</text>
+</g>
+</g>
+</svg>

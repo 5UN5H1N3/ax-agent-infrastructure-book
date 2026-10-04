@@ -1,1 +1,82 @@
-<svg aria-label="Карта стека: где заканчивается LLM и начинается инфраструктура" class="diagram" height="460" role="img" viewbox="0 0 920 460" width="920" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="85" y2="100"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="155" y2="170"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="225" y2="240"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="295" y2="310"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="365" y2="380"></line><rect fill="#f8efff" height="55" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="760" x="80" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="54">Agentic application</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="75">бизнес-логика, supervisor, workflows,</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="90">multi-agent</text><rect fill="#edf4ff" height="55" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="760" x="80" y="100"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="124">Agent harness</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="145">context, loop, tools, memory, policies,</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="160">tracing</text><rect fill="#eefaf3" height="55" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="760" x="80" y="170"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="194">AX</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="215">Task / Workspace / Gateway / Model,</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="230">lifecycle, reconciliation</text><rect fill="#fff7e8" height="55" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="760" x="80" y="240"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="264">Agent Substrate</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="285">Actor / WorkerPool / snapshots / routing /</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="300">sandbox lifecycle</text><rect fill="#f3f5f7" height="55" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="760" x="80" y="310"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="334">Kubernetes + Linux + storage + network</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="355">nodes, pods, cgroups, runtime, DB/object</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="370">storage</text><rect fill="#fff0f0" height="55" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="760" x="80" y="380"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="404">CPU / GPU / NIC / storage</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="425">physical resources and accelerators</text></svg>
+<svg aria-label="Карта стека: где заканчивается LLM и начинается инфраструктура" class="diagram diagram-redrawn" height="572.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 332.92 572.92" width="332.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 559.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n1</title>
+<path d="M153.5,-494.76C153.5,-482.19 153.5,-466.86 153.5,-453.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="156.02,-453.39 153.5,-446.19 150.98,-453.39 156.02,-453.39" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n2</title>
+<path d="M153.5,-393.76C153.5,-381.19 153.5,-365.86 153.5,-352.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="156.02,-352.39 153.5,-345.19 150.98,-352.39 156.02,-352.39" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge" id="edge3">
+<title>n2-&gt;n3</title>
+<path d="M153.5,-292.76C153.5,-280.19 153.5,-264.86 153.5,-251.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="156.02,-251.39 153.5,-244.19 150.98,-251.39 156.02,-251.39" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge" id="edge4">
+<title>n3-&gt;n4</title>
+<path d="M153.5,-191.76C153.5,-179.19 153.5,-163.86 153.5,-150.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="156.02,-150.39 153.5,-143.19 150.98,-150.39 156.02,-150.39" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge" id="edge5">
+<title>n4-&gt;n5</title>
+<path d="M153.5,-90.81C153.5,-78.08 153.5,-62.61 153.5,-49.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="156.02,-49.4 153.5,-42.2 150.98,-49.4 156.02,-49.4" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M252,-547C252,-547 55,-547 55,-547 49,-547 43,-541 43,-535 43,-535 43,-507 43,-507 43,-501 49,-495 55,-495 55,-495 252,-495 252,-495 258,-495 264,-501 264,-507 264,-507 264,-535 264,-535 264,-541 258,-547 252,-547" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="89" y="-528.4">Agentic application</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="57" y="-518">бизнес-логика, supervisor, workflows,</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="124.5" y="-508">multi-agent</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M249.5,-446C249.5,-446 57.5,-446 57.5,-446 51.5,-446 45.5,-440 45.5,-434 45.5,-434 45.5,-406 45.5,-406 45.5,-400 51.5,-394 57.5,-394 57.5,-394 249.5,-394 249.5,-394 255.5,-394 261.5,-400 261.5,-406 261.5,-406 261.5,-434 261.5,-434 261.5,-440 255.5,-446 249.5,-446" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="104" y="-427.4">Agent harness</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="59.5" y="-417">context, loop, tools, memory, policies,</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="136.5" y="-407">tracing</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M245,-345C245,-345 62,-345 62,-345 56,-345 50,-339 50,-333 50,-333 50,-305 50,-305 50,-299 56,-293 62,-293 62,-293 245,-293 245,-293 251,-293 257,-299 257,-305 257,-305 257,-333 257,-333 257,-339 251,-345 245,-345" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="144" y="-326.4">AX</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="64" y="-316">Task / Workspace / Gateway / Model,</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="96.5" y="-306">lifecycle, reconciliation</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M254.5,-244C254.5,-244 52.5,-244 52.5,-244 46.5,-244 40.5,-238 40.5,-232 40.5,-232 40.5,-204 40.5,-204 40.5,-198 46.5,-192 52.5,-192 52.5,-192 254.5,-192 254.5,-192 260.5,-192 266.5,-198 266.5,-204 266.5,-204 266.5,-232 266.5,-232 266.5,-238 260.5,-244 254.5,-244" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="97.5" y="-225.4">Agent Substrate</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="54.5" y="-215">Actor / WorkerPool / snapshots / routing /</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="110.5" y="-205">sandbox lifecycle</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M295,-143C295,-143 12,-143 12,-143 6,-143 0,-137 0,-131 0,-131 0,-103 0,-103 0,-97 6,-91 12,-91 12,-91 295,-91 295,-91 301,-91 307,-97 307,-103 307,-103 307,-131 307,-131 307,-137 301,-143 295,-143" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-124.4">Kubernetes + Linux + storage + network</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="53" y="-114">nodes, pods, cgroups, runtime, DB/object</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="135" y="-104">storage</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M243,-42C243,-42 64,-42 64,-42 58,-42 52,-36 52,-30 52,-30 52,-12 52,-12 52,-6 58,0 64,0 64,0 243,0 243,0 249,0 255,-6 255,-12 255,-12 255,-30 255,-30 255,-36 249,-42 243,-42" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="67" y="-23.4">CPU / GPU / NIC / storage</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="66" y="-13">physical resources and accelerators</text>
+</g>
+</g>
+</svg>

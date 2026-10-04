@@ -1,1 +1,107 @@
-<svg aria-label="Security: безопасный агент - это цепочка ограничений, а не один sandbox" class="diagram" height="310" role="img" viewbox="0 0 920 310" width="920" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="120" x2="155" y1="152.5" y2="152.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="275" x2="310" y1="152.5" y2="152.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="292.5" y="146.5">intent</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="445" x2="480" y1="152.5" y2="152.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="462.5" y="146.5">allow/approve</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="540.0" x2="705.0" y1="185" y2="30"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="622.5" y="101.5">action</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="540.0" x2="705.0" y1="185" y2="210"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="622.5" y="191.5">egress</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="445" x2="805" y1="152.5" y2="152.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="625.0" y="146.5">decision</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="600" x2="805" y1="152.5" y2="152.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="702.5" y="146.5">result</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="100" x="20" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="70.0" y="144">User/Event</text><text fill="#465569" font-size="11" text-anchor="middle" x="70.0" y="165">untrusted input</text><rect fill="#f8efff" height="65" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="120" x="155" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="215.0" y="144">Agent</text><text fill="#465569" font-size="11" text-anchor="middle" x="215.0" y="165">prompt/plan</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="135" x="310" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="377.5" y="144">Policy engine</text><text fill="#465569" font-size="11" text-anchor="middle" x="377.5" y="165">scope/budget</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="120" x="480" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="540.0" y="144">MCP/tool</text><text fill="#465569" font-size="11" text-anchor="middle" x="540.0" y="165">capability</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="140" x="635" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="705.0" y="54">Prod system</text><text fill="#465569" font-size="11" text-anchor="middle" x="705.0" y="75">side effects</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="140" x="635" y="210"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="705.0" y="234">Internet</text><text fill="#465569" font-size="11" text-anchor="middle" x="705.0" y="255">egress</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="95" x="805" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="852.5" y="144">Audit</text><text fill="#465569" font-size="11" text-anchor="middle" x="852.5" y="165">events</text></svg>
+<svg aria-label="Security: безопасный агент - это цепочка ограничений, а не один sandbox" class="diagram diagram-redrawn" height="232.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 916.92 232.92" width="916.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 219.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n1</title>
+<path d="M103.04,-39C117.18,-39 132.54,-39 146.66,-39" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="146.73,-41.52 153.93,-39 146.73,-36.48 146.73,-41.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n2</title>
+<path d="M242.21,-39C263.25,-39 288.99,-39 312.35,-39" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="312.65,-41.52 319.85,-39 312.65,-36.48 312.65,-41.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="281" y="-41.56">intent</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge" id="edge3">
+<title>n2-&gt;n3</title>
+<path d="M437.06,-52.99C471.07,-61.26 513.75,-71.64 546.54,-79.61" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="546.21,-82.12 553.8,-81.38 547.4,-77.23 546.21,-82.12" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="495.5" y="-76.56">allow/approve</text>
+</g>
+<!-- n2&#45;&gt;n6 -->
+<g class="edge" id="edge6">
+<title>n2-&gt;n6</title>
+<path d="M437.31,-36.4C520.28,-32.67 670.91,-25.9 741.52,-22.73" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="741.84,-25.24 748.92,-22.4 741.61,-20.2 741.84,-25.24" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="598.5" y="-32.56">decision</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge" id="edge4">
+<title>n3-&gt;n4</title>
+<path d="M640.01,-113.1C667.64,-127.49 704.33,-146.59 733.22,-161.64" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="732.08,-163.88 739.63,-164.97 734.41,-159.41 732.08,-163.88" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="683.5" y="-143.56">action</text>
+</g>
+<!-- n3&#45;&gt;n5 -->
+<g class="edge" id="edge5">
+<title>n3-&gt;n5</title>
+<path d="M643.19,-96.12C669.92,-98.63 704.14,-101.85 731.67,-104.45" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="731.47,-106.96 738.88,-105.13 731.94,-101.94 731.47,-106.96" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="683.5" y="-103.56">egress</text>
+</g>
+<!-- n3&#45;&gt;n6 -->
+<g class="edge" id="edge7">
+<title>n3-&gt;n6</title>
+<path d="M643.19,-74.81C673.43,-62.92 713.26,-47.25 742.14,-35.89" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="743.09,-38.23 748.87,-33.25 741.24,-33.54 743.09,-38.23" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M91,-60C91,-60 12,-60 12,-60 6,-60 0,-54 0,-48 0,-48 0,-30 0,-30 0,-24 6,-18 12,-18 12,-18 91,-18 91,-18 97,-18 103,-24 103,-30 103,-30 103,-48 103,-48 103,-54 97,-60 91,-60" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-41.4">User/Event</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-31">untrusted input</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M230,-60C230,-60 166,-60 166,-60 160,-60 154,-54 154,-48 154,-48 154,-30 154,-30 154,-24 160,-18 166,-18 166,-18 230,-18 230,-18 236,-18 242,-24 242,-30 242,-30 242,-48 242,-48 242,-54 236,-60 230,-60" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="178" y="-41.4">Agent</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="168" y="-31">prompt/plan</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M425,-60C425,-60 332,-60 332,-60 326,-60 320,-54 320,-48 320,-48 320,-30 320,-30 320,-24 326,-18 332,-18 332,-18 425,-18 425,-18 431,-18 437,-24 437,-30 437,-30 437,-48 437,-48 437,-54 431,-60 425,-60" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="334" y="-41.4">Policy engine</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="345.5" y="-31">scope/budget</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M631,-113C631,-113 566,-113 566,-113 560,-113 554,-107 554,-101 554,-101 554,-83 554,-83 554,-77 560,-71 566,-71 566,-71 631,-71 631,-71 637,-71 643,-77 643,-83 643,-83 643,-101 643,-101 643,-107 637,-113 631,-113" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="568" y="-94.4">MCP/tool</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="574" y="-84">capability</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M826,-207C826,-207 736,-207 736,-207 730,-207 724,-201 724,-195 724,-195 724,-177 724,-177 724,-171 730,-165 736,-165 736,-165 826,-165 826,-165 832,-165 838,-171 838,-177 838,-177 838,-195 838,-195 838,-201 832,-207 826,-207" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="738" y="-188.4">Prod system</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="752.5" y="-178">side effects</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M811,-130C811,-130 751,-130 751,-130 745,-130 739,-124 739,-118 739,-118 739,-100 739,-100 739,-94 745,-88 751,-88 751,-88 811,-88 811,-88 817,-88 823,-94 823,-100 823,-100 823,-118 823,-118 823,-124 817,-130 811,-130" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="753" y="-111.4">Internet</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="764.5" y="-101">egress</text>
+</g>
+<!-- n6 -->
+<g class="node" id="node7">
+<title>n6</title>
+<path d="M801,-42C801,-42 761,-42 761,-42 755,-42 749,-36 749,-30 749,-30 749,-12 749,-12 749,-6 755,0 761,0 761,0 801,0 801,0 807,0 813,-6 813,-12 813,-12 813,-30 813,-30 813,-36 807,-42 801,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="763" y="-23.4">Audit</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="764" y="-13">events</text>
+</g>
+<!-- note -->
+<g class="node" id="node8">
+<title>note</title>
+<path d="M887.67,-26C887.67,-26 866.33,-26 866.33,-26 864.67,-26 863,-24.33 863,-22.67 863,-22.67 863,-19.33 863,-19.33 863,-17.67 864.67,-16 866.33,-16 866.33,-16 887.67,-16 887.67,-16 889.33,-16 891,-17.67 891,-19.33 891,-19.33 891,-22.67 891,-22.67 891,-24.33 889.33,-26 887.67,-26" fill="#53657a" stroke="transparent" stroke-width="1.6"></path>
+<text fill="#5d6c7b" font-family="DejaVu Sans" font-size="9.50" text-anchor="middle" x="877" y="-18.4">result</text>
+</g>
+</g>
+</svg>

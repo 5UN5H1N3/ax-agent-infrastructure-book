@@ -1,1 +1,106 @@
-<svg aria-label="Local inference: путь запроса через batching, prefill, KV cache и decode" class="diagram" height="300" role="img" viewbox="0 0 920 300" width="920" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="130" x2="165" y1="142.5" y2="142.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="275" x2="310" y1="142.5" y2="142.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="375.0" x2="550.0" y1="175" y2="30"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="462.5" y="96.5">batch</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="550.0" x2="550.0" y1="95" y2="190"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="550.0" y="136.5">populate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="550.0" x2="725.0" y1="255" y2="110"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="637.5" y="176.5">read/write</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="785" x2="825" y1="142.5" y2="142.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="805.0" y="136.5">token</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="665" x2="440" y1="142.5" y2="142.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="552.5" y="136.5">continuous batching</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="110" x="20" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="75.0" y="134">Requests</text><text fill="#465569" font-size="11" text-anchor="middle" x="75.0" y="155">prompts</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="110" x="165" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="220.0" y="134">Tokenizer</text><text fill="#465569" font-size="11" text-anchor="middle" x="220.0" y="155">tokens</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="130" x="310" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="375.0" y="134">Scheduler</text><text fill="#465569" font-size="11" text-anchor="middle" x="375.0" y="155">batch/queue</text><rect fill="#f8efff" height="65" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="130" x="485" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="550.0" y="54">Prefill</text><text fill="#465569" font-size="11" text-anchor="middle" x="550.0" y="75">prompt compute</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="130" x="485" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="550.0" y="214">KV cache</text><text fill="#465569" font-size="11" text-anchor="middle" x="550.0" y="235">attention state</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="120" x="665" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="725.0" y="134">Decode</text><text fill="#465569" font-size="11" text-anchor="middle" x="725.0" y="155">token loop</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="75" x="825" y="110"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="862.5" y="134">Stream</text><text fill="#465569" font-size="11" text-anchor="middle" x="862.5" y="155">tokens</text></svg>
+<svg aria-label="Local inference: путь запроса через batching, prefill, KV cache и decode" class="diagram diagram-redrawn" height="253.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 1054.92 253.92" width="1054.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 240.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n1</title>
+<path d="M92,-21C105.86,-21 121.25,-21 135.57,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="135.74,-23.52 142.94,-21 135.74,-18.48 135.74,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n2</title>
+<path d="M235.09,-21C248.84,-21 264.09,-21 278.38,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="278.54,-23.52 285.74,-21 278.54,-18.48 278.54,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge" id="edge3">
+<title>n2-&gt;n3</title>
+<path d="M354.98,-42.34C387.79,-76.53 452.09,-143.53 487.72,-180.66" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="485.96,-182.46 492.76,-185.91 489.6,-178.97 485.96,-182.46" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="420" y="-121.56">batch</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge" id="edge4">
+<title>n3-&gt;n4</title>
+<path d="M514,-185.65C514,-168 514,-142.79 514,-123.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="516.52,-123.27 514,-116.07 511.48,-123.27 516.52,-123.27" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="506" y="-148.56">populate</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge" id="edge5">
+<title>n4-&gt;n5</title>
+<path d="M564.94,-83.29C594.55,-76.36 631.81,-67.62 660.74,-60.84" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="661.47,-63.26 667.9,-59.16 660.32,-58.35 661.47,-63.26" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="618.5" y="-77.56">read/write</text>
+</g>
+<!-- n5&#45;&gt;n2 -->
+<g class="edge" id="edge7">
+<title>n5-&gt;n2</title>
+<path d="M667.75,-46.94C600.91,-41.74 464.88,-31.15 388.91,-25.24" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="388.67,-22.69 381.3,-24.64 388.28,-27.71 388.67,-22.69" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n5&#45;&gt;n6 -->
+<g class="edge" id="edge6">
+<title>n5-&gt;n6</title>
+<path d="M748.24,-50C769.58,-50 796.1,-50 818.42,-50" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="818.61,-52.52 825.81,-50 818.61,-47.48 818.61,-52.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="787" y="-52.56">token</text>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M80,-42C80,-42 12,-42 12,-42 6,-42 0,-36 0,-30 0,-30 0,-12 0,-12 0,-6 6,0 12,0 12,0 80,0 80,0 86,0 92,-6 92,-12 92,-12 92,-30 92,-30 92,-36 86,-42 80,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-23.4">Requests</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="25.5" y="-13">prompts</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M223,-42C223,-42 155,-42 155,-42 149,-42 143,-36 143,-30 143,-30 143,-12 143,-12 143,-6 149,0 155,0 155,0 223,0 223,0 229,0 235,-6 235,-12 235,-12 235,-30 235,-30 235,-36 229,-42 223,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="157" y="-23.4">Tokenizer</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="172.5" y="-13">tokens</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M369,-42C369,-42 298,-42 298,-42 292,-42 286,-36 286,-30 286,-30 286,-12 286,-12 286,-6 292,0 298,0 298,0 369,0 369,0 375,0 381,-6 381,-12 381,-12 381,-30 381,-30 381,-36 375,-42 369,-42" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="300" y="-23.4">Scheduler</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="303" y="-13">batch/queue</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M557,-228C557,-228 471,-228 471,-228 465,-228 459,-222 459,-216 459,-216 459,-198 459,-198 459,-192 465,-186 471,-186 471,-186 557,-186 557,-186 563,-186 569,-192 569,-198 569,-198 569,-216 569,-216 569,-222 563,-228 557,-228" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="494" y="-209.4">Prefill</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="473" y="-199">prompt compute</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M552.5,-116C552.5,-116 475.5,-116 475.5,-116 469.5,-116 463.5,-110 463.5,-104 463.5,-104 463.5,-86 463.5,-86 463.5,-80 469.5,-74 475.5,-74 475.5,-74 552.5,-74 552.5,-74 558.5,-74 564.5,-80 564.5,-86 564.5,-86 564.5,-104 564.5,-104 564.5,-110 558.5,-116 552.5,-116" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="483.5" y="-97.4">KV cache</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="477.5" y="-87">attention state</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M736,-71C736,-71 680,-71 680,-71 674,-71 668,-65 668,-59 668,-59 668,-41 668,-41 668,-35 674,-29 680,-29 680,-29 736,-29 736,-29 742,-29 748,-35 748,-41 748,-41 748,-59 748,-59 748,-65 742,-71 736,-71" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="683" y="-52.4">Decode</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="682" y="-42">token loop</text>
+</g>
+<!-- n6 -->
+<g class="node" id="node7">
+<title>n6</title>
+<path d="M893,-71C893,-71 838,-71 838,-71 832,-71 826,-65 826,-59 826,-59 826,-41 826,-41 826,-35 832,-29 838,-29 838,-29 893,-29 893,-29 899,-29 905,-35 905,-41 905,-41 905,-59 905,-59 905,-65 899,-71 893,-71" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="840" y="-52.4">Stream</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="849" y="-42">tokens</text>
+</g>
+<!-- note -->
+<g class="node" id="node8">
+<title>note</title>
+<path d="M1025.67,-55C1025.67,-55 933.33,-55 933.33,-55 931.67,-55 930,-53.33 930,-51.67 930,-51.67 930,-48.33 930,-48.33 930,-46.67 931.67,-45 933.33,-45 933.33,-45 1025.67,-45 1025.67,-45 1027.33,-45 1029,-46.67 1029,-48.33 1029,-48.33 1029,-51.67 1029,-51.67 1029,-53.33 1027.33,-55 1025.67,-55" fill="#53657a" stroke="transparent" stroke-width="1.6"></path>
+<text fill="#5d6c7b" font-family="DejaVu Sans" font-size="9.50" text-anchor="middle" x="979.5" y="-47.4">continuous batching</text>
+</g>
+</g>
+</svg>

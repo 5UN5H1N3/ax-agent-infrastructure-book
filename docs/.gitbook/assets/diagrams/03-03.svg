@@ -1,1 +1,113 @@
-<svg aria-label="Agent harness: минимальная операционная анатомия" class="diagram" height="335" role="img" viewbox="0 0 900 335" width="900" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="130" x2="330" y1="177.5" y2="172.5"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="222.5" x2="400.0" y1="105" y2="135"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="311.25" y="114.0">context</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="400.0" x2="585.0" y1="210" y2="35"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="492.5" y="116.5">prompt</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="585.0" x2="400.0" y1="100" y2="135"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="492.5" y="111.5">result</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="470" x2="520" y1="172.5" y2="167.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="495.0" y="164.0">call</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="520" x2="470" y1="167.5" y2="172.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="495.0" y="164.0">observation</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="400.0" x2="585.0" y1="210" y2="235"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="492.5" y="216.5">read/write</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="470" x2="700" y1="172.5" y2="172.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="585.0" y="166.5">before action</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="110" x="20" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="75.0" y="169">Goal/Event</text><text fill="#465569" font-size="11" text-anchor="middle" x="75.0" y="190">input</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="125" x="160" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="222.5" y="64">Context</text><text fill="#465569" font-size="11" text-anchor="middle" x="222.5" y="85">assembler</text><rect fill="#f8efff" height="75" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="140" x="330" y="135"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="400.0" y="159">Agent loop</text><text fill="#465569" font-size="11" text-anchor="middle" x="400.0" y="180">decide next step</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="130" x="520" y="35"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="585.0" y="59">LLM</text><text fill="#465569" font-size="11" text-anchor="middle" x="585.0" y="80">inference</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="130" x="520" y="135"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="585.0" y="159">Tools/MCP</text><text fill="#465569" font-size="11" text-anchor="middle" x="585.0" y="180">side effects</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="130" x="520" y="235"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="585.0" y="259">State/Memory</text><text fill="#465569" font-size="11" text-anchor="middle" x="585.0" y="280">persist/retrieve</text><rect fill="#f3f5f7" height="75" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="150" x="700" y="135"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="775.0" y="159">Policy + budget</text><text fill="#465569" font-size="11" text-anchor="middle" x="775.0" y="180">allow/deny/approve</text></svg>
+<svg aria-label="Agent harness: минимальная операционная анатомия" class="diagram diagram-redrawn" height="315.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 677.92 315.92" width="677.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 302.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n2 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n2</title>
+<path d="M101.29,-188.75C125.35,-183.8 154.44,-177.82 179.83,-172.59" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="180.34,-175.06 186.89,-171.14 179.33,-170.12 180.34,-175.06" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n2</title>
+<path d="M91.69,-130.06C117.23,-135.18 150.79,-141.91 179.63,-147.69" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="179.29,-150.2 186.85,-149.14 180.28,-145.25 179.29,-150.2" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="144" y="-145.56">context</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge" id="edge3">
+<title>n2-&gt;n3</title>
+<path d="M261.72,-181.33C285.08,-207.94 322,-250 322,-250 322,-250 377.59,-257.54 418.71,-263.13" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="418.47,-265.64 425.95,-264.11 419.15,-260.64 418.47,-265.64" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n4 -->
+<g class="edge" id="edge5">
+<title>n2-&gt;n4</title>
+<path d="M297.13,-165.93C330.34,-169.57 372.77,-174.22 406.27,-177.89" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="406.27,-180.43 413.71,-178.71 406.82,-175.42 406.27,-180.43" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="346.5" y="-175.56">call</text>
+</g>
+<!-- n2&#45;&gt;n5 -->
+<g class="edge" id="edge7">
+<title>n2-&gt;n5</title>
+<path d="M297.13,-144.67C326.22,-136.44 362.38,-126.2 393.42,-117.42" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="394.12,-119.84 400.37,-115.45 392.75,-114.99 394.12,-119.84" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="346.5" y="-138.56">read/write</text>
+</g>
+<!-- n2&#45;&gt;n6 -->
+<g class="edge" id="edge8">
+<title>n2-&gt;n6</title>
+<path d="M275.45,-138.79C320.36,-109.44 396,-60 396,-60 396,-60 406.89,-53.57 419.82,-45.92" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="421.38,-47.93 426.3,-42.1 418.81,-43.59 421.38,-47.93" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n3&#45;&gt;n2 -->
+<g class="edge" id="edge4">
+<title>n3-&gt;n2</title>
+<path d="M425.71,-250.94C389.11,-232.72 332.37,-204.48 291.84,-184.31" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="292.79,-181.97 285.23,-181.02 290.55,-186.48 292.79,-181.97" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="346.5" y="-223.56">prompt</text>
+</g>
+<!-- n4&#45;&gt;n2 -->
+<g class="edge" id="edge6">
+<title>n4-&gt;n2</title>
+<path d="M413.84,-171.83C392.01,-166.31 371,-161 371,-161 371,-161 337.44,-160.74 304.69,-160.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="304.5,-157.96 297.28,-160.42 304.46,-163 304.5,-157.96" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M89,-220C89,-220 12,-220 12,-220 6,-220 0,-214 0,-208 0,-208 0,-190 0,-190 0,-184 6,-178 12,-178 12,-178 89,-178 89,-178 95,-178 101,-184 101,-190 101,-190 101,-208 101,-208 101,-214 95,-220 89,-220" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-201.4">Goal/Event</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="38" y="-191">input</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M79.5,-143C79.5,-143 21.5,-143 21.5,-143 15.5,-143 9.5,-137 9.5,-131 9.5,-131 9.5,-113 9.5,-113 9.5,-107 15.5,-101 21.5,-101 21.5,-101 79.5,-101 79.5,-101 85.5,-101 91.5,-107 91.5,-113 91.5,-113 91.5,-131 91.5,-131 91.5,-137 85.5,-143 79.5,-143" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="23.5" y="-124.4">Context</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="24.5" y="-114">assembler</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M285,-181C285,-181 199,-181 199,-181 193,-181 187,-175 187,-169 187,-169 187,-151 187,-151 187,-145 193,-139 199,-139 199,-139 285,-139 285,-139 291,-139 297,-145 297,-151 297,-151 297,-169 297,-169 297,-175 291,-181 285,-181" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="205.5" y="-162.4">Agent loop</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="201" y="-152">decide next step</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M488,-290C488,-290 438,-290 438,-290 432,-290 426,-284 426,-278 426,-278 426,-260 426,-260 426,-254 432,-248 438,-248 438,-248 488,-248 488,-248 494,-248 500,-254 500,-260 500,-260 500,-278 500,-278 500,-284 494,-290 488,-290" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="449" y="-271.4">LLM</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="440" y="-261">inference</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M500,-210C500,-210 426,-210 426,-210 420,-210 414,-204 414,-198 414,-198 414,-170 414,-170 414,-164 420,-158 426,-158 426,-158 500,-158 500,-158 506,-158 512,-164 512,-170 512,-170 512,-198 512,-198 512,-204 506,-210 500,-210" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="428" y="-191.4">Tools/MCP</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="430.5" y="-181">before action</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="434.5" y="-171">side effects</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M513.5,-119C513.5,-119 412.5,-119 412.5,-119 406.5,-119 400.5,-113 400.5,-107 400.5,-107 400.5,-89 400.5,-89 400.5,-83 406.5,-77 412.5,-77 412.5,-77 513.5,-77 513.5,-77 519.5,-77 525.5,-83 525.5,-89 525.5,-89 525.5,-107 525.5,-107 525.5,-113 519.5,-119 513.5,-119" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="414.5" y="-100.4">State/Memory</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="425.5" y="-90">persist/retrieve</text>
+</g>
+<!-- n6 -->
+<g class="node" id="node7">
+<title>n6</title>
+<path d="M518,-42C518,-42 408,-42 408,-42 402,-42 396,-36 396,-30 396,-30 396,-12 396,-12 396,-6 402,0 408,0 408,0 518,0 518,0 524,0 530,-6 530,-12 530,-12 530,-30 530,-30 530,-36 524,-42 518,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="410" y="-23.4">Policy + budget</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="414.5" y="-13">allow/deny/approve</text>
+</g>
+<!-- note -->
+<g class="node" id="node8">
+<title>note</title>
+<path d="M648.67,-26C648.67,-26 558.33,-26 558.33,-26 556.67,-26 555,-24.33 555,-22.67 555,-22.67 555,-19.33 555,-19.33 555,-17.67 556.67,-16 558.33,-16 558.33,-16 648.67,-16 648.67,-16 650.33,-16 652,-17.67 652,-19.33 652,-19.33 652,-22.67 652,-22.67 652,-24.33 650.33,-26 648.67,-26" fill="#53657a" stroke="transparent" stroke-width="1.6"></path>
+<text fill="#5d6c7b" font-family="DejaVu Sans" font-size="9.50" text-anchor="middle" x="603.5" y="-18.4">result • observation</text>
+</g>
+</g>
+</svg>

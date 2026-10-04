@@ -1,1 +1,95 @@
-<svg aria-label="Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»" class="diagram" height="345" role="img" viewbox="0 0 800 345" width="800" xmlns="http://www.w3.org/2000/svg"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="130.0" x2="130.0" y1="105" y2="145"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="220" x2="300" y1="177.5" y2="177.5"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="260.0" y="171.5">persist</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="130.0" x2="390.0" y1="210" y2="40"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="260.0" y="119.0">artifacts</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="650.0" x2="650.0" y1="105" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="650.0" y="119.0">checkpoint</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="390.0" x2="650.0" y1="105" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="520.0" y="119.0">durable data</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="650.0" x2="650.0" y1="210" y2="250"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="650.0" y="224.0">store</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="180" x="40" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="130.0" y="64">LLM context</text><text fill="#465569" font-size="11" text-anchor="middle" x="130.0" y="85">tokens in request</text><rect fill="#f8efff" height="65" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="180" x="40" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="130.0" y="169">Working state</text><text fill="#465569" font-size="11" text-anchor="middle" x="130.0" y="190">plan, scratchpad</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="180" x="300" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="390.0" y="64">Filesystem</text><text fill="#465569" font-size="11" text-anchor="middle" x="390.0" y="85">workspace/artifacts</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="180" x="300" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="390.0" y="169">External DB</text><text fill="#465569" font-size="11" text-anchor="middle" x="390.0" y="190">memory/events</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="180" x="560" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="650.0" y="64">Process RAM</text><text fill="#465569" font-size="11" text-anchor="middle" x="650.0" y="85">runtime state</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="180" x="560" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="650.0" y="169">Snapshot</text><text fill="#465569" font-size="11" text-anchor="middle" x="650.0" y="190">RAM/durable data</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="180" x="560" y="250"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="650.0" y="274">Object storage</text><text fill="#465569" font-size="11" text-anchor="middle" x="650.0" y="295">snapshot blobs</text></svg>
+<svg aria-label="Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»" class="diagram diagram-redrawn" height="311.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 604.92 311.92" width="604.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 298.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge" id="edge1">
+<title>n0-&gt;n1</title>
+<path d="M62.5,-176.72C62.5,-168.33 62.5,-160.67 62.5,-160.67 62.5,-160.67 62.5,-123.33 62.5,-123.33 62.5,-123.33 62.5,-119.71 62.5,-114.72" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="65.02,-114.48 62.5,-107.28 59.98,-114.48 65.02,-114.48" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge" id="edge3">
+<title>n1-&gt;n2</title>
+<path d="M125.1,-101.11C150.58,-107.36 180.24,-114.63 206.45,-121.06" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="206.15,-123.58 213.74,-122.85 207.35,-118.69 206.15,-123.58" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169.5" y="-119.56">artifacts</text>
+</g>
+<!-- n1&#45;&gt;n3 -->
+<g class="edge" id="edge2">
+<title>n1-&gt;n3</title>
+<path d="M125.44,-75.26C139.31,-72.85 150,-71 150,-71 150,-71 182.91,-68.38 215.02,-65.82" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="215.3,-68.32 222.28,-65.24 214.9,-63.3 215.3,-68.32" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169.5" y="-73.56">persist</text>
+</g>
+<!-- n2&#45;&gt;n5 -->
+<g class="edge" id="edge5">
+<title>n2-&gt;n5</title>
+<path d="M339.2,-138C372.84,-138 414.47,-138 448.6,-138" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="449.01,-140.52 456.21,-138 449.01,-135.48 449.01,-140.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="394.5" y="-140.56">durable data</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge" id="edge4">
+<title>n4-&gt;n5</title>
+<path d="M514.5,-233.56C514.5,-225.79 514.5,-219.33 514.5,-219.33 514.5,-219.33 514.5,-178.67 514.5,-178.67 514.5,-178.67 514.5,-175.89 514.5,-171.78" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="517.02,-171.64 514.5,-164.44 511.98,-171.64 517.02,-171.64" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n5&#45;&gt;n6 -->
+<g class="edge" id="edge6">
+<title>n5-&gt;n6</title>
+<path d="M514.5,-111.77C514.5,-104.72 514.5,-99 514.5,-99 514.5,-99 514.5,-60 514.5,-60 514.5,-60 514.5,-55.57 514.5,-49.7" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="517.02,-49.53 514.5,-42.33 511.98,-49.53 517.02,-49.53" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node" id="node1">
+<title>n0</title>
+<path d="M107,-219C107,-219 18,-219 18,-219 12,-219 6,-213 6,-207 6,-207 6,-189 6,-189 6,-183 12,-177 18,-177 18,-177 107,-177 107,-177 113,-177 119,-183 119,-189 119,-189 119,-207 119,-207 119,-213 113,-219 107,-219" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="21" y="-200.4">LLM context</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="20" y="-190">tokens in request</text>
+</g>
+<!-- n1 -->
+<g class="node" id="node2">
+<title>n1</title>
+<path d="M113,-107C113,-107 12,-107 12,-107 6,-107 0,-101 0,-95 0,-95 0,-77 0,-77 0,-71 6,-65 12,-65 12,-65 113,-65 113,-65 119,-65 125,-71 125,-77 125,-77 125,-95 125,-95 125,-101 119,-107 113,-107" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-88.4">Working state</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="22" y="-78">plan, scratchpad</text>
+</g>
+<!-- n2 -->
+<g class="node" id="node3">
+<title>n2</title>
+<path d="M327,-159C327,-159 226,-159 226,-159 220,-159 214,-153 214,-147 214,-147 214,-129 214,-129 214,-123 220,-117 226,-117 226,-117 327,-117 327,-117 333,-117 339,-123 339,-129 339,-129 339,-147 339,-147 339,-153 333,-159 327,-159" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="239.5" y="-140.4">Filesystem</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="228" y="-130">workspace/artifacts</text>
+</g>
+<!-- n3 -->
+<g class="node" id="node4">
+<title>n3</title>
+<path d="M318.5,-82C318.5,-82 234.5,-82 234.5,-82 228.5,-82 222.5,-76 222.5,-70 222.5,-70 222.5,-52 222.5,-52 222.5,-46 228.5,-40 234.5,-40 234.5,-40 318.5,-40 318.5,-40 324.5,-40 330.5,-46 330.5,-52 330.5,-52 330.5,-70 330.5,-70 330.5,-76 324.5,-82 318.5,-82" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="236.5" y="-63.4">External DB</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="237.5" y="-53">memory/events</text>
+</g>
+<!-- n4 -->
+<g class="node" id="node5">
+<title>n4</title>
+<path d="M560.5,-286C560.5,-286 468.5,-286 468.5,-286 462.5,-286 456.5,-280 456.5,-274 456.5,-274 456.5,-246 456.5,-246 456.5,-240 462.5,-234 468.5,-234 468.5,-234 560.5,-234 560.5,-234 566.5,-234 572.5,-240 572.5,-246 572.5,-246 572.5,-274 572.5,-274 572.5,-280 566.5,-286 560.5,-286" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="470.5" y="-267.4">Process RAM</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="481" y="-257">runtime state</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="487.5" y="-247">checkpoint</text>
+</g>
+<!-- n5 -->
+<g class="node" id="node6">
+<title>n5</title>
+<path d="M560.5,-164C560.5,-164 468.5,-164 468.5,-164 462.5,-164 456.5,-158 456.5,-152 456.5,-152 456.5,-124 456.5,-124 456.5,-118 462.5,-112 468.5,-112 468.5,-112 560.5,-112 560.5,-112 566.5,-112 572.5,-118 572.5,-124 572.5,-124 572.5,-152 572.5,-152 572.5,-158 566.5,-164 560.5,-164" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="482.5" y="-145.4">Snapshot</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="470.5" y="-135">RAM/durable data</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="502" y="-125">store</text>
+</g>
+<!-- n6 -->
+<g class="node" id="node7">
+<title>n6</title>
+<path d="M567,-42C567,-42 462,-42 462,-42 456,-42 450,-36 450,-30 450,-30 450,-12 450,-12 450,-6 456,0 462,0 462,0 567,0 567,0 573,0 579,-6 579,-12 579,-12 579,-30 579,-30 579,-36 573,-42 567,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="464" y="-23.4">Object storage</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="477.5" y="-13">snapshot blobs</text>
+</g>
+</g>
+</svg>
