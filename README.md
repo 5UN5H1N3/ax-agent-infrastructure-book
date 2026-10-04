@@ -1,7 +1,7 @@
 # AX & Agent Infrastructure
 
 <p align="center">
-  <img src="assets/social-preview.svg" alt="AX & Agent Infrastructure" width="100%">
+  <img src="assets/social-preview.png" alt="AX & Agent Infrastructure" width="100%">
 </p>
 
 
