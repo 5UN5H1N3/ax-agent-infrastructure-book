@@ -14,7 +14,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: book-generated-artifacts-${{ github.ref }}
+  group: book-pdf-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
