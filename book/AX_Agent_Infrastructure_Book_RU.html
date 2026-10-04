@@ -138,14 +138,326 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 <p>AX и Substrate - pre-stable системы. AX использует <code>ax.io/v1alpha1</code>, а Substrate прямо предупреждает о быстрых breaking changes. Поэтому любые production-планы должны начинаться с pinning версий, проверки совместимости и отдельного test environment. В этой книге команды лабораторных работ являются <strong>шаблонами воспроизводимого стенда</strong>, но перед применением в реальной инфраструктуре необходимо сверять release notes выбранных версий.</p>
 <h3>Что книга намеренно не делает</h3>
 <p>Она не заменяет полноценный курс Kubernetes, не погружается в математику Transformer'ов и не проводит построчный аудит Go-кода. Если механизм можно понять и эксплуатировать, не разбирая конкретную реализацию до функции и struct, мы остаёмся на архитектурном уровне. И наоборот: runner, lifecycle, snapshots, Gateway и trust boundaries разбираются глубоко, потому что ошибки именно здесь дают эксплуатационные и security-инциденты.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax">AX repository</a></li><li><a href="https://github.com/google/ax/blob/main/README.md">AX README</a></li><li><a href="https://github.com/google/ax/blob/main/docs/roadmap.md">AX roadmap</a></li><li><a href="https://github.com/agent-substrate/substrate">Substrate repository</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md">Substrate architecture</a></li></ul></div></section><section class="chapter" id="ch-1"><div class="chapter-num">Глава 1</div><h1>Карта современной агентной системы: от модели до кластера</h1><figure><figcaption>Карта стека: где заканчивается LLM и начинается инфраструктура</figcaption><svg class="diagram" viewBox="0 0 920 460" role="img" aria-label="Карта стека: где заканчивается LLM и начинается инфраструктура"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="460.0" y1="85" x2="460.0" y2="100" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="460.0" y1="155" x2="460.0" y2="170" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="460.0" y1="225" x2="460.0" y2="240" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="460.0" y1="295" x2="460.0" y2="310" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="460.0" y1="365" x2="460.0" y2="380" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><rect x="80" y="30" rx="12" ry="12" width="760" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="460.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agentic application</text><text x="460.0" y="75" text-anchor="middle" font-size="11" fill="#465569">бизнес-логика, supervisor, workflows,</text><text x="460.0" y="90" text-anchor="middle" font-size="11" fill="#465569">multi-agent</text><rect x="80" y="100" rx="12" ry="12" width="760" height="55" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="460.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent harness</text><text x="460.0" y="145" text-anchor="middle" font-size="11" fill="#465569">context, loop, tools, memory, policies,</text><text x="460.0" y="160" text-anchor="middle" font-size="11" fill="#465569">tracing</text><rect x="80" y="170" rx="12" ry="12" width="760" height="55" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="460.0" y="194" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX</text><text x="460.0" y="215" text-anchor="middle" font-size="11" fill="#465569">Task / Workspace / Gateway / Model,</text><text x="460.0" y="230" text-anchor="middle" font-size="11" fill="#465569">lifecycle, reconciliation</text><rect x="80" y="240" rx="12" ry="12" width="760" height="55" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="460.0" y="264" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent Substrate</text><text x="460.0" y="285" text-anchor="middle" font-size="11" fill="#465569">Actor / WorkerPool / snapshots / routing /</text><text x="460.0" y="300" text-anchor="middle" font-size="11" fill="#465569">sandbox lifecycle</text><rect x="80" y="310" rx="12" ry="12" width="760" height="55" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="460.0" y="334" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Kubernetes + Linux + storage + network</text><text x="460.0" y="355" text-anchor="middle" font-size="11" fill="#465569">nodes, pods, cgroups, runtime, DB/object</text><text x="460.0" y="370" text-anchor="middle" font-size="11" fill="#465569">storage</text><rect x="80" y="380" rx="12" ry="12" width="760" height="55" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="460.0" y="404" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">CPU / GPU / NIC / storage</text><text x="460.0" y="425" text-anchor="middle" font-size="11" fill="#465569">physical resources and accelerators</text></svg></figure><p>Самая полезная отправная точка - перестать использовать слово «агент» для всего стека сразу. LLM генерирует продолжение последовательности токенов и может структурированно предложить вызов инструмента. Агент появляется тогда, когда вокруг модели есть цикл исполнения: получить состояние, сформировать контекст, запросить модель, разобрать действие, выполнить его, вернуть observation, решить, продолжать ли работу. Но даже это ещё не платформенная система.</p>
-<p>Надёжный agent workload требует как минимум: lifecycle, изоляции, долговременного состояния, секретов, сетевой политики, бюджетов, наблюдаемости и механизма восстановления. Multi-agent система добавляет делегирование, координацию, ограничения дерева задач и агрегацию результатов. Поэтому удобнее мыслить слоями.</p>
-<p><strong>LLM</strong> отвечает за вероятностное решение внутри шага. <strong>Harness</strong> превращает модель в выполняющий цикл. <strong>Agent framework</strong> может задавать граф состояний, supervisor/worker или другой pattern. <strong>AX</strong> предоставляет декларативные ресурсы и lifecycle для agent workloads. <strong>Agent Substrate</strong> даёт logical Actor, физические WorkerPool, sandbox, suspend/resume и routing. <strong>Kubernetes/Linux</strong> управляют узлами, контейнерными workload'ами и базовыми ресурсами. Inference при этом вообще может жить как рядом с AX, так и снаружи кластера.</p>
-<p>Ключевой практический вывод: проблемы разных слоёв выглядят одинаково на поверхности. «Агент завис» может означать GPU saturation, таймаут MCP, запрет egress, остановившийся child process при живом runner, застрявший Actor resume или логическую петлю planner'а. Диагностика начинается не с prompt'а, а с определения слоя отказа.</p>
-<h3>Что AX добавляет поверх обычного Kubernetes</h3>
-<p>Kubernetes превосходно управляет Pods, Services и декларативными объектами инфраструктуры. Но population agent workloads может быть намного больше числа реально активных процессов. Агент способен простаивать минуты и часы, а затем быстро просыпаться с сохранённым состоянием. Хранить миллионы краткоживущих объектов в Kubernetes API также не всегда разумно. AX потому отделяет своё control-plane состояние и использует Substrate как специализированный runtime.</p>
-<p>Это не означает, что AX «лучше Kubernetes». Он занимает другой уровень. Аналогично LangGraph или собственный Python harness не конкурирует с Kubernetes: один описывает логику агента, другой - физическое выполнение и изоляцию.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax/blob/main/DESIGN.md">AX design</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/main/README.md">Substrate README</a></li><li><a href="https://kubernetes.io/docs/concepts/">Kubernetes concepts</a></li></ul></div></section><section class="chapter" id="ch-2"><div class="chapter-num">Глава 2</div><h1>LLM как вычислительный компонент агентной системы</h1><figure><figcaption>Local inference: путь запроса через batching, prefill, KV cache и decode</figcaption><svg class="diagram" viewBox="0 0 920 300" role="img" aria-label="Local inference: путь запроса через batching, prefill, KV cache и decode"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="142.5" x2="165" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="275" y1="142.5" x2="310" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="375.0" y1="175" x2="550.0" y2="30" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="462.5" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">batch</text><line x1="550.0" y1="95" x2="550.0" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="550.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">populate</text><line x1="550.0" y1="255" x2="725.0" y2="110" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="637.5" y="176.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="785" y1="142.5" x2="825" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="805.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">token</text><line x1="665" y1="142.5" x2="440" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="552.5" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">continuous batching</text><rect x="20" y="110" rx="12" ry="12" width="110" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="75.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Requests</text><text x="75.0" y="155" text-anchor="middle" font-size="11" fill="#465569">prompts</text><rect x="165" y="110" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="220.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tokenizer</text><text x="220.0" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text><rect x="310" y="110" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="375.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Scheduler</text><text x="375.0" y="155" text-anchor="middle" font-size="11" fill="#465569">batch/queue</text><rect x="485" y="30" rx="12" ry="12" width="130" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="550.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Prefill</text><text x="550.0" y="75" text-anchor="middle" font-size="11" fill="#465569">prompt compute</text><rect x="485" y="190" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="550.0" y="214" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">KV cache</text><text x="550.0" y="235" text-anchor="middle" font-size="11" fill="#465569">attention state</text><rect x="665" y="110" rx="12" ry="12" width="120" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="725.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Decode</text><text x="725.0" y="155" text-anchor="middle" font-size="11" fill="#465569">token loop</text><rect x="825" y="110" rx="12" ry="12" width="75" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="862.5" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Stream</text><text x="862.5" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text></svg></figure><p>Для эксплуатации agent infrastructure не требуется выводить формулы attention, но нужно понимать, какие свойства модели определяют latency, стоимость и надёжность системы.</p>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax">AX repository</a></li><li><a href="https://github.com/google/ax/blob/main/README.md">AX README</a></li><li><a href="https://github.com/google/ax/blob/main/docs/roadmap.md">AX roadmap</a></li><li><a href="https://github.com/agent-substrate/substrate">Substrate repository</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md">Substrate architecture</a></li></ul></div></section><section class="chapter" id="ch-1"><div class="chapter-num">Глава 1</div><h1>Карта современной агентной системы: от модели до кластера</h1><figure><figcaption>Карта стека: где заканчивается LLM и начинается инфраструктура</figcaption><svg aria-label="Карта стека: где заканчивается LLM и начинается инфраструктура" class="diagram" role="img" viewbox="0 0 920 460"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="85" y2="100"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="155" y2="170"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="225" y2="240"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="295" y2="310"></line><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="460.0" x2="460.0" y1="365" y2="380"></line><rect fill="#f8efff" height="55" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="760" x="80" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="54">Agentic application</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="75">бизнес-логика, supervisor, workflows,</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="90">multi-agent</text><rect fill="#edf4ff" height="55" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="760" x="80" y="100"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="124">Agent harness</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="145">context, loop, tools, memory, policies,</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="160">tracing</text><rect fill="#eefaf3" height="55" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="760" x="80" y="170"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="194">AX</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="215">Task / Workspace / Gateway / Model,</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="230">lifecycle, reconciliation</text><rect fill="#fff7e8" height="55" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="760" x="80" y="240"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="264">Agent Substrate</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="285">Actor / WorkerPool / snapshots / routing /</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="300">sandbox lifecycle</text><rect fill="#f3f5f7" height="55" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="760" x="80" y="310"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="334">Kubernetes + Linux + storage + network</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="355">nodes, pods, cgroups, runtime, DB/object</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="370">storage</text><rect fill="#fff0f0" height="55" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="760" x="80" y="380"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="460.0" y="404">CPU / GPU / NIC / storage</text><text fill="#465569" font-size="11" text-anchor="middle" x="460.0" y="425">physical resources and accelerators</text></svg></figure>
+<p>Представим не демонстрационного чат-бота, а рабочую инженерную задачу. Ночью часть клиентов теряет доступ к сервису. Дежурный инженер просит агента собрать метрики, проверить DNS и TLS, сопоставить событие с последним изменением конфигурации, предложить безопасное исправление и после подтверждения выполнить его. На экране это может выглядеть как один диалог. Внутри участвует целая система.</p>
+<p>Кто-то должен принять цель и определить границы работы. Кто-то — собрать контекст для модели. Кто-то — дать модели список доступных инструментов. До выполнения команды необходимо проверить полномочия, объект воздействия и необходимость подтверждения. После вызова инструмента нужно сохранить результат, отличить временную ошибку от окончательной, решить, продолжать ли работу, и не повторить уже выполненное изменение. Сам процесс должен где-то запуститься, получить CPU и память, доступ к нужным файлам и сети, но не получить доступ ко всему кластеру. Если работа прервётся, её состояние потребуется восстановить. Все действия должны остаться в журналах и трассировках.</p>
+<p>Большая языковая модель решает лишь часть этой задачи. Она способна проанализировать переданный ей контекст, сформулировать следующий шаг или предложить вызов инструмента. Всё остальное создаётся вокруг неё. Поэтому первая полезная привычка при проектировании агентных систем — не называть словом «агент» весь стек целиком.</p>
+<h3>Одно слово скрывает несколько разных систем</h3>
+<p>В повседневной речи агентом могут назвать и prompt с циклом, и Python-программу, и контейнер, и Task в AX, и всю multi-agent платформу. Пока система работает, такая неточность кажется безобидной. Во время проектирования или инцидента она мешает определить владельца проблемы.</p>
+<p>Удобнее разделять систему на уровни ответственности.</p>
+<table>
+<thead>
+<tr>
+<th>Уровень</th>
+<th>Главный вопрос</th>
+<th>Примеры обязанностей</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LLM / inference</td>
+<td>Как получить вероятностное решение или текст?</td>
+<td>generation, structured output, tool proposal, embeddings</td>
+</tr>
+<tr>
+<td>Agent loop и harness</td>
+<td>Как превратить отдельные вызовы модели в управляемую работу?</td>
+<td>context assembly, tools, state, policy, budgets, retries, stop conditions</td>
+</tr>
+<tr>
+<td>Agent framework</td>
+<td>Как описать сложную логику и координацию?</td>
+<td>граф состояний, planner/executor, supervisor/worker, fan-out/fan-in</td>
+</tr>
+<tr>
+<td>Orchestrator</td>
+<td>Как управлять множеством отдельных выполнений?</td>
+<td>создание, наблюдение, приостановка, возобновление, удаление, quotas</td>
+</tr>
+<tr>
+<td>Execution runtime</td>
+<td>Где и с какими гарантиями выполняется workload?</td>
+<td>sandbox, process lifecycle, workspace, snapshots, routing</td>
+</tr>
+<tr>
+<td>Infrastructure</td>
+<td>На каких физических и кластерных ресурсах всё работает?</td>
+<td>Linux, Kubernetes, nodes, storage, network, GPU</td>
+</tr>
+<tr>
+<td>External systems</td>
+<td>Где происходят реальные действия и хранится бизнес-состояние?</td>
+<td>Git, CMDB, router API, ticket system, database, cloud API</td>
+</tr>
+</tbody>
+</table>
+<p>Границы могут проходить немного иначе в разных продуктах. Важно не название слоя, а явное распределение обязанностей. Если retry одновременно реализован в model client, harness, очереди, orchestrator и внешнем proxy, одна временная ошибка способна породить несколько одинаковых действий. Если ни один слой не считает себя владельцем retry, задача остановится после первого сетевого сбоя.</p>
+<h3>Что на самом деле делает LLM</h3>
+<p>LLM получает конечную последовательность токенов и вычисляет вероятное продолжение. Современный model API может вернуть обычный текст, структурированный объект или предложение вызвать инструмент. Модель может написать:</p>
+<pre><code class="language-json">{
+  "tool": "restart_service",
+  "arguments": {
+    "service": "edge-gateway",
+    "region": "eu-1"
+  }
+}
+</code></pre>
+<p>Этот ответ ещё не является перезапуском. Он выражает решение модели на основании того контекста, который ей показали. Модель сама по себе не доказывает, что сервис существует, что регион выбран правильно, что пользователь имеет соответствующие полномочия, что изменение разрешено сейчас и что такой вызов не был выполнен минуту назад.</p>
+<p>Между предложением модели и реальным воздействием должна находиться обычная проверяемая программа. Она валидирует schema и значения, определяет требуемое разрешение, запрашивает approval, добавляет idempotency key, вызывает инструмент, сохраняет внешний идентификатор операции и затем проверяет результат. Фраза в system prompt «не перезапускай production без разрешения» полезна как инструкция модели, но не является технической границей безопасности.</p>
+<p>Поэтому LLM разумно считать заменяемым вычислительным компонентом. Она помогает выбирать следующий шаг, классифицировать данные, строить гипотезы и формировать объяснения. Authoritative state, полномочия и подтверждение side effects должны находиться вне неё.</p>
+<h3>Когда появляется агент</h3>
+<p>Минимальный агент возникает тогда, когда отдельные вызовы модели соединяются в цикл обратной связи:</p>
+<pre><code class="language-text">получить цель
+    ↓
+прочитать состояние и наблюдения
+    ↓
+собрать контекст
+    ↓
+получить решение модели
+    ↓
+проверить и выполнить действие
+    ↓
+зафиксировать результат
+    ↓
+продолжить, приостановиться или завершить работу
+</code></pre>
+<p>В этом цикле могут присутствовать и полностью детерминированные ветви. Например, превышение бюджета не обсуждается с моделью: программа завершает задачу. Операция, требующая подтверждения, переводит работу в состояние <code>WaitingForApproval</code>. Повторный ответ внешней системы с тем же operation ID не должен восприниматься как новое действие.</p>
+<p>Чтобы цикл был эксплуатационно пригодным, для него необходимо определить как минимум:</p>
+<ul>
+<li>цель и входные данные;</li>
+<li>допустимые действия;</li>
+<li>текущее состояние;</li>
+<li>правила формирования контекста;</li>
+<li>бюджеты времени, токенов и шагов;</li>
+<li>обработку ошибок и повторов;</li>
+<li>критерии остановки;</li>
+<li>место хранения результатов;</li>
+<li>правила выполнения внешних изменений;</li>
+<li>способ наблюдения и аварийной остановки.</li>
+</ul>
+<p>Программа с одним вызовом модели может быть полезной, но ей не обязательно становиться агентом. Если задача решается детерминированным parser, SQL-запросом или обычным workflow, добавление цикла с LLM увеличит стоимость и число вариантов отказа, не дав полезной адаптивности.</p>
+<h3>Harness: система, которая делает цикл управляемым</h3>
+<p><strong>Agent harness</strong> — это программный слой вокруг модели, который реализует цикл агента и превращает вероятностные ответы в контролируемое выполнение. Это не обязательно отдельный продукт. Для небольшого агента harness может быть несколькими модулями собственного приложения. Для сложной платформы — большим набором сервисов и библиотек.</p>
+<p>У harness обычно есть несколько обязанностей.</p>
+<p><strong>Context assembly</strong> решает, что попадёт в следующий model request: system policy, цель, актуальное состояние, недавняя история, найденные документы и результаты инструментов. Он же должен не допустить, чтобы случайный README или ответ внешнего MCP server получил тот же уровень доверия, что и platform policy.</p>
+<p><strong>Model adapter</strong> скрывает технические различия model providers и локальных inference servers: форматы сообщений, tool schemas, streaming, лимиты, ошибки, timeouts и метрики. Замена модели не должна требовать переписывания всей бизнес-логики.</p>
+<p><strong>Tool executor</strong> принимает предложение модели, валидирует аргументы и выполняет реальный вызов. Он связывает запрос модели с operation ID, timeout, журналом и результатом.</p>
+<p><strong>State manager</strong> хранит progression задачи. В нём находятся факты, уже принятые решения, открытые вопросы, выполненные side effects и данные, необходимые после перезапуска.</p>
+<p><strong>Policy и approval layer</strong> определяет, может ли действие быть выполнено. Read-only запрос метрик и изменение маршрутизации — разные классы полномочий, даже если оба представлены как tools.</p>
+<p><strong>Budget и retry control</strong> ограничивает число шагов, время, стоимость и глубину делегирования. Он отличает повтор безопасного чтения от повтора операции, которая могла уже изменить внешнюю систему.</p>
+<p><strong>Observability</strong> связывает task ID, model request, tool call, approval и внешний operation ID. Без такой корреляции инженер видит пять разрозненных журналов и не может восстановить ход работы.</p>
+<p><strong>Termination logic</strong> отвечает на неудобный, но обязательный вопрос: когда работа завершена? Ответ модели «готово» недостаточен. Критерий должен проверяться по результату: тесты прошли, устройство вернуло ожидаемую конфигурацию, артефакт создан, итог подтверждён независимым чтением.</p>
+<p>Harness управляет шагами внутри одного выполнения. Он не обязан создавать контейнеры, выбирать Kubernetes node или восстанавливать sandbox после потери Worker. Эти задачи относятся к другим слоям.</p>
+<h3>Harness и agent framework — не синонимы</h3>
+<p>Agent framework предоставляет готовые абстракции для построения логики: граф состояний, роли, messages, planner/executor, supervisor/worker, сохранение checkpoints или интеграции с tools. Harness — эксплуатационная оболочка, которая должна существовать независимо от того, используется framework или нет.</p>
+<p>Framework может стать частью harness, но не заменяет автоматически policy enforcement, секреты, сетевую изоляцию, бюджеты или end-to-end observability. И наоборот, простой агент иногда не нуждается в тяжёлом framework. Цикл из нескольких явно написанных состояний легче проверить и сопровождать, чем универсальный граф, если задача небольшая и хорошо определена.</p>
+<p>Выбирать framework стоит, когда его модель действительно совпадает с задачей: требуется ветвящийся workflow, долговременное состояние, человеческие подтверждения, повторное выполнение отдельных узлов или сложная координация ролей. Если нужен один model call, три deterministic проверки и один API-запрос, собственный небольшой harness обычно прозрачнее.</p>
+<h3>Tools и MCP: доступ к возможностям, а не передача власти модели</h3>
+<p>Tool — это операция, которую harness умеет предложить модели и затем выполнить. MCP стандартизует способ обнаружить такие возможности и обмениваться запросами с внешними серверами. Ни tool schema, ни MCP сами по себе не решают вопрос доверия.</p>
+<p>Рассмотрим диагностический MCP server. Он предлагает tools <code>get_interface_counters</code> и <code>set_interface_state</code>. Первый читает telemetry, второй меняет состояние порта. Если агенту передать оба инструмента с одними и теми же credentials, различие между чтением и изменением останется лишь в описании, которое видит модель. Надёжная система выдаёт разные capabilities, проверяет объект и scope операции, требует approval для write и использует краткоживущие полномочия.</p>
+<p>Результат tool call также нельзя автоматически считать истинным. Сервер может вернуть устаревшие данные, ошибку внутри поля <code>result</code>, неполный ответ или вредоносный текст. Harness сохраняет provenance: какой источник дал факт, когда он был получен и каким запросом. Внешнее действие завершается не успешным HTTP-ответом, а проверкой intended outcome.</p>
+<h3>Состояние существует сразу в нескольких местах</h3>
+<p>Фраза «агент помнит задачу» слишком неоднозначна. В реальной системе есть несколько типов состояния.</p>
+<p><strong>Model context</strong> — токены конкретного запроса. Он ограничен и пересобирается.</p>
+<p><strong>Working state</strong> — текущая стадия задачи, накопленные факты, план, счётчики и ожидаемые события.</p>
+<p><strong>Persistent memory</strong> — долговременные записи, которые можно найти и использовать позже.</p>
+<p><strong>Workspace</strong> — файлы, репозитории, конфигурация инструментов и создаваемые артефакты.</p>
+<p><strong>Process state</strong> — память и открытые ресурсы конкретного процесса.</p>
+<p><strong>Runtime snapshot</strong> — технический checkpoint, который runtime способен сохранить для ускоренного resume.</p>
+<p><strong>External state</strong> — реальные изменения в Git, базе, тикетной системе или сетевом устройстве. Он не откатывается восстановлением локального snapshot.</p>
+<p>Это различие определяет архитектуру восстановления. Если процесс запускается заново, working state должен быть прочитан из durable store или workspace. Если восстанавливается RAM image, внешнее TCP-соединение всё равно может оказаться закрытым, а token — просроченным. После любого resume программа обязана перепроверить внешние предположения.</p>
+<h3>Orchestrator управляет выполнениями, а не мыслями модели</h3>
+<p>Когда один harness нужно запускать много раз, появляется следующий класс задач:</p>
+<ul>
+<li>создать изолированное выполнение;</li>
+<li>назначить ему ресурсы и Workspace;</li>
+<li>выдать секреты и сетевые правила;</li>
+<li>отслеживать lifecycle;</li>
+<li>приостанавливать idle workload;</li>
+<li>восстанавливать его по событию;</li>
+<li>ограничивать число дочерних задач;</li>
+<li>удалять завершённые окружения;</li>
+<li>связывать их журналы и стоимость.</li>
+</ul>
+<p>Это обязанности orchestrator и execution runtime. Они не должны зависеть от конкретного reasoning pattern агента. Один Task может запускать собственный Python harness, CLI-agent или приложение на framework. Платформа управляет workload, но не обязана понимать внутренний plan модели.</p>
+<p>Multi-agent система добавляет ещё один уровень. Coordinator может создать Researcher, Diagnostic и Validator, но техническая возможность создать дочерний Task не отвечает на вопросы: кто имеет право делегировать, какой максимальный depth дерева, кто наследует credentials, как отменяются дочерние работы и что происходит при частичном успехе. Эти правила относятся к harness/governance и orchestrator contract одновременно, поэтому граница должна быть явной.</p>
+<h3>Runtime и sandbox отвечают за место выполнения</h3>
+<p>Контейнер упаковывает приложение и его зависимости, но сам по себе не определяет всю security model. Для agent workload важны:</p>
+<ul>
+<li>изоляция процессов и файловой системы;</li>
+<li>CPU, память и disk quotas;</li>
+<li>capabilities и системные вызовы;</li>
+<li>доступ к секретам;</li>
+<li>разрешённые сетевые направления;</li>
+<li>lifecycle дочерних процессов;</li>
+<li>durable и ephemeral storage;</li>
+<li>способ диагностики;</li>
+<li>поведение при suspend/resume;</li>
+<li>очистка после завершения.</li>
+</ul>
+<p>Обычный container может быть достаточен для доверенного внутреннего агента с read-only инструментами. Для выполнения непроверенного кода из пользовательского репозитория граница может потребовать gVisor или microVM. Более сильная изоляция обычно означает дополнительную сложность, ограничения совместимости и стоимость запуска. Правильный выбор зависит от threat model, а не от моды.</p>
+<p>Kubernetes находится ещё ниже. Он управляет nodes, Pods, Services, volumes и инфраструктурными политиками. Kubernetes не знает, что процесс внутри Pod выполняет agent loop, ожидает approval или исчерпал token budget. Специализированная платформа использует Kubernetes там, где сильны его механизмы, и добавляет agent-aware lifecycle выше.</p>
+<h3>Сквозной путь одной задачи</h3>
+<p>Вернёмся к инциденту с недоступностью сервиса.</p>
+<ol>
+<li>Пользователь или automation создаёт задачу и задаёт допустимый scope.</li>
+<li>Orchestrator создаёт execution и связывает его с Workspace, моделью и политикой.</li>
+<li>Runtime назначает sandbox, подготавливает filesystem, identity и network access.</li>
+<li>Runner запускает команду агента и сообщает readiness.</li>
+<li>Harness загружает objective и durable state, затем собирает первый context.</li>
+<li>LLM предлагает собрать telemetry.</li>
+<li>Policy разрешает read-only tools; executor вызывает MCP server.</li>
+<li>Harness сохраняет observations и provenance, после чего модель формирует гипотезу.</li>
+<li>Модель предлагает изменение. Policy переводит задачу в ожидание approval.</li>
+<li>После подтверждения executor выполняет idempotent write с ограниченной capability.</li>
+<li>Отдельное чтение проверяет реальное состояние системы.</li>
+<li>Harness завершает работу и создаёт итоговый отчёт.</li>
+<li>Orchestrator сохраняет артефакты и освобождает runtime resources.</li>
+</ol>
+<figure>
+<figcaption>Жизнь Task: от декларации до проверенного внешнего результата</figcaption>
+<svg aria-label="Жизнь Task: от декларации до проверенного внешнего результата" class="diagram" role="img" viewbox="0 0 920 360">
+<defs><marker id="arrow-task-flow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs>
+<line marker-end="url(#arrow-task-flow)" stroke="#53657a" stroke-width="2" x1="145" x2="205" y1="180" y2="180"></line><text font-size="11" text-anchor="middle" x="175" y="166">declare</text>
+<line marker-end="url(#arrow-task-flow)" stroke="#53657a" stroke-width="2" x1="315" x2="375" y1="180" y2="180"></line><text font-size="11" text-anchor="middle" x="345" y="166">assign</text>
+<line marker-end="url(#arrow-task-flow)" stroke="#53657a" stroke-width="2" x1="485" x2="545" y1="180" y2="180"></line><text font-size="11" text-anchor="middle" x="515" y="166">run</text>
+<line marker-end="url(#arrow-task-flow)" stroke="#53657a" stroke-width="2" x1="655" x2="715" y1="180" y2="180"></line><text font-size="11" text-anchor="middle" x="685" y="166">authorize</text>
+<line marker-end="url(#arrow-task-flow)" stroke="#53657a" stroke-width="2" x1="825" x2="865" y1="180" y2="180"></line><text font-size="11" text-anchor="middle" x="845" y="166">verify</text>
+<rect fill="#e7f1ff" height="100" rx="12" stroke="#1769ff" stroke-width="2" width="120" x="25" y="130"></rect><text font-size="13" font-weight="700" text-anchor="middle" x="85" y="166">User / API</text><text font-size="11" text-anchor="middle" x="85" y="190">goal + scope</text>
+<rect fill="#eef8f7" height="100" rx="12" stroke="#218c7a" stroke-width="2" width="110" x="205" y="130"></rect><text font-size="13" font-weight="700" text-anchor="middle" x="260" y="166">AX</text><text font-size="11" text-anchor="middle" x="260" y="190">Task lifecycle</text>
+<rect fill="#f6efff" height="100" rx="12" stroke="#7755aa" stroke-width="2" width="110" x="375" y="130"></rect><text font-size="13" font-weight="700" text-anchor="middle" x="430" y="166">Substrate</text><text font-size="11" text-anchor="middle" x="430" y="190">Actor / sandbox</text>
+<rect fill="#fff6df" height="100" rx="12" stroke="#b57900" stroke-width="2" width="110" x="545" y="130"></rect><text font-size="13" font-weight="700" text-anchor="middle" x="600" y="166">Harness</text><text font-size="11" text-anchor="middle" x="600" y="190">decide + state</text>
+<rect fill="#fff0f1" height="100" rx="12" stroke="#b83a45" stroke-width="2" width="110" x="715" y="130"></rect><text font-size="13" font-weight="700" text-anchor="middle" x="770" y="166">Tool / MCP</text><text font-size="11" text-anchor="middle" x="770" y="190">controlled action</text>
+<rect fill="#eef8f7" height="100" rx="12" stroke="#218c7a" stroke-width="2" width="45" x="865" y="130"></rect><text font-size="11" font-weight="700" text-anchor="middle" x="887" y="166">SoT</text><text font-size="9" text-anchor="middle" x="887" y="190">result</text>
+</svg>
+</figure>
+<p>Эта цепочка показывает, почему «ответ модели был правильным» не равнозначно «задача успешно выполнена». Успех является end-to-end свойством всей системы.</p>
+<h3>Три плоскости, которые полезно не смешивать</h3>
+<p><strong>Control plane</strong> хранит desired state и управляет lifecycle: создать Task, назначить runtime, изменить статус, приостановить или удалить.</p>
+<p><strong>Execution plane</strong> выполняет код: runner, harness, процессы, filesystem и model/tool clients.</p>
+<p><strong>Side-effect plane</strong> включает системы, где происходят реальные изменения: Git provider, network controller, cloud API, ticketing или production database.</p>
+<p>Разделение особенно полезно при повторах и восстановлении. Control plane может повторно отправить событие после сбоя. Execution может не знать, успел ли внешний API завершить операцию до timeout. Side-effect plane должен поддерживать idempotency или предоставлять operation status, а harness — хранить ledger вызовов.</p>
+<h3>Как выбирать уровень инструмента</h3>
+<p>Инженерный выбор начинается не с названия продукта, а со свойств задачи.</p>
+<table>
+<thead>
+<tr>
+<th>Ситуация</th>
+<th>Обычно достаточно</th>
+<th>Почему</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Один предсказуемый шаг</td>
+<td>Скрипт или обычный сервис</td>
+<td>Минимум состояния и вариантов отказа</td>
+</tr>
+<tr>
+<td>Надёжная последовательность известных шагов</td>
+<td>Workflow engine</td>
+<td>Нужны durable retries и orchestration, но не вероятностное планирование</td>
+</tr>
+<tr>
+<td>Короткая изолированная вычислительная работа</td>
+<td>Kubernetes Job</td>
+<td>Хорошо известный lifecycle run-to-completion</td>
+</tr>
+<tr>
+<td>Один адаптивный цикл с несколькими tools</td>
+<td>Собственный небольшой harness</td>
+<td>Логику можно сделать явной и проверяемой</td>
+</tr>
+<tr>
+<td>Сложный граф, branching и human approval</td>
+<td>Agent framework + harness</td>
+<td>Готовые state/checkpoint abstractions сокращают собственную реализацию</td>
+</tr>
+<tr>
+<td>Много изолированных, stateful и часто idle executions</td>
+<td>Специализированный orchestrator/runtime</td>
+<td>Нужны lifecycle, multiplexing, suspend/resume и policy на уровне платформы</td>
+</tr>
+<tr>
+<td>Непроверенный код и сильная tenant boundary</td>
+<td>Усиленный sandbox, возможно gVisor/microVM</td>
+<td>Обычного process/container boundary может быть недостаточно</td>
+</tr>
+</tbody>
+</table>
+<p>Эта таблица не является автоматическим решателем. Она заставляет сформулировать требования. Например, пять доверенных внутренних агентов можно запускать обычными deployments или worker queue. Специализированная платформа становится интереснее, когда executions много, они stateful, долго простаивают, запускают непроверенный код, требуют независимых workspaces или должны быстро приостанавливаться и возобновляться.</p>
+<p>Не стоит выбирать AX только потому, что задача содержит LLM. Не стоит выбирать multi-agent только потому, что можно создать несколько ролей. Каждый новый слой должен устранять конкретное ограничение более простой архитектуры.</p>
+<h3>Что AX и Agent Substrate добавляют к этой карте</h3>
+<p>В зафиксированном baseline AX <code>v0.3.1</code> пользователь декларативно описывает <code>Task</code>, <code>Workspace</code> и <code>Model</code>. AX принимает эти ресурсы, хранит собственное control-plane состояние и через Agent Substrate приводит Task к исполняемому состоянию. Внутри Task запускается runner, который подготавливает Workspace и стартует команду пользователя.</p>
+<p>AX не определяет reasoning strategy. Он не превращает любой container в качественного агента, не реализует за приложение надёжные tools и не решает автоматически governance. Harness остаётся ответственностью приложения или выбранного framework.</p>
+<p>Agent Substrate находится ниже AX. Его основная модель отделяет logical Actor от физического Worker. Большая совокупность actors может отображаться на меньший pool заранее подготовленных workers. Runtime управляет lifecycle, sandbox, placement, suspend/resume и routing. Kubernetes при этом продолжает управлять узлами и worker Pods.</p>
+<p>Такое разделение полезно для workloads, которые активны всплесками и долго ждут событий. Но оно создаёт новые задачи: хранение snapshots, совместимость при restore, data locality, correlation logs между разными workers и собственный control plane. Архитектура выбирается не бесплатно: плотность и быстрый resume оплачиваются дополнительной системой, которую потребуется эксплуатировать.</p>
+<p>Проекты остаются pre-1.0, а часть архитектурных документов описывает целевое состояние раньше полной реализации. Поэтому конкретные возможности нужно проверять по зафиксированной версии, API guide и реальному стенду. В книге design goals, реализованное поведение и roadmap рассматриваются отдельно.</p>
+<h3>Почему симптом «агент завис» ничего не объясняет</h3>
+<p>Один пользовательский симптом может иметь причины на любом уровне.</p>
+<ul>
+<li><strong>LLM/inference:</strong> очередь на GPU, oversized context, rate limit или model timeout.</li>
+<li><strong>Harness:</strong> потерян stop condition, повторяется один plan, ожидается approval, исчерпан budget.</li>
+<li><strong>Tool/MCP:</strong> сервер недоступен, schema изменилась, credential просрочен, операция осталась в неизвестном состоянии.</li>
+<li><strong>Runner:</strong> служебный процесс жив, но child agent завершился.</li>
+<li><strong>Network policy:</strong> DNS работает, но TLS или конкретный egress destination запрещён.</li>
+<li><strong>Runtime:</strong> Actor не получил Worker, snapshot несовместим или restore слишком медленный.</li>
+<li><strong>AX control plane:</strong> событие не обработано, controller отстаёт, ссылка на Workspace не разрешена.</li>
+<li><strong>Kubernetes:</strong> node pressure, image pull, storage или CNI.</li>
+<li><strong>Внешняя система:</strong> действие принято асинхронно и ещё не завершилось либо было отвергнуто собственной policy.</li>
+</ul>
+<p>Поэтому диагностика начинается с correlation identity и определения последнего подтверждённого перехода. Получил ли Task desired state? Назначен ли Actor? Готов ли runner? Жив ли child process? Был ли отправлен model request? Какой tool call выполняется? Есть ли внешний operation ID? Только после ответа на эти вопросы имеет смысл изменять prompt.</p>
+<h3>Метод выбора архитектуры</h3>
+<p>Перед добавлением очередного слоя полезно письменно ответить на восемь вопросов.</p>
+<ol>
+<li>Какая неопределённость требует LLM, а что можно решить детерминированно?</li>
+<li>Как выглядит проверяемый результат работы?</li>
+<li>Где находится authoritative state?</li>
+<li>Какие действия имеют side effects и как обеспечивается idempotency?</li>
+<li>Какой код считается недоверенным и какая нужна граница изоляции?</li>
+<li>Сколько executions одновременно активно, сколько простаивает и как долго?</li>
+<li>Что должно пережить restart, suspend и потерю node?</li>
+<li>Кто будет наблюдать, обновлять и восстанавливать каждый новый компонент?</li>
+</ol>
+<p>Если ответы не требуют долговременного агента, отдельного sandbox runtime и массового lifecycle, более простая система почти всегда лучше. Если же нужны stateful executions, независимые workspaces, управляемая приостановка, строгие policies и большое число idle workloads, специализированный стек становится обоснованным.</p>
+<h3>Практическое упражнение</h3>
+<p>Возьмите задачу: «агент проверяет pull request, запускает тесты и при необходимости предлагает исправление». Разложите её на таблицу:</p>
+<ul>
+<li>где выполняется agent loop;</li>
+<li>что входит в context;</li>
+<li>где хранится progression;</li>
+<li>кто запускает тесты;</li>
+<li>имеет ли агент право писать в branch;</li>
+<li>кто подтверждает merge;</li>
+<li>какой уровень изоляции нужен для кода из pull request;</li>
+<li>что произойдёт после restart;</li>
+<li>как проверить, что результат действительно опубликован;</li>
+<li>нужен ли здесь AX или достаточно CI runner и небольшого harness.</li>
+</ul>
+<p>Затем измените условие: одновременно работают десять тысяч таких задач, большинство ждёт ревью несколько часов, а код считается недоверенным. Посмотрите, какие ответы изменятся. Именно изменение требований, а не наличие слова «agent», приводит к выбору другой архитектуры.</p>
+<h3>Если запомнить только главное</h3>
+<ul>
+<li>LLM предлагает решения; система вокруг неё отвечает за выполнение и последствия.</li>
+<li>Агент появляется как цикл с состоянием, действиями и критерием остановки.</li>
+<li>Harness управляет внутренним execution loop; orchestrator управляет множеством executions.</li>
+<li>Framework помогает описывать логику, но не заменяет security, runtime и operations.</li>
+<li>Context, working state, workspace, snapshot и external state — разные сущности.</li>
+<li>AX управляет декларативным lifecycle agent workloads, но не пишет harness за приложение.</li>
+<li>Agent Substrate управляет Actor/Worker, sandbox и suspend/resume поверх инфраструктуры Kubernetes.</li>
+<li>Выбирать инструмент нужно по требованиям к state, isolation, lifecycle, scale и side effects.</li>
+<li>«Агент завис» — симптом, а не диагноз.</li>
+</ul>
+<h3>Источники и дальнейшее чтение</h3>
+<ul>
+<li><a href="https://github.com/google/ax/blob/e70162a/README.md">AX README, baseline e70162a</a></li>
+<li><a href="https://github.com/google/ax/blob/e70162a/DESIGN.md">AX Design, baseline e70162a</a></li>
+<li><a href="https://github.com/google/ax/blob/e70162a/docs/concepts.md">AX Core concepts, baseline e70162a</a></li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc78/README.md">Agent Substrate README, baseline ccecc78</a></li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc78/docs/architecture.md">Agent Substrate architecture, baseline ccecc78</a></li>
+<li><a href="https://kubernetes.io/docs/concepts/">Kubernetes Concepts</a></li>
+<li><a href="https://modelcontextprotocol.io/specification/2026-07-28">Model Context Protocol specification</a></li>
+<li><a href="https://gvisor.dev/docs/">gVisor documentation</a></li>
+</ul></section><section class="chapter" id="ch-2"><div class="chapter-num">Глава 2</div><h1>LLM как вычислительный компонент агентной системы</h1><figure><figcaption>Local inference: путь запроса через batching, prefill, KV cache и decode</figcaption><svg class="diagram" viewBox="0 0 920 300" role="img" aria-label="Local inference: путь запроса через batching, prefill, KV cache и decode"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="142.5" x2="165" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="275" y1="142.5" x2="310" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="375.0" y1="175" x2="550.0" y2="30" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="462.5" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">batch</text><line x1="550.0" y1="95" x2="550.0" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="550.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">populate</text><line x1="550.0" y1="255" x2="725.0" y2="110" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="637.5" y="176.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="785" y1="142.5" x2="825" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="805.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">token</text><line x1="665" y1="142.5" x2="440" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="552.5" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">continuous batching</text><rect x="20" y="110" rx="12" ry="12" width="110" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="75.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Requests</text><text x="75.0" y="155" text-anchor="middle" font-size="11" fill="#465569">prompts</text><rect x="165" y="110" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="220.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tokenizer</text><text x="220.0" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text><rect x="310" y="110" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="375.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Scheduler</text><text x="375.0" y="155" text-anchor="middle" font-size="11" fill="#465569">batch/queue</text><rect x="485" y="30" rx="12" ry="12" width="130" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="550.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Prefill</text><text x="550.0" y="75" text-anchor="middle" font-size="11" fill="#465569">prompt compute</text><rect x="485" y="190" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="550.0" y="214" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">KV cache</text><text x="550.0" y="235" text-anchor="middle" font-size="11" fill="#465569">attention state</text><rect x="665" y="110" rx="12" ry="12" width="120" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="725.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Decode</text><text x="725.0" y="155" text-anchor="middle" font-size="11" fill="#465569">token loop</text><rect x="825" y="110" rx="12" ry="12" width="75" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="862.5" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Stream</text><text x="862.5" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text></svg></figure><p>Для эксплуатации agent infrastructure не требуется выводить формулы attention, но нужно понимать, какие свойства модели определяют latency, стоимость и надёжность системы.</p>
 <h3>Tokens, context и generation</h3>
 <p>Текст перед запросом разбивается tokenizer'ом на токены. Модель получает последовательность токенов контекста и предсказывает следующие. <strong>Context window</strong> - ограниченный бюджет для system instructions, пользовательской цели, истории, результатов tools, retrieved documents и промежуточного состояния. Когда агент «забывает», проблема часто не в memory module, а в том, что нужная информация не попала в текущий context или была выдавлена/сжата.</p>
 <p>Generation условно состоит из двух существенно разных стадий. <strong>Prefill</strong> обрабатывает входной контекст и строит KV-cache. <strong>Decode</strong> последовательно генерирует новые токены, многократно обращаясь к KV-cache. Большой context сильнее нагружает prefill и память, а большой объём output - decode. Это важно для планирования concurrency локального inference.</p>

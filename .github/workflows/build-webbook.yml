@@ -63,14 +63,17 @@ jobs:
           pages="$(find docs -maxdepth 1 -name '*.md' | wc -l)"
           svg_diagrams="$(find docs/.gitbook/assets/diagrams -name '*.svg' | wc -l)"
           png_diagrams="$(find docs/.gitbook/assets/diagrams -name '*.png' | wc -l)"
+          referenced_diagrams="$(python -c 'from pathlib import Path; import re; print(len({ref for page in Path("docs").glob("*.md") for ref in re.findall(r"\.gitbook/assets/diagrams/[^)]+\.png", page.read_text(encoding="utf-8"))}))')"
 
           echo "Markdown files: $pages"
+          echo "Referenced diagrams: $referenced_diagrams"
           echo "SVG diagrams: $svg_diagrams"
           echo "PNG diagrams: $png_diagrams"
 
           test "$pages" = "49"
-          test "$svg_diagrams" = "41"
-          test "$png_diagrams" = "41"
+          test "$referenced_diagrams" -ge 41
+          test "$svg_diagrams" = "$referenced_diagrams"
+          test "$png_diagrams" = "$referenced_diagrams"
 
       - name: Commit generated web edition
         run: |
