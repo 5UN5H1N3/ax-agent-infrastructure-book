@@ -12,18 +12,22 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: book-generated-artifacts-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v6
         with:
           python-version: "3.13"
 
@@ -32,7 +36,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
           python -m pip install --upgrade pip
-          python -m pip install "weasyprint==68.0" beautifulsoup4
+          python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0"
 
       - name: Inject publication cover
         run: |
@@ -68,7 +72,7 @@ jobs:
           fi
 
       - name: Upload workflow artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ax-agent-infrastructure-book
           path: |
