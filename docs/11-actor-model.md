@@ -1,6 +1,6 @@
 # Actor model применительно к агентным workload
 
-![Actor ≠ Worker: logical population can be larger than active capacity](.gitbook/assets/diagrams/11-10.png)  
+![Actor ≠ Worker: logical population can be larger than active capacity](.gitbook/assets/diagrams/11-11.png)  
 *Actor ≠ Worker: logical population can be larger than active capacity*
 
 Actor в Substrate полезно понимать как **логически долгоживущую identity + state**, которая не обязана постоянно занимать физический process/Pod. Worker - физическая capacity, готовая выполнить Actor. Это главное отличие от интуитивной модели «один agent = один Pod навсегда».

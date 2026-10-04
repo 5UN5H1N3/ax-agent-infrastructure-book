@@ -1,6 +1,6 @@
 # Производительность inference: что измерять для 10-15+ агентов
 
-![Local inference: путь запроса через batching, prefill, KV cache и decode](.gitbook/assets/diagrams/21-18.png)  
+![Local inference: путь запроса через batching, prefill, KV cache и decode](.gitbook/assets/diagrams/21-19.png)  
 *Local inference: путь запроса через batching, prefill, KV cache и decode*
 
 Для agent platform количество агентов не равно числу одновременно декодирующих запросов. Агент проводит время в tool calls, waiting, planning, approvals и I/O. Поэтому capacity моделируется через **arrival rate и duty cycle**, а не «N agents × full model speed».

@@ -1,6 +1,6 @@
 # AX control plane: state, event flow и operational truth
 
-![Current AX control path: API and reconciliation are separable scaling domains](.gitbook/assets/diagrams/38-34.png)  
+![Current AX control path: API and reconciliation are separable scaling domains](.gitbook/assets/diagrams/38-35.png)  
 *Current AX control path: API and reconciliation are separable scaling domains*
 
 ### Почему одного API status недостаточно
@@ -40,8 +40,8 @@ Workspace, Model, Gateway и Task должны иметь понятную propa
 
 При инциденте идём сверху вниз: client request -> API persisted desired state -> controller event/reconcile -> Substrate Actor/Worker -> runner -> child process -> MCP/model dependency -> final external effect. Это снижает риск диагностировать LLM, когда на самом деле controller не обработал spec.
 
-![State ownership: четыре хранилища отвечают за разные истины](.gitbook/assets/diagrams/38-35.png)  
+![State ownership: четыре хранилища отвечают за разные истины](.gitbook/assets/diagrams/38-36.png)  
 *State ownership: четыре хранилища отвечают за разные истины*
 
-![Readiness hierarchy: each green light proves only its own layer](.gitbook/assets/diagrams/38-36.png)  
+![Readiness hierarchy: each green light proves only its own layer](.gitbook/assets/diagrams/38-37.png)  
 *Readiness hierarchy: each green light proves only its own layer*

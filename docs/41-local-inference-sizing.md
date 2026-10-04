@@ -1,6 +1,6 @@
 # Local inference sizing: память GPU, parallelism и эксплуатационные SLO
 
-![Tensor parallelism: extra GPUs add communication, not just VRAM](.gitbook/assets/diagrams/41-39.png)  
+![Tensor parallelism: extra GPUs add communication, not just VRAM](.gitbook/assets/diagrams/41-40.png)  
 *Tensor parallelism: extra GPUs add communication, not just VRAM*
 
 ### VRAM - это не только веса модели

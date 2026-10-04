@@ -1,6 +1,6 @@
 # Operations runbook: диагностика по слоям и release acceptance
 
-![Troubleshooting ladder: идите от физического слоя к agent logic](.gitbook/assets/diagrams/43-41.png)  
+![Troubleshooting ladder: идите от физического слоя к agent logic](.gitbook/assets/diagrams/43-42.png)  
 *Troubleshooting ladder: идите от физического слоя к agent logic*
 
 ### Не начинайте инцидент с restart всего кластера

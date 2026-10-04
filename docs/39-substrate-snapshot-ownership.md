@@ -1,6 +1,6 @@
 # Substrate snapshots: ownership, storage и совместимость
 
-![Snapshot ownership: URI lifetime matters for clones and garbage collection](.gitbook/assets/diagrams/39-37.png)  
+![Snapshot ownership: URI lifetime matters for clones and garbage collection](.gitbook/assets/diagrams/39-38.png)  
 *Snapshot ownership: URI lifetime matters for clones and garbage collection*
 
 ### Snapshot - объект с владельцем и contract, а не просто файл

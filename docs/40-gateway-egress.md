@@ -1,6 +1,6 @@
 # Gateway и egress: DNS, TLS и проверка реальной доступности
 
-![Gateway validation: test DNS, transport, TLS and application outcome separately](.gitbook/assets/diagrams/40-38.png)  
+![Gateway validation: test DNS, transport, TLS and application outcome separately](.gitbook/assets/diagrams/40-39.png)  
 *Gateway validation: test DNS, transport, TLS and application outcome separately*
 
 ### `GatewayReady` не означает, что приложение дошло до API

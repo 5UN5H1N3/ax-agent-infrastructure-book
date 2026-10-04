@@ -1,6 +1,6 @@
 # Kubernetes: необходимый минимум для понимания AX/Substrate
 
-![Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate](.gitbook/assets/diagrams/09-09.png)  
+![Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate](.gitbook/assets/diagrams/09-10.png)  
 *Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate*
 
 Kubernetes здесь нужен не как отдельный предмет, а как substrate инфраструктуры. Достаточно уверенно понимать несколько mental models.

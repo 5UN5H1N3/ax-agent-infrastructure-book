@@ -1,6 +1,6 @@
 # Observability: четыре слоя и единая correlation identity
 
-![Четыре слоя observability нельзя смешивать в один «лог агента»](.gitbook/assets/diagrams/25-22.png)  
+![Четыре слоя observability нельзя смешивать в один «лог агента»](.gitbook/assets/diagrams/25-23.png)  
 *Четыре слоя observability нельзя смешивать в один «лог агента»*
 
 Наблюдаемость agent system должна позволять пройти путь от user goal до конкретного tool side effect и одновременно увидеть infrastructure bottleneck.

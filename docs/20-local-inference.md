@@ -1,6 +1,6 @@
 # Local inference: CPU, GPU, vLLM и llama.cpp
 
-![Local inference: путь запроса через batching, prefill, KV cache и decode](.gitbook/assets/diagrams/20-17.png)  
+![Local inference: путь запроса через batching, prefill, KV cache и decode](.gitbook/assets/diagrams/20-18.png)  
 *Local inference: путь запроса через batching, prefill, KV cache и decode*
 
 Локальный inference позволяет контролировать данные, latency profile, стоимость hardware и availability, но переносит на вас capacity planning, model serving и upgrades. Для AX это просто model endpoint: orchestration не должно зависеть от того, облачный он или локальный.

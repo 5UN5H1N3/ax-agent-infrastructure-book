@@ -1,6 +1,6 @@
 # Suspend, snapshot, resume и golden snapshot
 
-![Resume on demand: запрос может разбудить suspended actor](.gitbook/assets/diagrams/14-13.png)  
+![Resume on demand: запрос может разбудить suspended actor](.gitbook/assets/diagrams/14-14.png)  
 *Resume on demand: запрос может разбудить suspended actor*
 
 Checkpointing - центральный механизм density, но его семантику нужно понимать точнее, чем «поставили VM на паузу».

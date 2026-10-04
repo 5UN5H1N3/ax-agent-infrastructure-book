@@ -2,7 +2,7 @@
 
 **Статус:** `IMPLEMENTED / VERIFIED` · `MAIN DELTA where noted` · `ROADMAP kept separate`
 
-![Security: безопасный агент - это цепочка ограничений, а не один sandbox](.gitbook/assets/diagrams/23-20.png)  
+![Security: безопасный агент - это цепочка ограничений, а не один sandbox](.gitbook/assets/diagrams/23-21.png)  
 *Security: безопасный агент - это цепочка ограничений, а не один sandbox*
 
 Agent platform объединяет несколько высокорисковых свойств: untrusted natural-language input, executable tools, downloaded code, credentials и network access. Sandbox нужен, но он закрывает только часть угроз.

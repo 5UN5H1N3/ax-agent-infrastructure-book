@@ -1,6 +1,6 @@
 # Безопасное выполнение tools: idempotency, approvals и attenuation полномочий
 
-![Safe tool execution: model proposal is only the first stage](.gitbook/assets/diagrams/37-32.png)  
+![Safe tool execution: model proposal is only the first stage](.gitbook/assets/diagrams/37-33.png)  
 *Safe tool execution: model proposal is only the first stage*
 
 ### Tool call - это маленькая транзакция, а не функция модели
@@ -60,5 +60,5 @@ Harness должен иметь per-tool rate limit, max consecutive failures, g
 
 Записывайте principal, Task/agent identity, normalized request, policy result, approval, idempotency key, start/end timestamps, external operation ID, result hash и verification result. Полный raw secret/token в audit попадать не должен.
 
-![Authority attenuation: child may narrow scope, never silently widen it](.gitbook/assets/diagrams/37-33.png)  
+![Authority attenuation: child may narrow scope, never silently widen it](.gitbook/assets/diagrams/37-34.png)  
 *Authority attenuation: child may narrow scope, never silently widen it*

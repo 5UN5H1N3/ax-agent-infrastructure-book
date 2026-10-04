@@ -1,6 +1,6 @@
 # Tools, MCP и Skills
 
-![MCP trust boundary: протокол не заменяет авторизацию](.gitbook/assets/diagrams/06-06.png)  
+![MCP trust boundary: протокол не заменяет авторизацию](.gitbook/assets/diagrams/06-07.png)  
 *MCP trust boundary: протокол не заменяет авторизацию*
 
 Tool - это формализованная операция, доступная agent loop. Он может быть локальной функцией, HTTP API, shell command или MCP tool. Главное свойство production tool - не «модель умеет его вызвать», а наличие чёткой схемы, проверяемых полномочий, predictable side effects и наблюдаемого результата.

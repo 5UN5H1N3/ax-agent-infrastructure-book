@@ -1,6 +1,6 @@
 # Multi-agent архитектуры без лишней магии
 
-![Практика: software-engineering multi-agent workflow](.gitbook/assets/diagrams/07-07.png)  
+![Практика: software-engineering multi-agent workflow](.gitbook/assets/diagrams/07-08.png)  
 *Практика: software-engineering multi-agent workflow*
 
 Multi-agent architecture оправдана, когда разделение даёт хотя бы одно из трёх: меньший context, разные полномочия/tools или параллельное выполнение. Если этих преимуществ нет, один хорошо ограниченный agent часто проще и дешевле.

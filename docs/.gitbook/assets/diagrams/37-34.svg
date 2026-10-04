@@ -1,0 +1,79 @@
+<svg aria-label="Authority attenuation: child may narrow scope, never silently widen it" class="diagram diagram-redrawn" height="271.92" role="img" style="width:100%;height:auto;overflow:visible" viewBox="0 0 530.92 271.92" width="530.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 258.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M250.61,-203.88C209.66,-187.37 151.68,-163.99 109.02,-146.79" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="109.93,-144.44 102.31,-144.08 108.04,-149.11 109.93,-144.44" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="208.5" y="-171.56">attenuate</text>
+</g>
+<!-- n0&#45;&gt;n2 -->
+<g class="edge">
+<title>n0-&gt;n2</title>
+<path d="M279.86,-203.76C263.82,-188.04 241.49,-166.14 224.27,-149.27" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="226.02,-147.45 219.11,-144.21 222.49,-151.05 226.02,-147.45" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0&#45;&gt;n3 -->
+<g class="edge">
+<title>n0-&gt;n3</title>
+<path d="M307.38,-203.76C312.54,-188.58 319.66,-167.65 325.31,-151.03" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="327.7,-151.83 327.63,-144.21 322.93,-150.21 327.7,-151.83" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0&#45;&gt;n4 -->
+<g class="edge">
+<title>n0-&gt;n4</title>
+<path d="M332.47,-203.76C357.93,-187.65 393.64,-165.05 420.55,-148.02" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="422.11,-150.02 426.84,-144.04 419.41,-145.76 422.11,-150.02" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n5 -->
+<g class="edge">
+<title>n2-&gt;n5</title>
+<path d="M198.5,-101.76C198.5,-86.72 198.5,-66.02 198.5,-49.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="201.02,-49.41 198.5,-42.21 195.98,-49.41 201.02,-49.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="230.5" y="-69.56">cannot widen</text>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M362,-246C362,-246 239,-246 239,-246 233,-246 227,-240 227,-234 227,-234 227,-216 227,-216 227,-210 233,-204 239,-204 239,-204 362,-204 362,-204 368,-204 374,-210 374,-216 374,-216 374,-234 374,-234 374,-240 368,-246 362,-246" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="267" y="-227.4">Root Task</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="241" y="-217">budget=100, broad read</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M93,-144C93,-144 12,-144 12,-144 6,-144 0,-138 0,-132 0,-132 0,-114 0,-114 0,-108 6,-102 12,-102 12,-102 93,-102 93,-102 99,-102 105,-108 105,-114 105,-114 105,-132 105,-132 105,-138 99,-144 93,-144" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-125.4">Researcher</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="20" y="-115">read-only, 20</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M244.5,-144C244.5,-144 152.5,-144 152.5,-144 146.5,-144 140.5,-138 140.5,-132 140.5,-132 140.5,-114 140.5,-114 140.5,-108 146.5,-102 152.5,-102 152.5,-102 244.5,-102 244.5,-102 250.5,-102 256.5,-108 256.5,-114 256.5,-114 256.5,-132 256.5,-132 256.5,-138 250.5,-144 244.5,-144" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="154.5" y="-125.4">Implementer</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="158.5" y="-115">branch-write, 35</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M365,-144C365,-144 304,-144 304,-144 298,-144 292,-138 292,-132 292,-132 292,-114 292,-114 292,-108 298,-102 304,-102 304,-102 365,-102 365,-102 371,-102 377,-108 377,-114 377,-114 377,-132 377,-132 377,-138 371,-144 365,-144" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="313" y="-125.4">Tester</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="306" y="-115">execute, 25</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M493,-144C493,-144 424,-144 424,-144 418,-144 412,-138 412,-132 412,-132 412,-114 412,-114 412,-108 418,-102 424,-102 424,-102 493,-102 493,-102 499,-102 505,-108 505,-114 505,-114 505,-132 505,-132 505,-138 499,-144 493,-144" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="427" y="-125.4">Reviewer</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="426" y="-115">read-only, 20</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M240.5,-42C240.5,-42 156.5,-42 156.5,-42 150.5,-42 144.5,-36 144.5,-30 144.5,-30 144.5,-12 144.5,-12 144.5,-6 150.5,0 156.5,0 156.5,0 240.5,0 240.5,0 246.5,0 252.5,-6 252.5,-12 252.5,-12 252.5,-30 252.5,-30 252.5,-36 246.5,-42 240.5,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="164" y="-23.4">Child Task</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="158.5" y="-13">narrower branch</text>
+</g>
+</g>
+</svg>

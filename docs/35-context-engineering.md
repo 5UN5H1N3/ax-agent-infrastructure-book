@@ -1,6 +1,6 @@
 # Context engineering: управление контекстом и durable state
 
-![Context engineering: finite budget is assembled, not magically remembered](.gitbook/assets/diagrams/35-30.png)  
+![Context engineering: finite budget is assembled, not magically remembered](.gitbook/assets/diagrams/35-31.png)  
 *Context engineering: finite budget is assembled, not magically remembered*
 
 ### Context engineering - это управление ограниченным вычислительным ресурсом
