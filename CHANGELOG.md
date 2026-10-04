@@ -2,6 +2,14 @@
 
 All notable changes to the book will be documented here.
 
+## Unreleased
+
+- Restored the canonical first-edition cover and social-preview artwork.
+- Rebuilt the technical diagrams with collision-free Graphviz layout.
+- Preserved edge labels semantically instead of inferring them geometrically.
+- Removed obsolete regenerated cover/social-preview SVG assets.
+- Current print layout: 99 A4 pages; 44 chapters; 40+ technical diagrams; 14 labs.
+
 ## v1.0.0 — 2026-10-03
 
 Initial public edition.
