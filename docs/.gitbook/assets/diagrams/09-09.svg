@@ -1,85 +1,85 @@
 <svg aria-label="Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate" class="diagram diagram-redrawn" height="256.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 782.92 256.92" width="782.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 243.96)">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 243.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
-<g class="edge" id="edge1">
+<g class="edge">
 <title>n0-&gt;n1</title>
 <path d="M121.09,-81C142.42,-81 166.38,-81 187.4,-81" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="187.5,-83.52 194.7,-81 187.5,-78.48 187.5,-83.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="158" y="-83.56">write</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
-<g class="edge" id="edge2">
+<g class="edge">
 <title>n1-&gt;n2</title>
 <path d="M275.96,-102.01C308.7,-124.6 360.73,-160.49 395.72,-184.63" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="394.69,-186.98 402.05,-189 397.56,-182.83 394.69,-186.98" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="336" y="-155.56">persist</text>
 </g>
 <!-- n1&#45;&gt;n4 -->
-<g class="edge" id="edge5">
+<g class="edge">
 <title>n1-&gt;n4</title>
 <path d="M294.14,-65.39C317.59,-57.87 345.96,-48.77 370.9,-40.77" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="371.75,-43.14 377.83,-38.54 370.21,-38.34 371.75,-43.14" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="336" y="-58.56">objects</text>
 </g>
 <!-- n2&#45;&gt;n3 -->
-<g class="edge" id="edge3">
+<g class="edge">
 <title>n2-&gt;n3</title>
 <path d="M433.5,-188.65C433.5,-171 433.5,-145.79 433.5,-126.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="436.02,-126.27 433.5,-119.07 430.98,-126.27 436.02,-126.27" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="425.5" y="-151.56">watch</text>
 </g>
 <!-- n3&#45;&gt;n1 -->
-<g class="edge" id="edge4">
+<g class="edge">
 <title>n3-&gt;n1</title>
 <path d="M402.38,-77C389.78,-68.21 378,-60 378,-60 378,-60 353,-6 353,-6 353,-6 319,-6 319,-6 319,-6 292.74,-32.8 271.61,-54.36" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
 <polygon fill="#7a6a8e" points="269.61,-52.8 266.37,-59.71 273.2,-56.33 269.61,-52.8" stroke="#7a6a8e" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="336" y="-8.56">update</text>
 </g>
 <!-- n4&#45;&gt;n5 -->
-<g class="edge" id="edge6">
+<g class="edge">
 <title>n4-&gt;n5</title>
 <path d="M489.09,-21C525.19,-21 572.99,-21 612.63,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="612.73,-23.52 619.93,-21 612.73,-18.48 612.73,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="554.5" y="-23.56">desired workload</text>
 </g>
 <!-- n0 -->
-<g class="node" id="node1">
+<g class="node">
 <title>n0</title>
 <path d="M109,-102C109,-102 12,-102 12,-102 6,-102 0,-96 0,-90 0,-90 0,-72 0,-72 0,-66 6,-60 12,-60 12,-60 109,-60 109,-60 115,-60 121,-66 121,-72 121,-72 121,-90 121,-90 121,-96 115,-102 109,-102" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-83.4">Desired state</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="37.5" y="-73">YAML/API</text>
 </g>
 <!-- n1 -->
-<g class="node" id="node2">
+<g class="node">
 <title>n1</title>
 <path d="M282,-102C282,-102 207,-102 207,-102 201,-102 195,-96 195,-90 195,-90 195,-72 195,-72 195,-66 201,-60 207,-60 207,-60 282,-60 282,-60 288,-60 294,-66 294,-72 294,-72 294,-90 294,-90 294,-96 288,-102 282,-102" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="209" y="-83.4">API server</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="210.5" y="-73">validate/store</text>
 </g>
 <!-- n2 -->
-<g class="node" id="node3">
+<g class="node">
 <title>n2</title>
 <path d="M466,-231C466,-231 401,-231 401,-231 395,-231 389,-225 389,-219 389,-219 389,-201 389,-201 389,-195 395,-189 401,-189 401,-189 466,-189 466,-189 472,-189 478,-195 478,-201 478,-201 478,-219 478,-219 478,-225 472,-231 466,-231" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="418.5" y="-212.4">etcd</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="403" y="-202">cluster state</text>
 </g>
 <!-- n3 -->
-<g class="node" id="node4">
+<g class="node">
 <title>n3</title>
 <path d="M469.5,-119C469.5,-119 397.5,-119 397.5,-119 391.5,-119 385.5,-113 385.5,-107 385.5,-107 385.5,-89 385.5,-89 385.5,-83 391.5,-77 397.5,-77 397.5,-77 469.5,-77 469.5,-77 475.5,-77 481.5,-83 481.5,-89 481.5,-89 481.5,-107 481.5,-107 481.5,-113 475.5,-119 469.5,-119" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="399.5" y="-100.4">Controller</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="404.5" y="-90">observe/diff</text>
 </g>
 <!-- n4 -->
-<g class="node" id="node5">
+<g class="node">
 <title>n4</title>
 <path d="M477,-42C477,-42 390,-42 390,-42 384,-42 378,-36 378,-30 378,-30 378,-12 378,-12 378,-6 384,0 390,0 390,0 477,0 477,0 483,0 489,-6 489,-12 489,-12 489,-30 489,-30 489,-36 483,-42 477,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="392" y="-23.4">Actual state</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="400" y="-13">Pods/services</text>
 </g>
 <!-- n5 -->
-<g class="node" id="node6">
+<g class="node">
 <title>n5</title>
 <path d="M745,-42C745,-42 632,-42 632,-42 626,-42 620,-36 620,-30 620,-30 620,-12 620,-12 620,-6 626,0 632,0 632,0 745,0 745,0 751,0 757,-6 757,-12 757,-12 757,-30 757,-30 757,-36 751,-42 745,-42" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="634" y="-23.4">kubelet/runtime</text>

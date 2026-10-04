@@ -1,64 +1,64 @@
 <svg aria-label="Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность" class="diagram diagram-redrawn" height="67.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 1016.92 67.92" width="1016.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 54.96)">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 54.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
-<g class="edge" id="edge1">
+<g class="edge">
 <title>n0-&gt;n1</title>
 <path d="M82.14,-21C103.41,-21 130.27,-21 155.44,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="155.64,-23.52 162.84,-21 155.64,-18.48 155.64,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="122.5" y="-23.56">isolate</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
-<g class="edge" id="edge2">
+<g class="edge">
 <title>n1-&gt;n2</title>
 <path d="M306.04,-21C331.07,-21 358.86,-21 382.46,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="382.77,-23.52 389.97,-21 382.77,-18.48 382.77,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="348" y="-23.56">restrict</text>
 </g>
 <!-- n2&#45;&gt;n3 -->
-<g class="edge" id="edge3">
+<g class="edge">
 <title>n2-&gt;n3</title>
 <path d="M488.25,-21C523.41,-21 571.33,-21 609.36,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="609.62,-23.52 616.82,-21 609.62,-18.48 609.62,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="552.5" y="-23.56">syscall boundary</text>
 </g>
 <!-- n3&#45;&gt;n4 -->
-<g class="edge" id="edge4">
+<g class="edge">
 <title>n3-&gt;n4</title>
 <path d="M728.3,-21C766.41,-21 817.51,-21 858.41,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="858.46,-23.52 865.66,-21 858.46,-18.48 858.46,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="797" y="-23.56">stronger boundary</text>
 </g>
 <!-- n0 -->
-<g class="node" id="node1">
+<g class="node">
 <title>n0</title>
 <path d="M70,-42C70,-42 12,-42 12,-42 6,-42 0,-36 0,-30 0,-30 0,-12 0,-12 0,-6 6,0 12,0 12,0 70,0 70,0 76,0 82,-6 82,-12 82,-12 82,-30 82,-30 82,-36 76,-42 70,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-23.4">Process</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="19" y="-13">same OS</text>
 </g>
 <!-- n1 -->
-<g class="node" id="node2">
+<g class="node">
 <title>n1</title>
 <path d="M294,-42C294,-42 175,-42 175,-42 169,-42 163,-36 163,-30 163,-30 163,-12 163,-12 163,-6 169,0 175,0 175,0 294,0 294,0 300,0 306,-6 306,-12 306,-12 306,-30 306,-30 306,-36 300,-42 294,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="201" y="-23.4">Container</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="177" y="-13">namespaces + cgroups</text>
 </g>
 <!-- n2 -->
-<g class="node" id="node3">
+<g class="node">
 <title>n2</title>
 <path d="M476,-42C476,-42 402,-42 402,-42 396,-42 390,-36 390,-30 390,-30 390,-12 390,-12 390,-6 396,0 402,0 402,0 476,0 476,0 482,0 488,-6 488,-12 488,-12 488,-30 488,-30 488,-36 482,-42 476,-42" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="406" y="-23.4">Hardened</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="404" y="-13">seccomp/caps</text>
 </g>
 <!-- n3 -->
-<g class="node" id="node4">
+<g class="node">
 <title>n3</title>
 <path d="M716,-42C716,-42 629,-42 629,-42 623,-42 617,-36 617,-30 617,-30 617,-12 617,-12 617,-6 623,0 629,0 629,0 716,0 716,0 722,0 728,-6 728,-12 728,-12 728,-30 728,-30 728,-36 722,-42 716,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="651" y="-23.4">gVisor</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="631" y="-13">userspace kernel</text>
 </g>
 <!-- n4 -->
-<g class="node" id="node5">
+<g class="node">
 <title>n4</title>
 <path d="M979,-42C979,-42 878,-42 878,-42 872,-42 866,-36 866,-30 866,-30 866,-12 866,-12 866,-6 872,0 878,0 878,0 979,0 979,0 985,0 991,-6 991,-12 991,-12 991,-30 991,-30 991,-36 985,-42 979,-42" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="899" y="-23.4">microVM</text>

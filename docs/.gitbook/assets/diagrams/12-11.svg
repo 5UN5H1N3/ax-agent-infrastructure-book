@@ -1,106 +1,106 @@
 <svg aria-label="Agent Substrate: operational data path" class="diagram diagram-redrawn" height="371.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 1084.92 371.92" width="1084.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 358.96)">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 358.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
-<g class="edge" id="edge1">
+<g class="edge">
 <title>n0-&gt;n1</title>
 <path d="M81.25,-259.09C94.52,-262.8 106,-266 106,-266 106,-266 209,-287 209,-287 209,-287 360.19,-306.18 447.73,-317.29" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="447.5,-319.8 454.96,-318.21 448.13,-314.8 447.5,-319.8" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="145" y="-283.56">state</text>
 </g>
 <!-- n0&#45;&gt;n2 -->
-<g class="edge" id="edge2">
+<g class="edge">
 <title>n0-&gt;n2</title>
 <path d="M81.32,-248C162.04,-248 345.61,-248 443.77,-248" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="444.06,-250.52 451.26,-248 444.06,-245.48 444.06,-250.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="145" y="-250.56">desired capacity</text>
 </g>
 <!-- n0&#45;&gt;n5 -->
-<g class="edge" id="edge5">
+<g class="edge">
 <title>n0-&gt;n5</title>
 <path d="M81.25,-236.91C94.52,-233.2 106,-230 106,-230 106,-230 209,-210 209,-210 209,-210 361.4,-190.15 448.78,-178.78" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="449.17,-181.27 455.99,-177.84 448.52,-176.27 449.17,-181.27" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="145" y="-232.56">assignment</text>
 </g>
 <!-- n2&#45;&gt;n4 -->
-<g class="edge" id="edge3">
+<g class="edge">
 <title>n2-&gt;n4</title>
 <path d="M567.96,-248C661.44,-248 845.63,-248 941.59,-248" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="941.71,-250.52 948.91,-248 941.71,-245.48 941.71,-250.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="879.5" y="-250.56">reconcile</text>
 </g>
 <!-- n3&#45;&gt;n0 -->
-<g class="edge" id="edge4">
+<g class="edge">
 <title>n3-&gt;n0</title>
 <path d="M956.28,-48.51C899.16,-29.57 810,0 810,0 810,0 209,0 209,0 209,0 103.65,-155.98 60.05,-220.54" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
 <polygon fill="#7a6a8e" points="57.72,-219.48 55.78,-226.86 61.9,-222.3 57.72,-219.48" stroke="#7a6a8e" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="509.5" y="-2.56">locate/resume</text>
 </g>
 <!-- n5&#45;&gt;n6 -->
-<g class="edge" id="edge6">
+<g class="edge">
 <title>n5-&gt;n6</title>
 <path d="M563.21,-171C655.59,-171 846.16,-171 943.28,-171" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="943.47,-173.52 950.67,-171 943.47,-168.48 943.47,-173.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="879.5" y="-173.56">checkpoint/restore</text>
 </g>
 <!-- n5&#45;&gt;n7 -->
-<g class="edge" id="edge7">
+<g class="edge">
 <title>n5-&gt;n7</title>
 <path d="M509.5,-149.9C509.5,-132.59 509.5,-107.75 509.5,-87.69" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="512.02,-87.46 509.5,-80.26 506.98,-87.46 512.02,-87.46" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="501.5" y="-112.56">stream snapshot</text>
 </g>
 <!-- n0 -->
-<g class="node" id="node1">
+<g class="node">
 <title>n0</title>
 <path d="M69,-269C69,-269 12,-269 12,-269 6,-269 0,-263 0,-257 0,-257 0,-239 0,-239 0,-233 6,-227 12,-227 12,-227 69,-227 69,-227 75,-227 81,-233 81,-239 81,-239 81,-257 81,-257 81,-263 75,-269 69,-269" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="19" y="-250.4">ateapi</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-240">control API</text>
 </g>
 <!-- n1 -->
-<g class="node" id="node2">
+<g class="node">
 <title>n1</title>
 <path d="M552,-346C552,-346 467,-346 467,-346 461,-346 455,-340 455,-334 455,-334 455,-316 455,-316 455,-310 461,-304 467,-304 467,-304 552,-304 552,-304 558,-304 564,-310 564,-316 564,-316 564,-334 564,-334 564,-340 558,-346 552,-346" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="469" y="-327.4">PostgreSQL</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="474.5" y="-317">dynamic state</text>
 </g>
 <!-- n2 -->
-<g class="node" id="node3">
+<g class="node">
 <title>n2</title>
 <path d="M555.5,-269C555.5,-269 463.5,-269 463.5,-269 457.5,-269 451.5,-263 451.5,-257 451.5,-257 451.5,-239 451.5,-239 451.5,-233 457.5,-227 463.5,-227 463.5,-227 555.5,-227 555.5,-227 561.5,-227 567.5,-233 567.5,-239 567.5,-239 567.5,-257 567.5,-257 567.5,-263 561.5,-269 555.5,-269" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="465.5" y="-250.4">atecontroller</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="470" y="-240">WorkerPool CRD</text>
 </g>
 <!-- n3 -->
-<g class="node" id="node4">
+<g class="node">
 <title>n3</title>
 <path d="M1039.5,-85C1039.5,-85 968.5,-85 968.5,-85 962.5,-85 956.5,-79 956.5,-73 956.5,-73 956.5,-55 956.5,-55 956.5,-49 962.5,-43 968.5,-43 968.5,-43 1039.5,-43 1039.5,-43 1045.5,-43 1051.5,-49 1051.5,-55 1051.5,-55 1051.5,-73 1051.5,-73 1051.5,-79 1045.5,-85 1039.5,-85" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="981" y="-66.4">atenet</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="970.5" y="-56">route/wakeup</text>
 </g>
 <!-- n4 -->
-<g class="node" id="node5">
+<g class="node">
 <title>n4</title>
 <path d="M1047,-269C1047,-269 961,-269 961,-269 955,-269 949,-263 949,-257 949,-257 949,-239 949,-239 949,-233 955,-227 961,-227 961,-227 1047,-227 1047,-227 1053,-227 1059,-233 1059,-239 1059,-239 1059,-257 1059,-257 1059,-263 1053,-269 1047,-269" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="964.5" y="-250.4">WorkerPool</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="963" y="-240">K8s Deployment</text>
 </g>
 <!-- n5 -->
-<g class="node" id="node6">
+<g class="node">
 <title>n5</title>
 <path d="M551,-192C551,-192 468,-192 468,-192 462,-192 456,-186 456,-180 456,-180 456,-162 456,-162 456,-156 462,-150 468,-150 468,-150 551,-150 551,-150 557,-150 563,-156 563,-162 563,-162 563,-180 563,-180 563,-186 557,-192 551,-192" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="489" y="-173.4">atelet</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="470" y="-163">node supervisor</text>
 </g>
 <!-- n6 -->
-<g class="node" id="node7">
+<g class="node">
 <title>n6</title>
 <path d="M1045,-192C1045,-192 963,-192 963,-192 957,-192 951,-186 951,-180 951,-180 951,-162 951,-162 951,-156 957,-150 963,-150 963,-150 1045,-150 1045,-150 1051,-150 1057,-156 1057,-162 1057,-162 1057,-180 1057,-180 1057,-186 1051,-192 1045,-192" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="982" y="-173.4">ateom</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="965" y="-163">gVisor/microVM</text>
 </g>
 <!-- n7 -->
-<g class="node" id="node8">
+<g class="node">
 <title>n7</title>
 <path d="M798,-80C798,-80 221,-80 221,-80 215,-80 209,-74 209,-68 209,-68 209,-40 209,-40 209,-34 215,-28 221,-28 221,-28 798,-28 798,-28 804,-28 810,-34 810,-40 810,-40 810,-68 810,-68 810,-74 804,-80 798,-80" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="467" y="-61.4">Object store</text>

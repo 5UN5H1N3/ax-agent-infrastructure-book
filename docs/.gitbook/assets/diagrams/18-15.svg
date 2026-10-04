@@ -1,92 +1,92 @@
 <svg aria-label="Runner contract: почему PID 1 здесь является частью платформенного API" class="diagram diagram-redrawn" height="221.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 824.92 221.92" width="824.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 208.96)">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 208.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
-<g class="edge" id="edge1">
+<g class="edge">
 <title>n0-&gt;n1</title>
 <path d="M128.27,-98C151.68,-98 178.38,-98 202.47,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="202.66,-100.52 209.86,-98 202.66,-95.48 202.66,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169" y="-100.56">launch</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
-<g class="edge" id="edge2">
+<g class="edge">
 <title>n1-&gt;n2</title>
 <path d="M340.31,-118.13C374.48,-128.82 416.54,-141.99 451.58,-152.96" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="450.86,-155.37 458.49,-155.12 452.37,-150.56 450.86,-155.37" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="397" y="-147.56">prepare once</text>
 </g>
 <!-- n1&#45;&gt;n3 -->
-<g class="edge" id="edge4">
+<g class="edge">
 <title>n1-&gt;n3</title>
 <path d="M340.31,-98C372.74,-98 412.27,-98 446.17,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="446.56,-100.52 453.76,-98 446.56,-95.48 446.56,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="397" y="-100.56">supervise</text>
 </g>
 <!-- n1&#45;&gt;n4 -->
-<g class="edge" id="edge5">
+<g class="edge">
 <title>n1-&gt;n4</title>
 <path d="M340.31,-77.87C375.41,-66.88 418.84,-53.29 454.44,-42.15" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="455.33,-44.51 461.45,-39.95 453.82,-39.7 455.33,-44.51" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="397" y="-70.56">serve</text>
 </g>
 <!-- n2&#45;&gt;n5 -->
-<g class="edge" id="edge3">
+<g class="edge">
 <title>n2-&gt;n5</title>
 <path d="M587.78,-175C616.68,-175 650.66,-175 679.04,-175" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="679.3,-177.52 686.5,-175 679.3,-172.48 679.3,-177.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="636" y="-177.56">write</text>
 </g>
 <!-- n4&#45;&gt;n6 -->
-<g class="edge" id="edge6">
+<g class="edge">
 <title>n4-&gt;n6</title>
 <path d="M584.61,-21C612.01,-21 644.47,-21 672.49,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="672.69,-23.52 679.89,-21 672.69,-18.48 672.69,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="636" y="-23.56">observe</text>
 </g>
 <!-- n0 -->
-<g class="node" id="node1">
+<g class="node">
 <title>n0</title>
 <path d="M116,-119C116,-119 12,-119 12,-119 6,-119 0,-113 0,-107 0,-107 0,-89 0,-89 0,-83 6,-77 12,-77 12,-77 116,-77 116,-77 122,-77 128,-83 128,-89 128,-89 128,-107 128,-107 128,-113 122,-119 116,-119" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-100.4">AX_* YAML/env</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="16.5" y="-90">Task + Workspaces</text>
 </g>
 <!-- n1 -->
-<g class="node" id="node2">
+<g class="node">
 <title>n1</title>
 <path d="M328,-119C328,-119 222,-119 222,-119 216,-119 210,-113 210,-107 210,-107 210,-89 210,-89 210,-83 216,-77 222,-77 222,-77 328,-77 328,-77 334,-77 340,-83 340,-89 340,-89 340,-107 340,-107 340,-113 334,-119 328,-119" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="224" y="-100.4">ax-task-runner</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="262" y="-90">PID 1</text>
 </g>
 <!-- n2 -->
-<g class="node" id="node3">
+<g class="node">
 <title>n2</title>
 <path d="M575.5,-196C575.5,-196 470.5,-196 470.5,-196 464.5,-196 458.5,-190 458.5,-184 458.5,-184 458.5,-166 458.5,-166 458.5,-160 464.5,-154 470.5,-154 470.5,-154 575.5,-154 575.5,-154 581.5,-154 587.5,-160 587.5,-166 587.5,-166 587.5,-184 587.5,-184 587.5,-190 581.5,-196 575.5,-196" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="472.5" y="-177.4">Workspace init</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="476.5" y="-167">Git/MCP/Skills/goal</text>
 </g>
 <!-- n3 -->
-<g class="node" id="node4">
+<g class="node">
 <title>n3</title>
 <path d="M580,-119C580,-119 466,-119 466,-119 460,-119 454,-113 454,-107 454,-107 454,-89 454,-89 454,-83 460,-77 466,-77 466,-77 580,-77 580,-77 586,-77 592,-83 592,-89 592,-89 592,-107 592,-107 592,-113 586,-119 580,-119" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="468" y="-100.4">Agent command</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="491" y="-90">child process</text>
 </g>
 <!-- n4 -->
-<g class="node" id="node5">
+<g class="node">
 <title>n4</title>
 <path d="M572.5,-42C572.5,-42 473.5,-42 473.5,-42 467.5,-42 461.5,-36 461.5,-30 461.5,-30 461.5,-12 461.5,-12 461.5,-6 467.5,0 473.5,0 473.5,0 572.5,0 572.5,0 578.5,0 584.5,-6 584.5,-12 584.5,-12 584.5,-30 584.5,-30 584.5,-36 578.5,-42 572.5,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="485" y="-23.4">HTTP/gRPC</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="475.5" y="-13">health/ready/debug</text>
 </g>
 <!-- n5 -->
-<g class="node" id="node6">
+<g class="node">
 <title>n5</title>
 <path d="M780.5,-196C780.5,-196 698.5,-196 698.5,-196 692.5,-196 686.5,-190 686.5,-184 686.5,-184 686.5,-166 686.5,-166 686.5,-160 692.5,-154 698.5,-154 698.5,-154 780.5,-154 780.5,-154 786.5,-154 792.5,-160 792.5,-166 792.5,-166 792.5,-184 792.5,-184 792.5,-190 786.5,-196 780.5,-196" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="700.5" y="-177.4">/workspace</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="709" y="-167">durable files</text>
 </g>
 <!-- n6 -->
-<g class="node" id="node7">
+<g class="node">
 <title>n6</title>
 <path d="M787,-42C787,-42 692,-42 692,-42 686,-42 680,-36 680,-30 680,-30 680,-12 680,-12 680,-6 686,0 692,0 692,0 787,0 787,0 793,0 799,-6 799,-12 799,-12 799,-30 799,-30 799,-36 793,-42 787,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="694" y="-23.4">AX/Substrate</text>

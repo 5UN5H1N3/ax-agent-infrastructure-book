@@ -1,91 +1,91 @@
 <svg aria-label="Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»" class="diagram diagram-redrawn" height="291.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 604.92 291.92" width="604.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 278.96)">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 278.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
-<g class="edge" id="edge1">
+<g class="edge">
 <title>n0-&gt;n1</title>
 <path d="M62.5,-171.72C62.5,-163.33 62.5,-155.67 62.5,-155.67 62.5,-155.67 62.5,-118.33 62.5,-118.33 62.5,-118.33 62.5,-114.71 62.5,-109.72" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="65.02,-109.48 62.5,-102.28 59.98,-109.48 65.02,-109.48" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n1&#45;&gt;n2 -->
-<g class="edge" id="edge3">
+<g class="edge">
 <title>n1-&gt;n2</title>
 <path d="M125.1,-96.11C150.58,-102.36 180.24,-109.63 206.45,-116.06" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="206.15,-118.58 213.74,-117.85 207.35,-113.69 206.15,-118.58" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169.5" y="-114.56">artifacts</text>
 </g>
 <!-- n1&#45;&gt;n3 -->
-<g class="edge" id="edge2">
+<g class="edge">
 <title>n1-&gt;n3</title>
 <path d="M125.44,-70.26C139.31,-67.85 150,-66 150,-66 150,-66 182.91,-63.38 215.02,-60.82" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="215.3,-63.32 222.28,-60.24 214.9,-58.3 215.3,-63.32" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169.5" y="-68.56">persist</text>
 </g>
 <!-- n2&#45;&gt;n5 -->
-<g class="edge" id="edge5">
+<g class="edge">
 <title>n2-&gt;n5</title>
 <path d="M339.2,-133C372.84,-133 414.47,-133 448.6,-133" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="449.01,-135.52 456.21,-133 449.01,-130.48 449.01,-135.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="394.5" y="-135.56">durable data</text>
 </g>
 <!-- n4&#45;&gt;n5 -->
-<g class="edge" id="edge4">
+<g class="edge">
 <title>n4-&gt;n5</title>
 <path d="M514.5,-223.65C514.5,-206 514.5,-180.79 514.5,-161.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="517.02,-161.27 514.5,-154.07 511.98,-161.27 517.02,-161.27" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="506.5" y="-186.56">checkpoint</text>
 </g>
 <!-- n5&#45;&gt;n6 -->
-<g class="edge" id="edge6">
+<g class="edge">
 <title>n5-&gt;n6</title>
 <path d="M514.5,-111.65C514.5,-94 514.5,-68.79 514.5,-49.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="517.02,-49.27 514.5,-42.07 511.98,-49.27 517.02,-49.27" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="506.5" y="-74.56">store</text>
 </g>
 <!-- n0 -->
-<g class="node" id="node1">
+<g class="node">
 <title>n0</title>
 <path d="M107,-214C107,-214 18,-214 18,-214 12,-214 6,-208 6,-202 6,-202 6,-184 6,-184 6,-178 12,-172 18,-172 18,-172 107,-172 107,-172 113,-172 119,-178 119,-184 119,-184 119,-202 119,-202 119,-208 113,-214 107,-214" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="21" y="-195.4">LLM context</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="20" y="-185">tokens in request</text>
 </g>
 <!-- n1 -->
-<g class="node" id="node2">
+<g class="node">
 <title>n1</title>
 <path d="M113,-102C113,-102 12,-102 12,-102 6,-102 0,-96 0,-90 0,-90 0,-72 0,-72 0,-66 6,-60 12,-60 12,-60 113,-60 113,-60 119,-60 125,-66 125,-72 125,-72 125,-90 125,-90 125,-96 119,-102 113,-102" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-83.4">Working state</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="22" y="-73">plan, scratchpad</text>
 </g>
 <!-- n2 -->
-<g class="node" id="node3">
+<g class="node">
 <title>n2</title>
 <path d="M327,-154C327,-154 226,-154 226,-154 220,-154 214,-148 214,-142 214,-142 214,-124 214,-124 214,-118 220,-112 226,-112 226,-112 327,-112 327,-112 333,-112 339,-118 339,-124 339,-124 339,-142 339,-142 339,-148 333,-154 327,-154" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="239.5" y="-135.4">Filesystem</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="228" y="-125">workspace/artifacts</text>
 </g>
 <!-- n3 -->
-<g class="node" id="node4">
+<g class="node">
 <title>n3</title>
 <path d="M318.5,-77C318.5,-77 234.5,-77 234.5,-77 228.5,-77 222.5,-71 222.5,-65 222.5,-65 222.5,-47 222.5,-47 222.5,-41 228.5,-35 234.5,-35 234.5,-35 318.5,-35 318.5,-35 324.5,-35 330.5,-41 330.5,-47 330.5,-47 330.5,-65 330.5,-65 330.5,-71 324.5,-77 318.5,-77" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="236.5" y="-58.4">External DB</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="237.5" y="-48">memory/events</text>
 </g>
 <!-- n4 -->
-<g class="node" id="node5">
+<g class="node">
 <title>n4</title>
 <path d="M560.5,-266C560.5,-266 468.5,-266 468.5,-266 462.5,-266 456.5,-260 456.5,-254 456.5,-254 456.5,-236 456.5,-236 456.5,-230 462.5,-224 468.5,-224 468.5,-224 560.5,-224 560.5,-224 566.5,-224 572.5,-230 572.5,-236 572.5,-236 572.5,-254 572.5,-254 572.5,-260 566.5,-266 560.5,-266" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="470.5" y="-247.4">Process RAM</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="481" y="-237">runtime state</text>
 </g>
 <!-- n5 -->
-<g class="node" id="node6">
+<g class="node">
 <title>n5</title>
 <path d="M560.5,-154C560.5,-154 468.5,-154 468.5,-154 462.5,-154 456.5,-148 456.5,-142 456.5,-142 456.5,-124 456.5,-124 456.5,-118 462.5,-112 468.5,-112 468.5,-112 560.5,-112 560.5,-112 566.5,-112 572.5,-118 572.5,-124 572.5,-124 572.5,-142 572.5,-142 572.5,-148 566.5,-154 560.5,-154" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="482.5" y="-135.4">Snapshot</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="470.5" y="-125">RAM/durable data</text>
 </g>
 <!-- n6 -->
-<g class="node" id="node7">
+<g class="node">
 <title>n6</title>
 <path d="M567,-42C567,-42 462,-42 462,-42 456,-42 450,-36 450,-30 450,-30 450,-12 450,-12 450,-6 456,0 462,0 462,0 567,0 567,0 573,0 579,-6 579,-12 579,-12 579,-30 579,-30 579,-36 573,-42 567,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="464" y="-23.4">Object storage</text>

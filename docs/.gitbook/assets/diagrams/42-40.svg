@@ -1,100 +1,100 @@
 <svg aria-label="Disaster recovery: backup sets are interdependent and external side effects remain" class="diagram diagram-redrawn" height="298.92" role="img" style="width:100%;height:auto;overflow:visible" viewbox="0.00 0.00 659.92 298.92" width="659.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" id="graph0" transform="scale(1 1) rotate(0) translate(12.96 285.96)">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 285.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n6 -->
-<g class="edge" id="edge1">
+<g class="edge">
 <title>n0-&gt;n6</title>
 <path d="M94.91,-230.99C127.22,-211.26 175.59,-181.73 209.81,-160.84" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="211.2,-162.95 216.03,-157.05 208.57,-158.65 211.2,-162.95" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n1&#45;&gt;n6 -->
-<g class="edge" id="edge2">
+<g class="edge">
 <title>n1-&gt;n6</title>
 <path d="M118.54,-163.09C132.42,-160.24 147.55,-157.13 162.44,-154.07" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="163.19,-156.49 169.73,-152.58 162.17,-151.56 163.19,-156.49" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n2&#45;&gt;n6 -->
-<g class="edge" id="edge3">
+<g class="edge">
 <title>n2-&gt;n6</title>
 <path d="M251.5,-226.72C251.5,-218.33 251.5,-210.67 251.5,-210.67 251.5,-210.67 251.5,-173.33 251.5,-173.33 251.5,-173.33 251.5,-169.71 251.5,-164.72" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="254.02,-164.48 251.5,-157.28 248.98,-164.48 254.02,-164.48" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n3&#45;&gt;n6 -->
-<g class="edge" id="edge4">
+<g class="edge">
 <title>n3-&gt;n6</title>
 <path d="M504.46,-199.09C458.76,-187.65 393.14,-171.22 340.33,-157.99" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
 <polygon fill="#7a6a8e" points="340.89,-155.54 333.29,-156.23 339.66,-160.42 340.89,-155.54" stroke="#7a6a8e" stroke-width="1.55"></polygon>
 </g>
 <!-- n4&#45;&gt;n6 -->
-<g class="edge" id="edge5">
+<g class="edge">
 <title>n4-&gt;n6</title>
 <path d="M111.42,-108.18C127.09,-111.32 144.83,-114.87 162.26,-118.35" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="162.15,-120.9 169.71,-119.84 163.14,-115.96 162.15,-120.9" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n5&#45;&gt;n6 -->
-<g class="edge" id="edge6">
+<g class="edge">
 <title>n5-&gt;n6</title>
 <path d="M95.35,-42.09C127.52,-61.57 175.33,-90.5 209.36,-111.1" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="208.09,-113.27 215.55,-114.85 210.7,-108.96 208.09,-113.27" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n6&#45;&gt;n7 -->
-<g class="edge" id="edge7">
+<g class="edge">
 <title>n6-&gt;n7</title>
 <path d="M333.29,-136C378.72,-136 435.21,-136 480.43,-136" fill="none" stroke="#60748a" stroke-width="1.55"></path>
 <polygon fill="#60748a" points="480.68,-138.52 487.88,-136 480.68,-133.48 480.68,-138.52" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="410.5" y="-138.56">reconcile, not rollback</text>
 </g>
 <!-- n0 -->
-<g class="node" id="node1">
+<g class="node">
 <title>n0</title>
 <path d="M107,-273C107,-273 12,-273 12,-273 6,-273 0,-267 0,-261 0,-261 0,-243 0,-243 0,-237 6,-231 12,-231 12,-231 107,-231 107,-231 113,-231 119,-237 119,-243 119,-243 119,-261 119,-261 119,-267 113,-273 107,-273" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-254.4">Manifests/Git</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="25" y="-244">desired config</text>
 </g>
 <!-- n1 -->
-<g class="node" id="node2">
+<g class="node">
 <title>n1</title>
 <path d="M106.5,-196C106.5,-196 12.5,-196 12.5,-196 6.5,-196 0.5,-190 0.5,-184 0.5,-184 0.5,-166 0.5,-166 0.5,-160 6.5,-154 12.5,-154 12.5,-154 106.5,-154 106.5,-154 112.5,-154 118.5,-160 118.5,-166 118.5,-166 118.5,-184 118.5,-184 118.5,-190 112.5,-196 106.5,-196" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14.5" y="-177.4">Redis backup</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="38.5" y="-167">AX state</text>
 </g>
 <!-- n2 -->
-<g class="node" id="node3">
+<g class="node">
 <title>n2</title>
 <path d="M320,-269C320,-269 183,-269 183,-269 177,-269 171,-263 171,-257 171,-257 171,-239 171,-239 171,-233 177,-227 183,-227 183,-227 320,-227 320,-227 326,-227 332,-233 332,-239 332,-239 332,-257 332,-257 332,-263 326,-269 320,-269" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="185" y="-250.4">PostgreSQL backup</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="207" y="-240">runtime metadata</text>
 </g>
 <!-- n3 -->
-<g class="node" id="node4">
+<g class="node">
 <title>n3</title>
 <path d="M605.5,-234C605.5,-234 516.5,-234 516.5,-234 510.5,-234 504.5,-228 504.5,-222 504.5,-222 504.5,-204 504.5,-204 504.5,-198 510.5,-192 516.5,-192 516.5,-192 605.5,-192 605.5,-192 611.5,-192 617.5,-198 617.5,-204 617.5,-204 617.5,-222 617.5,-222 617.5,-228 611.5,-234 605.5,-234" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="518.5" y="-215.4">Object store</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="536" y="-205">snapshots</text>
 </g>
 <!-- n4 -->
-<g class="node" id="node5">
+<g class="node">
 <title>n4</title>
 <path d="M99,-119C99,-119 20,-119 20,-119 14,-119 8,-113 8,-107 8,-107 8,-89 8,-89 8,-83 14,-77 20,-77 20,-77 99,-77 99,-77 105,-77 111,-83 111,-89 111,-89 111,-107 111,-107 111,-113 105,-119 99,-119" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="31" y="-100.4">Registry</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="22" y="-90">images/digests</text>
 </g>
 <!-- n5 -->
-<g class="node" id="node6">
+<g class="node">
 <title>n5</title>
 <path d="M101,-42C101,-42 18,-42 18,-42 12,-42 6,-36 6,-30 6,-30 6,-12 6,-12 6,-6 12,0 18,0 18,0 101,0 101,0 107,0 113,-6 113,-12 113,-12 113,-30 113,-30 113,-36 107,-42 101,-42" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="20" y="-23.4">Secrets/PKI</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="40.5" y="-13">identity</text>
 </g>
 <!-- n6 -->
-<g class="node" id="node7">
+<g class="node">
 <title>n6</title>
 <path d="M321,-157C321,-157 182,-157 182,-157 176,-157 170,-151 170,-145 170,-145 170,-127 170,-127 170,-121 176,-115 182,-115 182,-115 321,-115 321,-115 327,-115 333,-121 333,-127 333,-127 333,-145 333,-145 333,-151 327,-157 321,-157" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="184" y="-138.4">Recovery procedure</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="199.5" y="-128">ordering + validation</text>
 </g>
 <!-- n7 -->
-<g class="node" id="node8">
+<g class="node">
 <title>n7</title>
 <path d="M622,-157C622,-157 500,-157 500,-157 494,-157 488,-151 488,-145 488,-145 488,-127 488,-127 488,-121 494,-115 500,-115 500,-115 622,-115 622,-115 628,-115 634,-121 634,-127 634,-127 634,-145 634,-145 634,-151 628,-157 622,-157" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="502" y="-138.4">External systems</text>
