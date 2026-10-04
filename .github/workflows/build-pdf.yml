@@ -37,7 +37,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y graphviz libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
           python -m pip install --upgrade pip
-          python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0"
+          python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0" "lxml==6.0.2"
 
       - name: Rebuild diagrams
         run: |
