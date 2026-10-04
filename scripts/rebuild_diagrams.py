@@ -291,7 +291,7 @@ def rebuild_html(src: Path, dst: Path):
 figure { break-inside: avoid-page !important; margin: 5mm 0 6mm; }
 figure svg.diagram-redrawn {
   display:block;
-  width:auto !important;
+  width:100% !important;
   max-width:100% !important;
   height:auto !important;
   max-height:178mm !important;
