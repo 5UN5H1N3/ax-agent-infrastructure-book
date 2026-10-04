@@ -37,7 +37,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y graphviz libcairo2 libffi-dev
           python -m pip install --upgrade pip
-          python -m pip install             "beautifulsoup4==4.15.0"             "markdownify==1.2.3"             "CairoSVG==2.9.1"
+          python -m pip install             "beautifulsoup4==4.15.0"             "markdownify==1.2.3"             "CairoSVG==2.9.1" \
+            "lxml==6.0.2"
 
       - name: Rebuild diagrams
         run: |
