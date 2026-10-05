@@ -181,14 +181,17 @@ Memory image тесно связан с runtime, image и ActorTemplate. При 
 
 ## WorkerPool и capacity engineering
 
-WorkerPool задаёт физическую тёплую ёмкость. ActorTemplate выбирает подходящие pool по labels и sandbox class. Один Worker одновременно обслуживает один активный Actor. Поэтому грубая нижняя граница capacity проста:
+WorkerPool задаёт физическую тёплую ёмкость. ActorTemplate выбирает подходящие pool по labels и sandbox class. Один Worker может одновременно размещать несколько активных Actors, пока хватает CPU, RAM и actor slots. Поэтому capacity считают по каждому ограничивающему ресурсу, а не по равенству «один Worker - один Actor»:
 
 ```
-required_warm_workers
-  >= concurrent_running_actors_at_target_percentile
-   + restore_in_progress
-   + maintenance_headroom
-   + failure_headroom
+for each resource dimension:
+  replicas * worker_capacity
+    >= concurrent_actor_allocations_at_target_percentile
+     + restore_and_maintenance_headroom
+     + failure_headroom
+
+and:
+  total_actor_slots >= concurrent_running_actors + headroom
 ```
 
 Но количество Actors в registry в формулу почти не входит. Важны concurrency, средняя длительность active period, burst shape, suspend rate и restore latency. Миллион mostly-idle Actors может требовать меньше Workers, чем несколько тысяч Actors с длинными tool calls.
