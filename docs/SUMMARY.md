@@ -21,7 +21,7 @@
 * [От Linux process к gVisor и microVM](08-process-container-gvisor-microvm.md)
 * [Kubernetes: необходимый минимум для понимания AX/Substrate](09-kubernetes-minimum.md)
 * [Control plane и distributed systems: как проектировать операции, которые переживают сбои](10-control-plane-distributed-systems.md)
-* [Actor model применительно к агентным workload](11-actor-model.md)
+* [Actor model для агентных workload: identity, state и lifecycle](11-actor-model.md)
 * [Agent Substrate: назначение и operational architecture](12-agent-substrate-architecture.md)
 * [Substrate resources: Atespace, WorkerPool, ActorTemplate, Actor, Tag](13-substrate-resources.md)
 * [Suspend, snapshot, resume и golden snapshot](14-suspend-snapshot-resume.md)
