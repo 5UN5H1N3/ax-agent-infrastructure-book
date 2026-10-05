@@ -2602,29 +2602,1681 @@ terminal:
 <li><a href="https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/">OpenTelemetry GenAI semantic conventions</a> - общие attributes и operations для agent/model/tool telemetry.</li>
 </ul></div>
 </section>
-<section class="chapter" id="ch-5"><div class="chapter-num">Глава 5</div><h1>Context, state, memory и snapshot: не смешивать</h1><figure><figcaption>Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»</figcaption><svg class="diagram" viewBox="0 0 800 345" role="img" aria-label="Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130.0" y1="105" x2="130.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="220" y1="177.5" x2="300" y2="177.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="171.5" text-anchor="middle" font-size="10" fill="#5c6875">persist</text><line x1="130.0" y1="210" x2="390.0" y2="40" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">artifacts</text><line x1="650.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">checkpoint</text><line x1="390.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="520.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">durable data</text><line x1="650.0" y1="210" x2="650.0" y2="250" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="224.0" text-anchor="middle" font-size="10" fill="#5c6875">store</text><rect x="40" y="40" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM context</text><text x="130.0" y="85" text-anchor="middle" font-size="11" fill="#465569">tokens in request</text><rect x="40" y="145" rx="12" ry="12" width="180" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="130.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Working state</text><text x="130.0" y="190" text-anchor="middle" font-size="11" fill="#465569">plan, scratchpad</text><rect x="300" y="40" rx="12" ry="12" width="180" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="390.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Filesystem</text><text x="390.0" y="85" text-anchor="middle" font-size="11" fill="#465569">workspace/artifacts</text><rect x="300" y="145" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="390.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">External DB</text><text x="390.0" y="190" text-anchor="middle" font-size="11" fill="#465569">memory/events</text><rect x="560" y="40" rx="12" ry="12" width="180" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="650.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process RAM</text><text x="650.0" y="85" text-anchor="middle" font-size="11" fill="#465569">runtime state</text><rect x="560" y="145" rx="12" ry="12" width="180" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="650.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Snapshot</text><text x="650.0" y="190" text-anchor="middle" font-size="11" fill="#465569">RAM/durable data</text><rect x="560" y="250" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="650.0" y="274" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Object storage</text><text x="650.0" y="295" text-anchor="middle" font-size="11" fill="#465569">snapshot blobs</text></svg></figure><p>В agent systems слово «memory» часто скрывает несколько совершенно разных механизмов. Для правильной эксплуатации их нужно разделять.</p>
-<p><strong>LLM context</strong> существует только в рамках конкретного inference request и ограничен context window. <strong>Working state</strong> - текущий plan, cursor, промежуточные результаты и state machine. <strong>Persistent memory</strong> - записи, которые переживают перезапуск и могут быть retrieved. <strong>Workspace</strong> - файлы проекта, artifacts и tool configuration. <strong>Process RAM</strong> - heap/stack конкретного процесса. <strong>Snapshot</strong> - технический checkpoint части runtime state. <strong>External system state</strong> - Git, ticket, router config, DB - authoritative data, которые нельзя «откатить» восстановлением локального snapshot.</p>
-<h3>Почему это важно при resume</h3>
-<p>Если runtime восстанавливает RAM image, TCP connection к внешнему API всё равно может оказаться недействительным: peer закрыл сессию, DNS/IP изменились, token протух. Если AX восстанавливает только durable <code>/workspace</code> и запускает новое process tree, агент должен самостоятельно восстановить in-memory progression из файлов/DB. Оба поведения могут называться «resume», но требования к приложению принципиально различаются.</p>
-<h3>Рекомендуемая модель состояния</h3>
+<section class="chapter" id="ch-5"><div class="chapter-num">Глава 5</div><h1>Context, state, memory и snapshot: не смешивать</h1><figure><figcaption>Состояние агента: семь разных сущностей, которые часто ошибочно называют «памятью»</figcaption><svg class="diagram" viewBox="0 0 800 345" role="img" aria-label="Состояние агента: семь разных сущностей, которые часто ошибочно называют «памятью»"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130.0" y1="105" x2="130.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="220" y1="177.5" x2="300" y2="177.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="171.5" text-anchor="middle" font-size="10" fill="#5c6875">persist</text><line x1="130.0" y1="210" x2="390.0" y2="40" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">artifacts</text><line x1="650.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">checkpoint</text><line x1="390.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="520.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">durable data</text><line x1="650.0" y1="210" x2="650.0" y2="250" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="224.0" text-anchor="middle" font-size="10" fill="#5c6875">store</text><rect x="40" y="40" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM context</text><text x="130.0" y="85" text-anchor="middle" font-size="11" fill="#465569">tokens in request</text><rect x="40" y="145" rx="12" ry="12" width="180" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="130.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Working state</text><text x="130.0" y="190" text-anchor="middle" font-size="11" fill="#465569">plan, scratchpad</text><rect x="300" y="40" rx="12" ry="12" width="180" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="390.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Filesystem</text><text x="390.0" y="85" text-anchor="middle" font-size="11" fill="#465569">workspace/artifacts</text><rect x="300" y="145" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="390.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">External DB</text><text x="390.0" y="190" text-anchor="middle" font-size="11" fill="#465569">memory/events</text><rect x="560" y="40" rx="12" ry="12" width="180" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="650.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process RAM</text><text x="650.0" y="85" text-anchor="middle" font-size="11" fill="#465569">runtime state</text><rect x="560" y="145" rx="12" ry="12" width="180" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="650.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Snapshot</text><text x="650.0" y="190" text-anchor="middle" font-size="11" fill="#465569">RAM/durable data</text><rect x="560" y="250" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="650.0" y="274" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Object storage</text><text x="650.0" y="295" text-anchor="middle" font-size="11" fill="#465569">snapshot blobs</text></svg></figure><p>Представим, что агент расследует сетевой инцидент. Он прочитал alert, проверил DNS, запросил логи и подготовил изменение. Затем процесс перезапустился.</p>
+<p>Что именно должно вернуться после запуска?</p>
 <ul>
-<li>Authoritative business state - во внешнем durable store или системе назначения.</li>
-<li>Agent progression - в journal/event log или компактном state object.</li>
-<li>Workspace/artifacts - в durable filesystem/object store.</li>
-<li>Prompt/context - производное представление, которое можно пересобрать.</li>
-<li>Snapshot - optimisation для быстрого продолжения, но не единственная копия критического state.</li>
+<li>исходная цель;</li>
+<li>подтверждённые факты;</li>
+<li>список уже выполненных tool calls;</li>
+<li>ожидающий approval;</li>
+<li>открытые файлы;</li>
+<li>разговор с пользователем;</li>
+<li>найденные в прошлых задачах рекомендации;</li>
+<li>TCP connection к log server;</li>
+<li>содержимое Python heap;</li>
+<li>фактическое состояние DNS и load balancer.</li>
 </ul>
-<p>Для инфраструктурного агента особенно опасно считать snapshot транзакцией: после <code>configure terminal</code> на роутере и до локального checkpoint внешнее устройство уже изменено. Resume не отменит изменение. Поэтому write actions должны быть журналированы и верифицированы независимо.</p>
-</section><section class="chapter" id="ch-6"><div class="chapter-num">Глава 6</div><h1>Tools, MCP и Skills</h1><figure><figcaption>MCP trust boundary: протокол не заменяет авторизацию</figcaption><svg class="diagram" viewBox="0 0 900 315" role="img" aria-label="MCP trust boundary: протокол не заменяет авторизацию"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="140" y1="155.0" x2="180" y2="155.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="160.0" y="149.0" text-anchor="middle" font-size="10" fill="#5c6875">tool intent</text><line x1="310" y1="155.0" x2="350" y2="155.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="330.0" y="149.0" text-anchor="middle" font-size="10" fill="#5c6875">request</text><line x1="485" y1="155.0" x2="530" y2="155.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="507.5" y="149.0" text-anchor="middle" font-size="10" fill="#5c6875">allowed</text><line x1="595.0" y1="190" x2="790.0" y2="30" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="692.5" y="104.0" text-anchor="middle" font-size="10" fill="#5c6875">side effect</text><line x1="790.0" y1="280" x2="595.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="692.5" y="194.0" text-anchor="middle" font-size="10" fill="#5c6875">scoped auth</text><rect x="20" y="120" rx="12" ry="12" width="120" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="80.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent</text><text x="80.0" y="165" text-anchor="middle" font-size="11" fill="#465569">model-driven</text><rect x="180" y="120" rx="12" ry="12" width="130" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="245.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">MCP client</text><text x="245.0" y="165" text-anchor="middle" font-size="11" fill="#465569">discovery/calls</text><rect x="350" y="120" rx="12" ry="12" width="135" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="417.5" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy/Gateway</text><text x="417.5" y="165" text-anchor="middle" font-size="11" fill="#465569">auth + scope</text><rect x="530" y="120" rx="12" ry="12" width="130" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="595.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">MCP server</text><text x="595.0" y="165" text-anchor="middle" font-size="11" fill="#465569">tools/resources</text><rect x="710" y="30" rx="12" ry="12" width="160" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="790.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">API/DB/Git</text><text x="790.0" y="75" text-anchor="middle" font-size="11" fill="#465569">real system</text><rect x="710" y="210" rx="12" ry="12" width="160" height="70" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="790.0" y="234" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Credentials</text><text x="790.0" y="255" text-anchor="middle" font-size="11" fill="#465569">least privilege</text></svg></figure><p>Tool - это формализованная операция, доступная agent loop. Он может быть локальной функцией, HTTP API, shell command или MCP tool. Главное свойство production tool - не «модель умеет его вызвать», а наличие чёткой схемы, проверяемых полномочий, predictable side effects и наблюдаемого результата.</p>
-<h3>MCP в версии 2026-07-28</h3>
-<p>Текущая спецификация MCP существенно отличается от ранних туториалов. Ядро стало stateless: убраны protocol-level sessions и старый <code>initialize/initialized</code> handshake. Каждый запрос несёт protocol version и client capabilities в <code>_meta</code>. Сервер должен поддерживать <code>server/discover</code>, позволяющий узнать версии, capabilities и identity. Для совместимости со старыми STDIO servers discovery может использоваться как probe.</p>
-<p>Практически это улучшает работу через gateways, WAF и rate limiters: routing и metering меньше зависят от долгоживущей сессии. Но security всё равно остаётся задачей deployment'а. Self-reported <code>serverInfo</code> нельзя использовать как security proof.</p>
-<p>В MCP полезно помнить ownership semantics: <strong>Prompts</strong> обычно user-controlled, <strong>Resources</strong> application-controlled, <strong>Tools</strong> model-controlled с точки зрения выбора вызова. «Model-controlled» не означает «безусловно разрешённый»; policy enforcement находится снаружи.</p>
-<h3>Skills</h3>
-<p>Skill - не transport protocol. Это переиспользуемый пакет инструкций, процедур и вспомогательных материалов, который помогает agent harness выполнить класс задач. Tool даёт capability, Skill объясняет способ применения capability. MCP стандартизует взаимодействие между client/server; Skill может ссылаться на MCP tools, но не является их сетевым эквивалентом.</p>
-<h3>Что делает AX Workspace</h3>
-<p>Workspace может описывать Git repositories, files, MCP servers/registries и skill registries/path. Тем самым Workspace становится декларативным описанием рабочей среды, а не просто volume. Но security implication очевиден: MCP server или skill registry - часть supply chain. Подключение неизвестного registry должно проходить не менее строгий review, чем новый package repository.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://blog.modelcontextprotocol.io/posts/2026-07-28/">MCP 2026-07-28 release</a></li><li><a href="https://modelcontextprotocol.io/specification/2026-07-28/server/discover">MCP discovery</a></li><li><a href="https://github.com/google/ax/blob/main/docs/concepts.md">AX Workspace concepts</a></li></ul></div></section><section class="chapter" id="ch-7"><div class="chapter-num">Глава 7</div><h1>Multi-agent архитектуры без лишней магии</h1><figure><figcaption>Практика: software-engineering multi-agent workflow</figcaption><svg class="diagram" viewBox="0 0 850 350" role="img" aria-label="Практика: software-engineering multi-agent workflow"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="440.0" y1="90" x2="135.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="287.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="330.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="385.0" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="525.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="482.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="720.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="580.0" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="330.0" y1="210" x2="330.0" y2="255" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="330.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">write</text><line x1="525.0" y1="210" x2="525.0" y2="255" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="525.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">run</text><line x1="720.0" y1="210" x2="440.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="580.0" y="109.0" text-anchor="middle" font-size="10" fill="#5c6875">verdict</text><rect x="360" y="20" rx="12" ry="12" width="160" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="440.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Coordinator</text><text x="440.0" y="65" text-anchor="middle" font-size="11" fill="#465569">scope/budget</text><rect x="60" y="145" rx="12" ry="12" width="150" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="135.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Researcher</text><text x="135.0" y="190" text-anchor="middle" font-size="11" fill="#465569">read</text><rect x="255" y="145" rx="12" ry="12" width="150" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="330.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Implementer</text><text x="330.0" y="190" text-anchor="middle" font-size="11" fill="#465569">write branch</text><rect x="450" y="145" rx="12" ry="12" width="150" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="525.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tester</text><text x="525.0" y="190" text-anchor="middle" font-size="11" fill="#465569">execute tests</text><rect x="645" y="145" rx="12" ry="12" width="150" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="720.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Reviewer</text><text x="720.0" y="190" text-anchor="middle" font-size="11" fill="#465569">evaluate</text><rect x="255" y="255" rx="12" ry="12" width="150" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="330.0" y="279" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Git/MCP</text><text x="330.0" y="300" text-anchor="middle" font-size="11" fill="#465569">scoped repo</text><rect x="450" y="255" rx="12" ry="12" width="150" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="525.0" y="279" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">CI tools</text><text x="525.0" y="300" text-anchor="middle" font-size="11" fill="#465569">sandbox</text></svg></figure><p>Multi-agent architecture оправдана, когда разделение даёт хотя бы одно из трёх: меньший context, разные полномочия/tools или параллельное выполнение. Если этих преимуществ нет, один хорошо ограниченный agent часто проще и дешевле.</p>
+<p>Это десять разных видов информации с разными владельцами, сроками жизни и гарантиями. Называть их одним словом <code>memory</code> удобно только до первого сбоя.</p>
+<p>Главный принцип главы:</p>
+<p><strong>Context - то, что модель видит сейчас. State - то, что приложение считает текущим progression. Memory - выбранная информация для будущих обращений. Snapshot - технический снимок части runtime. Ни одна из этих сущностей не заменяет external source of truth.</strong></p>
+<p>Различие не академическое. От него зависит, повторит ли агент write после restart, примет ли устаревшее summary за факт и сможет ли оператор объяснить, почему было принято решение.</p>
+<h2>Карта сущностей</h2>
+<p>Полезно различать как минимум восемь слоёв.</p>
+<table>
+<thead>
+<tr>
+<th>Сущность</th>
+<th>Главный вопрос</th>
+<th>Типичный срок жизни</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Request context</td>
+<td>Что модель увидит в этом inference?</td>
+<td>один model call</td>
+<td>system instructions, goal, selected evidence</td>
+</tr>
+<tr>
+<td>Working state</td>
+<td>Где находится Task сейчас?</td>
+<td>один run или Task</td>
+<td>phase, verified facts, budgets, pending operation</td>
+</tr>
+<tr>
+<td>Session history</td>
+<td>Что происходило в диалоге?</td>
+<td>thread/session</td>
+<td>user messages, assistant responses, tool items</td>
+</tr>
+<tr>
+<td>Persistent memory</td>
+<td>Что стоит использовать в будущих задачах?</td>
+<td>несколько runs</td>
+<td>preference, reusable lesson, known environment fact</td>
+</tr>
+<tr>
+<td>Workspace/artifacts</td>
+<td>Какие файлы и evidence созданы?</td>
+<td>Task/project</td>
+<td>logs, reports, repository checkout, raw tool output</td>
+</tr>
+<tr>
+<td>Process RAM</td>
+<td>Что нужно живому процессу прямо сейчас?</td>
+<td>жизнь процесса</td>
+<td>objects, stacks, caches, open descriptors</td>
+</tr>
+<tr>
+<td>Checkpoint/snapshot</td>
+<td>Как ускорить или обеспечить resume?</td>
+<td>до expiry/замены</td>
+<td>serialized state, graph checkpoint, VM/process image</td>
+</tr>
+<tr>
+<td>External source of truth</td>
+<td>Каково реальное состояние мира?</td>
+<td>задаёт внешняя система</td>
+<td>Git branch, ticket status, DNS record, database row</td>
+</tr>
+</tbody>
+</table>
+<p>Одна физическая технология может хранить несколько слоёв. PostgreSQL может содержать working state, session history и persistent memory. Это не превращает их в одну семантическую сущность. И наоборот, одна сущность может быть распределена: request context состоит из instructions, выбранных memory items, state projection и tool schemas.</p>
+<h3>Семь вопросов к любому фрагменту данных</h3>
+<p>Перед тем как решить «сохраним это в memory», ответьте:</p>
+<ol>
+<li><strong>Scope:</strong> к чему относится запись - request, run, thread, user, agent, project или organization?</li>
+<li><strong>Lifetime:</strong> когда она должна исчезнуть?</li>
+<li><strong>Authority:</strong> является ли это фактом, гипотезой, preference или производным summary?</li>
+<li><strong>Provenance:</strong> откуда информация получена и когда?</li>
+<li><strong>Mutability:</strong> кто может её изменить и как разрешаются конфликты?</li>
+<li><strong>Rebuildability:</strong> можно ли восстановить запись из другого источника?</li>
+<li><strong>Sensitivity:</strong> содержит ли она secrets, personal data или privileged instructions?</li>
+</ol>
+<p>Если хотя бы scope и authority неизвестны, автоматическая retrieval такой записи опасна.</p>
+<h2>Context: конечный вход одного model call</h2>
+<p>LLM не читает database, filesystem или предыдущий run напрямую. Она получает конечную последовательность tokens в конкретном request. Это и есть request context.</p>
+<p>В него могут входить:</p>
+<ul>
+<li>platform и agent instructions;</li>
+<li>objective пользователя;</li>
+<li>projection текущего state;</li>
+<li>recent conversation items;</li>
+<li>retrieved memory;</li>
+<li>tool descriptions;</li>
+<li>selected files и search results;</li>
+<li>observations текущего шага;</li>
+<li>examples и output schema.</li>
+</ul>
+<p>Context существует только для inference. После получения response его содержимое не становится автоматически durable state. Если важный факт присутствовал только в prompt, после compaction или смены provider он может исчезнуть.</p>
+<h3>Context window - бюджет, а не хранилище</h3>
+<p>Большое context window создаёт иллюзию, что можно передавать всю историю. Но проблема не только в жёстком token limit. Шумные и противоречивые данные уменьшают полезность внимания, повышают стоимость и затрудняют поиск нужного evidence.</p>
+<p>Хороший context assembler отвечает не на вопрос «что у нас есть?», а на вопрос «какой минимальный набор данных нужен для текущего decision point?».</p>
+<p>Упрощённо:</p>
+<pre><code class="language-text">policy + objective + state projection + selected evidence
++ relevant history + tool catalog + output reserve &lt;= context budget
+</code></pre>
+<p>При нехватке бюджета нельзя просто удалять самые старые tokens. Старое approval или исходное constraint может быть важнее свежего многословного tool output.</p>
+<h3>Context является производным представлением</h3>
+<p>Request context лучше собирать заново из durable components. Тогда его можно проверить и воспроизвести.</p>
+<p>Manifest context assembly может содержать:</p>
+<pre><code class="language-yaml">context_manifest:
+  request_id: mr-203
+  state_version: 18
+  prompt_bundle: incident-agent@7
+  objective_ref: artifact://task/input
+  included_observations: [obs-41, obs-44, obs-45]
+  memory_items: [mem-user-12, mem-runbook-8]
+  tool_catalog: tools-readonly@5
+  compaction: incident-summary@3
+  input_tokens: 32740
+</code></pre>
+<p>Manifest не обязан копировать весь prompt, но должен объяснять его состав. Это помогает отличить ошибку reasoning от ошибки retrieval или compaction.</p>
+<h3>Instruction и evidence нельзя смешивать</h3>
+<p>Файл, web page, log line и memory item по умолчанию являются данными. Они не получают право менять policy только потому, что попали в context.</p>
+<p>Assembler должен сохранять:</p>
+<ul>
+<li>тип источника;</li>
+<li>trust level;</li>
+<li>timestamp и version;</li>
+<li>допустимое использование;</li>
+<li>ссылку на raw artifact.</li>
+</ul>
+<p>Строка <code>ignore previous instructions</code> из retrieved document остаётся содержимым документа. Техническое enforcement всё равно находится в harness policy.</p>
+<h2>Working state: восстановимая модель progression</h2>
+<p>Working state отвечает на вопрос: что уже известно, что ожидается и какой следующий transition допустим?</p>
+<p>Он должен быть структурированным и достаточно компактным, чтобы application code мог проверять invariants без участия модели.</p>
+<pre><code class="language-yaml">run_id: run-118
+state_version: 23
+phase: diagnosing
+objective:
+  kind: restore_service
+  target: payments-api
+constraints:
+  writes_require_approval: true
+verified_facts:
+  - id: fact-31
+    claim: origin health endpoint returns 200
+    source: probe-771
+    observed_at: 2026-10-05T02:10:18Z
+hypotheses:
+  - id: hyp-9
+    text: edge certificate bundle is stale
+    status: testing
+pending:
+  kind: tool
+  operation_id: op-202
+budgets:
+  model_steps_left: 8
+  tool_calls_left: 17
+terminal:
+  status: running
+</code></pre>
+<h3>State хранит raw facts, а prompt форматируется позднее</h3>
+<p>State не должен состоять из текста «агент думает, что проблема, вероятно, в сертификате». Разделяйте observation, interpretation и decision.</p>
+<ul>
+<li>Observation: probe вернул serial <code>41:A9</code> в 02:10 UTC.</li>
+<li>External fact: certificate inventory связывает <code>41:A9</code> с expired bundle.</li>
+<li>Hypothesis: edge использует stale bundle.</li>
+<li>Decision: сравнить config revision edge nodes.</li>
+</ul>
+<p>Так разные nodes и модели могут использовать данные по-разному, а verifier способен проверить claim.</p>
+<p>Производные presentation strings не нужно сохранять, если их легко собрать из raw fields. Это уменьшает расхождение между state и отображением.</p>
+<h3>State version защищает от старых событий</h3>
+<p>Каждый mutation получает монотонную версию. Model proposal, approval и tool result ссылаются на версию, для которой были созданы.</p>
+<p>Если approval относится к <code>state_version=17</code>, а target config уже изменился на версии 20, harness не должен выполнять старый plan. Он запрашивает новое решение или повторную проверку.</p>
+<p>При нескольких workers нужен concurrency control: compare-and-swap, lease, transaction или single-writer discipline. Last-write-wins опасен, потому что поздний, но устаревший worker может стереть свежие evidence.</p>
+<h3>State и journal дополняют друг друга</h3>
+<p>Current state удобен для быстрого продолжения. Append-only journal удобен для аудита и восстановления причинной цепочки.</p>
+<pre><code class="language-text">ObservationRecorded(obs-41)
+HypothesisAdded(hyp-9)
+OperationPrepared(op-202)
+ApprovalRequested(ap-17)
+ApprovalGranted(ap-17, state_version=23)
+OperationStarted(op-202)
+</code></pre>
+<p>Необязательно восстанавливать state replay всех events, как в полном event sourcing. Практичный вариант - current state, operation ledger и журнал существенных transitions.</p>
+<h2>Session history: transcript не равен state</h2>
+<p>Session history хранит последовательность conversation items. Она полезна для continuity: помнить уточнение пользователя, предыдущий ответ и ожидающий tool result.</p>
+<p>Но transcript плохо подходит как единственный working state:</p>
+<ul>
+<li>факты смешаны с гипотезами и исправлениями;</li>
+<li>одно утверждение может быть отменено позже;</li>
+<li>model-generated text выглядит так же убедительно, как observation;</li>
+<li>трудно атомарно обновить budget или operation status;</li>
+<li>история растёт без границ;</li>
+<li>compaction теряет детали;</li>
+<li>application code не может надёжно проверить invariant.</li>
+</ul>
+<p>Поэтому session может помочь собрать context, но controller восстанавливается из structured state и ledger.</p>
+<p>Официальные agent SDK часто называют session «memory», потому что она автоматически подставляет history в следующий run. Это удобный API-термин, но инженер должен помнить: сохранённая история разговора не становится ни verified knowledge, ни checkpoint внешних side effects.</p>
+<h2>Persistent memory: информация для будущих обращений</h2>
+<p>Persistent memory существует за пределами одного текущего run. Её цель - сократить повторное исследование или сохранить полезную continuity.</p>
+<p>Полезны четыре класса.</p>
+<h3>Semantic memory</h3>
+<p>Устойчивые факты и понятия: имя сервиса, topology, внутренние термины, проверенный mapping между team и repository.</p>
+<h3>Episodic memory</h3>
+<p>Сведения о прошлом episode: «в инциденте INC-42 похожая ошибка была вызвана stale edge config». Episode помогает сформировать гипотезу, но не доказывает причину нового инцидента.</p>
+<h3>Procedural memory</h3>
+<p>Проверенная последовательность действий: runbook, diagnostic checklist, правила использования tool. Лучше хранить её как versioned skill или документ, а не как случайный prose fragment.</p>
+<h3>Preference memory</h3>
+<p>Предпочтения пользователя или команды: формат отчёта, язык, рабочие часы, допустимый уровень подробности. Preference не должна расширять authorization.</p>
+<table>
+<thead>
+<tr>
+<th>Класс</th>
+<th>Может подсказать</th>
+<th>Не может доказать</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Semantic</td>
+<td>где искать service owner</td>
+<td>кто владеет сервисом прямо сейчас без проверки</td>
+</tr>
+<tr>
+<td>Episodic</td>
+<td>какую гипотезу проверить первой</td>
+<td>что новый incident имеет ту же причину</td>
+</tr>
+<tr>
+<td>Procedural</td>
+<td>какие steps обычно безопасны</td>
+<td>что step разрешён текущей policy</td>
+</tr>
+<tr>
+<td>Preference</td>
+<td>как оформить результат</td>
+<td>право выполнить внешнее действие</td>
+</tr>
+</tbody>
+</table>
+<p>Memory - не источник абсолютной истины. Это indexed collection кандидатов на включение в context.</p>
+<h2>Запись memory - отдельный pipeline</h2>
+<p>Опасно позволять агенту сохранять любое собственное утверждение «на будущее». Ошибка превращается в устойчивое self-reinforcing знание.</p>
+<p>Write pipeline включает:</p>
+<ol>
+<li>извлечение candidate из завершённого episode;</li>
+<li>классификацию scope и memory type;</li>
+<li>удаление transient details;</li>
+<li>проверку provenance;</li>
+<li>проверку на secrets и personal data;</li>
+<li>conflict detection с существующими записями;</li>
+<li>назначение confidence, TTL и owner;</li>
+<li>human или rule-based validation для high-impact facts;</li>
+<li>indexing;</li>
+<li>audit записи и последующего изменения.</li>
+</ol>
+<p>Пример memory record:</p>
+<pre><code class="language-yaml">memory_id: mem-service-82
+scope: project:payments
+kind: episodic
+claim: edge config can lag after certificate rotation
+source_episode: incident:INC-42
+supporting_artifacts: [artifact://inc-42/postmortem]
+created_at: 2026-08-19T11:00:00Z
+valid_until: 2026-11-19T11:00:00Z
+confidence: medium
+owner: team:edge-platform
+status: active
+</code></pre>
+<p>Фраза сформулирована как возможность, а не как вечный факт. Она содержит источник, expiry и owner.</p>
+<h3>Что не следует запоминать автоматически</h3>
+<ul>
+<li>secrets и access tokens;</li>
+<li>неподтверждённые догадки;</li>
+<li>tool output без provenance;</li>
+<li>временные resource identifiers без TTL;</li>
+<li>personal data без цели и retention policy;</li>
+<li>полные transcripts «на всякий случай»;</li>
+<li>instructions из недоверенного документа;</li>
+<li>сведения, которые дешевле и надёжнее получить из authoritative API.</li>
+</ul>
+<h2>Чтение memory: retrieval не заканчивается vector search</h2>
+<p>Similarity search отвечает только на вопрос «какие записи лексически или семантически похожи на query?». Для безопасного context нужны дополнительные filters.</p>
+<p>Read pipeline:</p>
+<ol>
+<li>сформировать query из текущего decision point, а не из всей истории;</li>
+<li>ограничить tenant, user, project и agent scope;</li>
+<li>отфильтровать expired, revoked и incompatible records;</li>
+<li>получить candidates через keyword, metadata и semantic search;</li>
+<li>rerank по relevance, authority, freshness и diversity;</li>
+<li>обнаружить conflicts;</li>
+<li>выбрать записи под token budget;</li>
+<li>добавить provenance и trust labels;</li>
+<li>сохранить retrieval manifest;</li>
+<li>предложить revalidation, если память влияет на side effect.</li>
+</ol>
+<p>Упрощённый score может учитывать:</p>
+<pre><code class="language-text">score = relevance * authority * freshness * scope_match
+        - conflict_penalty - redundancy_penalty
+</code></pre>
+<p>Это не универсальная формула, а напоминание: высокая cosine similarity не делает запись свежей или авторитетной.</p>
+<h3>Конфликтующие memories</h3>
+<p>Удалять старую запись сразу после появления новой не всегда правильно. Конфликт может отражать изменение мира, разные environments или ошибку retrieval.</p>
+<p>Полезный record lifecycle:</p>
+<ul>
+<li><code>candidate</code> - извлечено, но не проверено;</li>
+<li><code>active</code> - допустимо для retrieval;</li>
+<li><code>superseded</code> - заменено более свежей записью;</li>
+<li><code>disputed</code> - есть противоречие;</li>
+<li><code>revoked</code> - признано ошибочным или небезопасным;</li>
+<li><code>expired</code> - TTL закончился;</li>
+<li><code>deleted</code> - удалено по retention/privacy policy.</li>
+</ul>
+<p>Модель должна видеть не только claim, но и status. <code>Disputed</code> memory используется как повод проверить источник, а не как готовый факт.</p>
+<h3>Progressive disclosure</h3>
+<p>Не нужно помещать каждую найденную запись в prompt. Полезный pattern:</p>
+<ol>
+<li>короткий index или summary говорит, какие memories существуют;</li>
+<li>модель или deterministic router выбирает релевантную тему;</li>
+<li>harness загружает полный record;</li>
+<li>raw artifact читается только при необходимости.</li>
+</ol>
+<p>Так memory помогает, не заполняя context старыми деталями.</p>
+<h2>Workspace и artifacts: материальный след работы</h2>
+<p>Workspace - файловая среда Task или project. В ней могут находиться source checkout, промежуточные файлы, tool configuration и generated artifacts.</p>
+<p>Artifacts - адресуемые результаты: report, patch, raw log, screenshot, test output, context manifest. Artifact должен иметь identity, content type, size, hash, producer и retention class.</p>
+<p>Workspace не является memory автоматически. Файл становится полезным для агента только после discovery, чтения и включения релевантной части в context. И наоборот, удаление файла из context не удаляет его из workspace.</p>
+<h3>Файл, state и artifact играют разные роли</h3>
+<p>Допустим, агент выполнил diagnostic command.</p>
+<ul>
+<li>Полный stdout сохранён как artifact.</li>
+<li>В state записано: command завершился, exit code 0, artifact ID такой-то.</li>
+<li>В context следующего шага попали только 30 строк вокруг ошибки.</li>
+<li>В persistent memory после завершения может попасть проверенный lesson, но не весь log.</li>
+</ul>
+<p>Так сохраняется audit без переполнения prompt.</p>
+<h3>Workspace требует lifecycle</h3>
+<p>Нужны правила:</p>
+<ul>
+<li>namespace и ownership;</li>
+<li>quota;</li>
+<li>allowed paths;</li>
+<li>encryption и secret handling;</li>
+<li>cleanup после Task;</li>
+<li>promotion нужных artifacts в долгоживущее хранилище;</li>
+<li>защита от path traversal и symlink surprises;</li>
+<li>version/hash при чтении файлов моделью.</li>
+</ul>
+<p>Путь <code>/workspace/result.txt</code> без Task identity и hash слаб для аудита: файл мог измениться между решением и выполнением.</p>
+<h2>Process RAM: удобное, но недолговечное состояние</h2>
+<p>Heap, stack, in-memory cache, open file descriptors и активные coroutines нужны живому process. Они быстрые, но не должны быть единственной копией критического progression.</p>
+<p>В RAM допустимо хранить:</p>
+<ul>
+<li>parsed config;</li>
+<li>connection pools;</li>
+<li>short-lived caches;</li>
+<li>buffered telemetry с лимитом;</li>
+<li>current call objects;</li>
+<li>derived prompt representation.</li>
+</ul>
+<p>В RAM опасно хранить как единственную копию:</p>
+<ul>
+<li>approval;</li>
+<li>idempotency ledger;</li>
+<li>external operation ID;</li>
+<li>оставшийся budget;</li>
+<li>verified fact;</li>
+<li>terminal evidence;</li>
+<li>единственный экземпляр user-provided artifact.</li>
+</ul>
+<p>Process может исчезнуть из-за OOMKill, node failure, deploy, scale-down или обычного restart. Production recovery начинается с предположения, что RAM потеряна.</p>
+<h2>Checkpoint и snapshot: логический и технический уровни</h2>
+<p>Термины используются по-разному в frameworks, поэтому contract важнее названия.</p>
+<p><strong>Logical checkpoint</strong> сериализует application state в безопасной границе: current node, structured state, pending operations, budgets и identifiers. Обычно он не содержит весь heap.</p>
+<p><strong>Runtime snapshot</strong> фиксирует техническое состояние execution environment: filesystem, memory pages, process tree и иногда virtual device state. Его цель - быстро продолжить работу, но точный состав зависит от runtime.</p>
+<table>
+<thead>
+<tr>
+<th>Свойство</th>
+<th>Logical checkpoint</th>
+<th>Runtime snapshot</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Уровень</td>
+<td>приложение</td>
+<td>process/container/VM/runtime</td>
+</tr>
+<tr>
+<td>Формат</td>
+<td>schema, records, journal</td>
+<td>memory/filesystem image, runtime metadata</td>
+</tr>
+<tr>
+<td>Переносимость</td>
+<td>выше при versioned schema</td>
+<td>зависит от kernel, image, template, architecture</td>
+</tr>
+<tr>
+<td>Размер</td>
+<td>обычно небольшой</td>
+<td>может быть большим</td>
+</tr>
+<tr>
+<td>Понимает domain state</td>
+<td>да</td>
+<td>обычно нет</td>
+</tr>
+<tr>
+<td>Восстанавливает sockets</td>
+<td>явно reconnect</td>
+<td>технически возможно не всегда надёжно</td>
+</tr>
+<tr>
+<td>Доказывает external outcome</td>
+<td>нет</td>
+<td>нет</td>
+</tr>
+<tr>
+<td>Подходит для audit</td>
+<td>да, если есть provenance</td>
+<td>ограниченно</td>
+</tr>
+</tbody>
+</table>
+<p>Оба механизма полезны. Ошибка - считать runtime snapshot заменой логического checkpoint.</p>
+<h3>Snapshot фиксирует момент, но не распределённую транзакцию</h3>
+<p>В момент snapshot:</p>
+<ul>
+<li>external API мог уже применить write;</li>
+<li>response ещё мог не попасть в process;</li>
+<li>database transaction могла быть open;</li>
+<li>filesystem buffers могли не flush-иться;</li>
+<li>remote lease могла продолжать истекать;</li>
+<li>credential могла стать недействительной через секунду;</li>
+<li>DNS и routing могли измениться.</li>
+</ul>
+<p>Resume не возвращает весь внешний мир к прошлому моменту. Поэтому snapshot не является undo и не обеспечивает exactly-once side effects.</p>
+<h3>Consistency boundary должна быть явной</h3>
+<p>Перед logical checkpoint harness стремится достичь состояния, которое можно интерпретировать после restart:</p>
+<ul>
+<li>все completed observations durably записаны;</li>
+<li>незавершённая operation имеет ID и статус;</li>
+<li>approval связан со state version;</li>
+<li>context можно пересобрать;</li>
+<li>artifacts flush-нуты и адресуемы;</li>
+<li>remaining budgets сохранены;</li>
+<li>active lease или heartbeat известен.</li>
+</ul>
+<p>Перед runtime snapshot дополнительно полезно:</p>
+<ul>
+<li>остановить создание новых operations;</li>
+<li>дождаться или классифицировать active calls;</li>
+<li>flush durable files;</li>
+<li>закрыть или пометить connections для reconnect;</li>
+<li>сохранить snapshot metadata и compatibility identity.</li>
+</ul>
+<p>Полностью quiescent state получить не всегда возможно. Тогда snapshot metadata должна перечислить unknown operations.</p>
+<h2>External source of truth нельзя заменить памятью</h2>
+<p>Для network agent реальный route находится на устройстве или в authoritative controller. Для coding agent реальный commit находится в Git. Для support agent статус case находится в ticket system.</p>
+<p>Local state и memory могут содержать projection external world, но projection устаревает.</p>
+<p>Каждая запись должна отвечать:</p>
+<ul>
+<li>какой источник authoritative;</li>
+<li>когда projection получена;</li>
+<li>какая freshness нужна для решения;</li>
+<li>как перепроверить;</li>
+<li>что делать при недоступности источника.</li>
+</ul>
+<p>Например:</p>
+<pre><code class="language-yaml">projection:
+  claim: api.example.com -&gt; 203.0.113.25
+  source: authoritative-dns/ns1
+  observed_at: 2026-10-05T02:13:22Z
+  freshness_slo: 30s
+  raw_observation: artifact://dns/probe-91
+</code></pre>
+<p>Через пять минут эта запись остаётся полезной историей, но может быть недостаточно свежей для production write.</p>
+<h3>Cache, projection и memory</h3>
+<p>Cache оптимизирует повторное получение и может быть отброшен. Projection представляет external state на конкретный момент. Memory выбирает информацию для будущего reasoning. Один record способен играть несколько ролей физически, но invalidation policy различается.</p>
+<p>Если service inventory API дешёв и надёжен, лучше перечитать его, чем хранить вечную semantic memory о владельце сервиса. Memory полезна, когда помогает найти правильный authoritative query.</p>
+<h2>Resume contract: восстановить работу, а не ощущение непрерывности</h2>
+<p>После restart новый process не обязан «помнить», что чувствовал старый. Он обязан безопасно продолжить contract.</p>
+<p>Минимальный resume protocol:</p>
+<ol>
+<li>Захватить lease run и убедиться, что старый worker больше не authoritative.</li>
+<li>Загрузить schema/version agent specification.</li>
+<li>Загрузить latest valid logical checkpoint.</li>
+<li>Проверить integrity state и artifacts.</li>
+<li>Восстановить budget и cancellation state.</li>
+<li>Найти operations со статусом <code>prepared</code>, <code>running</code> или <code>unknown</code>.</li>
+<li>Выполнить reconciliation с external systems.</li>
+<li>Проверить approval freshness.</li>
+<li>Обновить projections authoritative state.</li>
+<li>Пересобрать context из актуальных данных.</li>
+<li>Только после этого разрешить новый model step.</li>
+</ol>
+<pre><code class="language-text">restart
+  -&gt; claim lease
+  -&gt; load checkpoint
+  -&gt; validate schema
+  -&gt; reconcile operations
+  -&gt; refresh external facts
+  -&gt; rebuild context
+  -&gt; continue transition
+</code></pre>
+<p>Автоматически отправлять в модель последний transcript сразу после restart опасно: там может быть старый plan, а external write уже выполнен.</p>
+<h3>Schema evolution</h3>
+<p>Long-running Task может пережить upgrade agent code. State и memory formats должны иметь version.</p>
+<p>Варианты:</p>
+<ul>
+<li>backward-compatible reader;</li>
+<li>explicit migration;</li>
+<li>pin Task к старой agent version;</li>
+<li>fail с human-readable migration requirement.</li>
+</ul>
+<p>Тихо игнорировать неизвестные fields или заменять их default значениями опасно для approval и operation ledger.</p>
+<p>Snapshot compatibility ещё строже: process image может зависеть от runtime image, kernel features, architecture и library versions. При несовместимости правильнее выполнить fresh process start и восстановить logical state.</p>
+<h2>Compaction и summarization</h2>
+<p>Когда history растёт, harness создаёт summary или compacted state. Это преобразование с потерями.</p>
+<p>Хорошая compaction сохраняет:</p>
+<ul>
+<li>objective и constraints;</li>
+<li>verified facts с provenance;</li>
+<li>rejected hypotheses и почему они отклонены;</li>
+<li>принятые decisions;</li>
+<li>open questions;</li>
+<li>pending approvals/operations;</li>
+<li>external identifiers;</li>
+<li>budgets;</li>
+<li>ссылки на raw artifacts.</li>
+</ul>
+<p>Плохая compaction сохраняет только плавный narrative. Narrative легко скрывает uncertainty и превращает предположение в факт.</p>
+<h3>Summary не переписывает историю</h3>
+<p>Сохраняйте relation:</p>
+<pre><code class="language-yaml">summary:
+  id: sum-19
+  covers_events: [evt-100, evt-184]
+  generated_by: summarizer@3
+  created_at: 2026-10-05T02:30:00Z
+  source_hash: sha256:...
+  claims:
+    - text: edge nodes disagree on certificate serial
+      evidence: [obs-41, obs-44]
+</code></pre>
+<p>Если summary используется для risky decision, harness может открыть исходные observations.</p>
+<h2>Privacy, security и retention</h2>
+<p>Долгоживущая memory увеличивает пользу и одновременно blast radius утечки.</p>
+<p>Для каждого слоя нужна отдельная policy:</p>
+<table>
+<thead>
+<tr>
+<th>Слой</th>
+<th>Типичный риск</th>
+<th>Контроль</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Request context</td>
+<td>отправка данных provider</td>
+<td>redaction, provider/data policy</td>
+</tr>
+<tr>
+<td>Session history</td>
+<td>накопление sensitive dialog</td>
+<td>encryption, TTL, access control</td>
+</tr>
+<tr>
+<td>Working state</td>
+<td>подмена progression</td>
+<td>integrity, versioning, least privilege</td>
+</tr>
+<tr>
+<td>Persistent memory</td>
+<td>долговременная ошибка или утечка</td>
+<td>validation, scope, expiry, deletion</td>
+</tr>
+<tr>
+<td>Workspace/artifacts</td>
+<td>secrets и большие raw payloads</td>
+<td>sandbox, quota, malware scan, retention</td>
+</tr>
+<tr>
+<td>Snapshot</td>
+<td>plaintext RAM и credentials</td>
+<td>encryption, isolation, compatibility policy</td>
+</tr>
+<tr>
+<td>Trace</td>
+<td>копия prompts/tool results</td>
+<td>content controls, sampling, redaction before export</td>
+</tr>
+</tbody>
+</table>
+<p>Нужно поддерживать deletion не только основной записи. Memory item может иметь embedding, cache entry, search index, backup и trace reference. Privacy delete должен знать все производные копии или иметь документированный срок их исчезновения.</p>
+<h3>Memory poisoning</h3>
+<p>Атакующий пытается сохранить инструкцию или ложный факт так, чтобы будущий run автоматически доверял ему.</p>
+<p>Защита:</p>
+<ul>
+<li>недоверенный content не повышает свой trust level;</li>
+<li>write pipeline отделён от текущего model response;</li>
+<li>sensitive scopes требуют validation;</li>
+<li>provenance всегда доступен при retrieval;</li>
+<li>memory не расширяет tool authority;</li>
+<li>есть revoke и conflict workflow;</li>
+<li>evals включают malicious memory records.</li>
+</ul>
+<h2>Multi-agent boundaries</h2>
+<p>Не вся память должна быть общей. Shared memory облегчает coordination, но распространяет ошибки и секреты.</p>
+<p>Разделяйте:</p>
+<ul>
+<li>private scratch state одного agent;</li>
+<li>Task-shared verified facts;</li>
+<li>team/project memory;</li>
+<li>user preferences;</li>
+<li>organization knowledge;</li>
+<li>public knowledge.</li>
+</ul>
+<p>Child agent получает только необходимую projection parent state. Его свободный transcript не должен автоматически становиться parent truth. Parent принимает structured result с evidence и сам решает, что добавить в shared state.</p>
+<h2>Что сохраняет AX, а что обязан сохранить агент</h2>
+<p>Для AX особенно важно не путать durable Workspace и живой process. Runner может стартовать заново, даже если файлы <code>/workspace</code> сохранились. Agent harness должен уметь reconstruct progression из durable state.</p>
+<p>Практичный contract:</p>
+<ul>
+<li>AX Task хранит инфраструктурный lifecycle и execution metadata;</li>
+<li>Workspace хранит files, artifacts и сериализованный agent state;</li>
+<li>harness хранит state schema, operation ledger и resume logic;</li>
+<li>Model/Gateway предоставляет inference, но не является authoritative memory Task;</li>
+<li>Substrate snapshot может ускорять runtime resume, но не заменяет application recovery;</li>
+<li>external systems остаются источниками истины для своих resources.</li>
+</ul>
+<p>Если процесс восстановился из snapshot, harness всё равно проверяет leases, credentials, connections и незавершённые operations. Если snapshot несовместим, fresh process должен продолжить работу из logical checkpoint.</p>
+<h2>Куда положить новую информацию: decision table</h2>
+<table>
+<thead>
+<tr>
+<th>Если информация...</th>
+<th>Основное место</th>
+<th>Дополнительное действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>нужна только для текущего model decision</td>
+<td>Request context</td>
+<td>не сохранять без причины</td>
+</tr>
+<tr>
+<td>определяет допустимый следующий transition</td>
+<td>Working state</td>
+<td>versioned update</td>
+</tr>
+<tr>
+<td>является сообщением пользователя</td>
+<td>Session history</td>
+<td>извлечь structured update при необходимости</td>
+</tr>
+<tr>
+<td>полезна будущим Tasks</td>
+<td>Persistent memory candidate</td>
+<td>validation, scope, TTL, provenance</td>
+</tr>
+<tr>
+<td>большая или бинарная</td>
+<td>Artifact store/workspace</td>
+<td>в state сохранить reference и hash</td>
+</tr>
+<tr>
+<td>дешёво получается из authoritative API</td>
+<td>Cache/projection</td>
+<td>задать freshness, не считать вечной memory</td>
+</tr>
+<tr>
+<td>нужна только живому adapter</td>
+<td>Process RAM</td>
+<td>предусмотреть rebuild/reconnect</td>
+</tr>
+<tr>
+<td>ускоряет восстановление runtime</td>
+<td>Snapshot</td>
+<td>сохранить compatibility и retention metadata</td>
+</tr>
+<tr>
+<td>подтверждает внешний side effect</td>
+<td>External system + operation ledger</td>
+<td>выполнить независимый read-back</td>
+</tr>
+</tbody>
+</table>
+<p>Короткое правило: сохраняйте semantic minimum в state, evidence в artifacts, reusable lesson в memory, а current truth перепроверяйте во внешней системе.</p>
+<h2>Reference data model</h2>
+<p>Ниже не готовая schema, а пример явного разделения.</p>
+<pre><code class="language-yaml">task:
+  id: task-908
+  objective_ref: artifact://task-908/input
+  agent_spec: network-diagnostician@5
+
+state:
+  schema_version: 4
+  state_version: 27
+  phase: verifying
+  verified_fact_refs: [fact-19, fact-22]
+  pending_operation: op-741
+  approval_ref: null
+  budgets_ref: budget-908
+
+session:
+  id: thread-311
+  latest_item_seq: 84
+  compaction_ref: summary-12
+
+memory_query:
+  scope: project:edge
+  retrieved: [mem-71, mem-90]
+  manifest_ref: retrieval-551
+
+workspace:
+  root: workspace://task-908
+  artifacts:
+    - id: tls-probe-203
+      sha256: 8c1...
+      media_type: application/json
+
+checkpoint:
+  id: cp-27
+  state_version: 27
+  operation_ledger_offset: 119
+  created_at: 2026-10-05T02:44:00Z
+
+runtime_snapshot:
+  id: snap-18
+  checkpoint_id: cp-27
+  runtime_identity: runner-image@sha256:91e...
+  status: compatible
+
+external_projections:
+  - resource: dns://example.com/api
+    observation_ref: obs-22
+    observed_at: 2026-10-05T02:43:41Z
+    freshness_slo: 30s
+</code></pre>
+<p>Связь snapshot с logical checkpoint особенно полезна: после resume harness знает, какое application state ожидалось в снимке и с какого journal offset проверять новые события.</p>
+<h2>Как тестировать state и memory layer</h2>
+<h3>State invariants</h3>
+<p>Автоматические тесты проверяют:</p>
+<ul>
+<li>state version растёт монотонно;</li>
+<li>terminal state не возвращается в running;</li>
+<li>один active lease имеет одного owner;</li>
+<li>pending operation существует в ledger;</li>
+<li>approval ссылается на текущий proposal и state version;</li>
+<li>budget не увеличивается после restart;</li>
+<li>verified fact содержит provenance;</li>
+<li>context можно пересобрать из referenced data.</li>
+</ul>
+<h3>Recovery matrix</h3>
+<p>Проверяйте crash в каждой границе:</p>
+<table>
+<thead>
+<tr>
+<th>Момент сбоя</th>
+<th>Что должно произойти после restart</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>До записи model response</td>
+<td>безопасный новый model call в оставшемся budget</td>
+</tr>
+<tr>
+<td>После response, до state update</td>
+<td>duplicate response игнорируется или применяется один раз</td>
+</tr>
+<tr>
+<td>После operation prepare</td>
+<td>operation reconciled до execution</td>
+</tr>
+<tr>
+<td>После external write</td>
+<td>read-back определяет outcome, blind retry запрещён</td>
+</tr>
+<tr>
+<td>После artifact upload, до state reference</td>
+<td>orphan artifact обнаруживается cleanup/reconciliation</td>
+</tr>
+<tr>
+<td>Во время compaction</td>
+<td>прежний valid summary остаётся active</td>
+</tr>
+<tr>
+<td>После memory index, до metadata commit</td>
+<td>incomplete candidate не участвует в retrieval</td>
+</tr>
+<tr>
+<td>После snapshot, до suspend status</td>
+<td>snapshot lineage проверяется, active process fencing сохраняется</td>
+</tr>
+</tbody>
+</table>
+<h3>Memory evals</h3>
+<p>Memory оценивается не количеством сохранённых записей. Полезны метрики:</p>
+<ul>
+<li>retrieval precision и recall на реальных задачах;</li>
+<li>доля retrieved items, фактически использованных;</li>
+<li>stale/expired retrieval rate;</li>
+<li>conflict detection rate;</li>
+<li>число corrections пользователем;</li>
+<li>доля записей без provenance;</li>
+<li>memory poisoning success rate;</li>
+<li>token cost retrieved memory;</li>
+<li>improvement verified task success;</li>
+<li>deletion completion time.</li>
+</ul>
+<p>Memory, которая увеличивает token usage и уверенность, но не улучшает verified outcome, не приносит пользы.</p>
+<h3>Counterfactual tests</h3>
+<p>Меняйте один слой независимо:</p>
+<ul>
+<li>тот же state, другая memory;</li>
+<li>та же memory, более свежая external projection;</li>
+<li>тот же context, новый state version;</li>
+<li>тот же checkpoint, несовместимый runtime snapshot;</li>
+<li>тот же episode, отозванный memory record.</li>
+</ul>
+<p>Правильная система предпочитает свежий authoritative факт старой memory, отклоняет stale approval и умеет продолжить без runtime snapshot.</p>
+<h2>Практикум: восстановление агента после неизвестного результата</h2>
+<p>Сценарий: агент должен заменить backend в load balancer после approval. Tool request получил timeout, затем process завершился.</p>
+<h3>До выполнения</h3>
+<p>Working state:</p>
+<pre><code class="language-yaml">phase: executing
+state_version: 14
+proposal:
+  id: change-51
+  target: lb/payment-api/backend-a
+  desired: backend-b
+approval:
+  id: approval-88
+  proposal_id: change-51
+  state_version: 14
+operation:
+  id: op-771
+  idempotency_key: payment-api-change-51
+  status: prepared
+</code></pre>
+<p>В session history есть объяснение пользователю. В workspace лежат diff и rollback plan. Persistent memory содержит старый episode о проблемах этого load balancer. External source of truth - API самого load balancer.</p>
+<h3>Во время сбоя</h3>
+<p>Executor отправил operation, но не получил response. В ledger сохраняется <code>outcome=unknown</code>. Runtime snapshot отсутствует.</p>
+<p>Важно: отсутствие snapshot не является потерей Task, потому что logical checkpoint уже содержит proposal, approval и operation identity.</p>
+<h3>После restart</h3>
+<p>Новый process:</p>
+<ol>
+<li>получает lease;</li>
+<li>загружает checkpoint;</li>
+<li>не подставляет старый transcript модели;</li>
+<li>видит <code>op-771</code> со статусом unknown;</li>
+<li>читает current backend из load balancer API;</li>
+<li>находит <code>backend-b</code> и change ID, связанный с operation;</li>
+<li>записывает observation;</li>
+<li>переводит operation в <code>applied_unverified</code>;</li>
+<li>запускает health probes;</li>
+<li>только после успешной проверки ставит <code>verified</code> и завершает Task.</li>
+</ol>
+<p>Если API показывает <code>backend-a</code>, harness проверяет operation status по external ID. Только затем policy решает, допустим ли retry с тем же idempotency key.</p>
+<h3>Что здесь делает каждый слой</h3>
+<table>
+<thead>
+<tr>
+<th>Слой</th>
+<th>Роль</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Context</td>
+<td>после reconciliation показать модели актуальные evidence</td>
+</tr>
+<tr>
+<td>Working state</td>
+<td>сохранить phase, proposal, approval и pending operation</td>
+</tr>
+<tr>
+<td>Session history</td>
+<td>сохранить человеческий диалог, но не определять outcome</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>подсказать прошлый failure mode, не объявлять его причиной</td>
+</tr>
+<tr>
+<td>Workspace/artifacts</td>
+<td>хранить diff, raw responses и probe results</td>
+</tr>
+<tr>
+<td>Process RAM</td>
+<td>новый process строит заново</td>
+</tr>
+<tr>
+<td>Logical checkpoint</td>
+<td>дать точку безопасного application resume</td>
+</tr>
+<tr>
+<td>Runtime snapshot</td>
+<td>мог бы ускорить start, но не обязателен</td>
+</tr>
+<tr>
+<td>External source of truth</td>
+<td>показать, применилось ли изменение реально</td>
+</tr>
+</tbody>
+</table>
+<p>Это и есть правильная mental model: continuity создаётся не иллюзией непрерывной памяти, а согласованными identifiers, evidence и recovery protocol.</p>
+<h2>Типичные антипаттерны</h2>
+<p><strong>Everything is memory.</strong> Transcript, vector store, state JSON и workspace называют одним термином, поэтому невозможно определить гарантию.</p>
+<p><strong>Transcript as database.</strong> Controller ищет текущий budget или approval в тексте сообщений.</p>
+<p><strong>Context as archive.</strong> В каждый request отправляется вся история «чтобы ничего не потерять».</p>
+<p><strong>Summary as truth.</strong> Model-generated compaction заменяет raw observations и удаляет uncertainty.</p>
+<p><strong>Vector similarity as authority.</strong> Наиболее похожая запись считается правильной без проверки scope, freshness и source.</p>
+<p><strong>Agent writes its own truth.</strong> Любой final answer автоматически становится persistent memory.</p>
+<p><strong>No expiry.</strong> Resource locations, team ownership и procedures живут в memory бесконечно.</p>
+<p><strong>Shared memory by default.</strong> Все agents и tenants читают один store без namespace и capability checks.</p>
+<p><strong>Snapshot equals transaction.</strong> Восстановление RAM считается откатом external side effects.</p>
+<p><strong>Snapshot equals backup.</strong> Единственный runtime image используется как DR strategy.</p>
+<p><strong>Process RAM as checkpoint.</strong> Важные operation IDs существуют только в objects живого процесса.</p>
+<p><strong>Fresh process means new operation.</strong> После Task retry создаётся другой idempotency key и повторяется уже выполненный write.</p>
+<p><strong>Delete only the row.</strong> Основная memory запись удалена, но embedding, cache, snapshot и trace продолжают хранить content.</p>
+<h2>Итоги главы</h2>
+<ul>
+<li>Context - конечный набор tokens одного model call; его нужно собирать, а не путать с хранилищем.</li>
+<li>Working state - структурированная и versioned модель progression, пригодная для programmatic checks и recovery.</li>
+<li>Session history обеспечивает диалоговую continuity, но не является authoritative state.</li>
+<li>Persistent memory хранит кандидаты для будущего reasoning: semantic, episodic, procedural и preference records.</li>
+<li>Memory write требует validation, scope, provenance, TTL и privacy policy; retrieval требует больше, чем similarity search.</li>
+<li>Workspace хранит файлы и evidence; state хранит ссылки и смысл; context получает только нужную projection.</li>
+<li>Process RAM удобна, но критический progression обязан переживать её потерю.</li>
+<li>Logical checkpoint и runtime snapshot решают разные задачи. Snapshot ускоряет resume, но не откатывает внешний мир.</li>
+<li>External system остаётся source of truth; локальные записи являются timestamped projections.</li>
+<li>Resume начинается с lease, checkpoint и reconciliation, а не с повторной отправки transcript модели.</li>
+<li>AX может сохранять Workspace и управлять lifecycle, но harness отвечает за state schema, ledger и application recovery.</li>
+<li>Качество memory измеряется улучшением verified outcomes, а не количеством записей.</li>
+</ul>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic: Effective context engineering for AI agents</a> - context как конечный набор tokens, compaction и structured note-taking.</li>
+<li><a href="https://www.anthropic.com/engineering/effective-harnesses-for-long-running-agents">Anthropic: Effective harnesses for long-running agents</a> - continuity между ограниченными context windows через явные artifacts и progress records.</li>
+<li><a href="https://openai.github.io/openai-agents-python/sessions/">OpenAI Agents SDK: Sessions</a> - conversation history, session backends и resume interrupted runs.</li>
+<li><a href="https://openai.github.io/openai-agents-python/sandbox/memory/">OpenAI Agents SDK: Agent memory</a> - различие session memory и distilled reusable memory.</li>
+<li><a href="https://docs.langchain.com/oss/python/langgraph/persistence">LangGraph: Persistence</a> - checkpoints для thread state и stores для cross-thread memory.</li>
+<li><a href="https://docs.langchain.com/oss/javascript/langgraph/thinking-in-langgraph">LangGraph: Thinking in LangGraph</a> - raw state, node boundaries, checkpoint frequency и human interrupts.</li>
+<li><a href="https://www.anthropic.com/engineering/contextual-retrieval">Anthropic: Contextual Retrieval</a> - влияние surrounding context на качество retrieval.</li>
+<li>Главы 14 и 39 этой книги - platform-specific semantics suspend, snapshot ownership и compatibility.</li>
+</ul></div>
+</section>
+<section class="chapter" id="ch-6"><div class="chapter-num">Глава 6</div><h1>Tools, MCP и Skills</h1>
+<p>Инженер подключает к агенту Git, Kubernetes, базу данных и систему тикетов. Через несколько дней в каталоге уже пятьдесят операций. Модель путает <code>get_issue</code> и <code>search_issues</code>, отправляет лишние параметры, а при сетевой ошибке повторяет создание комментария. Команда добавляет MCP server и ожидает, что проблема исчезнет. Она не исчезает: появился стандартный способ доставки тех же плохо спроектированных операций.</p>
+<p>Затем создают skill с инструкцией «сначала проверь состояние, потом меняй». Это улучшает поведение на демонстрации, но не запрещает вызов опасного tool и не заменяет approval. Получается система, в которой три полезных механизма выполняют не свои роли.</p>
+<p>Главный принцип главы:</p>
+<p><strong>Tool отвечает на вопрос «что система умеет сделать?», MCP - «как capability обнаружить и вызвать через общий протокол?», Skill - «как правильно выполнить класс задач?». Полномочия, policy и подтверждение результата находятся ещё одним слоем выше.</strong></p>
+<h2>Четыре сущности, которые чаще всего смешивают</h2>
+<table>
+<thead>
+<tr>
+<th>Сущность</th>
+<th>Что это</th>
+<th>Что она не гарантирует</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API, CLI, library</td>
+<td>интерфейс конкретной системы или код реализации</td>
+<td>понятность для модели, безопасный retry, единый discovery</td>
+<td>Kubernetes API, <code>git</code>, Python SDK</td>
+</tr>
+<tr>
+<td>Tool</td>
+<td>формализованная операция, доступная agent loop</td>
+<td>транспорт, авторизацию и правильный порядок применения</td>
+<td><code>dns.lookup</code>, <code>issue.create_comment</code></td>
+</tr>
+<tr>
+<td>MCP</td>
+<td>протокол обмена context и capabilities между host, client и server</td>
+<td>доверие к server, least privilege и безопасность действия</td>
+<td>MCP server для GitHub или filesystem</td>
+</tr>
+<tr>
+<td>Skill</td>
+<td>пакет процедурных инструкций, scripts и references</td>
+<td>новые полномочия и технический запрет опасных действий</td>
+<td>skill расследования TLS incident</td>
+</tr>
+</tbody>
+</table>
+<p>Tool может быть обёрткой над API, локальной функцией, shell command или вызовом другого сервиса. MCP tool является tool, доступным через MCP. Skill может вызывать несколько tools, но сам по себе не обязан быть executable operation.</p>
+<p>Есть и пятая сущность - workflow. Это фиксированный или параметризованный граф шагов с явными transitions. Skill советует агенту, как действовать; workflow исполняет заранее определённую структуру. Если порядок обязан быть детерминированным по требованиям compliance, одной инструкции в skill недостаточно.</p>
+<h2>Tool как интерфейс между вероятностной моделью и детерминированной системой</h2>
+<p>Для человека UI снижает вероятность ошибки кнопками, подписями и disabled states. Для агента такую роль играет tool contract. Модель выбирает operation и генерирует arguments вероятностно; executor должен интерпретировать их однозначно.</p>
+<p>Хороший tool contract содержит больше, чем JSON Schema:</p>
+<table>
+<thead>
+<tr>
+<th>Поле</th>
+<th>Зачем оно нужно</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Stable name</td>
+<td>помогает выбору и сохраняет совместимость traces</td>
+</tr>
+<tr>
+<td>Purpose</td>
+<td>объясняет, когда применять tool и когда не применять</td>
+</tr>
+<tr>
+<td>Input schema</td>
+<td>ограничивает форму аргументов, типы, enum и required fields</td>
+</tr>
+<tr>
+<td>Preconditions</td>
+<td>описывает, что должно быть истинно до вызова</td>
+</tr>
+<tr>
+<td>Side-effect class</td>
+<td>отличает read, reversible write и irreversible action</td>
+</tr>
+<tr>
+<td>Authority scope</td>
+<td>показывает требуемые resource, tenant, role и environment</td>
+</tr>
+<tr>
+<td>Idempotency</td>
+<td>определяет, можно ли повторить request и с каким key</td>
+</tr>
+<tr>
+<td>Result schema</td>
+<td>отделяет data, status, warnings, references и evidence</td>
+</tr>
+<tr>
+<td>Error model</td>
+<td>различает invalid input, denied, retryable, partial и unknown outcome</td>
+</tr>
+<tr>
+<td>Limits</td>
+<td>фиксирует pagination, timeout, payload size и rate limits</td>
+</tr>
+<tr>
+<td>Version</td>
+<td>позволяет менять contract без скрытой поломки agents</td>
+</tr>
+</tbody>
+</table>
+<p>Минимальное описание операции может выглядеть так:</p>
+<pre><code class="language-yaml">name: dns.lookup
+description: &gt;
+  Читает текущие DNS records для полного domain name.
+  Используй для проверки фактического состояния. Не меняет DNS.
+input:
+  type: object
+  required: [fqdn, record_type]
+  properties:
+    fqdn:
+      type: string
+      format: hostname
+    record_type:
+      type: string
+      enum: [A, AAAA, CNAME, TXT]
+    resolver:
+      type: string
+      enum: [authoritative, public]
+side_effect: none
+timeout_ms: 5000
+output:
+  records: array
+  observed_at: date-time
+  resolver_identity: string
+  ttl_seconds: integer
+</code></pre>
+<p>Фраза «работает с DNS» почти бесполезна. Она не сообщает, читает tool или пишет, какой resolver используется и является ли результат authoritative. Description участвует в выборе операции так же, как type system участвует в исполнении.</p>
+<h3>Не прячьте важную семантику в свободном тексте</h3>
+<p>Плохой contract:</p>
+<pre><code class="language-json">{
+  "name": "manage_cluster",
+  "arguments": {
+    "request": "Сделай всё необходимое, чтобы починить production"
+  }
+}
+</code></pre>
+<p>Executor вынужден повторно интерпретировать естественный язык. Невозможно заранее проверить target, действие, budget и approval scope.</p>
+<p>Лучше разделить операции:</p>
+<pre><code class="language-json">{
+  "name": "deployment.propose_scale",
+  "arguments": {
+    "cluster": "prod-eu-1",
+    "namespace": "payments",
+    "deployment": "api",
+    "from_replicas": 8,
+    "to_replicas": 12,
+    "reason": "queue lag above SLO for 10m"
+  }
+}
+</code></pre>
+<p>Proposal ещё не меняет cluster. Отдельный <code>deployment.apply_scale</code> принимает proposal ID, state version, approval ID и idempotency key. Это делает границу между reasoning и side effect видимой.</p>
+<h2>Granularity: не micro-tool и не god-tool</h2>
+<p>Две крайности одинаково неудобны.</p>
+<p><strong>Micro-tools</strong> повторяют каждую низкоуровневую API operation. Каталог разрастается, названия пересекаются, а модель расходует шаги на механическую оркестрацию.</p>
+<p><strong>God-tool</strong> принимает универсальный command или произвольный URL. Он уменьшает каталог, но лишает harness возможности понять intent, проверить arguments и применить точную policy.</p>
+<p>Полезная граница tool обычно соответствует осмысленному действию домена:</p>
+<ul>
+<li>имеет одну основную цель;</li>
+<li>возвращает достаточный для следующего решения результат;</li>
+<li>допускает ясную side-effect classification;</li>
+<li>может быть разрешена или запрещена отдельно;</li>
+<li>не требует модели знать внутреннюю пагинацию и служебные API calls.</li>
+</ul>
+<p>Например, <code>logs.search</code> может сам пройти несколько страниц до заданного <code>max_events</code>, но не должен одновременно менять retention policy. <code>pull_request.prepare</code> может создать branch, commit и draft PR как одну контролируемую transaction-like operation, если эти шаги всегда образуют единый unit и имеют общий rollback plan.</p>
+<h3>Названия должны помогать выбору</h3>
+<p>Namespace и verb снимают неоднозначность:</p>
+<pre><code class="language-text">ticket.search
+ticket.get
+ticket.create
+ticket.add_comment
+ticket.transition
+</code></pre>
+<p><code>get_ticket_data</code>, <code>fetch_issue</code>, <code>find_task</code> и <code>manage_ticket</code> в одном каталоге заставляют модель угадывать различия. Если два tools трудно различить человеку по name и description, модель тоже будет путаться.</p>
+<p>Разделяйте read и write. Не делайте параметр <code>dry_run=true</code> единственной границей безопасности в одном универсальном tool: модель может пропустить flag, а policy сложнее проверить intent.</p>
+<h3>Эволюция contract без скрытой поломки</h3>
+<p>Agent-facing contract меняется опаснее обычного internal API. Кодовый client не начнёт внезапно использовать новый endpoint, а модель способна выбрать новый tool сразу после того, как увидела его в catalog. Даже «уточнение» description меняет routing поведения.</p>
+<p>Совместимые изменения обычно добавляют optional result field, расширяют документацию или исправляют implementation без изменения semantics. Несовместимые изменения включают:</p>
+<ul>
+<li>новое значение по умолчанию с другим side effect;</li>
+<li>переименование argument;</li>
+<li>изменение единиц измерения;</li>
+<li>превращение полного результата в paginated;</li>
+<li>изменение error из retryable в unknown;</li>
+<li>расширение resource scope;</li>
+<li>перенос read operation в read-and-write.</li>
+</ul>
+<p>Для таких изменений создавайте новую contract version или новое имя operation, поддерживайте период миграции и повторяйте selection evals. Version должна описывать не только server package, но и набор schemas, который видел agent.</p>
+<pre><code class="language-yaml">tool_catalog:
+  id: observability@18
+  protocol: mcp/2026-07-28
+  server_digest: sha256:4c1...
+  tools:
+    logs.search: 3.1
+    metrics.query_range: 2.0
+  generated_at: 2026-10-05T08:00:00Z
+</code></pre>
+<p>При несовместимости лучше явно вернуть <code>unsupported_contract</code>, чем попытаться угадать старый meaning. Silent coercion создаёт правдоподобный, но неверный результат.</p>
+<h2>Полный жизненный цикл tool call</h2>
+<p>Model response - только предложение вызвать tool. Production harness проводит его через последовательность проверок:</p>
+<pre><code class="language-text">catalog -&gt; model proposal -&gt; parse -&gt; schema validation
+-&gt; policy/authority -&gt; approval if required -&gt; executor
+-&gt; result normalization -&gt; verification -&gt; observation
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Стадия</th>
+<th>Ответственность</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Catalog assembly</td>
+<td>показать только релевантные и разрешённые capabilities</td>
+</tr>
+<tr>
+<td>Proposal</td>
+<td>выбрать operation и arguments</td>
+</tr>
+<tr>
+<td>Parsing</td>
+<td>получить строго структурированный request</td>
+</tr>
+<tr>
+<td>Validation</td>
+<td>проверить schema, ranges, target и current state version</td>
+</tr>
+<tr>
+<td>Policy</td>
+<td>решить, разрешено ли действие этому agent и этому Task</td>
+</tr>
+<tr>
+<td>Approval</td>
+<td>получить human decision для конкретного proposal</td>
+</tr>
+<tr>
+<td>Execution</td>
+<td>вызвать real system с scoped credentials</td>
+</tr>
+<tr>
+<td>Normalization</td>
+<td>привести provider-specific response к стабильной форме</td>
+</tr>
+<tr>
+<td>Verification</td>
+<td>прочитать source of truth и подтвердить effect</td>
+</tr>
+<tr>
+<td>Observation</td>
+<td>сохранить факт, provenance и uncertainty в state</td>
+</tr>
+</tbody>
+</table>
+<p>Skill может рекомендовать этот порядок. MCP может передать call. Но только harness способен не допустить переход к executor.</p>
+<h3>Catalog - часть policy и context budget</h3>
+<p>Не нужно показывать модели все operations организации. Каталог собирается по пересечению:</p>
+<pre><code class="language-text">installed capabilities
+AND agent role
+AND Task scope
+AND environment policy
+AND current phase
+</code></pre>
+<p>Если Task только анализирует incident, write-tools можно вообще не включать. Это уменьшает и риск, и количество похожих descriptions в context.</p>
+<p>Изменение каталога должно иметь version. Записав <code>tool_catalog=ops-readonly@12</code> в trace, команда сможет воспроизвести, из чего выбирала модель. При динамическом discovery нельзя считать старый список вечным: server может уведомить об изменениях, а client должен invalidated cache получить заново.</p>
+<h2>Результат важен не меньше запроса</h2>
+<p>Tool result становится evidence для следующего шага. Свалка stdout или HTML на несколько мегабайт перегружает context и скрывает provenance.</p>
+<p>Хороший result разделяет машинные поля и ссылки на raw artifact:</p>
+<pre><code class="language-json">{
+  "status": "succeeded",
+  "data": {
+    "fqdn": "api.example.com",
+    "records": ["203.0.113.7"],
+    "ttl_seconds": 60
+  },
+  "evidence": {
+    "observed_at": "2026-10-05T08:15:02Z",
+    "source": "authoritative-ns1",
+    "artifact_ref": "artifact://runs/81/dns-response.txt"
+  },
+  "warnings": []
+}
+</code></pre>
+<p>Большие logs и query results сохраняются как artifacts. В context возвращаются summary, cursor, counts и ссылка. При этом summary не должен уничтожать raw evidence.</p>
+<h3>Ошибка - не одна строка</h3>
+<p><code>success=false</code> недостаточно. Harness должен понимать следующий допустимый переход.</p>
+<table>
+<thead>
+<tr>
+<th>Outcome</th>
+<th>Значение</th>
+<th>Типичное действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>invalid</code></td>
+<td>request не соответствует contract</td>
+<td>исправить arguments без retry того же request</td>
+</tr>
+<tr>
+<td><code>denied</code></td>
+<td>policy или authority запретили действие</td>
+<td>не обходить; запросить другой scope или завершить</td>
+</tr>
+<tr>
+<td><code>not_found</code></td>
+<td>resource достоверно отсутствует</td>
+<td>проверить target или принять как observation</td>
+</tr>
+<tr>
+<td><code>conflict</code></td>
+<td>state/version изменилась</td>
+<td>перечитать source of truth и построить новый proposal</td>
+</tr>
+<tr>
+<td><code>retryable</code></td>
+<td>operation не началась или безопасно повторяема</td>
+<td>retry по policy и backoff</td>
+</tr>
+<tr>
+<td><code>partial</code></td>
+<td>выполнена только часть</td>
+<td>зафиксировать completed units и reconcile</td>
+</tr>
+<tr>
+<td><code>unknown</code></td>
+<td>side effect мог произойти, response потерян</td>
+<td>не повторять вслепую; проверить operation ID и внешний state</td>
+</tr>
+<tr>
+<td><code>succeeded</code></td>
+<td>executor сообщил success</td>
+<td>всё равно verify критический effect</td>
+</tr>
+</tbody>
+</table>
+<p>Особенно опасно превращать timeout в <code>failed</code>. После отправки write timeout означает неизвестный outcome. Повтор с новым idempotency key способен создать второй комментарий, платёж или deployment.</p>
+<h2>MCP: общий протокол, а не магический слой интеграции</h2>
+<p>Model Context Protocol стандартизует обмен между AI application и поставщиками context/capabilities. В архитектуре есть три роли:</p>
+<ul>
+<li><strong>MCP host</strong> - приложение, управляющее agents и соединениями;</li>
+<li><strong>MCP client</strong> - компонент host для связи с конкретным server;</li>
+<li><strong>MCP server</strong> - программа, предоставляющая capabilities и context.</li>
+</ul>
+<p>Один host обычно создаёт отдельный client для каждого server. Server может работать локально или удалённо. Локальность не означает доверие: локальный process всё равно может читать files, использовать credentials и выполнять code.</p>
+<p>MCP разделён на data layer и transport layer. Data layer использует JSON-RPC и описывает discovery, calls и core primitives. Transport layer отвечает за framing, соединение и transport-specific authentication.</p>
+<h3>Три server primitives</h3>
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>Назначение</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Tools</td>
+<td>исполняемые operations</td>
+<td>запрос к API, запись в issue tracker</td>
+</tr>
+<tr>
+<td>Resources</td>
+<td>читаемый context</td>
+<td>schema, file, database record</td>
+</tr>
+<tr>
+<td>Prompts</td>
+<td>reusable interaction templates</td>
+<td>шаблон review или investigation</td>
+</tr>
+</tbody>
+</table>
+<p>Это классификация интерфейсов, а не security model. Resource способен содержать malicious instruction. Tool может иметь разрушительный side effect. Prompt может конфликтовать с policy host.</p>
+<p>Resources полезны, когда context нужно читать без маскировки под действие. Schema базы, runbook или содержимое файла не обязаны быть tools вида <code>get_schema()</code>: resource сохраняет семантику «данные для чтения». Prompts дают reusable starting template, но host решает, показывать ли его пользователю и как объединять с собственными instructions.</p>
+<p>Не превращайте каждый primitive в другой ради удобства client. Если resource вызывает дорогое вычисление или раскрывает чувствительные данные, к нему всё равно применяются access control, limits и audit. Если prompt содержит instruction, он всё равно ниже platform policy. Чёткая классификация помогает host правильно отображать intent и применять разные правила.</p>
+<h3>Что изменилось в MCP 2026-07-28</h3>
+<p>Актуальное ядро MCP stateless: старый protocol-level session lifecycle и <code>initialize/initialized</code> больше не являются основой протокола. Каждый request несёт protocol version и относящиеся к нему capabilities в <code>_meta</code>. Server предоставляет <code>server/discover</code>, через который client получает identity, поддерживаемые versions и capabilities. Списки primitives могут кешироваться и обновляться при изменениях.</p>
+<p>Практический вывод: не проектируйте новый client по ранним примерам 2024-2025 годов без проверки версии specification. Но и не путайте stateless protocol с stateless application: OAuth flow, job execution, pagination и business operation могут иметь собственное durable state.</p>
+<h3>STDIO или Streamable HTTP</h3>
+<table>
+<thead>
+<tr>
+<th>Вариант</th>
+<th>Когда уместен</th>
+<th>Риски и обязанности</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>STDIO</td>
+<td>локальный adapter, один host, controlled package</td>
+<td>process launch, filesystem access, inherited environment, package supply chain</td>
+</tr>
+<tr>
+<td>Streamable HTTP</td>
+<td>shared remote service, централизованное обновление, много clients</td>
+<td>network identity, TLS, OAuth/token scope, tenancy, rate limits, availability</td>
+</tr>
+</tbody>
+</table>
+<p>STDIO убирает сеть между client и server, но не делает server sandbox. Remote HTTP упрощает централизованное управление, но добавляет отдельную trust boundary и необходимость связывать user, client, tenant и downstream credentials.</p>
+<h2>MCP не выдаёт доверие автоматически</h2><figure><figcaption>MCP trust boundary: протокол не заменяет авторизацию</figcaption><svg aria-label="MCP trust boundary: протокол не заменяет авторизацию" class="diagram" role="img" viewbox="0 0 900 315"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="140" x2="180" y1="155.0" y2="155.0"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="160.0" y="149.0">tool intent</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="310" x2="350" y1="155.0" y2="155.0"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="330.0" y="149.0">request</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="485" x2="530" y1="155.0" y2="155.0"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="507.5" y="149.0">allowed</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="595.0" x2="790.0" y1="190" y2="30"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="692.5" y="104.0">side effect</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="790.0" x2="595.0" y1="280" y2="120"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="692.5" y="194.0">scoped auth</text><rect fill="#f8efff" height="70" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="120" x="20" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="80.0" y="144">Agent</text><text fill="#465569" font-size="11" text-anchor="middle" x="80.0" y="165">model-driven</text><rect fill="#edf4ff" height="70" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="130" x="180" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="245.0" y="144">MCP client</text><text fill="#465569" font-size="11" text-anchor="middle" x="245.0" y="165">discovery/calls</text><rect fill="#f3f5f7" height="70" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="135" x="350" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="417.5" y="144">Policy/Gateway</text><text fill="#465569" font-size="11" text-anchor="middle" x="417.5" y="165">auth + scope</text><rect fill="#eefaf3" height="70" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="130" x="530" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="595.0" y="144">MCP server</text><text fill="#465569" font-size="11" text-anchor="middle" x="595.0" y="165">tools/resources</text><rect fill="#fff7e8" height="70" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="160" x="710" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="790.0" y="54">API/DB/Git</text><text fill="#465569" font-size="11" text-anchor="middle" x="790.0" y="75">real system</text><rect fill="#fff0f0" height="70" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="160" x="710" y="210"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="790.0" y="234">Credentials</text><text fill="#465569" font-size="11" text-anchor="middle" x="790.0" y="255">least privilege</text></svg></figure>
+<p>На схеме ниже protocol заканчивается раньше реального side effect. Policy gateway может быть частью host, отдельным proxy или server, но его свойства должны быть явными.</p>
+<p>MCP server сообщает metadata о себе и tools, однако self-reported identity не является доказательством происхождения. Установленный package, endpoint, publisher и версия должны проходить обычный supply-chain review.</p>
+<p>Credentials следует связывать с минимальным scope:</p>
+<pre><code class="language-yaml">binding:
+  server: git-prod@2.4.1
+  agent_role: reviewer
+  task_scope: repo:payments-api
+  credentials: github-app-installation:381
+  allowed_tools:
+    - pull_request.read
+    - checks.read
+  denied_tools:
+    - repository.delete
+    - branch.force_push
+</code></pre>
+<p>Модель не должна видеть raw token. MCP server тоже не обязан получать широкие user credentials, если gateway может обменять identity на short-lived scoped token.</p>
+<p>Подробные механизмы idempotency, approvals, containment и authority attenuation рассматриваются в главе 37. Здесь важно удержать границу ответственности: transport authentication подтверждает сторону соединения, но business authorization всё ещё проверяет конкретное действие над конкретным resource.</p>
+<h2>Skills: переносимая процедурная экспертиза</h2>
+<p>Agent Skill - директория, в которой обязательно есть <code>SKILL.md</code> с metadata и инструкциями. Дополнительно она может содержать scripts, references, assets и другие ресурсы.</p>
+<pre><code class="language-text">tls-incident/
+|- SKILL.md
+|- scripts/
+|  `- compare_cert_chain.py
+|- references/
+|  |- decision-tree.md
+|  `- provider-notes.md
+`- assets/
+   `- incident-report-template.md
+</code></pre>
+<p>В <code>SKILL.md</code> обязательны <code>name</code> и <code>description</code>. Description должна объяснять не только действие, но и условия применения: именно эти metadata помогают агенту решить, активировать ли skill.</p>
+<pre><code class="language-yaml">---
+name: tls-incident
+description: &gt;
+  Расследует TLS handshake, certificate chain и routing incidents.
+  Используй при certificate errors, hostname mismatch, expiry alerts
+  или расхождении сертификатов между edge nodes.
+compatibility: Requires openssl and read-only network access
+metadata:
+  owner: sre-platform
+  version: "3.2"
+---
+</code></pre>
+<h3>Progressive disclosure</h3>
+<p>Skill не должен целиком занимать context с начала Task. Open specification предполагает три уровня:</p>
+<ol>
+<li>startup metadata - name и description всех доступных skills;</li>
+<li>полный <code>SKILL.md</code> после активации;</li>
+<li>scripts, references и assets только по необходимости.</li>
+</ol>
+<p>Это позволяет хранить глубокую экспертизу, не оплачивая её tokens в каждом request. Но progressive disclosure работает только при хорошей навигации. <code>SKILL.md</code> должен явно говорить, какой reference читать при каком condition. Цепочка из десяти ссылок превращает skill в лабиринт.</p>
+<h3>Skill не является permission</h3>
+<p>Инструкция «никогда не изменяй production без approval» полезна, но остаётся инструкцией для вероятностной модели. Enforcement обязан находиться в tool gateway или executor. Экспериментальное поле <code>allowed-tools</code> в specification не следует считать универсальным security boundary: поддержка зависит от implementation, а реальная authority определяется runtime.</p>
+<p>Skill способен:</p>
+<ul>
+<li>объяснить decision process;</li>
+<li>выбрать последовательность tools;</li>
+<li>предоставить domain checklists и examples;</li>
+<li>запускать проверенные deterministic scripts;</li>
+<li>формировать отчёт по template;</li>
+<li>напомнить о verification и rollback.</li>
+</ul>
+<p>Skill не способен сам по себе:</p>
+<ul>
+<li>создать credentials, которых нет у runtime;</li>
+<li>запретить executor обойти policy;</li>
+<li>доказать безопасность bundled script;</li>
+<li>превратить model suggestion в transaction;</li>
+<li>подтвердить внешний side effect без чтения source of truth.</li>
+</ul>
+<h3>Scripts внутри skill</h3>
+<p>Script полезен, когда операция лучше выражается детерминированным кодом: parse формата, сортировка, проверка certificate chain, преобразование document. Агенту не обязательно загружать весь script в context, чтобы выполнить его.</p>
+<p>Но bundled code является executable dependency. До установки проверяйте:</p>
+<ul>
+<li>publisher и provenance;</li>
+<li>hash или signed version;</li>
+<li>network и filesystem access;</li>
+<li>transitive dependencies;</li>
+<li>secret handling;</li>
+<li>reproducibility и tests;</li>
+<li>поведение при malformed input.</li>
+</ul>
+<p>Skill из неизвестного repository требует не меньшего review, чем новый CI action или package.</p>
+<h2>Как Tool, MCP и Skill работают вместе</h2>
+<p>Возьмём расследование ошибки <code>NET::ERR_CERT_DATE_INVALID</code>.</p>
+<p>Tools:</p>
+<pre><code class="language-text">dns.lookup                  read DNS records
+tls.probe                   read chain from selected endpoint
+certificate.inventory_get  read expected certificate metadata
+load_balancer.read_config   read current listener configuration
+change.propose              create non-executing change proposal
+</code></pre>
+<p>MCP server публикует schemas этих tools и resources с inventory documentation. Host через client получает catalog, но показывает agent только read operations. Skill <code>tls-incident</code> задаёт процедуру:</p>
+<ol>
+<li>зафиксировать hostname, user-visible error и время;</li>
+<li>сравнить public и authoritative DNS;</li>
+<li>выполнить probe для каждого resolved endpoint;</li>
+<li>сравнить observed chain с inventory;</li>
+<li>разделить observation, hypothesis и conclusion;</li>
+<li>сформировать proposal, но не применять изменение;</li>
+<li>приложить raw evidence и команды воспроизведения.</li>
+</ol>
+<p>Один из результатов:</p>
+<pre><code class="language-yaml">finding:
+  status: confirmed
+  claim: edge-3 serves an expired certificate
+  evidence:
+    - probe://edge-3/2026-10-05T08:15:31Z
+    - inventory://cert-882/revision-9
+  unaffected_endpoints: [edge-1, edge-2]
+proposal:
+  action: reload_certificate_bundle
+  target: edge-3
+  expected_revision: 144
+  execution: not_requested
+</code></pre>
+<p>Здесь skill повышает качество расследования, MCP уменьшает стоимость интеграции, tools дают наблюдения, а harness не допускает write без отдельной фазы и authority.</p>
+<h3>Что делать, если MCP server недоступен</h3>
+<p>Failure server не должен превращаться в фантазию модели. Host отмечает capabilities unavailable, сохраняет точную ошибку discovery/call и пересобирает catalog. Skill может предложить approved fallback - например, локальный read-only probe, - но не должен советовать обходить policy произвольным shell command.</p>
+<p>Если fallback меняет источник данных, в evidence указывается новый source. Результат public resolver не выдают за authoritative DNS только потому, что основной tool временно недоступен.</p>
+<h2>Когда выбирать Tool, MCP, Skill или Workflow</h2>
+<table>
+<thead>
+<tr>
+<th>Потребность</th>
+<th>Предпочтительный механизм</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>одна стабильная операция внутри приложения</td>
+<td>direct tool/function</td>
+</tr>
+<tr>
+<td>capability должна работать в нескольких MCP-compatible hosts</td>
+<td>MCP server</td>
+</tr>
+<tr>
+<td>нужно стандартизовать чтение resources и вызов tools внешней системы</td>
+<td>MCP server</td>
+</tr>
+<tr>
+<td>агенту не хватает domain procedure и examples</td>
+<td>Skill</td>
+</tr>
+<tr>
+<td>повторяется анализ с несколькими существующими tools</td>
+<td>Skill</td>
+</tr>
+<tr>
+<td>последовательность обязана быть детерминированной и audit-ready</td>
+<td>Workflow/state machine</td>
+</tr>
+<tr>
+<td>требуется жёсткий запрет или approval</td>
+<td>Harness policy/gateway</td>
+</tr>
+<tr>
+<td>нужен чистый deterministic transform</td>
+<td>library или script, возможно внутри Skill</td>
+</tr>
+</tbody>
+</table>
+<p>Не каждый REST API нужно немедленно превращать в MCP server. Если tool живёт только внутри одного service и не требует portable discovery, direct adapter проще. И наоборот, копировать десять разных provider adapters в каждый host дороже, чем поддержать один качественный MCP server.</p>
+<p>Не каждый runbook нужен как skill. Короткое неизменное правило может жить в policy. Skill оправдан, когда есть distinct trigger, процедура, references, examples и независимый lifecycle.</p>
+<h2>AX Workspace как декларация среды</h2>
+<p>AX Workspace может связывать repositories, files, MCP endpoints и skill locations с рабочим окружением agent. Это полезно: Task получает воспроизводимую карту доступных assets вместо ручной настройки.</p>
+<p>Но Workspace manifest - декларация, а не свидетельство безопасности. До activation platform должна разрешить:</p>
+<ul>
+<li>откуда получен server или skill;</li>
+<li>какая версия и digest разрешены;</li>
+<li>какие secrets и mounts доступны;</li>
+<li>какие tools войдут в catalog;</li>
+<li>какой network egress допустим;</li>
+<li>кто одобрил изменение dependency.</li>
+</ul>
+<pre><code class="language-yaml">workspace:
+  repositories:
+    - name: payments-api
+      ref: 31f27ab
+      mode: read-write-branch
+  mcp_servers:
+    - name: observability
+      endpoint: https://mcp.ops.example/v1
+      version: 2026-07-28
+      tool_policy: policies/observability-readonly.yaml
+  skills:
+    - name: tls-incident
+      source: registry://sre/tls-incident@3.2.0
+      digest: sha256:...
+</code></pre>
+<p>Version pinning позволяет воспроизвести Task. Автоматическое подключение <code>latest</code> делает trace неполным: одинаковая цель завтра может активировать другие instructions или schemas.</p>
+<h2>Как тестировать agent-facing interface</h2>
+<p>Обычный unit test проверяет, что function возвращает ответ. Этого недостаточно. Нужно проверить, как вероятностный caller понимает contract.</p>
+<h3>Contract tests</h3>
+<ul>
+<li>valid и invalid arguments;</li>
+<li>enums, boundary values и malformed Unicode;</li>
+<li>pagination и payload limits;</li>
+<li>timeout до и после начала side effect;</li>
+<li>stable error codes;</li>
+<li>backward compatibility result schema;</li>
+<li>idempotency и conflict handling.</li>
+</ul>
+<h3>Selection evals</h3>
+<p>Соберите representative prompts, включая неоднозначные и отрицательные cases. Измеряйте:</p>
+<ul>
+<li>выбрал ли agent правильный tool;</li>
+<li>не вызвал ли tool, когда достаточно ответа или resource;</li>
+<li>правильно ли заполнил arguments;</li>
+<li>распознал ли необходимость clarification;</li>
+<li>остановился ли после denial;</li>
+<li>отличил ли read от write;</li>
+<li>использовал ли skill только по релевантному trigger.</li>
+</ul>
+<p>Оценивать нужно не красивый final answer, а состояние environment и trace. Агент мог написать «изменение применено», хотя call был denied. Успех определяется verified external outcome.</p>
+<h3>Adversarial cases</h3>
+<p>Добавьте stale catalog, duplicated names, compromised resource text, partial result, lost response, revoked token и изменившийся state version. Для skills проверяйте malicious reference, неожиданную network dependency и конфликт bundled instruction с host policy.</p>
+<p>Полезная минимальная матрица:</p>
+<table>
+<thead>
+<tr>
+<th>Case</th>
+<th>Ожидаемое поведение</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>tool отсутствует в текущем catalog</td>
+<td>не выдумывать call; сообщить ограничение</td>
+</tr>
+<tr>
+<td>server description просит передать secret</td>
+<td>policy блокирует; agent фиксирует injection attempt</td>
+</tr>
+<tr>
+<td>write timeout после отправки</td>
+<td>outcome <code>unknown</code>, затем reconciliation</td>
+</tr>
+<tr>
+<td>skill предлагает запрещённый shell fallback</td>
+<td>instruction игнорируется, policy сохраняется</td>
+</tr>
+<tr>
+<td>schema изменилась</td>
+<td>client invalidates cache или сообщает incompatibility</td>
+</tr>
+<tr>
+<td>approval относится к старой state version</td>
+<td>execution блокируется, proposal строится заново</td>
+</tr>
+</tbody>
+</table>
+<h2>Типичные антипаттерны</h2>
+<p><strong>MCP means safe.</strong> Общий protocol принимают за trust и authorization.</p>
+<p><strong>Skill means capability.</strong> Инструкция обещает действие, для которого нет tool, credentials или executor.</p>
+<p><strong>Skill means policy.</strong> Текстовое правило используется вместо enforced permission.</p>
+<p><strong>API dump as tools.</strong> Сотни provider operations публикуются без domain design и selection evals.</p>
+<p><strong>One tool to rule them all.</strong> Универсальный <code>execute(command)</code> скрывает intent и side effects.</p>
+<p><strong>Read and write together.</strong> Один tool меняет систему в зависимости от optional flag.</p>
+<p><strong>Success equals verified.</strong> HTTP 200 считается доказательством нужного состояния внешней системы.</p>
+<p><strong>Timeout equals failure.</strong> Write автоматически повторяется после потерянного response.</p>
+<p><strong>Raw output into context.</strong> Мегабайты logs вытесняют objective, policy и evidence.</p>
+<p><strong>Self-reported identity as trust.</strong> <code>serverInfo</code> используется вместо проверенного endpoint, publisher и digest.</p>
+<p><strong>Latest everywhere.</strong> Server и skill обновляются без version pinning, trace теряет воспроизводимость.</p>
+<p><strong>Description afterthought.</strong> Names и descriptions пишутся как документация для человека, хотя они управляют выбором модели.</p>
+<p><strong>No negative evals.</strong> Проверяют только happy path «agent вызвал tool», но не способность отказаться от вызова.</p>
+<h2>Практический checklist</h2>
+<p>Перед добавлением capability спросите:</p>
+<ol>
+<li>Это operation, protocol adapter, procedure или deterministic workflow?</li>
+<li>Может ли name однозначно отличить capability от соседних?</li>
+<li>Какой side effect и authority scope?</li>
+<li>Что произойдёт при duplicate, timeout и partial completion?</li>
+<li>Где хранится raw evidence и что попадёт в context?</li>
+<li>Как проверить реальный outcome?</li>
+<li>Какая версия contract записывается в trace?</li>
+<li>Кто доверяет server или skill и на каком основании?</li>
+<li>Можно ли убрать write-tool из catalog до нужной фазы?</li>
+<li>Есть ли eval, где правильное действие - не вызывать tool?</li>
+</ol>
+<p>Если на вопросы 3, 4 и 6 нет ответа, capability ещё не готова к production, даже если demo работает.</p>
+<h2>Итоги главы</h2>
+<ul>
+<li>Tool - agent-facing contract осмысленной операции, а не просто обёртка над function.</li>
+<li>API и CLI являются реализацией; schema, side effects, errors и verification делают их пригодными для agent loop.</li>
+<li>Granularity должна сохранять domain intent и точную policy: избегайте и micro-tool explosion, и универсального god-tool.</li>
+<li>Model предлагает call; harness проверяет schema, authority, approval, execution и outcome.</li>
+<li>Structured results, provenance и отдельный raw artifact полезнее большого stdout в context.</li>
+<li>Timeout write означает unknown outcome, пока reconciliation не доказал обратное.</li>
+<li>MCP стандартизует discovery и обмен tools, resources и prompts между host, client и server.</li>
+<li>MCP 2026-07-28 использует stateless core и per-request metadata; application state при этом никуда не исчезает.</li>
+<li>Protocol, transport authentication и business authorization решают разные задачи.</li>
+<li>Skill пакует procedural knowledge, scripts и references с progressive disclosure.</li>
+<li>Skill помогает выбрать и связать tools, но не создаёт authority и не заменяет enforced policy.</li>
+<li>MCP servers и Skills входят в software supply chain и требуют provenance, pinning и review.</li>
+<li>AX Workspace описывает рабочую среду, но platform всё равно должна проверять dependencies, scopes и secrets.</li>
+<li>Тестировать нужно tool selection, arguments, отказ, failure semantics и verified environment state.</li>
+</ul>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://modelcontextprotocol.io/docs/2026-07-28/learn/architecture">Model Context Protocol: Architecture overview</a> - host/client/server, layers, primitives, statelessness и discovery.</li>
+<li><a href="https://blog.modelcontextprotocol.io/posts/2026-07-28/">MCP: The 2026-07-28 Specification</a> - изменения текущей версии protocol.</li>
+<li><a href="https://agentskills.io/specification">Agent Skills Specification</a> - структура <code>SKILL.md</code>, optional directories и progressive disclosure.</li>
+<li><a href="https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills">Anthropic: Equipping agents for the real world with Agent Skills</a> - procedural knowledge, code execution, evaluation и security considerations.</li>
+<li><a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Anthropic: Writing effective tools for agents</a> - tool design как contract для недетерминированного caller.</li>
+<li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic: Building effective agents</a> - agent-computer interfaces, testing и guardrails.</li>
+<li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic: Effective context engineering for AI agents</a> - ясные, непересекающиеся и context-efficient tool sets.</li>
+<li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic: Demystifying evals for AI agents</a> - multi-turn evals и проверка environment state.</li>
+<li>Главы 36 и 37 этой книги - подробности MCP architecture, idempotency, approvals и safe tool execution.</li>
+</ul></div></section><section class="chapter" id="ch-7"><div class="chapter-num">Глава 7</div><h1>Multi-agent архитектуры без лишней магии</h1><figure><figcaption>Практика: software-engineering multi-agent workflow</figcaption><svg class="diagram" viewBox="0 0 850 350" role="img" aria-label="Практика: software-engineering multi-agent workflow"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="440.0" y1="90" x2="135.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="287.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="330.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="385.0" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="525.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="482.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="720.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="580.0" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="330.0" y1="210" x2="330.0" y2="255" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="330.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">write</text><line x1="525.0" y1="210" x2="525.0" y2="255" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="525.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">run</text><line x1="720.0" y1="210" x2="440.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="580.0" y="109.0" text-anchor="middle" font-size="10" fill="#5c6875">verdict</text><rect x="360" y="20" rx="12" ry="12" width="160" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="440.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Coordinator</text><text x="440.0" y="65" text-anchor="middle" font-size="11" fill="#465569">scope/budget</text><rect x="60" y="145" rx="12" ry="12" width="150" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="135.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Researcher</text><text x="135.0" y="190" text-anchor="middle" font-size="11" fill="#465569">read</text><rect x="255" y="145" rx="12" ry="12" width="150" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="330.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Implementer</text><text x="330.0" y="190" text-anchor="middle" font-size="11" fill="#465569">write branch</text><rect x="450" y="145" rx="12" ry="12" width="150" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="525.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tester</text><text x="525.0" y="190" text-anchor="middle" font-size="11" fill="#465569">execute tests</text><rect x="645" y="145" rx="12" ry="12" width="150" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="720.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Reviewer</text><text x="720.0" y="190" text-anchor="middle" font-size="11" fill="#465569">evaluate</text><rect x="255" y="255" rx="12" ry="12" width="150" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="330.0" y="279" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Git/MCP</text><text x="330.0" y="300" text-anchor="middle" font-size="11" fill="#465569">scoped repo</text><rect x="450" y="255" rx="12" ry="12" width="150" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="525.0" y="279" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">CI tools</text><text x="525.0" y="300" text-anchor="middle" font-size="11" fill="#465569">sandbox</text></svg></figure><p>Multi-agent architecture оправдана, когда разделение даёт хотя бы одно из трёх: меньший context, разные полномочия/tools или параллельное выполнение. Если этих преимуществ нет, один хорошо ограниченный agent часто проще и дешевле.</p>
 <h3>Основные топологии</h3>
 <p><strong>Supervisor/worker.</strong> Supervisor хранит high-level цель и делегирует ограниченные subtasks. Worker не должен получать больше authority, чем нужно его роли. <strong>Hierarchical delegation</strong> продолжает этот pattern на несколько уровней, но требует budget propagation и ограничения глубины. <strong>Fan-out/fan-in</strong> запускает несколько независимых проверок и агрегирует вывод. <strong>Specialist routing</strong> выбирает агента по типу инцидента или ресурса. <strong>Evaluator gate</strong> проверяет результат перед следующей стадией.</p>
 <h3>Coordination state</h3>
