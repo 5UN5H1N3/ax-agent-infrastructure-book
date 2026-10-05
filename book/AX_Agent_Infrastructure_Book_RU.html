@@ -4979,16 +4979,500 @@ budgets:
 <li><a href="https://arxiv.org/abs/2503.13657">Cemri et al.: Why Do Multi-Agent LLM Systems Fail?</a> - MAST taxonomy и empirical analysis multi-agent failures.</li>
 <li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic: Building effective agents</a> - routing, parallelization, orchestrator-workers и evaluator-optimizer workflows.</li>
 <li>Главы 22, 33 и 37 этой книги - AX Task delegation, reference architectures и safe execution.</li>
-</ul></div></section><section class="chapter" id="ch-8"><div class="chapter-num">Глава 8</div><h1>От Linux process к gVisor и microVM</h1><figure><figcaption>Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность</figcaption><svg class="diagram" viewBox="0 0 850 250" role="img" aria-label="Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="157.5" x2="160" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="145.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">isolate</text><line x1="300" y1="157.5" x2="330" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="315.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">restrict</text><line x1="470" y1="157.5" x2="500" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="485.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">syscall boundary</text><line x1="640" y1="157.5" x2="670" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="655.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">stronger boundary</text><rect x="10" y="120" rx="12" ry="12" width="120" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="70.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process</text><text x="70.0" y="165" text-anchor="middle" font-size="11" fill="#465569">same OS</text><rect x="160" y="120" rx="12" ry="12" width="140" height="75" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="230.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Container</text><text x="230.0" y="165" text-anchor="middle" font-size="11" fill="#465569">namespaces + cgroups</text><rect x="330" y="120" rx="12" ry="12" width="140" height="75" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="400.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Hardened</text><text x="400.0" y="165" text-anchor="middle" font-size="11" fill="#465569">seccomp/caps</text><rect x="500" y="120" rx="12" ry="12" width="140" height="75" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="570.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">gVisor</text><text x="570.0" y="165" text-anchor="middle" font-size="11" fill="#465569">userspace kernel</text><rect x="670" y="120" rx="12" ry="12" width="150" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="745.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">microVM</text><text x="745.0" y="165" text-anchor="middle" font-size="11" fill="#465569">guest kernel + KVM</text></svg></figure><p>Изоляция agent workload важнее, чем у обычного внутреннего микросервиса: агент способен генерировать и запускать код, клонировать внешние repository, подключать инструменты и реагировать на потенциально hostile content. Поэтому «он же в контейнере» - недостаточный threat model.</p>
-<h3>Linux process и container</h3>
-<p>Namespaces разделяют представления PID, mount, network, user и других ресурсов. cgroups ограничивают/учитывают CPU, memory, I/O и число процессов. Linux capabilities дробят привилегии root на отдельные права. seccomp фильтрует системные вызовы. <code>no_new_privileges</code> запрещает процессу получать новые privileges через exec. Вместе эти механизмы значительно уменьшают blast radius, но обычный container всё ещё разделяет kernel host'а.</p>
-<h3>gVisor</h3>
-<p>gVisor вставляет userspace application kernel (<code>Sentry</code>) между приложением и host kernel. OCI runtime <code>runsc</code> позволяет использовать эту модель через Docker/Kubernetes. Большая часть Linux interface переимплементируется в userspace, поэтому hostile process имеет существенно меньшую прямую поверхность host syscalls. Цена - compatibility/performance overhead, который зависит от workload.</p>
-<h3>microVM</h3>
-<p>microVM использует аппаратную виртуализацию и отдельный guest kernel. Boundary обычно сильнее, но появляются VMM, guest image, virtual devices, boot/snapshot complexity и требования к KVM. На Proxmox/KVM lab nested virtualization должна быть доступна VM, иначе microVM backend не будет рабочим практическим вариантом.</p>
-<h3>Выбор</h3>
-<p>Для первого стенда разумнее gVisor: меньше движущихся частей. microVM стоит изучать как второй backend для более сильной изоляции. Выбор должен опираться на threat model и benchmark именно вашего workload, а не на абстрактную таблицу «безопаснее/быстрее».</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://gvisor.dev/docs/architecture_guide/">gVisor architecture</a></li><li><a href="https://gvisor.dev/docs/user_guide/quick_start/docker/">gVisor runsc</a></li></ul></div></section><section class="chapter" id="ch-9"><div class="chapter-num">Глава 9</div><h1>Kubernetes: необходимый минимум для понимания AX/Substrate</h1><figure><figcaption>Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate</figcaption><svg class="diagram" viewBox="0 0 900 280" role="img" aria-label="Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="145" y1="132.5" x2="190" y2="132.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="167.5" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">write</text><line x1="250.0" y1="165" x2="420.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="335.0" y="86.5" text-anchor="middle" font-size="10" fill="#5c6875">persist</text><line x1="420.0" y1="85" x2="420.0" y2="180" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">watch</text><line x1="420.0" y1="245" x2="250.0" y2="100" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="335.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">update</text><line x1="310" y1="132.5" x2="550" y2="132.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="430.0" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">objects</text><line x1="680" y1="132.5" x2="740" y2="132.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="710.0" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">desired workload</text><rect x="25" y="100" rx="12" ry="12" width="120" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="85.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Desired state</text><text x="85.0" y="145" text-anchor="middle" font-size="11" fill="#465569">YAML/API</text><rect x="190" y="100" rx="12" ry="12" width="120" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="250.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">API server</text><text x="250.0" y="145" text-anchor="middle" font-size="11" fill="#465569">validate/store</text><rect x="360" y="20" rx="12" ry="12" width="120" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="420.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">etcd</text><text x="420.0" y="65" text-anchor="middle" font-size="11" fill="#465569">cluster state</text><rect x="360" y="180" rx="12" ry="12" width="120" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="420.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Controller</text><text x="420.0" y="225" text-anchor="middle" font-size="11" fill="#465569">observe/diff</text><rect x="550" y="100" rx="12" ry="12" width="130" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="615.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actual state</text><text x="615.0" y="145" text-anchor="middle" font-size="11" fill="#465569">Pods/services</text><rect x="740" y="100" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="805.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">kubelet/runtime</text><text x="805.0" y="145" text-anchor="middle" font-size="11" fill="#465569">execute</text></svg></figure><p>Kubernetes здесь нужен не как отдельный предмет, а как substrate инфраструктуры. Достаточно уверенно понимать несколько mental models.</p>
+</ul></div></section><section class="chapter" id="ch-8"><div class="chapter-num">Глава 8</div><h1>От Linux process к gVisor и microVM</h1>
+<figure><figcaption>Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность</figcaption><svg class="diagram" viewBox="0 0 850 250" role="img" aria-label="Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="157.5" x2="160" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="145.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">isolate</text><line x1="300" y1="157.5" x2="330" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="315.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">restrict</text><line x1="470" y1="157.5" x2="500" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="485.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">syscall boundary</text><line x1="640" y1="157.5" x2="670" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="655.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">stronger boundary</text><rect x="10" y="120" rx="12" ry="12" width="120" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="70.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process</text><text x="70.0" y="165" text-anchor="middle" font-size="11" fill="#465569">same OS</text><rect x="160" y="120" rx="12" ry="12" width="140" height="75" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="230.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Container</text><text x="230.0" y="165" text-anchor="middle" font-size="11" fill="#465569">namespaces + cgroups</text><rect x="330" y="120" rx="12" ry="12" width="140" height="75" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="400.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Hardened</text><text x="400.0" y="165" text-anchor="middle" font-size="11" fill="#465569">seccomp/caps</text><rect x="500" y="120" rx="12" ry="12" width="140" height="75" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="570.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">gVisor</text><text x="570.0" y="165" text-anchor="middle" font-size="11" fill="#465569">userspace kernel</text><rect x="670" y="120" rx="12" ry="12" width="150" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="745.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">microVM</text><text x="745.0" y="165" text-anchor="middle" font-size="11" fill="#465569">guest kernel + KVM</text></svg></figure>
+<p>В главе 7 мы разделили работу между несколькими agents и зафиксировали ownership. Но логическая граница роли ещё не является физической границей выполнения. Два агента могут иметь разные prompts и разные Task IDs, но фактически работать под одним Linux user, видеть общий filesystem и обращаться к одному Docker socket. Тогда компрометация одного участника автоматически разрушает границы остальных.</p>
+<p>Представим reviewer, который получает чужой pull request. Чтобы проверить изменение, он запускает package manager, compiler и test suite. Любой из этих шагов может выполнить код из repository: post-install script, build plugin, test fixture или бинарник из dependency. Если такой workload видит credential, host filesystem или управляющий socket, одной prompt-инструкции «ничего не ломай» недостаточно.</p>
+<p>Главный принцип главы:</p>
+<p><strong>Isolation tier выбирают по возможностям предполагаемого нарушителя и цене компрометации, а не по слову container в архитектурной схеме. Чем меньше доверия к коду и сильнее tenant boundary, тем меньше host interfaces должен видеть workload.</strong></p>
+
+<h2>Изоляция начинается с threat model</h2>
+<p>Вопрос «что безопаснее: gVisor или microVM?» поставлен слишком рано. Сначала нужно определить, от кого и что именно защищается.</p>
+<table>
+<thead><tr><th>Вопрос</th><th>Пример для agent workload</th><th>Почему это меняет выбор</th></tr></thead>
+<tbody>
+<tr><td>Какой код считается недоверенным?</td><td>Только входной текст; scripts из repository; произвольный бинарник; целый container image</td><td>Чем ближе attacker к native code, тем важнее syscall и kernel boundary</td></tr>
+<tr><td>Какие assets находятся рядом?</td><td>Model key, Git credential, source code соседнего tenant, host filesystem, control-plane socket</td><td>Sandbox с лишним mount или credential остаётся опасным даже без escape</td></tr>
+<tr><td>Какой outcome считается компрометацией?</td><td>Чтение чужих данных, изменение host, lateral movement, resource exhaustion, скрытая persistence</td><td>Разные outcomes требуют разных controls: isolation, egress policy, quotas, audit</td></tr>
+<tr><td>Кто доверяет host?</td><td>Одна внутренняя команда; разные команды; внешние customers</td><td>Multi-tenant среда обычно требует более сильной и проверяемой boundary</td></tr>
+<tr><td>Какая совместимость обязательна?</td><td>Обычный CLI; FUSE; eBPF; custom kernel module; GPU; nested container</td><td>Некоторые capabilities несовместимы с более узким System API</td></tr>
+<tr><td>Какова цена overhead?</td><td>Один долгий job или тысячи коротких sandboxes</td><td>Startup, memory и density могут быть важнее средней CPU throughput</td></tr>
+</tbody>
+</table>
+<p>Threat model полезно записать одной проверяемой фразой. Например:</p>
+<pre><code class="language-text">Недоверенный build script может получить полный контроль внутри sandbox,
+но не должен читать host/neighbor data, обращаться к control plane,
+использовать неразрешённый egress или удерживать ресурсы после deadline.
+</code></pre>
+<p>Такая формулировка сразу показывает, что одного механизма недостаточно. Kernel isolation уменьшает шанс escape. Filesystem mounts определяют доступные данные. Network policy ограничивает exfiltration. IAM и short-lived credentials ограничивают полномочия. cgroups и deadlines защищают availability.</p>
+
+<h2>Boundary, policy и resource control решают разные задачи</h2>
+<p>В разговорах об isolation часто смешивают четыре понятия.</p>
+<ul>
+<li><strong>Isolation boundary</strong> определяет, какой код и какое состояние отделяют workload от host или соседа.</li>
+<li><strong>Authorization policy</strong> определяет, какие действия workload имеет право выполнять.</li>
+<li><strong>Resource control</strong> ограничивает CPU, memory, I/O, процессы и время.</li>
+<li><strong>Packaging</strong> доставляет executable, libraries и filesystem image.</li>
+</ul>
+<p>Container image в первую очередь является форматом упаковки. Namespaces и security settings добавляют изоляцию. cgroups дают учёт и limits. Ни один из этих элементов сам по себе не доказывает, что hostile workload безопасно запускать рядом с чужими данными.</p>
+<p>Полезная проверка проста: предположите, что код внутри получил root относительно собственного окружения. Какие host interfaces остаются доступны? Видит ли он devices, privileged syscalls, host network, metadata service, Unix sockets, writable mounts или secrets? Именно этот список, а не название runtime, описывает реальную boundary.</p>
+
+<h2>Linux process: дешёвая граница для доверенного кода</h2>
+<p>Обычный process получает отдельное virtual address space и собственный набор file descriptors, но разделяет host kernel, filesystem namespace, network namespace и многие системные ресурсы с другими процессами. Unix permissions, отдельный UID/GID, ограниченный working directory и service manager уже дают полезную operational boundary.</p>
+<p>Process isolation подходит, когда:</p>
+<ul>
+<li>код собран и контролируется одной доверенной командой;</li>
+<li>нет выполнения произвольных repository scripts или пользовательских binaries;</li>
+<li>секреты и файлы разделены обычными OS permissions;</li>
+<li>ошибка процесса опасна для job, но не должна считаться hostile attack;</li>
+<li>важны минимальный startup latency и простая диагностика.</li>
+</ul>
+<p>Но process не создаёт самостоятельную security boundary против кода с тем же user. Такой код может читать доступные тому же UID файлы, посылать signals, исследовать <code>/proc</code>, наследовать environment и использовать все разрешённые host syscalls. Отдельный PID не означает отдельный trust domain.</p>
+<p>Практический пример: model adapter, написанный вашей командой и не загружающий plugins, можно запускать как service process. Test runner для внешнего pull request - уже другой класс риска.</p>
+
+<h2>Container: Linux primitives, собранные в один runtime contract</h2>
+<p>Обычный OCI container запускает Linux process на host kernel, но меняет его представление системы.</p>
+<table>
+<thead><tr><th>Механизм</th><th>Что ограничивает</th><th>Чего не гарантирует</th></tr></thead>
+<tbody>
+<tr><td>PID namespace</td><td>Видимость и нумерацию процессов</td><td>Защиту от уязвимости shared kernel</td></tr>
+<tr><td>Mount namespace</td><td>Дерево mounts и root filesystem</td><td>Безопасность намеренно проброшенного hostPath</td></tr>
+<tr><td>Network namespace</td><td>Interfaces, routes, ports и sockets</td><td>Запрет egress без отдельной policy</td></tr>
+<tr><td>User namespace</td><td>Отображение UID/GID container в непривилегированные host IDs</td><td>Автоматическую совместимость со всеми volumes и devices</td></tr>
+<tr><td>cgroups</td><td>Учёт и limits CPU, memory, I/O, PIDs</td><td>Confidentiality или syscall isolation</td></tr>
+<tr><td>Capabilities</td><td>Дробление полномочий root</td><td>Безопасность при возврате широких capabilities</td></tr>
+<tr><td>seccomp</td><td>Allow/deny для host syscalls</td><td>Полноценный sandbox и business authorization</td></tr>
+<tr><td>AppArmor/SELinux</td><td>Mandatory access policy для файлов и других объектов</td><td>Корректную policy без сопровождения и тестов</td></tr>
+</tbody>
+</table>
+<p>Kernel documentation прямо подчёркивает: seccomp filter уменьшает доступную syscall surface, но сам по себе не является sandbox. <code>no_new_privs</code> запрещает <code>execve()</code> выдавать новые privileges через setuid, setgid или file capabilities и позволяет непривилегированному процессу безопаснее устанавливать seccomp filters. Это два слоя defense in depth, а не замена namespaces, LSM и правильным mounts.</p>
+
+<h3>Root внутри container и root на host - не одно и то же</h3>
+<p>Без user namespace UID 0 внутри container часто остаётся UID 0 с точки зрения host kernel, хотя namespaces и capability set ограничивают его действия. User namespace отображает container root в непривилегированный host UID. Rootless runtime идёт дальше: и daemon/runtime, и containers работают без host root, уменьшая последствия compromise управляющего процесса.</p>
+<p>Rootless mode не превращает любое сочетание mounts и network в безопасное. Он также имеет ограничения совместимости и требует корректного UID/GID mapping. Но для agent execution это важный вопрос: почему runtime вообще должен иметь host root, если workload не требует devices или privileged setup?</p>
+
+<h3>Опасные настройки отменяют boundary</h3>
+<table>
+<thead><tr><th>Настройка</th><th>Что открывает</th><th>Типичный риск</th></tr></thead>
+<tbody>
+<tr><td><code>privileged: true</code></td><td>Широкие capabilities и ослабление kernel constraints</td><td>Container становится почти host process с дополнительной упаковкой</td></tr>
+<tr><td><code>hostPID</code> / <code>hostNetwork</code></td><td>Host process или network view</td><td>Разведка, interference, обход предполагаемой network boundary</td></tr>
+<tr><td>Docker/containerd socket</td><td>Управление новыми containers и mounts</td><td>Практически эквивалент host administration</td></tr>
+<tr><td>Writable broad <code>hostPath</code></td><td>Host files вне workspace</td><td>Persistence, credential theft, повреждение node</td></tr>
+<tr><td><code>CAP_SYS_ADMIN</code></td><td>Большой набор kernel operations</td><td>Резкое расширение attack surface</td></tr>
+<tr><td>Unconfined seccomp/LSM</td><td>Полная host syscall surface</td><td>Больше путей к kernel vulnerabilities</td></tr>
+<tr><td>Device passthrough</td><td>Driver и device interface</td><td>Новая attack surface вне обычного runtime</td></tr>
+<tr><td>Long-lived broad secret</td><td>External authority</td><td>Exfiltration без необходимости sandbox escape</td></tr>
+</tbody>
+</table>
+<p>Особенно опасен управляющий socket. Если agent может попросить Docker запустить новый privileged container с mount <code>/</code>, то ограничения текущего container не имеют смысла.</p>
+
+<h3>Минимальный hardened Pod profile</h3>
+<p>Конкретная production policy зависит от workload, но разумная исходная точка выглядит так:</p>
+<pre><code class="language-yaml">apiVersion: v1
+kind: Pod
+metadata:
+  name: bounded-agent
+spec:
+  automountServiceAccountToken: false
+  containers:
+    - name: agent
+      image: registry.example/agent@sha256:...
+      securityContext:
+        runAsNonRoot: true
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: ["ALL"]
+        seccompProfile:
+          type: RuntimeDefault
+      resources:
+        requests:
+          cpu: "250m"
+          memory: "256Mi"
+        limits:
+          cpu: "2"
+          memory: "2Gi"
+</code></pre>
+<p>К этому обычно добавляются отдельный writable workspace, tmpfs с limit, default-deny egress, short-lived identity и deadline. Manifest не является универсальным рецептом: test runner может потребовать write в workspace, а browser - дополнительные syscalls. Любое ослабление должно быть связано с конкретной capability и покрыто тестом.</p>
+
+<h2>Почему hardened container всё ещё разделяет host kernel</h2>
+<p>У namespaces и seccomp есть принципиальная граница: разрешённый syscall всё равно обрабатывает host kernel. Container runtime может сократить доступную поверхность, но не заменяет реализацию kernel API.</p>
+<p>Для trusted internal service этого часто достаточно. Для hostile native code риск иной: attacker целенаправленно ищет ошибку в разрешённом syscall, filesystem или device path. Чем больше kernels, drivers и privileged helpers доступны на node, тем сложнее доказать containment.</p>
+<p>Здесь появляются два разных подхода:</p>
+<ul>
+<li>gVisor ставит перед host kernel отдельный application kernel, который реализует Linux-like System API в userspace;</li>
+<li>microVM помещает workload за guest kernel и virtual hardware boundary, используя hardware virtualization.</li>
+</ul>
+
+<h2>Три пути syscall</h2>
+<pre><code class="language-text">container: app -&gt; allowed syscall -&gt; host kernel
+
+gVisor:    app -&gt; Sentry / application kernel
+                    -&gt; restricted host calls -&gt; host kernel
+
+microVM:   app -&gt; guest kernel -&gt; virtual device / VMM
+                    -&gt; KVM -&gt; host kernel
+</code></pre>
+<p>Диаграмма упрощает детали, но показывает главное. В обычном container разрешённый syscall приходит в host kernel. В gVisor приложение видит System API, реализованный Sentry; host calls выбирает уже Sentry. В microVM приложение обращается к отдельному guest kernel, а host взаимодействует с VMM и KVM через virtual devices и VM exits.</p>
+
+<h2>gVisor: application kernel между workload и host</h2>
+<p>gVisor предоставляет OCI runtime <code>runsc</code>, поэтому снаружи sandbox выглядит как container workflow. Внутри архитектура принципиально отличается от <code>runc</code>.</p>
+<ul>
+<li><strong>Sentry</strong> реализует Linux-like system interface: syscalls, memory management, signals, process model, filesystems и networking.</li>
+<li><strong>Platform</strong> перехватывает syscalls и page faults. Поддерживаемые варианты имеют разные требования к hardware и performance.</li>
+<li><strong>Gofer</strong> посредничает при доступе к host-backed filesystem resources.</li>
+<li><strong>Netstack</strong> реализует network stack в userspace и связывает его с virtual network devices.</li>
+</ul>
+<p>Ключевое свойство: syscall sandboxed application не передаётся в host kernel с исходными аргументами. Sentry обрабатывает его по собственной модели и при необходимости делает ограниченные host calls от своего имени. Для escape attacker должен пройти дополнительную независимую реализацию System API, а затем host boundary.</p>
+<p>Это не означает абсолютную безопасность. gVisor сам является сложным software и опирается на host kernel. Он не устраняет hardware side channels, ошибки configuration, unsafe mounts, egress и credential leakage. Его security model прямо говорит: sandbox не заменяет secure architecture.</p>
+
+<h3>Systrap и KVM platform внутри gVisor</h3>
+<p>Термин KVM здесь легко спутать с microVM. gVisor KVM platform использует hardware virtualization для address-space switching и interception, но сохраняет gVisor process model: отдельного conventional guest kernel и virtual machine device model не появляется.</p>
+<p>Systrap использует seccomp trap mechanism для перехвата syscalls и не требует hardware virtualization. Официальная документация рекомендует выбирать platform по среде: на bare metal KVM может давать лучший профиль, а внутри VM или без virtualization support практичнее Systrap. Nested virtualization способна сделать KVM platform медленнее.</p>
+<p>Не фиксируйте историческое знание вроде «gVisor всегда использует ptrace». Текущая default platform - Systrap, а ptrace больше не является рекомендуемым вариантом. Runtime choice нужно проверять по pinned release и реальной конфигурации node.</p>
+
+<h3>Совместимость - часть security decision</h3>
+<p>gVisor стремится запускать обычные Linux binaries без модификаций, но не реализует каждый syscall, файл в <code>/proc</code>/<code>/sys</code> и каждый device path. Иногда несовместимость полезна: workload не получает kernel feature, которую platform не собиралась предоставлять. Иногда она блокирует легитимный tool.</p>
+<p>Проверять нужно не абстрактный language runtime, а полный execution path:</p>
+<ul>
+<li>package manager и post-install scripts;</li>
+<li>compiler, linker и test runner;</li>
+<li>filesystem watchers, FUSE и special files;</li>
+<li>browser sandbox nesting;</li>
+<li>debugger, profiler и tracing tools;</li>
+<li>network behavior под высокой concurrency;</li>
+<li>GPU или другой device interface;</li>
+<li>checkpoint/restore именно вашего runtime.</li>
+</ul>
+<p>Performance тоже зависит от профиля. Syscall-heavy filesystem или network workload может платить больше, чем compute-heavy process, который долго работает в userspace. Поэтому «gVisor медленнее на N процентов» без benchmark shape почти бессмысленно.</p>
+
+<h3>Когда gVisor является разумным tier</h3>
+<p>gVisor часто подходит для:</p>
+<ul>
+<li>выполнения test suites и build scripts из недоверенного repository;</li>
+<li>sandboxed code interpreter и browser automation;</li>
+<li>multi-tenant agents, где важна высокая density;</li>
+<li>коротких или suspendable workloads, для которых full VM management слишком тяжёл;</li>
+<li>сред, где OCI integration важнее полной Linux kernel compatibility.</li>
+</ul>
+<p>Он менее удобен, когда workload требует custom kernel behavior, broad device access или features, которых нет в реализованном System API. Тогда нужно либо сузить workload, либо выбрать другую boundary, а не отключать protections случайными flags.</p>
+
+<h2>microVM: отдельный guest kernel и минимальный virtual hardware</h2>
+<p>MicroVM использует hardware virtualization и запускает отдельный guest kernel. VMM предоставляет ограниченный набор virtual devices и связывает их с host resources. В сравнении с general-purpose VM уменьшаются device model, boot path и management surface, но фундаментальная VM boundary сохраняется.</p>
+<p>Firecracker - пример специализированного VMM для microVM. Он не является Kubernetes runtime сам по себе. Firecracker предоставляет machine model и API для lifecycle, а integration layer должен решить image preparation, network, storage, logging, credentials, snapshot lifecycle и scheduling.</p>
+<p>Kata Containers решает другую задачу: даёт OCI/CRI-compatible runtime, который запускает container workload внутри lightweight VM. Kata может использовать разные hypervisors, включая QEMU, Cloud Hypervisor и Firecracker. Поэтому корректное сравнение выглядит так:</p>
+<table>
+<thead><tr><th>Компонент</th><th>Главная роль</th><th>Что видит platform engineer</th></tr></thead>
+<tbody>
+<tr><td>gVisor / <code>runsc</code></td><td>Application kernel и OCI runtime</td><td>Sandboxed container без отдельного guest Linux</td></tr>
+<tr><td>Firecracker</td><td>Minimal VMM</td><td>API и machine lifecycle, вокруг которых строится runtime</td></tr>
+<tr><td>Kata Containers</td><td>Container runtime поверх lightweight VMs</td><td>OCI/CRI integration и Pod-like UX с VM boundary</td></tr>
+<tr><td>KVM</td><td>Host kernel virtualization interface</td><td>Низкоуровневый механизм, которым пользуются VMM</td></tr>
+</tbody>
+</table>
+
+<h3>Что приходится эксплуатировать дополнительно</h3>
+<p>Отдельный guest kernel приносит более сильную boundary, но добавляет систему:</p>
+<ul>
+<li>guest kernel и root filesystem нужно собирать, обновлять и сканировать;</li>
+<li>virtual network и block devices требуют provisioning;</li>
+<li>memory reserve и Pod overhead должны учитываться scheduler;</li>
+<li>логи и metrics проходят через guest/host boundary;</li>
+<li>debugging требует понимания guest и VMM;</li>
+<li>hardware virtualization должна быть доступна на node;</li>
+<li>nested virtualization в cloud VM или lab может отсутствовать либо иметь высокий overhead.</li>
+</ul>
+<p>На Proxmox/KVM lab это означает отдельную проверку: видит ли Kubernetes node virtualization extensions, разрешён ли <code>/dev/kvm</code>, совместимы ли CPU flags и не запрещает ли provider nested virtualization. Успешный запуск обычного container ничего об этом не говорит.</p>
+
+<h3>Snapshot microVM не равен backup всей задачи</h3>
+<p>Firecracker snapshot разделяет VM state и guest memory; attached block devices и внешние resources управляются отдельно. Restore также зависит от совместимости CPU features, host kernel, VMM/device model и доступности прежних tap, block и vsock endpoints.</p>
+<p>Следовательно, snapshot contract должен включать:</p>
+<ul>
+<li>VMM и snapshot format version;</li>
+<li>CPU architecture и допустимый feature baseline;</li>
+<li>guest kernel/image digest;</li>
+<li>block device identities;</li>
+<li>network reattachment и connection semantics;</li>
+<li>encryption, integrity и access policy для memory image;</li>
+<li>reconciliation внешних side effects после resume.</li>
+</ul>
+<p>Memory snapshot может содержать tokens, private keys и пользовательские данные. Его следует считать secret-bearing artifact. CRC защищает от случайной порчи, но не является authenticity или confidentiality control.</p>
+<p>И ещё одна граница из главы 5: snapshot возвращает вычислительное состояние, но не откатывает Git remote, ticket, payment или DNS. После restore agent обязан сверить внешнюю реальность.</p>
+
+<h2>Kubernetes RuntimeClass: выбор runtime как platform policy</h2>
+<p>Kubernetes <code>RuntimeClass</code> связывает имя в Pod spec с runtime handler, настроенным в CRI implementation. Это позволяет одному cluster запускать разные workload tiers.</p>
+<pre><code class="language-yaml">apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: gvisor
+handler: runsc
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: untrusted-build
+spec:
+  runtimeClassName: gvisor
+  containers:
+    - name: runner
+      image: registry.example/build-runner@sha256:...
+</code></pre>
+<p>Конкретные handler names зависят от containerd/CRI-O configuration. RuntimeClass также может нести scheduling constraints и Pod overhead. Если runtime доступен только на части nodes, class должна направлять Pods на эти nodes и учитывать taints/tolerations.</p>
+<p>Создание и изменение RuntimeClass должно оставаться полномочием cluster administrator. Agent не должен выбирать себе менее строгую boundary через tool call. Application передаёт workload classification, а admission/platform policy отображает её на разрешённый runtime.</p>
+<p>Полезный contract выглядит так:</p>
+<pre><code class="language-text">workload.trust = external-code
+workload.devices = none
+workload.network = allowlisted-egress
+workload.persistence = workspace-only
+isolation.required = sandboxed-system-api
+
+platform decision -&gt; RuntimeClass gvisor + policy profile v3
+</code></pre>
+<p>Здесь application описывает требования, а не знает имя runtime binary. Это позволяет platform team заменить implementation без изменения agent logic.</p>
+
+<h2>Как выбирать isolation tier</h2>
+<table>
+<thead><tr><th>Tier</th><th>Подходящий workload</th><th>Основное преимущество</th><th>Главное ограничение</th></tr></thead>
+<tbody>
+<tr><td>Отдельный process</td><td>Доверенный platform code без plugins</td><td>Минимальные startup и operational cost</td><td>Слабая boundary против hostile code</td></tr>
+<tr><td>Hardened container</td><td>Доверенный image, внутренние tools, ограниченный blast radius</td><td>Зрелая OCI/Kubernetes integration и высокая density</td><td>Shared host kernel</td></tr>
+<tr><td>gVisor</td><td>Недоверенные scripts/repositories, multi-tenant execution, обычные Linux apps</td><td>Дополнительный System API boundary при container UX</td><td>Compatibility и workload-dependent overhead</td></tr>
+<tr><td>microVM/Kata</td><td>Hostile tenant code, более строгая kernel boundary, нужен guest Linux</td><td>Отдельный guest kernel и hardware isolation</td><td>Memory, boot, image, device и operations overhead</td></tr>
+<tr><td>Отдельный node/cluster</td><td>Особо чувствительные assets, privileged devices, сильные regulatory требования</td><td>Уменьшение shared failure domain</td><td>Стоимость, capacity fragmentation и более сложная operations model</td></tr>
+</tbody>
+</table>
+<p>Выбор не обязан быть глобальным. Одна agentic application может использовать несколько tiers:</p>
+<ul>
+<li>coordinator как trusted process;</li>
+<li>read-only repository analysis в hardened container;</li>
+<li>test execution внешнего code в gVisor;</li>
+<li>редкий kernel-level experiment в microVM на специальном node pool.</li>
+</ul>
+<p>Это дешевле и яснее, чем помещать каждый model call в microVM или, наоборот, запускать всё на одном privileged runner.</p>
+
+<h3>Не выбирайте только по слову stronger</h3>
+<p>Более сильная boundary может ухудшить итоговую безопасность, если ради совместимости команда начинает выдавать broad mounts, devices и permanent credentials. Неработающий debugger иногда приводит к включению privileged mode, а медленный cold start - к бесконечно живущим sandboxes без cleanup.</p>
+<p>Сравнивайте end-to-end profile:</p>
+<ul>
+<li>startup и resume latency;</li>
+<li>idle и peak memory;</li>
+<li>CPU для model-adjacent tools, build и tests;</li>
+<li>filesystem metadata и small-file I/O;</li>
+<li>network throughput и connection churn;</li>
+<li>sandbox density на node;</li>
+<li>compatibility failure rate;</li>
+<li>операционное время на обновления и incident recovery.</li>
+</ul>
+<p>Benchmark должен использовать тот же repository size, dependency cache, language toolchain, network policy и concurrency, что production. Microbenchmark одного syscall помогает объяснить механизм, но не выбирает platform за вас.</p>
+
+<h2>Isolation не заменяет capability security</h2>
+<p>Sandbox может идеально удержать process и всё равно позволить ему легально украсть данные через разрешённые interfaces. Если agent видит production database password и arbitrary Internet egress, escape не нужен.</p>
+<p>Для каждого sandbox отдельно проектируются:</p>
+<ul>
+<li><strong>Filesystem:</strong> какие paths read-only, какие writable, что является disposable, что сохраняется.</li>
+<li><strong>Network:</strong> default deny, allowlisted destinations, DNS behavior, proxy и metadata endpoint.</li>
+<li><strong>Identity:</strong> short-lived token, audience, scope, rotation и revocation.</li>
+<li><strong>Tools:</strong> read/write capabilities, approval и idempotency.</li>
+<li><strong>Data:</strong> какие artifacts можно вернуть из sandbox и кто их проверяет.</li>
+<li><strong>Time:</strong> deadline, idle timeout, cancellation и гарантированный cleanup.</li>
+</ul>
+<p>Prompt injection действует на уровне решений агента. Sandbox containment действует на уровне исполнения. Они дополняют друг друга: policy должна предполагать, что model уже убеждена выполнить худшее разрешённое действие.</p>
+
+<h2>Lifecycle: stop, pause, suspend и destroy</h2>
+<p>Isolation tier влияет не только на security, но и на lifecycle semantics.</p>
+<ul>
+<li><strong>Stop</strong> прекращает выполнение, но может оставить filesystem и metadata.</li>
+<li><strong>Pause</strong> временно не планирует CPU, сохраняя resources занятыми.</li>
+<li><strong>Suspend</strong> сериализует достаточное состояние и освобождает часть capacity.</li>
+<li><strong>Destroy</strong> удаляет execution boundary, но не обязательно external artifacts.</li>
+</ul>
+<p>Для process/container checkpoint обычно тесно связан с host kernel state. Для gVisor и microVM runtime может контролировать больше state, но portability всё равно зависит от version, architecture, filesystem и network. Любой suspend/resume contract должен явно отвечать:</p>
+<ol>
+<li>Какие bytes сохраняются?</li>
+<li>Кто шифрует и авторизует snapshot?</li>
+<li>На каких hosts его можно восстановить?</li>
+<li>Что происходит с TCP connections и open files?</li>
+<li>Как обнаруживается partial restore?</li>
+<li>Как сверяется внешний мир после resume?</li>
+</ol>
+
+<h2>Observability через границу</h2>
+<p>Сильная isolation усложняет диагностику. Host видит VMM или Sentry, а не всегда каждый guest process привычным способом. Debug interface, который обходит boundary, легко становится новым escape path.</p>
+<p>Production design должен заранее определить:</p>
+<ul>
+<li>correlation IDs от Task до sandbox, process и tool call;</li>
+<li>structured stdout/stderr без доверия к содержимому;</li>
+<li>CPU, memory, I/O, process count и network metrics;</li>
+<li>runtime events: create, start, OOM, policy deny, checkpoint, restore, destroy;</li>
+<li>audit mounts, RuntimeClass, image digest и security profile version;</li>
+<li>способ получить crash artifact без broad shell access;</li>
+<li>redaction до вывода logs за tenant boundary.</li>
+</ul>
+<p>Фраза «sandbox упал» так же бесполезна, как «агент завис». Нужно знать, завершился ли guest process, сработал ли seccomp/LSM deny, случился ли OOM, потерялся ли VMM, не восстановился ли snapshot или platform отменила Task по deadline.</p>
+
+<h2>Как тестировать isolation layer</h2>
+<h3>Compatibility suite</h3>
+<p>Соберите representative corpus: языковые runtimes, package managers, browsers, compilers, filesystem patterns и network clients. Тестируйте pinned images на каждом runtime tier. Ошибка compatibility должна быть видима до production routing.</p>
+
+<h3>Negative security tests</h3>
+<p>Проверяйте не только успешный job, но и запрещённые действия:</p>
+<ul>
+<li>чтение host paths и соседнего workspace;</li>
+<li>доступ к container runtime socket и Kubernetes API;</li>
+<li>обращение к cloud metadata;</li>
+<li>egress к неразрешённому endpoint;</li>
+<li>создание слишком большого числа процессов;</li>
+<li>mount, namespace escape primitives и forbidden syscalls;</li>
+<li>сохранение процесса после cancellation;</li>
+<li>чтение snapshot другим tenant.</li>
+</ul>
+<p>Тест считается успешным, когда действие отклонено ожидаемым control, а событие видно в audit. Просто получить non-zero exit code недостаточно: отказ мог произойти случайно.</p>
+
+<h3>Resource abuse</h3>
+<p>Запускайте fork bomb, memory pressure, disk fill, file descriptor exhaustion и network flood в controlled lab. Проверяйте, что страдает sandbox, а не node control plane или соседние workloads. Отдельно тестируйте cleanup после OOM и hard kill.</p>
+
+<h3>Upgrade и restore matrix</h3>
+<p>Для stateful sandbox нужны тесты N-1/N/N+1: runtime version, host kernel, CPU pool, guest image и snapshot format. Если поддерживается только same-version restore, это допустимый contract, но он должен влиять на rollout strategy.</p>
+
+<h2>AX и Agent Substrate</h2>
+<p>В AX <code>Task</code> является минимальной единицей isolated execution. Task описывает image, command, resources и Workspace bindings, но application не должна считать любой Task автоматически достаточной boundary для любого threat model.</p>
+<p>Agent Substrate предоставляет runtime layer и в текущей архитектуре поддерживает несколько sandbox backends, включая gVisor и microVM path. Его Actor/Worker model позволяет отделить logical actor от физической capacity, а suspend/resume - освобождать Worker, когда agent простаивает.</p>
+<p>Граница ответственности выглядит так:</p>
+<ul>
+<li>application классифицирует workload, данные и требуемые capabilities;</li>
+<li>AX создаёт декларативную Task и управляет её lifecycle;</li>
+<li>platform policy выбирает допустимый sandbox profile;</li>
+<li>Agent Substrate размещает Actor на совместимом Worker и выполняет runtime operations;</li>
+<li>Kubernetes управляет nodes, worker Pods, scheduling prerequisites и cluster-level isolation.</li>
+</ul>
+<p>Не следует превращать current implementation в вечную спецификацию. AX и Agent Substrate остаются pre-1.0; Sandbox/SandboxConfig и policy surfaces развиваются. Для production design нужно фиксировать commit/release и проверять реальный backend, а не только design goal.</p>
+<p>Особенно важно не путать runtime snapshot с application recovery. Substrate может вернуть process memory и filesystem, но harness всё равно отвечает за state schema, leases, idempotency и reconciliation внешних операций.</p>
+
+<h2>Практикум: безопасная проверка недоверенного pull request</h2>
+<p>Задача: agent получает pull request из внешнего fork, исследует diff, запускает tests и возвращает report. Merge и публикация запрещены.</p>
+
+<h3>Шаг 1. Зафиксировать trust и assets</h3>
+<pre><code class="language-yaml">trust:
+  repository_code: hostile
+  base_image: platform-signed
+assets:
+  readable:
+    - source snapshot at exact commit
+    - public dependency mirror
+  forbidden:
+    - host filesystem
+    - Kubernetes API
+    - production credentials
+    - other tenant workspaces
+side_effects:
+  allowed:
+    - write ephemeral workspace
+    - upload test report artifact
+</code></pre>
+
+<h3>Шаг 2. Разделить setup и execution</h3>
+<p>Trusted setup component получает repository через platform-controlled fetch и создаёт immutable input artifact. Недоверенный build не получает Git credential. Dependency access идёт через allowlisted mirror. Это уменьшает authority ещё до выбора runtime.</p>
+
+<h3>Шаг 3. Выбрать tier</h3>
+<p>Hardened container может быть baseline для внутреннего trusted repository. Для внешнего fork выбран gVisor: обычный toolchain совместим, нужен container UX и высокая parallel density. MicroVM остаётся отдельным profile для workloads, которым требуется guest kernel или более строгая tenant boundary.</p>
+
+<h3>Шаг 4. Ограничить окружение</h3>
+<ul>
+<li>read-only source input и отдельный ephemeral writable workspace;</li>
+<li>нет service account token и runtime socket;</li>
+<li>all capabilities dropped, no privilege escalation;</li>
+<li>default-deny egress с dependency mirror и artifact endpoint;</li>
+<li>CPU, memory, PID, disk и wall-clock budgets;</li>
+<li>output size limit и content scanning;</li>
+<li>destroy после report независимо от результата tests.</li>
+</ul>
+
+<h3>Шаг 5. Проверить boundary отрицательными тестами</h3>
+<p>В repository добавляется test fixture, который пытается прочитать host path, metadata endpoint и соседний artifact, затем создаёт process storm. Ожидаемый результат - каждый путь блокируется конкретным control, node остаётся healthy, audit связывает deny с Task ID.</p>
+
+<h3>Шаг 6. Измерить цену</h3>
+<p>Сравните hardened container, gVisor и microVM на одном corpus:</p>
+<ul>
+<li>p50/p95 start-to-first-command;</li>
+<li>полное время install/build/test;</li>
+<li>peak и idle memory;</li>
+<li>node density при целевой concurrency;</li>
+<li>доля несовместимых repositories;</li>
+<li>время cleanup и recovery после kill.</li>
+</ul>
+<p>Решение документируется не как «gVisor безопаснее container», а как verified contract: какие attacks проверены, какие interfaces доступны, какой overhead измерен и когда routing повышает tier до microVM.</p>
+
+<h2>Типичные антипаттерны</h2>
+<p><strong>Container means safe.</strong> Название packaging format принимается за доказательство containment.</p>
+<p><strong>Privileged for compatibility.</strong> Любую несовместимость лечат отключением security controls.</p>
+<p><strong>Docker socket as a tool.</strong> Agent получает host-level authority, чтобы запускать вложенные workloads.</p>
+<p><strong>One tier for everything.</strong> Model call, trusted controller и hostile build запускаются с одинаковой дорогой boundary.</p>
+<p><strong>Sandbox with production secrets.</strong> Escape закрыт, но легальный egress позволяет украсть credentials.</p>
+<p><strong>Snapshot equals rollback.</strong> Restore process state считают откатом внешних side effects.</p>
+<p><strong>Benchmark without workload shape.</strong> Решение принимают по чужому syscall microbenchmark.</p>
+<p><strong>Debug by bypass.</strong> Для диагностики навсегда добавляют broad shell, host mount или privileged sidecar.</p>
+<p><strong>Runtime selected by agent.</strong> Недоверенный workload может сам выбрать менее строгий RuntimeClass.</p>
+<p><strong>Node is infinite.</strong> Security обсуждают без PID, memory, disk и time limits.</p>
+
+<h2>Checklist выбора и эксплуатации</h2>
+<ol>
+<li>Какой exact code считается hostile?</li>
+<li>Какие host и tenant assets находятся рядом?</li>
+<li>Можно ли убрать capability вместо усиления sandbox?</li>
+<li>Какие mounts, devices, sockets и credentials видит workload?</li>
+<li>Есть ли user namespace/rootless path?</li>
+<li>Какие syscalls и LSM rules реально применены?</li>
+<li>Нужен ли отдельный System API boundary или guest kernel?</li>
+<li>Какие features toolchain несовместимы с выбранным runtime?</li>
+<li>Кто выбирает RuntimeClass и можно ли обойти policy?</li>
+<li>Как ограничены egress, metadata и control-plane access?</li>
+<li>Как измеряются CPU, memory, PIDs, disk и deadline?</li>
+<li>Что сохраняет snapshot и какие secrets в нём остаются?</li>
+<li>На каких CPU/kernel/runtime versions разрешён restore?</li>
+<li>Как sandbox уничтожается после success, failure и cancellation?</li>
+<li>Какие negative tests доказывают containment?</li>
+<li>Какой end-to-end overhead измерен на production-like workload?</li>
+</ol>
+
+<h2>Итоги главы</h2>
+<ul>
+<li>Isolation tier выбирается по threat model, а не по названию runtime.</li>
+<li>Process подходит для доверенного кода, но не является tenant boundary против hostile code.</li>
+<li>Container объединяет namespaces, cgroups и security controls, сохраняя shared host kernel.</li>
+<li>cgroups управляют resources; seccomp уменьшает syscall surface; ни один из них отдельно не является полным sandbox.</li>
+<li>Privileged mode, broad host mounts, devices и runtime sockets способны отменить container boundary.</li>
+<li>gVisor реализует Linux-like System API в Sentry и даёт дополнительную boundary при OCI workflow.</li>
+<li>gVisor Systrap и KVM platform - способы interception, а не две разновидности microVM.</li>
+<li>MicroVM добавляет guest kernel и hardware virtualization, но требует VMM, images, devices и более сложной operations model.</li>
+<li>Firecracker является VMM building block; Kata Containers предоставляет container runtime integration поверх lightweight VMs.</li>
+<li>RuntimeClass позволяет platform policy выбирать runtime и учитывать scheduling/overhead.</li>
+<li>Sandbox не заменяет egress policy, IAM, filesystem scoping, short-lived credentials и tool authorization.</li>
+<li>Snapshot содержит чувствительное runtime state и не откатывает внешний мир.</li>
+<li>Проверять нужно compatibility, containment, resource abuse, restore и end-to-end cost.</li>
+<li>В AX и Agent Substrate application классифицирует workload, а platform обеспечивает выбранную physical boundary и lifecycle.</li>
+</ul>
+<p><strong>Дальше.</strong> Мы выбрали границу выполнения, но ещё не разобрали substrate, который размещает такие workloads на nodes, связывает их сетью и постоянно приводит actual state к desired. Следующая глава даст необходимый минимум Kubernetes для понимания AX и Agent Substrate.</p>
+
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://docs.kernel.org/userspace-api/seccomp_filter.html">Linux kernel: Seccomp BPF</a> - назначение syscall filtering и прямое предупреждение, что seccomp сам по себе не является sandbox.</li>
+<li><a href="https://docs.kernel.org/userspace-api/no_new_privs.html">Linux kernel: No New Privileges Flag</a> - semantics <code>no_new_privs</code> и связь с <code>execve</code>.</li>
+<li><a href="https://docs.kernel.org/admin-guide/cgroup-v2.html">Linux kernel: Control Group v2</a> - resource hierarchy и cgroup namespace.</li>
+<li><a href="https://docs.docker.com/engine/security/">Docker Engine security</a> - namespaces, capabilities, daemon surface и container configuration.</li>
+<li><a href="https://docs.docker.com/engine/security/rootless/">Docker Rootless mode</a> - user namespaces и runtime без host root.</li>
+<li><a href="https://gvisor.dev/docs/architecture_guide/intro/">gVisor: Introduction to security</a> - Sentry, Gofer и dual-kernel security model.</li>
+<li><a href="https://gvisor.dev/docs/architecture_guide/platforms/">gVisor: Platform Guide</a> - Systrap, KVM platform и требования среды.</li>
+<li><a href="https://gvisor.dev/docs/architecture_guide/security/">gVisor: Security Model</a> - boundaries, assumptions и ограничения sandbox.</li>
+<li><a href="https://gvisor.dev/docs/architecture_guide/performance/">gVisor: Performance Guide</a> - structural и implementation costs.</li>
+<li><a href="https://github.com/firecracker-microvm/firecracker/blob/main/docs/design.md">Firecracker Design</a> - VMM architecture, device model и threat containment.</li>
+<li><a href="https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/snapshot-support.md">Firecracker Snapshotting</a> - memory/state files, external resources и security responsibilities.</li>
+<li><a href="https://github.com/firecracker-microvm/firecracker/blob/main/docs/snapshotting/versioning.md">Firecracker Snapshot Versioning</a> - CPU, host kernel и device compatibility.</li>
+<li><a href="https://katacontainers.io/software/">Kata Containers Architecture</a> - OCI/CRI runtime поверх lightweight VMs.</li>
+<li><a href="https://kubernetes.io/docs/concepts/containers/runtime-class/">Kubernetes RuntimeClass</a> - runtime handlers, scheduling и Pod overhead.</li>
+<li><a href="https://kubernetes.io/docs/concepts/security/linux-kernel-security-constraints/">Kubernetes: Linux kernel security constraints</a> - seccomp, AppArmor, SELinux и privileged containers.</li>
+<li><a href="https://github.com/google/ax/blob/main/docs/concepts.md">AX Core concepts</a> - Task как smallest unit of isolated execution.</li>
+<li><a href="https://github.com/agent-substrate/substrate">Agent Substrate</a> - gVisor/microVM backends, Actor/Worker и suspend/resume.</li>
+</ul></div></section><section class="chapter" id="ch-9"><div class="chapter-num">Глава 9</div><h1>Kubernetes: необходимый минимум для понимания AX/Substrate</h1><figure><figcaption>Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate</figcaption><svg class="diagram" viewBox="0 0 900 280" role="img" aria-label="Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="145" y1="132.5" x2="190" y2="132.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="167.5" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">write</text><line x1="250.0" y1="165" x2="420.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="335.0" y="86.5" text-anchor="middle" font-size="10" fill="#5c6875">persist</text><line x1="420.0" y1="85" x2="420.0" y2="180" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">watch</text><line x1="420.0" y1="245" x2="250.0" y2="100" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="335.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">update</text><line x1="310" y1="132.5" x2="550" y2="132.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="430.0" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">objects</text><line x1="680" y1="132.5" x2="740" y2="132.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="710.0" y="126.5" text-anchor="middle" font-size="10" fill="#5c6875">desired workload</text><rect x="25" y="100" rx="12" ry="12" width="120" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="85.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Desired state</text><text x="85.0" y="145" text-anchor="middle" font-size="11" fill="#465569">YAML/API</text><rect x="190" y="100" rx="12" ry="12" width="120" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="250.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">API server</text><text x="250.0" y="145" text-anchor="middle" font-size="11" fill="#465569">validate/store</text><rect x="360" y="20" rx="12" ry="12" width="120" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="420.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">etcd</text><text x="420.0" y="65" text-anchor="middle" font-size="11" fill="#465569">cluster state</text><rect x="360" y="180" rx="12" ry="12" width="120" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="420.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Controller</text><text x="420.0" y="225" text-anchor="middle" font-size="11" fill="#465569">observe/diff</text><rect x="550" y="100" rx="12" ry="12" width="130" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="615.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actual state</text><text x="615.0" y="145" text-anchor="middle" font-size="11" fill="#465569">Pods/services</text><rect x="740" y="100" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="805.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">kubelet/runtime</text><text x="805.0" y="145" text-anchor="middle" font-size="11" fill="#465569">execute</text></svg></figure><p>Kubernetes здесь нужен не как отдельный предмет, а как substrate инфраструктуры. Достаточно уверенно понимать несколько mental models.</p>
 <p><strong>Pod</strong> - минимальная deployable unit Kubernetes, а не VM. <strong>Deployment</strong> поддерживает desired number stateless Pods. <strong>DaemonSet</strong> гарантирует Pod на подходящих nodes и поэтому естественен для node-level supervisor. <strong>Service</strong> даёт стабильную сетевую точку над changing Pods. <strong>Namespace</strong> разделяет имена и policy scope. <strong>Secret/ConfigMap</strong> поставляют configuration, хотя Secret сам по себе не является HSM. <strong>RBAC</strong> определяет права на Kubernetes API. <strong>NetworkPolicy</strong> ограничивает сетевые потоки при поддержке CNI.</p>
 <h3>Control plane</h3>
 <p><code>kube-apiserver</code> принимает API operations. <code>etcd</code> хранит cluster state. <code>kube-scheduler</code> назначает unscheduled Pods nodes. Controllers постоянно сравнивают desired и actual state. На node <code>kubelet</code> обеспечивает запуск Pod через container runtime.</p>
