@@ -893,27 +893,706 @@ ModelError
 <li><a href="https://arxiv.org/abs/2211.09110">Holistic Evaluation of Language Models</a></li>
 <li><a href="https://arxiv.org/abs/2501.10868">Generating Structured Outputs from Language Models</a></li>
 <li><a href="https://github.com/google/ax/blob/e70162a/docs/concepts.md">AX Core concepts, baseline e70162a</a></li>
-</ul></div></section><section class="chapter" id="ch-3"><div class="chapter-num">Глава 3</div><h1>Что такое агент: цикл, границы и критерии остановки</h1><figure><figcaption>Agent harness: минимальная операционная анатомия</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent harness: минимальная операционная анатомия"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent loop</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">decide next step</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p>Агент полезно определять как процесс, который многократно выбирает следующий шаг на основе цели и наблюдаемого состояния среды. Минимальный цикл выглядит так: <code>observe → assemble context → decide → act → observe</code>. Если действие само создаёт новую задачу, цикл превращается в дерево или граф.</p>
-<h3>Agent loop</h3>
+</ul></div></section><section class="chapter" id="ch-3"><div class="chapter-num">Глава 3</div><h1>Что такое агент: цикл, границы и критерии остановки</h1><figure><figcaption>Agent loop: цель, контекст, решение, действие и обратная связь</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent loop: цель, контекст, решение, действие и обратная связь"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent loop</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">decide next step</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p>Представим задачу: проверить, почему после изменения DNS часть клиентов не может подключиться к сервису. Обычный workflow можно заранее расписать: получить записи, проверить propagation, выполнить TLS probe, сравнить конфигурацию, сформировать отчёт. Но реальный инцидент быстро выходит за рамки одного сценария. В одном случае обнаружится stale resolver cache, в другом - неправильный CNAME, в третьем - доступ к нужной зоне отсутствует и потребуется запросить помощь.</p>
+<p>Агент нужен не потому, что задача содержит текст или LLM. Он нужен тогда, когда следующий полезный шаг нельзя полностью выбрать заранее и его приходится определять по наблюдаемому состоянию среды.</p>
+<p>Минимальное инженерное определение можно сформулировать так:</p>
+<p><strong>Агент - это ограниченный процесс, который получает цель, наблюдает состояние, выбирает допустимое действие, фиксирует результат и повторяет цикл до проверяемого завершения, паузы или контролируемого отказа.</strong></p>
+<p>В этом определении важны все слова. Без цели получается бесконечный исследователь. Без наблюдений - генератор предположений. Без ограничений - источник неконтролируемых side effects. Без сохранённого состояния - чат, который забывает progression. Без критериев остановки - цикл, способный расходовать ресурсы неограниченно.</p>
+<h3>Не всё, что вызывает LLM, является агентом</h3>
+<p>Термин «агент» часто применяют слишком широко. Для выбора архитектуры полезно различать несколько классов систем.</p>
+<table>
+<thead>
+<tr>
+<th>Система</th>
+<th>Кто выбирает следующий шаг</th>
+<th>Есть ли цикл</th>
+<th>Когда использовать</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Один model call</td>
+<td>Приложение</td>
+<td>Нет</td>
+<td>Классификация, извлечение, генерация ограниченного результата</td>
+</tr>
+<tr>
+<td>Prompt chain</td>
+<td>Заранее написанный код</td>
+<td>Фиксированная последовательность</td>
+<td>Известные стадии с проверками между ними</td>
+</tr>
+<tr>
+<td>Workflow</td>
+<td>State machine или workflow engine</td>
+<td>Возможны повторы и ожидания по заданным правилам</td>
+<td>Предсказуемый процесс, durable retries, human tasks</td>
+</tr>
+<tr>
+<td>Router</td>
+<td>Правило, classifier или LLM</td>
+<td>Обычно нет собственного длинного цикла</td>
+<td>Выбор специализированного пути</td>
+</tr>
+<tr>
+<td>Agent</td>
+<td>Модель в заданных границах</td>
+<td>Да, следующий шаг зависит от observations</td>
+<td>Неопределённая последовательность исследований или действий</td>
+</tr>
+<tr>
+<td>Multi-agent system</td>
+<td>Несколько ограниченных loops и coordinator</td>
+<td>Граф или дерево</td>
+<td>Независимые contexts, authorities или параллельная работа</td>
+</tr>
+</tbody>
+</table>
+<p>Граница не всегда бинарна. Production-система часто сочетает deterministic workflow и agentic nodes. Например, state machine жёстко задаёт этапы <code>collect - diagnose - propose - approve - execute - verify</code>, а LLM внутри этапа diagnose выбирает, какие read-only проверки выполнить.</p>
+<p>Такой гибрид обычно надёжнее идеи «пусть модель сама решит всё». Свобода остаётся там, где полезна адаптивность, а переходы с высоким риском контролирует обычный код.</p>
+<h3>У автономности есть несколько независимых измерений</h3>
+<p>Слово «автономный» ничего не говорит без уточнения. Агент может иметь высокую свободу планирования, но не иметь права на внешние изменения. Или работать часами, но каждый write требовать подтверждения.</p>
+<p>Полезно оценивать автономность по отдельным осям:</p>
+<ul>
+<li><strong>decision autonomy</strong> - насколько свободно выбирается следующий шаг;</li>
+<li><strong>action authority</strong> - какие side effects разрешены;</li>
+<li><strong>time horizon</strong> - сколько времени процесс может работать без участия человека;</li>
+<li><strong>resource budget</strong> - сколько steps, tokens, денег и compute доступно;</li>
+<li><strong>delegation depth</strong> - может ли агент создавать дочерние работы;</li>
+<li><strong>environment scope</strong> - какие данные, tools и systems видимы;</li>
+<li><strong>reversibility</strong> - насколько легко отменить последствия;</li>
+<li><strong>human checkpoints</strong> - где требуется approval или уточнение.</li>
+</ul>
+<p>Агент для исследования документации может иметь широкую decision autonomy и почти нулевой blast radius. Агент с одним разрешённым API-вызовом в production может иметь узкую логику, но высокий риск. Поэтому security review должен начинаться не с вопроса «насколько умна модель», а с authority, scope и reversibility.</p>
+<h3>Минимальный agent loop</h3>
+<p>Поведение агента удобно представить как цикл observe - decide - act - verify. В production между этими словами появляются дополнительные gates.</p>
 <ol>
-<li>Получить входное событие/goal.</li>
-<li>Загрузить релевантное состояние и policy.</li>
-<li>Сформировать context.</li>
-<li>Запросить LLM или deterministic router.</li>
-<li>Разобрать результат.</li>
-<li>Проверить budget/policy/approval.</li>
-<li>Выполнить tool/action.</li>
-<li>Зафиксировать observation и side effects.</li>
-<li>Проверить stop condition.</li>
-<li>Повторить или завершить.</li>
+<li>Принять objective, scope и initial state.</li>
+<li>Загрузить policy, budgets и durable progression.</li>
+<li>Получить observations, необходимые для текущего шага.</li>
+<li>Собрать context из state и trusted/untrusted evidence.</li>
+<li>Попросить модель предложить следующий шаг или итог.</li>
+<li>Разобрать structured decision.</li>
+<li>Проверить schema, domain rules, policy и approval requirement.</li>
+<li>Выполнить действие с operation ID и timeout.</li>
+<li>Сохранить observation, provenance и возможный side effect.</li>
+<li>Проверить postcondition и progress.</li>
+<li>Перейти к следующему состоянию, приостановиться или завершиться.</li>
 </ol>
-<p>Ошибки чаще всего возникают в пунктах 6-9. Без жёстких stop conditions агент может бесконечно повторять ошибочную операцию. Без idempotency повторный tool call после network timeout способен выполнить действие дважды. Без budget controller безобидная логическая петля превращается в расход GPU/API quota.</p>
-<h3>Паттерны</h3>
-<p><strong>ReAct</strong> чередует reasoning и действия и хорош там, где следующий шаг зависит от результата предыдущего. <strong>Planner/executor</strong> отделяет построение плана от выполнения, что удобно для контроля и перепланирования. <strong>Router</strong> выбирает специализированный путь. <strong>Supervisor/worker</strong> позволяет одному компоненту держать общую цель, а отдельным агентам - ограниченный контекст и полномочия. <strong>Fan-out/fan-in</strong> эффективен для независимых параллельных проверок. <strong>Evaluator/critic</strong> полезен, когда результат можно формально или полуформально оценить; бесконечная «самокритика» без критерия сходимости - антипаттерн.</p>
-<p><strong>State machine + LLM</strong> обычно надёжнее «полностью автономного» агента в production: deterministic state machine определяет разрешённые переходы, а LLM помогает внутри ограниченного состояния. Это особенно подходит инфраструктурным операциям, где последовательность <code>collect → diagnose → propose → approve → execute → verify</code> важнее свободы агента.</p>
-<h3>Делегирование не равно масштабирование</h3>
-<p>Разделять задачу на множество agents стоит только при реальной независимости контекста, tools или ответственности. Если пять агентов вынуждены постоянно обмениваться всей историей, вы получили более дорогую и менее наблюдаемую версию одного агента. AX делает Task дешёвой единицей изоляции, но не отменяет необходимость разумной декомпозиции.</p>
-</section><section class="chapter" id="ch-4"><div class="chapter-num">Глава 4</div><h1>Agent harness: система вокруг LLM</h1><figure><figcaption>Agent harness: минимальная операционная анатомия</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent harness: минимальная операционная анатомия"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent loop</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">decide next step</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p><code>Harness</code> - удобный термин для слоя, который превращает модель в управляемый исполняемый процесс. В разных frameworks границы отличаются, но эксплуатационно полезно выделять одинаковые обязанности.</p>
+<p>Упрощённый skeleton выглядит так:</p>
+<pre><code class="language-text">while true:
+    state = load_durable_state(task_id)
+
+    terminal = evaluate_terminal_conditions(state)
+    if terminal:
+        return finalize(terminal, state)
+
+    context = assemble_context(state)
+    proposal = model.decide(context)
+
+    decision = validate_proposal(proposal, state.policy)
+
+    if decision.requires_approval:
+        checkpoint(state, waiting_for_approval(decision))
+        return PAUSED
+
+    operation = execute_idempotently(decision, state.operation_ledger)
+    observation = verify_operation(operation)
+
+    state = apply_observation(state, observation)
+    checkpoint(state)
+</code></pre>
+<p>Это не готовая реализация. Важна форма: модель не исполняет действие напрямую, terminal conditions проверяются вне модели, а state сохраняется до следующего шага.</p>
+<h3>Observation, state и plan - разные сущности</h3>
+<p>Эти три понятия часто смешивают, из-за чего агент становится трудно восстанавливать и диагностировать.</p>
+<p><strong>Observation</strong> - результат конкретного чтения или действия. Например: «resolver 10.0.0.5 вернул старый IP в 12:04 UTC». Observation содержит источник, время, request ID и raw artifact.</p>
+<p><strong>State</strong> - компактное представление progression. Например: текущая стадия diagnosis, подтверждённые факты, отклонённые гипотезы, оставшийся budget, ожидаемый approval и ledger операций.</p>
+<p><strong>Plan</strong> - текущая гипотеза о будущих шагах. Он может измениться после нового observation и не является authoritative truth.</p>
+<p>Если plan хранится как state без различия статусов, восстановившийся агент способен принять старое намерение за уже выполненное действие. Если observations хранятся только внутри model context, они исчезнут после compaction. Если state состоит из свободного текста, программе трудно проверить invariant.</p>
+<p>Практичная модель данных разделяет как минимум:</p>
+<table>
+<thead>
+<tr>
+<th>Поле</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>objective</td>
+<td>восстановить доступность клиентов, не меняя authoritative DNS без approval</td>
+</tr>
+<tr>
+<td>phase</td>
+<td>diagnosing</td>
+</tr>
+<tr>
+<td>verified facts</td>
+<td>origin healthy; resolver A stale; resolver B current</td>
+</tr>
+<tr>
+<td>hypotheses</td>
+<td>cache propagation delay; split-horizon mismatch</td>
+</tr>
+<tr>
+<td>open questions</td>
+<td>какой TTL был до изменения</td>
+</tr>
+<tr>
+<td>operations</td>
+<td>read-17 completed; change-3 proposed, not approved</td>
+</tr>
+<tr>
+<td>budgets</td>
+<td>8 из 20 steps, 4 минуты из 15</td>
+</tr>
+<tr>
+<td>waiting for</td>
+<td>none</td>
+</tr>
+<tr>
+<td>expected outcome</td>
+<td>два независимых probes возвращают новый IP и успешный TLS</td>
+</tr>
+</tbody>
+</table>
+<p>Модель получает проекцию этого state, но не должна быть единственным компонентом, который умеет его интерпретировать.</p>
+<h3>Детерминированная оболочка вокруг вероятностного решения</h3>
+<p>LLM полезна для классификации неоднозначных данных, построения гипотез и выбора исследования. Но многие решения должны оставаться обычным кодом.</p>
+<table>
+<thead>
+<tr>
+<th>Решение</th>
+<th>Предпочтительный владелец</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Достигнут ли timeout</td>
+<td>Runtime или harness</td>
+</tr>
+<tr>
+<td>Остался ли budget</td>
+<td>Budget controller</td>
+</tr>
+<tr>
+<td>Существует ли tool</td>
+<td>Tool registry</td>
+</tr>
+<tr>
+<td>Допустимы ли аргументы</td>
+<td>Schema и domain validator</td>
+</tr>
+<tr>
+<td>Имеет ли identity право на действие</td>
+<td>Authorization service</td>
+</tr>
+<tr>
+<td>Нужен ли approval</td>
+<td>Policy engine</td>
+</tr>
+<tr>
+<td>Выполнялась ли операция раньше</td>
+<td>Operation ledger</td>
+</tr>
+<tr>
+<td>Достигнут ли измеримый postcondition</td>
+<td>Deterministic verifier</td>
+</tr>
+<tr>
+<td>Какую гипотезу проверить следующей</td>
+<td>LLM в разрешённых границах</td>
+</tr>
+<tr>
+<td>Как объяснить вывод человеку</td>
+<td>LLM на основе проверенных facts</td>
+</tr>
+</tbody>
+</table>
+<p>Это разделение называется не недоверием к модели, а корректным распределением обязанностей. Даже очень сильная модель не должна вычислять, истёк ли wall-clock deadline, если это может сделать таймер. И не должна подтверждать успешность собственного изменения без независимого чтения.</p>
+<h3>Agent execution лучше моделировать как state machine</h3>
+<p>Цикл <code>while true</code> скрывает важные operational states. Явная state machine делает паузы, восстановление и терминальные исходы видимыми.</p>
+<table>
+<thead>
+<tr>
+<th>Состояние</th>
+<th>Значение</th>
+<th>Допустимый следующий переход</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Created</td>
+<td>objective принят, выполнение ещё не началось</td>
+<td>Running, Cancelled</td>
+</tr>
+<tr>
+<td>Running</td>
+<td>агент выбирает или выполняет безопасный шаг</td>
+<td>WaitingForTool, WaitingForApproval, Verifying, Failed</td>
+</tr>
+<tr>
+<td>WaitingForTool</td>
+<td>внешний read/operation ещё не завершён</td>
+<td>Running, Verifying, Failed, Cancelled</td>
+</tr>
+<tr>
+<td>WaitingForApproval</td>
+<td>требуется решение человека или policy owner</td>
+<td>Running, Cancelled, Failed</td>
+</tr>
+<tr>
+<td>Verifying</td>
+<td>проверяется итог или postcondition</td>
+<td>Succeeded, Running, Failed</td>
+</tr>
+<tr>
+<td>Succeeded</td>
+<td>доказан expected outcome</td>
+<td>терминальное</td>
+</tr>
+<tr>
+<td>Failed</td>
+<td>продолжение невозможно или исчерпан допустимый budget</td>
+<td>терминальное либо явный operator retry</td>
+</tr>
+<tr>
+<td>Cancelled</td>
+<td>выполнение остановлено владельцем или системой</td>
+<td>терминальное</td>
+</tr>
+</tbody>
+</table>
+<p>Waiting не равно failure. Task, который ожидает approval два часа, не должен занимать активный worker и не должен каждые десять секунд повторно спрашивать модель. Он сохраняет checkpoint и возобновляется по событию.</p>
+<p>Failed также не означает «модель однажды ошиблась». Локальная ошибка может привести к repair или альтернативному пути. Terminal failure наступает, когда классифицированная ошибка неисправима в текущем scope, исчерпан budget либо нарушен invariant.</p>
+<h3>Критерий успеха должен существовать до запуска</h3>
+<p>Фраза «сделай так, чтобы всё работало» не задаёт проверяемого результата. Если success condition не определён, агенту остаётся доверять собственному ощущению завершённости.</p>
+<p>Хороший expected outcome отвечает на вопросы:</p>
+<ul>
+<li>что именно должно стать истинным;</li>
+<li>каким инструментом это измеряется;</li>
+<li>сколько независимых подтверждений требуется;</li>
+<li>какое состояние не должно измениться;</li>
+<li>в течение какого окна результат считается стабильным;</li>
+<li>какой artifact нужно сохранить.</li>
+</ul>
+<p>Для задачи с DNS критерий может выглядеть так:</p>
+<ul>
+<li>authoritative zone содержит ожидаемую запись и serial;</li>
+<li>два независимых resolver возвращают новый адрес после TTL window;</li>
+<li>TLS probe на hostname успешен;</li>
+<li>origin health не ухудшился;</li>
+<li>итоговый отчёт содержит timestamps и raw probe IDs.</li>
+</ul>
+<p>Ответ модели «готово» не входит в этот список.</p>
+<p>Success condition полезно отделять от completion report. Сначала код проверяет outcome, затем модель объясняет человеку, что произошло. Если объяснение не сгенерировалось, технический результат может оставаться успешным, а report generation - отдельной repairable задачей.</p>
+<h3>Остановка бывает успешной, ожидающей и аварийной</h3>
+<p>У agent loop должно быть несколько явных путей выхода.</p>
+<p><strong>Success</strong> - postcondition подтверждён.</p>
+<p><strong>Needs input</strong> - отсутствует факт, который может предоставить пользователь или другая система. Это pause, а не догадка.</p>
+<p><strong>Needs approval</strong> - следующий допустимый шаг имеет side effect выше текущего authority.</p>
+<p><strong>Blocked</strong> - требуемый ресурс недоступен, а альтернативный путь отсутствует.</p>
+<p><strong>Budget exhausted</strong> - достигнут лимит steps, времени, tokens, tool calls, денег или delegation depth.</p>
+<p><strong>No progress</strong> - новые iterations не меняют state и не добавляют evidence.</p>
+<p><strong>Cancelled</strong> - владелец задачи или control plane запросил остановку.</p>
+<p><strong>Safety stop</strong> - policy или invariant запрещает продолжение.</p>
+<p>Для каждого исхода задают machine-readable reason и human-readable summary. Иначе operator увидит общий статус Failed и снова запустит тот же процесс, не понимая, что агент на самом деле ждал недостающий credential или упёрся в policy.</p>
+<h3>Budget - не одна цифра</h3>
+<p>Ограничение только по maximum steps недостаточно. Один step может быть дешёвым read-only запросом, а другой - часовым job или вызовом дорогой модели.</p>
+<p>Budget обычно включает:</p>
+<ul>
+<li>wall-clock deadline;</li>
+<li>maximum active execution time;</li>
+<li>maximum model requests;</li>
+<li>input и output tokens;</li>
+<li>monetary cost;</li>
+<li>tool calls по классам;</li>
+<li>число write proposals;</li>
+<li>retries каждого operation;</li>
+<li>объём созданных artifacts;</li>
+<li>число и depth дочерних задач.</li>
+</ul>
+<p>Budgets должны уменьшаться монотонно и храниться в durable state. Restart процесса не должен обнулять счётчики. Child task получает долю оставшегося parent budget, а не новый безграничный лимит.</p>
+<p>При исчерпании budget агент не обязан просто оборваться. Он может сохранить partial result, перечислить подтверждённые facts, незакрытые вопросы и безопасный следующий шаг. Это превращает контролируемую остановку в полезный outcome.</p>
+<h3>Как обнаруживать отсутствие прогресса</h3>
+<p>Max iterations гарантирует конечность, но не замечает бессмысленную работу заранее. Полезен отдельный no-progress detector.</p>
+<p>Он может отслеживать:</p>
+<ul>
+<li>повтор одного tool с теми же нормализованными аргументами;</li>
+<li>одинаковые ошибки без изменения recovery strategy;</li>
+<li>отсутствие новых verified facts;</li>
+<li>неизменный fingerprint state несколько шагов подряд;</li>
+<li>plan, который циклически возвращается к предыдущей стадии;</li>
+<li>evaluator score, который не улучшается;</li>
+<li>последовательность «прочитать - предложить - отклонить» для одного объекта;</li>
+<li>постоянное создание новых subtasks без закрытия старых.</li>
+</ul>
+<p>Fingerprint не должен включать шум вроде timestamps или request IDs, иначе каждый iteration будет казаться новым. Полезнее хешировать semantic state: phase, open questions, verified facts, pending operations и нормализованный proposed action.</p>
+<p>Реакция также должна быть поэтапной. Сначала агент получает structured feedback о повторе. Затем пробует ограниченную альтернативу. После заданного patience window останавливается с reason <code>NO_PROGRESS</code>. Бесконечная просьба к той же модели «подумай ещё» не является recovery strategy.</p>
+<p>Недавние исследования infinite agentic loops подтверждают, что циклы могут проходить через model calls, tools, workflow transitions и handoffs. Поэтому bound должен существовать на каждом feedback path, а не только в основном <code>for</code>-цикле.</p>
+<h3>Retry не равен новому рассуждению</h3>
+<p>Повтор допустим, когда ошибка временная и операция безопасно повторяема. Например, model endpoint вернул overload до начала generation или read-only API завершился connection reset.</p>
+<p>Если timeout произошёл во время write, неизвестно, выполнила ли внешняя система действие. Повтор без проверки способен создать дубль. Нужны:</p>
+<ol>
+<li>стабильный operation ID или idempotency key;</li>
+<li>запись intent до вызова;</li>
+<li>сохранение provider request ID;</li>
+<li>запрос статуса существующей операции;</li>
+<li>независимая проверка external state;</li>
+<li>только затем решение о retry или compensation.</li>
+</ol>
+<p>Идемпотентность не означает, что запрос «обычно безопасен». Она означает, что повтор с тем же identity и payload не создаёт дополнительного эффекта.</p>
+<p>Модель не должна сама решать, можно ли повторить write, по тексту ошибки. Класс операции и retry semantics задаёт tool contract.</p>
+<h3>Human-in-the-loop - полноценное состояние, а не модальное окно</h3>
+<p>Approval особенно часто реализуют как временный prompt: процесс ждёт ответ в памяти и теряет его при restart. Production-система должна рассматривать human interaction как durable interrupt.</p>
+<p>Перед паузой сохраняются:</p>
+<ul>
+<li>proposed action и нормализованные arguments;</li>
+<li>причина и evidence;</li>
+<li>ожидаемый side effect;</li>
+<li>diff или preview;</li>
+<li>identity запрашивающего;</li>
+<li>срок действия предложения;</li>
+<li>state version;</li>
+<li>operation ID, если он уже выделен.</li>
+</ul>
+<p>После resume необходимо проверить, что approval относится к той же версии state. За время ожидания конфигурация могла измениться, credential - истечь, а incident - завершиться. Старое подтверждение не должно автоматически разрешать новый payload.</p>
+<p>Human-in-the-loop включает не только yes/no. Агент может запросить недостающий scope, предложить несколько вариантов, получить изменённые параметры или передать задачу operator. Эти ответы являются events, которые изменяют durable state.</p>
+<h3>Plan не должен становиться скрытым API</h3>
+<p>Модели удобно предложить план, но текстовый plan нельзя использовать как единственный control structure. У фразы «проверить DNS, затем исправить запись» нет schema, статусов и retry semantics.</p>
+<p>Для исполнения полезнее разложить намерение на structured steps:</p>
+<pre><code class="language-yaml">plan_version: 4
+steps:
+  - id: read-authoritative
+    kind: tool
+    status: completed
+    result_ref: observation-81
+  - id: compare-resolvers
+    kind: fanout-read
+    status: running
+    required_successes: 2
+  - id: propose-change
+    kind: decision
+    status: pending
+    requires: [read-authoritative, compare-resolvers]
+    approval_policy: dns-write
+</code></pre>
+<p>LLM может предложить или обновить такой plan. Harness проверяет зависимости, разрешённые step kinds и invariants. Фактическое состояние каждого step изменяет executor, а не модель.</p>
+<p>При небольшом числе состояний отдельный planner вообще не нужен. Модель может выбирать одно следующее действие, а deterministic state machine - сохранять progression. Planner/executor оправдан, когда предварительный план помогает распределять работу, оценивать зависимости или запрашивать approval на весь change set.</p>
+<h3>Основные patterns и критерии выбора</h3>
+<p>Patterns - это способы распределить decision-making, а не названия продуктов.</p>
+<p><strong>ReAct</strong> чередует reasoning и action. Он полезен, когда каждый следующий шаг зависит от свежего observation: search, диагностика, exploration. В production reasoning result лучше выражать как краткое decision summary и structured action, а не считать скрытую цепочку рассуждений audit log.</p>
+<p><strong>Prompt chaining</strong> передаёт результат через фиксированную последовательность stages. Это workflow, а не автономный agent, и именно поэтому он часто лучше для предсказуемой задачи.</p>
+<p><strong>Routing</strong> выбирает один специализированный путь. Он снижает context и позволяет использовать разные models/tools, но требует обработки ошибочной классификации.</p>
+<p><strong>Planner/executor</strong> отделяет построение плана от исполнения. Полезен для задач с зависимостями, но план должен перепроверяться после каждого значимого observation.</p>
+<p><strong>Evaluator/optimizer</strong> повторяет генерацию и проверку. Он оправдан только при измеримом criterion и bounded iterations. «Модель-критик считает ответ лучше» без калиброванного evaluator легко создаёт дорогую петлю.</p>
+<p><strong>Fan-out/fan-in</strong> параллельно выполняет независимые проверки и объединяет structured results. Он ускоряет работу, если ветви действительно независимы и budget делится заранее.</p>
+<p><strong>Supervisor/worker</strong> делегирует ограниченные subtasks. Он нужен при разных tools, authority или context. Подробная multi-agent архитектура рассматривается отдельно.</p>
+<table>
+<thead>
+<tr>
+<th>Требование</th>
+<th>Первый кандидат</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Известные стадии и переходы</td>
+<td>Workflow/state machine</td>
+</tr>
+<tr>
+<td>Следующий шаг зависит от нового observation</td>
+<td>ReAct-подобный loop</td>
+</tr>
+<tr>
+<td>Есть несколько устойчивых классов входа</td>
+<td>Router</td>
+</tr>
+<tr>
+<td>Нужен change plan с зависимостями</td>
+<td>Planner/executor</td>
+</tr>
+<tr>
+<td>Результат можно автоматически оценить и улучшить</td>
+<td>Bounded evaluator loop</td>
+</tr>
+<tr>
+<td>Независимые проверки можно выполнять параллельно</td>
+<td>Fan-out/fan-in</td>
+</tr>
+<tr>
+<td>Различаются authority, workspace или expertise</td>
+<td>Supervisor/worker</td>
+</tr>
+</tbody>
+</table>
+<p>Нельзя выбирать pattern только потому, что framework предоставляет красивую диаграмму. Каждый дополнительный loop или role должен улучшать измеримый результат сильнее, чем повышает latency, стоимость и число failure modes.</p>
+<h3>Когда workflow лучше агента</h3>
+<p>Workflow предпочтительнее, если:</p>
+<ul>
+<li>процесс известен заранее;</li>
+<li>каждый transition можно выразить правилами;</li>
+<li>важны predictability и auditability;</li>
+<li>ошибки имеют известные recovery paths;</li>
+<li>variation входных данных невелика;</li>
+<li>side effects критичны;</li>
+<li>регулятор или оператор должен заранее понимать все пути.</li>
+</ul>
+<p>Agent оправдан, если:</p>
+<ul>
+<li>число возможных путей велико;</li>
+<li>нужны исследования и адаптация по observations;</li>
+<li>вход содержит неоднородный неструктурированный материал;</li>
+<li>невозможно заранее перечислить все полезные read-only шаги;</li>
+<li>ценность гибкости выше дополнительной стоимости и риска.</li>
+</ul>
+<p>Часто лучший ответ - workflow с agentic island. Например, workflow управляет approval и deployment, а агент исследует логи и формирует change proposal. Такой дизайн локализует неопределённость.</p>
+<h3>Safety и liveness - две разные задачи</h3>
+<p><strong>Safety</strong> означает: плохое событие не произойдёт. Агент не выйдет за scope, не выполнит write без approval, не превысит authority, не повторит необратимое действие.</p>
+<p><strong>Liveness</strong> означает: полезное событие когда-нибудь произойдёт. Задача не останется навсегда WaitingForTool, approval event не потеряется, retry закончится, а cancel действительно остановит descendants.</p>
+<p>Можно построить очень безопасную систему, которая никогда ничего не завершает. Можно построить активную систему, которая быстро выполняет неправильные изменения. Production contract обязан включать оба набора invariants.</p>
+<p>Примеры safety invariants:</p>
+<ul>
+<li>write tool недоступен до approved state;</li>
+<li>child authority не шире parent;</li>
+<li>каждый external write имеет operation ID;</li>
+<li>terminal Task не запускает новые actions.</li>
+</ul>
+<p>Примеры liveness invariants:</p>
+<ul>
+<li>каждый non-terminal state имеет timeout или входящее событие;</li>
+<li>каждый retry bounded;</li>
+<li>orphan operation периодически reconciled;</li>
+<li>cancel распространяется на активные children;</li>
+<li>WaitingForApproval имеет owner и expiry policy.</li>
+</ul>
+<h3>Observability должна показывать переходы, а не только текст</h3>
+<p>Лог полного conversation history полезен, но недостаточен. Для диагностики нужно восстановить причинную цепочку:</p>
+<p><code>task - state version - model request - proposal - policy decision - tool operation - observation - transition</code>.</p>
+<p>На каждом step полезно фиксировать:</p>
+<ul>
+<li>step ID и parent step;</li>
+<li>state before/after;</li>
+<li>model/provider request ID;</li>
+<li>выбранный action type;</li>
+<li>tool и нормализованные arguments;</li>
+<li>policy/approval decision;</li>
+<li>operation ID;</li>
+<li>latency и resource usage;</li>
+<li>observation/artifact refs;</li>
+<li>termination check result.</li>
+</ul>
+<p>Необязательно сохранять скрытое внутреннее reasoning модели. Для audit важнее входные evidence, явное decision summary, фактическое действие и проверенный результат. Это уменьшает риск перепутать правдоподобное объяснение с реальной причиной перехода.</p>
+<h2>Как тестировать agent loop</h2>
+<p>Agent loop нельзя проверять только набором удачных диалогов. Такой тест показывает, что один знакомый сценарий однажды сработал, но ничего не говорит о повторяемости, остановке, восстановлении и безопасности. Единица проверки здесь - не красивый ответ модели, а переход системы из одного состояния в другое.</p>
+<p>Полезно разделить тестирование на четыре уровня.</p>
+<h3>1. Детерминированные unit-тесты оболочки</h3>
+<p>Policy, budget accounting, state transitions, idempotency и обработка tool results должны тестироваться без модели. Для каждого перехода задаются входное состояние, событие и ожидаемое новое состояние.</p>
+<p>Примеры:</p>
+<ul>
+<li><code>Running + proposal(write) + no approval -&gt; WaitingForApproval</code>;</li>
+<li><code>WaitingForTool + timeout + retries_left -&gt; Running</code>;</li>
+<li><code>WaitingForTool + timeout + no retries -&gt; Failed</code>;</li>
+<li><code>Verifying + success evidence -&gt; Succeeded</code>;</li>
+<li><code>Running + repeated fingerprint -&gt; Blocked</code>;</li>
+<li><code>any non-terminal state + cancel -&gt; Cancelled</code>.</li>
+</ul>
+<p>Эти тесты должны также проверять invariants: terminal state не порождает новые actions, declined approval не превращается в write, один operation ID не приводит к двум side effects.</p>
+<h3>2. Симулированная среда</h3>
+<p>Реальные tools дороги, медленны и иногда опасны. Поэтому useful test harness должен уметь возвращать заранее заданные observations: успешный ответ, timeout, malformed payload, stale data, partial success, conflict или permission denied. Важно симулировать не только штатный путь, но и неоднозначность.</p>
+<p>Например, DNS tool может сначала вернуть <code>timeout</code>, затем показать уже обновлённую запись. Правильный agent не должен слепо повторить write: он обязан выполнить read-after-timeout, сопоставить desired state с actual state и только затем решать, нужен ли retry.</p>
+<h3>3. Scenario evals и replay</h3>
+<p>Набор сценариев должен описывать цель, начальное состояние среды, разрешённые действия, ожидаемые evidence и недопустимые side effects. Один и тот же сценарий запускают многократно, потому что решение модели вероятностно.</p>
+<p>Trajectory полезно сохранять как последовательность нормализованных событий, а затем replay-ить без реальных side effects. Replay отвечает на два разных вопроса:</p>
+<ol>
+<li>корректно ли оболочка обработала уже полученные proposals и observations;</li>
+<li>изменилось ли решение модели после смены prompt, model version или tool description.</li>
+</ol>
+<p>Это позволяет отделить регрессию orchestration от регрессии reasoning.</p>
+<h3>4. Recovery и counterfactual tests</h3>
+<p>Хороший агент должен не только идти по счастливому пути, но и корректно менять план после новой информации. Поэтому в тесте намеренно меняют среду:</p>
+<ul>
+<li>log source становится недоступен;</li>
+<li>permission исчезает между plan и execute;</li>
+<li>approval приходит после изменения state version;</li>
+<li>tool возвращает success, но verification не подтверждает результат;</li>
+<li>оператор отменяет Task во время долгой операции;</li>
+<li>один из параллельных workers возвращает противоречащие evidence.</li>
+</ul>
+<p>Counterfactual test задаёт вопрос: «Если бы observation отличалось в одном существенном месте, изменилось бы решение?» Если агент предлагает один и тот же action при <code>certificate expired</code> и при <code>certificate valid</code>, он, вероятно, следует поверхностному шаблону, а не фактам.</p>
+<h3>Метрики production-качества</h3>
+<p>Одна метрика <code>task completed</code> слишком груба. Она не отличает доказанный успех от самоуверенного отчёта. Минимальный набор включает:</p>
+<table>
+<thead>
+<tr>
+<th>Метрика</th>
+<th>Что она показывает</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Verified task success rate</td>
+<td>Доля задач, где критерий успеха подтверждён evidence</td>
+</tr>
+<tr>
+<td>Invalid action rate</td>
+<td>Доля proposals, нарушивших schema, state или policy</td>
+</tr>
+<tr>
+<td>Unsafe proposal / executed action</td>
+<td>Разницу между тем, что model пыталась сделать, и тем, что реально пропустила оболочка</td>
+</tr>
+<tr>
+<td>Steps to verified outcome</td>
+<td>Эффективность траектории, а не длину текста</td>
+</tr>
+<tr>
+<td>No-progress stop rate</td>
+<td>Способность обнаруживать loop до исчерпания бюджета</td>
+</tr>
+<tr>
+<td>Recovery rate</td>
+<td>Долю сценариев, завершённых после tool failure или изменения среды</td>
+</tr>
+<tr>
+<td>Escalation quality</td>
+<td>Достаточно ли оператору контекста, чтобы принять решение</td>
+</tr>
+<tr>
+<td>Cost and latency distribution</td>
+<td>Медиану и хвосты, а не только среднее значение</td>
+</tr>
+</tbody>
+</table>
+<p>Особенно важно раздельно считать unsafe proposals и executed unsafe actions. Нулевая доля фактических нарушений может означать как качественное reasoning, так и сильный policy layer, который постоянно спасает плохо настроенную модель. Это разные инженерные ситуации.</p>
+<h2>Где проходит граница AX</h2>
+<p>В AX <code>Task</code> предоставляет внешний lifecycle работы: создание, запуск, наблюдение, завершение, отмену и связь с execution metadata. <code>Workspace</code> задаёт изолированный контекст файлов и процессов. <code>Model</code> выполняет inference. Но эти абстракции сами по себе не определяют внутреннюю семантику agent loop.</p>
+<p>Runner или agent runtime поверх AX должен определить:</p>
+<ul>
+<li>schema логического state;</li>
+<li>допустимые actions и tools;</li>
+<li>policy и approval rules;</li>
+<li>способ записи observations;</li>
+<li>критерии успеха;</li>
+<li>budgets и stopping conditions;</li>
+<li>checkpoint и recovery semantics;</li>
+<li>формат итогового результата и evidence.</li>
+</ul>
+<p>Это разделение важно по двум причинам.</p>
+<p>Во-первых, инфраструктурный runtime не должен угадывать domain semantics. AX может надёжно доставить событие, сохранить artifact и остановить process, но не знает, означает ли <code>HTTP 200</code> успешное восстановление сервиса или попадание на fallback page.</p>
+<p>Во-вторых, логический checkpoint агента не равен снимку процесса. Возобновить контейнер с того же instruction pointer недостаточно: внешняя среда могла измениться, lease истечь, approval устареть, а tool operation завершиться после потери связи. При resume агент должен загрузить durable state, reconcile незавершённые operations, обновить observations и только затем выбрать новый transition.</p>
+<h3>Два уровня retry</h3>
+<p>В системе обычно существуют как минимум два разных retry:</p>
+<ol>
+<li><strong>Step retry</strong> - повтор конкретной tool operation внутри agent loop.</li>
+<li><strong>Task retry</strong> - повтор всего runner после infrastructure failure.</li>
+</ol>
+<p>Если их не различать, Task retry может заново выполнить side effect, который на самом деле успел завершиться. Поэтому operation ID и idempotency key должны переживать перезапуск Task. После восстановления runner сначала проверяет статус ранее начатой операции и только потом решает, повторять ли её.</p>
+<p>AX отвечает за надёжную execution substrate. Agent runtime отвечает за корректный переход от цели к действию и от observation к следующему решению. Продуктовая система отвечает за domain policy и за то, что считается доказанным результатом. Смешивание этих уровней делает failure analysis почти невозможным.</p>
+<h2>Практикум: агент исследует TLS-инцидент</h2>
+<p>Рассмотрим задачу: «Пользователи получают ошибку TLS при обращении к <code>api.example.com</code>; найди причину и подготовь безопасное исправление».</p>
+<h3>Шаг 1. Зафиксировать контракт</h3>
+<p>До написания prompt опишите:</p>
+<ul>
+<li><strong>goal:</strong> определить подтверждённую причину и восстановить корректный TLS handshake;</li>
+<li><strong>scope:</strong> DNS, load balancer, certificate inventory и логи только для <code>api.example.com</code>;</li>
+<li><strong>success evidence:</strong> handshake проходит из двух независимых probes, certificate chain валидна, hostname совпадает, error rate вернулся ниже порога;</li>
+<li><strong>forbidden:</strong> выпуск нового сертификата, DNS write и production reload без approval;</li>
+<li><strong>budget:</strong> 20 model steps, 10 минут, 30 tool calls, один write proposal;</li>
+<li><strong>terminal result:</strong> <code>Succeeded</code>, <code>WaitingForApproval</code>, <code>Blocked</code>, <code>Failed</code> или <code>Cancelled</code> с evidence.</li>
+</ul>
+<h3>Шаг 2. Определить state</h3>
+<p>Минимальная schema может содержать:</p>
+<pre><code class="language-yaml">incident:
+  host: api.example.com
+  reported_error: tls_handshake_failed
+observations: []
+hypotheses: []
+selected_hypothesis: null
+proposed_change: null
+approval:
+  status: not_requested
+  state_version: 0
+operations: {}
+budgets:
+  steps_left: 20
+  tool_calls_left: 30
+termination:
+  status: running
+  evidence: []
+</code></pre>
+<p>Не храните только <code>certificate is probably expired</code>. Храните observation с источником и временем: какой endpoint проверен, какой serial number получен, какую chain вернул load balancer, на каком hop возникла ошибка.</p>
+<h3>Шаг 3. Ограничить tools</h3>
+<p>Read-only набор может включать:</p>
+<ul>
+<li>DNS lookup;</li>
+<li>TLS probe с выводом chain и SNI;</li>
+<li>чтение certificate inventory;</li>
+<li>чтение конфигурации load balancer;</li>
+<li>агрегированный поиск по логам;</li>
+<li>чтение deploy history.</li>
+</ul>
+<p>Write tools лучше не выдавать сразу. Агент сначала формирует change proposal: точный target, expected effect, rollback, verification и evidence. Отдельный approval transition открывает ровно нужную capability на ограниченное время.</p>
+<h3>Шаг 4. Проверить альтернативные гипотезы</h3>
+<p>Устаревший сертификат - лишь одна причина. Agent должен различить как минимум:</p>
+<ul>
+<li>сертификат действительно истёк;</li>
+<li>load balancer отдаёт старый certificate bundle;</li>
+<li>SNI ведёт на default virtual host;</li>
+<li>DNS указывает на старый endpoint;</li>
+<li>неполная intermediate chain ломает часть клиентов;</li>
+<li>часы probe или сервера некорректны;</li>
+<li>handshake исправен, а исходный alert относится к другому региону.</li>
+</ul>
+<p>Каждая гипотеза должна иметь ожидаемый discriminating observation. Иначе список гипотез превращается в декоративный текст.</p>
+<h3>Шаг 5. Спроектировать transitions</h3>
+<p>Пример полезной траектории:</p>
+<pre><code class="language-text">Created
+  -&gt; Running: собрать DNS и TLS facts
+  -&gt; Running: сопоставить serial с inventory и deploy history
+  -&gt; Running: выбрать подтверждённую гипотезу
+  -&gt; WaitingForApproval: представить ограниченный change plan
+  -&gt; Running: выполнить approved operation с operation ID
+  -&gt; Verifying: независимые probes и error-rate check
+  -&gt; Succeeded: сохранить evidence и summary
+</code></pre>
+<p>Если TLS probe расходится между регионами, агент не должен усреднять ответы. Он создаёт новое observation, сужает scope и либо продолжает диагностику в бюджете, либо завершает <code>Blocked</code> с точным описанием недостающей capability.</p>
+<h3>Workflow или agent?</h3>
+<p>Полностью детерминированный workflow хорошо подходит для известного случая «сертификат истекает через N дней»: проверить inventory, выпустить replacement, развернуть, проверить. Но incident diagnosis содержит развилки, которые зависят от свежих observations.</p>
+<p>Практичный дизайн здесь гибридный:</p>
+<ol>
+<li>workflow создаёт incident Task, задаёт budgets и собирает базовые probes;</li>
+<li>agentic island исследует evidence и строит change proposal;</li>
+<li>workflow проводит approval;</li>
+<li>детерминированный executor выполняет изменение;</li>
+<li>workflow запускает независимую verification;</li>
+<li>agent пишет объяснение только на основании сохранённых evidence.</li>
+</ol>
+<p>Так модель помогает там, где действительно нужна адаптация, а критические side effects остаются в предсказуемом контуре.</p>
+<h2>Итоги главы</h2>
+<ul>
+<li>Agent - это bounded control loop, а не просто model call с tools.</li>
+<li>Goal должен быть преобразован в проверяемый expected outcome до первого действия.</li>
+<li>Observation, state и plan - разные сущности; их смешивание разрушает audit и recovery.</li>
+<li>Каждый transition проходит через policy, budget и termination checks.</li>
+<li>Retry безопасен только вместе с reconciliation и idempotency.</li>
+<li>Human-in-the-loop требует durable pause, versioned approval и повторной проверки state.</li>
+<li>Workflow предпочтителен для известных путей; agent нужен для адаптации по новым observations.</li>
+<li>Safety запрещает плохие события, liveness гарантирует, что полезная работа не зависнет навсегда.</li>
+<li>Agent eval должен измерять проверенный результат, восстановление, остановку и side effects, а не красоту ответа.</li>
+<li>AX даёт execution substrate; смысл loop, tools, policy и success evidence задаёт agent runtime и продуктовая система.</li>
+</ul>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://arxiv.org/abs/2210.03629">ReAct: Synergizing Reasoning and Acting in Language Models</a> - исходная работа о чередовании reasoning traces и действий.</li>
+<li><a href="https://www.anthropic.com/engineering/building-effective-agents">Building Effective AI Agents</a> - практическое различие workflows и agents, composable patterns и stopping conditions.</li>
+<li><a href="https://docs.langchain.com/oss/javascript/langgraph/thinking-in-langgraph">Thinking in LangGraph</a> - проектирование state, nodes, error handling и human-in-the-loop.</li>
+<li><a href="https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html">Idempotent Receiver</a> - классический паттерн защиты от повторной обработки запросов.</li>
+<li><a href="https://docs.temporal.io/tasks">Temporal: Tasks</a> и <a href="https://docs.temporal.io/nexus/standalone-activity">Standalone Activity</a> - durability, retry и idempotency для внешних операций.</li>
+<li><a href="https://arxiv.org/abs/2607.01641">Infinite Agentic Loops in Production</a> - taxonomy и detection бесконечных loop в agentic systems.</li>
+<li><a href="https://github.com/5UN5H1N3/ax-core/blob/e70162a024fc4bb55015341c761fe0b8d7c56ac3/docs/CORE_CONCEPTS.md">AX Core concepts, baseline e70162a</a> - границы базовых примитивов AX.</li>
+</ul></div>
+</section>
+<section class="chapter" id="ch-4"><div class="chapter-num">Глава 4</div><h1>Agent harness: система вокруг LLM</h1><figure><figcaption>Agent harness: минимальная операционная анатомия</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent harness: минимальная операционная анатомия"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent loop</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">decide next step</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p><code>Harness</code> - удобный термин для слоя, который превращает модель в управляемый исполняемый процесс. В разных frameworks границы отличаются, но эксплуатационно полезно выделять одинаковые обязанности.</p>
 <h3>Обязательные функции harness</h3>
 <p><strong>Context assembly</strong> выбирает инструкции, goal, историю, memory и результаты tools. <strong>Model adapter</strong> нормализует различия OpenAI/Anthropic/Gemini/local endpoints. <strong>Tool executor</strong> преобразует tool proposal в настоящий вызов. <strong>State manager</strong> хранит progression. <strong>Policy layer</strong> решает, допустима ли операция. <strong>Budget controller</strong> ограничивает число шагов, tokens, wall time и деньги. <strong>Retry policy</strong> различает временный сбой и логическую ошибку. <strong>Tracing</strong> связывает LLM request, tool call и task/actor identity.</p>
 <p>Хороший harness не должен полагаться на prompt как на единственную защиту. Правило «никогда не выполняй <code>shutdown</code>» внутри system prompt слабее технического deny policy, потому что prompt injection воздействует на тот же канал принятия решения. Правильный подход: model proposes, policy decides, tool enforces.</p>
