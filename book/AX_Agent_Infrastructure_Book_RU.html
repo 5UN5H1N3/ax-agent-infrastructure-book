@@ -6010,16 +6010,323 @@ last_error: null</code></pre>
 <li><a href="https://grpc.io/docs/guides/deadlines/">gRPC Deadlines</a>, <a href="https://grpc.io/docs/guides/cancellation/">Cancellation</a>, <a href="https://grpc.io/docs/guides/retry/">Retry</a> и <a href="https://grpc.io/docs/guides/flow-control/">Flow Control</a> - временной budget, retry policy и backpressure.</li>
 <li><a href="https://github.com/google/ax/blob/main/docs/concepts.md">AX Core Concepts</a> - Task и declarative control-plane model AX.</li>
 <li><a href="https://github.com/agent-substrate/substrate">Agent Substrate</a> - Actor/Worker runtime и current project documentation.</li>
-</ul></div></section><section class="chapter" id="ch-11"><div class="chapter-num">Глава 11</div><h1>Actor model применительно к агентным workload</h1><figure><figcaption>Actor ≠ Worker: logical population can be larger than active capacity</figcaption><svg class="diagram" viewBox="0 0 890 350" role="img" aria-label="Actor ≠ Worker: logical population can be larger than active capacity"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="95.0" y1="75" x2="325.0" y2="100" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="210.0" y="81.5" text-anchor="middle" font-size="10" fill="#5c6875">placement</text><line x1="160" y1="207.5" x2="250" y2="160.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="205.0" y="177.75" text-anchor="middle" font-size="10" fill="#5c6875">placement</text><line x1="325.0" y1="220" x2="565.0" y2="40" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="325.0" y1="220" x2="565.0" y2="180" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="160" y1="127.5" x2="710" y2="150.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="435.0" y="132.75" text-anchor="middle" font-size="10" fill="#5c6875">snapshot</text><line x1="95.0" y1="315" x2="785.0" y2="110" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="440.0" y="206.5" text-anchor="middle" font-size="10" fill="#5c6875">snapshot</text><rect x="30" y="20" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor A</text><text x="95.0" y="65" text-anchor="middle" font-size="11" fill="#465569">RUNNING</text><rect x="30" y="100" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor B</text><text x="95.0" y="145" text-anchor="middle" font-size="11" fill="#465569">SUSPENDED</text><rect x="30" y="180" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor C</text><text x="95.0" y="225" text-anchor="middle" font-size="11" fill="#465569">RUNNING</text><rect x="30" y="260" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="284" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor D</text><text x="95.0" y="305" text-anchor="middle" font-size="11" fill="#465569">SUSPENDED</text><rect x="250" y="100" rx="12" ry="12" width="150" height="120" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="325.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">WorkerPool</text><text x="325.0" y="145" text-anchor="middle" font-size="11" fill="#465569">warm physical capacity</text><rect x="500" y="40" rx="12" ry="12" width="130" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="565.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Worker 1</text><text x="565.0" y="85" text-anchor="middle" font-size="11" fill="#465569">hosts A</text><rect x="500" y="180" rx="12" ry="12" width="130" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="565.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Worker 2</text><text x="565.0" y="225" text-anchor="middle" font-size="11" fill="#465569">hosts C</text><rect x="710" y="110" rx="12" ry="12" width="150" height="80" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="785.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Snapshot store</text><text x="785.0" y="155" text-anchor="middle" font-size="11" fill="#465569">B/D state</text></svg></figure><p>Actor в Substrate полезно понимать как <strong>логически долгоживущую identity + state</strong>, которая не обязана постоянно занимать физический process/Pod. Worker - физическая capacity, готовая выполнить Actor. Это главное отличие от интуитивной модели «один agent = один Pod навсегда».</p>
-<h3>Почему это подходит agents</h3>
-<p>Типичный агент много времени ждёт: человека, external tool, webhook, следующую задачу. Если каждый idle agent удерживает 1-4 GiB RAM, плотность системы быстро упирается в hardware. Если runtime умеет checkpoint state, освободить Worker и позже восстановить Actor, logical population может быть существенно больше active capacity.</p>
-<h3>ActorTemplate</h3>
-<p><code>ActorTemplate</code> - immutable blueprint: image, sandbox class/config, resources, volumes, snapshot policy и другие runtime параметры. Из него создаётся golden snapshot. Изменение workload должно приводить к новой версии template, а не к мутации state root под существующими actors.</p>
-<h3>WorkerPool</h3>
-<p>WorkerPool описывает физическую warm capacity и в Substrate связан с Kubernetes objects. Matching sandbox class и selectors определяют, на какие workers может попасть Actor. Именно здесь появляются capacity planning, oversubscription и queueing.</p>
-<h3>Dormant Actor</h3>
-<p>Suspended Actor продолжает существовать в control plane и object storage, но не занимает active Worker. Его можно разбудить explicit API call или сетевым запросом через routing layer. Это не serverless function в классическом смысле: Actor имеет durable identity и state lineage.</p>
-</section><section class="chapter" id="ch-12"><div class="chapter-num">Глава 12</div><h1>Agent Substrate: назначение и operational architecture</h1><div class="badges"><span class="badge">IMPLEMENTED / VERIFIED</span><span class="badge">MAIN DELTA where noted</span><span class="badge">ROADMAP kept separate</span></div><figure><figcaption>Agent Substrate: operational data path</figcaption><svg class="diagram" viewBox="0 0 910 310" role="img" aria-label="Agent Substrate: operational data path"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="90.0" y1="185" x2="265.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="177.5" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">state</text><line x1="90.0" y1="185" x2="265.0" y2="200" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="177.5" y="186.5" text-anchor="middle" font-size="10" fill="#5c6875">desired capacity</text><line x1="330" y1="232.5" x2="380" y2="232.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="355.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">reconcile</text><line x1="445.0" y1="85" x2="90.0" y2="115" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="267.5" y="94.0" text-anchor="middle" font-size="10" fill="#5c6875">locate/resume</text><line x1="90.0" y1="185" x2="635.0" y2="200" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="362.5" y="186.5" text-anchor="middle" font-size="10" fill="#5c6875">assignment</text><line x1="700" y1="232.5" x2="750" y2="232.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="725.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">checkpoint/restore</text><line x1="635.0" y1="265" x2="635.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="635.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">stream snapshot</text><rect x="30" y="115" rx="12" ry="12" width="120" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="90.0" y="139" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ateapi</text><text x="90.0" y="160" text-anchor="middle" font-size="11" fill="#465569">control API</text><rect x="200" y="20" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="265.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">PostgreSQL</text><text x="265.0" y="65" text-anchor="middle" font-size="11" fill="#465569">dynamic state</text><rect x="200" y="200" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="265.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">atecontroller</text><text x="265.0" y="245" text-anchor="middle" font-size="11" fill="#465569">WorkerPool CRD</text><rect x="380" y="20" rx="12" ry="12" width="130" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="445.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">atenet</text><text x="445.0" y="65" text-anchor="middle" font-size="11" fill="#465569">route/wakeup</text><rect x="380" y="200" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="445.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">WorkerPool</text><text x="445.0" y="245" text-anchor="middle" font-size="11" fill="#465569">K8s Deployment</text><rect x="570" y="200" rx="12" ry="12" width="130" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="635.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">atelet</text><text x="635.0" y="245" text-anchor="middle" font-size="11" fill="#465569">node supervisor</text><rect x="750" y="200" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="815.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ateom</text><text x="815.0" y="245" text-anchor="middle" font-size="11" fill="#465569">gVisor/microVM</text><rect x="570" y="20" rx="12" ry="12" width="130" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="635.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Object store</text><text x="635.0" y="65" text-anchor="middle" font-size="11" fill="#465569">snapshots</text><text x="455.0" y="298" text-anchor="middle" font-size="11" fill="#5b6672">Названия компонентов соответствуют current Substrate; отдельные детали остаются быстро меняющимися.</text></svg></figure><p>Agent Substrate позиционируется как runtime для большого количества sandboxed stateful actors поверх Kubernetes. Он намеренно не является agent SDK: внутренняя reasoning logic остаётся приложению. Его задача - lifecycle, placement, isolation, snapshot/restore и routing.</p>
+</ul></div></section><section class="chapter" id="ch-11"><div class="chapter-num">Глава 11</div><h1>Actor model для агентных workload: identity, state и lifecycle</h1>
+<p>В конце предыдущей главы мы пришли к устойчивой identity, operation ID и reconciliation. Actor model отвечает на следующий вопрос: <strong>вокруг какой сущности собрать состояние и последовательность решений, если физический процесс может исчезать и появляться снова?</strong></p>
+<p>Для агента такой сущностью часто становится разговор, рабочая сессия, пользовательский помощник или автономный исполнитель. Он живёт логически дольше одного HTTP-запроса и дольше одного Pod. Но слово <em>Actor</em> перегружено: в классической модели это вычислительная сущность с mailbox; в virtual actor runtime - логическая identity с управляемой activation; в Agent Substrate - stateful workload, который можно suspend и resume на разных Workers. Эти идеи родственны, но не взаимозаменяемы.</p>
+<p>Если не провести границу, легко приписать платформе несуществующие гарантии: решить, что Substrate автоматически сериализует сообщения, что snapshot является очередью, а Actor обязательно имеет supervision tree. Эта глава сначала разбирает исходную модель, затем virtual actors и только после этого показывает, что именно переносится в инфраструктуру AX/Substrate.</p>
+
+<h2>Что читатель должен унести из главы</h2>
+<p>После этой главы инженер должен уметь:</p>
+<ul>
+<li>объяснить Actor через identity, private state, behavior и messages, а не через «маленький сервис»;</li>
+<li>отличить logical Actor от activation, process, Worker и Pod;</li>
+<li>выбрать правильную границу Actor для agent session или автономной задачи;</li>
+<li>понять, какие гарантии даёт mailbox и какие приходится строить отдельно;</li>
+<li>спроектировать suspend/resume без потери in-flight work и внешних side effects;</li>
+<li>увидеть hot Actor, unbounded queue, reentrancy и snapshot coupling до production;</li>
+<li>решить, когда Actor model упрощает систему, а когда становится лишним слоем.</li>
+</ul>
+
+<h2>Три значения слова Actor</h2>
+<table><thead><tr><th>Контекст</th><th>Что называется Actor</th><th>Что обычно предоставляет runtime</th></tr></thead><tbody>
+<tr><td>Классическая actor model</td><td>identity + private state + behavior + mailbox</td><td>message dispatch, turns, references, lifecycle, иногда supervision</td></tr>
+<tr><td>Virtual actor</td><td>логическая сущность, адресуемая даже без активного процесса</td><td>activation/deactivation, placement, directory, persistence hooks</td></tr>
+<tr><td>Agent Substrate</td><td>экземпляр stateful sandboxed workload</td><td>Worker assignment, routing, memory/disk snapshot, suspend/resume</td></tr>
+</tbody></table>
+<p>Общий мотив - отделить <strong>кто это</strong> от <strong>где он сейчас выполняется</strong>. Различие - уровень абстракции. Классический Actor определяет программную модель обработки сообщений. Substrate управляет целым окружением процесса. Внутри Substrate Actor может работать приложение на Python, Go или Rust, и оно не становится классическим message actor автоматически.</p>
+
+<h2>Классическая модель: маленький владелец состояния</h2>
+<p>Actor model появилась как способ рассуждать о конкурентных вычислениях без общего изменяемого состояния. Actor получает сообщение и в ответ может:</p>
+<ol>
+<li>отправить конечное число сообщений известным ему Actors;</li>
+<li>создать новые Actors;</li>
+<li>выбрать behavior для обработки следующего сообщения.</li>
+</ol>
+<p>Полезная бытовая аналогия - отдельный кабинет с одним ответственным сотрудником. Снаружи нельзя открыть его ящики и поправить документы. Можно только положить запрос во входящую корзину. Сотрудник разбирает запрос, изменяет свои записи и отправляет новые поручения. Адрес кабинета остаётся известным, даже если конкретного сотрудника временно заменили.</p>
+
+<h3>Identity и Actor reference</h3>
+<p>Внешний код обращается не к объекту в памяти, а к reference или logical address. Эта indirection позволяет переместить activation, перезапустить процесс или восстановить state, не раздавая всем новый физический адрес. Ссылка отвечает на вопрос «какому Actor предназначено сообщение», но не обязана раскрывать host, thread или текущий lifecycle state.</p>
+<p>Для agent platform identity должна переживать restart. Хороший ключ выводится из domain boundary: <code>tenant/session</code>, <code>workspace/agent</code> или <code>job/executor</code>. IP, Pod name и process ID для этого не подходят: это адреса временного воплощения.</p>
+
+<h3>Private state и behavior</h3>
+<p>Actor владеет своим изменяемым state. Другие Actors не читают его напрямую, а запрашивают операцию сообщением. Благодаря этому инварианты сосредоточены в одном месте. Например, Session Actor может гарантировать, что номер следующего шага монотонно растёт и одновременно существует не более одного active tool call.</p>
+<p>Behavior - функция реакции на сообщение в текущем состоянии. Один и тот же <code>SubmitInput</code> может приниматься в состоянии <code>WaitingForUser</code>, отклоняться в <code>RunningTool</code> и превращаться в no-op после <code>Completed</code>. Поэтому protocol Actor удобнее описывать как state machine, а не как набор не связанных RPC methods.</p>
+
+<h3>Mailbox: очередь не равна гарантии</h3>
+<p>Mailbox отделяет отправителя от получателя во времени. Отправитель помещает сообщение и не получает право войти во внутренний state Actor. Многие реализации обрабатывают по одному message turn на Actor, что уменьшает потребность в locks.</p>
+<p>Но слово mailbox ничего не обещает само по себе. Нужно отдельно выяснить:</p>
+<ul>
+<li>очередь in-memory или durable;</li>
+<li>она bounded или может расти до исчерпания памяти;</li>
+<li>каков порядок для разных senders;</li>
+<li>что происходит при restart, relocation и termination;</li>
+<li>какая delivery semantics: at-most-once или at-least-once;</li>
+<li>есть ли acknowledgement на уровне бизнес-результата.</li>
+</ul>
+<p>Например, Akka core по умолчанию формулирует базовую гарантию как at-most-once delivery и ordering для пары sender-receiver. Усиление до retry требует message ID, acknowledgement и deduplication. Это тот же вывод, к которому мы пришли в главе 10: transport не может придумать бизнес-значение «успешно обработано».</p>
+
+<h3>Один turn за раз - не магическая защита</h3>
+<p>Последовательная обработка упрощает state, но не делает систему полностью свободной от concurrency. Пока Actor ждёт внешний API, runtime может запрещать interleaving, тогда длинный вызов блокирует mailbox. Либо runtime разрешает reentrancy, тогда continuation одного запроса может выполниться после части другого, и инварианты снова требуют внимания.</p>
+<p>Показательный пример: Actor прочитал <code>balance=100</code>, ушёл в <code>await</code>, другой turn изменил balance до 40, а первый продолжил работу с устаревшим предположением. «Один thread» не спасает, если turns перемежаются. Правило простое: после await нужно заново проверить state/version или явно запретить interleaving для критического protocol.</p>
+
+<figure><figcaption>Actor ≠ Worker: logical population can be larger than active capacity</figcaption><svg class="diagram" viewBox="0 0 890 350" role="img" aria-label="Actor ≠ Worker: logical population can be larger than active capacity"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="95.0" y1="75" x2="325.0" y2="100" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="210.0" y="81.5" text-anchor="middle" font-size="10" fill="#5c6875">placement</text><line x1="160" y1="207.5" x2="250" y2="160.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="205.0" y="177.75" text-anchor="middle" font-size="10" fill="#5c6875">placement</text><line x1="325.0" y1="220" x2="565.0" y2="40" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="325.0" y1="220" x2="565.0" y2="180" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="160" y1="127.5" x2="710" y2="150.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="435.0" y="132.75" text-anchor="middle" font-size="10" fill="#5c6875">snapshot</text><line x1="95.0" y1="315" x2="785.0" y2="110" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="440.0" y="206.5" text-anchor="middle" font-size="10" fill="#5c6875">snapshot</text><rect x="30" y="20" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor A</text><text x="95.0" y="65" text-anchor="middle" font-size="11" fill="#465569">RUNNING</text><rect x="30" y="100" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor B</text><text x="95.0" y="145" text-anchor="middle" font-size="11" fill="#465569">SUSPENDED</text><rect x="30" y="180" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor C</text><text x="95.0" y="225" text-anchor="middle" font-size="11" fill="#465569">RUNNING</text><rect x="30" y="260" rx="12" ry="12" width="130" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="95.0" y="284" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor D</text><text x="95.0" y="305" text-anchor="middle" font-size="11" fill="#465569">SUSPENDED</text><rect x="250" y="100" rx="12" ry="12" width="150" height="120" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="325.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">WorkerPool</text><text x="325.0" y="145" text-anchor="middle" font-size="11" fill="#465569">warm physical capacity</text><rect x="500" y="40" rx="12" ry="12" width="130" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="565.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Worker 1</text><text x="565.0" y="85" text-anchor="middle" font-size="11" fill="#465569">hosts A</text><rect x="500" y="180" rx="12" ry="12" width="130" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="565.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Worker 2</text><text x="565.0" y="225" text-anchor="middle" font-size="11" fill="#465569">hosts C</text><rect x="710" y="110" rx="12" ry="12" width="150" height="80" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="785.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Snapshot store</text><text x="785.0" y="155" text-anchor="middle" font-size="11" fill="#465569">B/D state</text></svg></figure>
+
+<h2>Actor, activation, Worker и Pod</h2>
+<table><thead><tr><th>Сущность</th><th>Срок жизни</th><th>Что в ней устойчиво</th><th>Можно заменить без смены Actor identity?</th></tr></thead><tbody>
+<tr><td>Actor</td><td>domain lifecycle</td><td>logical ID и lineage state</td><td>нет, это сама identity</td></tr>
+<tr><td>Activation</td><td>период активного выполнения</td><td>in-memory embodiment</td><td>да</td></tr>
+<tr><td>Worker</td><td>период доступной capacity</td><td>sandbox slot/runtime environment</td><td>да</td></tr>
+<tr><td>Pod</td><td>Kubernetes workload lifecycle</td><td>контейнеры и network namespace</td><td>да</td></tr>
+</tbody></table>
+<p>Главная мысль рисунка: logical population может быть намного больше active capacity. Тысяча зарегистрированных agent sessions не требует тысячу постоянно работающих Pods, если одновременно активны только десятки. Runtime держит warm Workers, а Actors получают физическое воплощение по требованию.</p>
+<h2>Virtual actor: identity существует дольше activation</h2>
+<p>Классическая модель обычно заставляет явно создавать и останавливать Actors. Virtual actor runtime делает ещё один шаг: logical Actor считается всегда адресуемым, а runtime сам создаёт activation при обращении и удаляет её после периода бездействия. В Orleans такая сущность называется grain: у неё есть user-defined key, behavior и state, а runtime отвечает за placement, location и activation lifecycle.</p>
+<p>Это похоже на виртуальную память. Программа обращается к логическому адресу, не решая, находится ли нужная страница сейчас в RAM. Клиент обращается к logical Actor ID, не решая, на каком host живёт activation и существует ли она в памяти прямо сейчас.</p>
+
+<h3>Directory и location transparency</h3>
+<p>Чтобы reference оставалась стабильной, runtime нужен directory: отображение <code>Actor ID -&gt; current activation location</code>. При activation запись создаётся, при relocation меняется, при failure восстанавливается. Directory находится на критическом пути и определяет, насколько строго система предотвращает две одновременные activations одной identity.</p>
+<p>Абсолютная location transparency удобна, но не отменяет физику. Remote call медленнее local call, serialization имеет цену, partition существует, а state может быть расположен далеко. Программный интерфейс может скрывать адрес, но observability и placement policy должны видеть topology.</p>
+
+<h3>Activation и deactivation</h3>
+<p>Activation - временное воплощение Actor на вычислительном узле. При первом обращении runtime загружает state, создаёт instance и направляет туда сообщения. После idle period activation можно убрать из памяти. Следующий вызов снова активирует ту же logical identity, возможно на другом узле.</p>
+<p>Deactivation не должна восприниматься как domain deletion. Пользовательская сессия всё ещё существует; исчезает только её горячее представление. И наоборот, удаление Actor требует отдельного решения о retention, audit и dependent resources.</p>
+
+<h2>Что именно является Actor в Agent Substrate</h2>
+<p>Agent Substrate переносит идею virtual identity на более низкий уровень. Его Actor - это не объект класса внутри runtime, а экземпляр sandboxed application environment, связанный с ActorTemplate и snapshot lineage. Когда Actor активен, он назначен Worker и имеет работающие процессы. Когда suspended, durable snapshot остаётся, а Worker освобождается.</p>
+<p>Текущая архитектура описывает следующий путь:</p>
+<ol>
+<li>создаётся Actor record со стабильной identity и ссылкой на ActorTemplate;</li>
+<li>первоначально Actor может находиться в suspended state и ссылаться на golden snapshot;</li>
+<li>входящий запрос или явный вызов инициирует resume;</li>
+<li>control plane атомарно выбирает свободный Worker;</li>
+<li>node-side компоненты восстанавливают memory и disk state в sandbox;</li>
+<li>routing layer направляет запрос на текущий Worker;</li>
+<li>при suspend создаётся новый snapshot, assignment освобождается, Worker возвращается в pool.</li>
+</ol>
+<p>Это очень похоже на virtual actor activation, но есть принципиальная оговорка: Substrate управляет <strong>жизнью окружения</strong>, а не обязательно mailbox и turn scheduling приложения внутри. Если HTTP server внутри Actor одновременно принимает 50 requests, Substrate сам по себе не превращает их в 50 последовательных turns.</p>
+
+<h3>Что Substrate даёт, а что остаётся приложению</h3>
+<table><thead><tr><th>Задача</th><th>Substrate/runtime layer</th><th>Agent application layer</th></tr></thead><tbody>
+<tr><td>stable Actor identity</td><td>resource ID и control-plane record</td><td>domain mapping session/user/job</td></tr>
+<tr><td>physical placement</td><td>Worker assignment и routing</td><td>не должен хранить Worker IP как identity</td></tr>
+<tr><td>state capture</td><td>memory + writable disk snapshot</td><td>quiescence и consistency внешних данных</td></tr>
+<tr><td>request concurrency</td><td>transport до workload</td><td>mailbox, locks, turn model или собственный scheduler</td></tr>
+<tr><td>business retry</td><td>может восстановить workload</td><td>idempotency, operation journal, deduplication</td></tr>
+<tr><td>failure policy</td><td>crash detection, revert/resume primitives</td><td>что повторить, отменить, компенсировать или показать человеку</td></tr>
+</tbody></table>
+<p>Эта таблица не обесценивает runtime. Наоборот, она делает контракт честным. Substrate решает тяжёлую инфраструктурную задачу - быстрое физическое воплощение stateful workload. Приложение решает semantic задачу - какой запрос можно выполнять, в каком порядке и что считать завершением.</p>
+
+<h2>Как выбрать границу Actor для агента</h2>
+<p>Actor должен владеть набором state и инвариантов, которые естественно изменяются последовательно. Слишком крупная граница создаёт hot spot; слишком мелкая превращает простое решение в распределённую транзакцию.</p>
+<table><thead><tr><th>Кандидат</th><th>Когда хорош</th><th>Главный риск</th></tr></thead><tbody>
+<tr><td>один Actor на user</td><td>персональный assistant с единым долгим контекстом</td><td>все сессии пользователя конкурируют за один Actor</td></tr>
+<tr><td>один Actor на conversation/session</td><td>диалоги изолированы и имеют собственную memory</td><td>общие user preferences требуют отдельного store</td></tr>
+<tr><td>один Actor на task</td><td>автономная работа с ясным началом и завершением</td><td>много коротких Actors и дорогая activation</td></tr>
+<tr><td>один Actor на workspace/project</td><td>общий mutable environment и files</td><td>hot key, длинный mailbox, большая snapshot</td></tr>
+<tr><td>Actor на tool/resource</td><td>нужно сериализовать доступ к конкретному устройству или account</td><td>cross-actor workflow и возможные циклы ожидания</td></tr>
+</tbody></table>
+<p>Практический тест границы:</p>
+<ul>
+<li>можно ли сформулировать один набор инвариантов, которым владеет Actor;</li>
+<li>можно ли обрабатывать большинство операций без синхронного вызова другого Actor;</li>
+<li>помещается ли working set в разумный snapshot и activation budget;</li>
+<li>есть ли естественная стабильная identity;</li>
+<li>допустима ли последовательная пропускная способность одной activation;</li>
+<li>понятно ли, когда Actor idle, suspended и deleted.</li>
+</ul>
+
+<h3>Пример: conversation Actor</h3>
+<p>Пусть Actor представляет одну беседу. Он владеет текущим plan, краткой memory, списком разрешённых tools, последним подтверждённым step и ссылками на artifacts. Команды могут выглядеть так:</p>
+<pre><code class="language-text">UserMessage(text, request_id)
+ToolResult(call_id, payload_ref)
+Approve(step_id, approver)
+Cancel(reason, request_id)
+IdleTimeout(generation)</code></pre>
+<p>Behavior зависит от state: <code>WaitingForUser</code>, <code>Planning</code>, <code>WaitingForTool</code>, <code>WaitingForApproval</code>, <code>Completed</code>. <code>request_id</code> делает повтор безопасным, а <code>step_id</code> не позволяет позднему approval подтвердить уже заменённый plan. Большие tool outputs хранятся по reference, чтобы не раздувать mailbox и snapshot.</p>
+<h2>State: что именно должно пережить activation</h2>
+<p>У агента нет одного монолитного «состояния». Полезно разделить как минимум четыре слоя:</p>
+<ol>
+<li><strong>Definition state.</strong> Image, dependencies, sandbox policy и resources из ActorTemplate. Это версия кода и окружения.</li>
+<li><strong>Execution state.</strong> RAM, stack, локальные процессы и writable filesystem, которые может захватить snapshot.</li>
+<li><strong>Domain state.</strong> Conversation history, approvals, operation journal, artifact metadata. Часто ему лучше жить в явной durable schema.</li>
+<li><strong>External state.</strong> Объекты в SaaS, cloud, GitHub, email или payment system. Snapshot ими не владеет.</li>
+</ol>
+<p>Snapshot особенно удобен для сложного execution state: прогретая model library, interpreter, process tree, cache, локальный checkout. Но snapshot не заменяет domain model. Через месяц инженер должен уметь узнать, почему задача ждёт approval, не поднимая старую память процесса и не исследуя heap.</p>
+
+<h3>Snapshot - не распределённая транзакция</h3>
+<p>Представим, что agent отправил внешний запрос, получил success, но ещё не записал его в локальный journal. Snapshot в этот момент сохранит неполную картину. После resume agent может повторить side effect. Обратный сценарий тоже возможен: journal говорит <code>in-flight</code>, а сетевой ответ уже потерян.</p>
+<p>Поэтому перед suspend приложение должно перейти в согласованную точку:</p>
+<ul>
+<li>перестать принимать новую работу или пометить её для следующей activation;</li>
+<li>дождаться безопасных in-flight turns либо явно их отменить;</li>
+<li>сбросить buffers и durable записать operation state;</li>
+<li>закрыть или подготовить к пересозданию connections;</li>
+<li>зафиксировать snapshot generation/version;</li>
+<li>только затем разрешить platform checkpoint.</li>
+</ul>
+<p>Для операций, которые нельзя спокойно остановить, Actor должен оставаться running или использовать protocol, способный продолжить работу после неизвестного результата. Freeze процесса не превращает внешний мир в часть checkpoint.</p>
+
+<h3>Что обычно не переживает resume</h3>
+<p>После relocation нельзя рассчитывать на прежний IP, TCP connection, PID namespace, kernel timer или mounted credential lifetime. DNS caches, OAuth tokens и database pools могут протухнуть, а remote peer уже закрыл connection. Хороший workload имеет resume hook или lazy reinitialization:</p>
+<pre><code class="language-text">on_resume(snapshot_generation):
+    refresh_identity_if_needed()
+    recreate_network_pools()
+    validate_external_leases()
+    recheck_inflight_operations()
+    publish_ready_only_after_validation()</code></pre>
+<p>Readiness после restore должна означать не «процесс разморожен», а «application dependencies проверены и новые requests безопасны».</p>
+
+<h2>Concurrency: где действительно выполняется сериализация</h2>
+<p>Actor model часто выбирают, чтобы избежать fine-grained locks. Это работает только при явном месте сериализации. Возможны три варианта:</p>
+<ul>
+<li><strong>Runtime mailbox.</strong> Framework выдаёт приложению один message turn за раз.</li>
+<li><strong>Application queue.</strong> HTTP/gRPC handlers складывают команды во внутренний bounded channel, который читает один state owner.</li>
+<li><strong>Storage serialization.</strong> Несколько handlers работают параллельно, но обновляют state через version/transaction.</li>
+</ul>
+<p>Substrate Actor совместим со всеми тремя, но не выбирает вариант за приложение. Если agent server многопоточный, snapshot одного sandbox не означает single-threaded semantics. Архитектурная документация должна прямо назвать owner state и точку сериализации.</p>
+
+<h3>Reentrancy, cycles и deadlock</h3>
+<p>Два Actors могут синхронно вызвать друг друга и оба ждать ответа. При строгой обработке «запрос до конца» получается deadlock. Reentrancy позволяет обработать новый turn во время await, но возвращает риск логической гонки. Часто безопаснее изменить protocol:</p>
+<ul>
+<li>использовать asynchronous reply message вместо вложенного blocking call;</li>
+<li>разбить долгую операцию на state transitions;</li>
+<li>хранить correlation ID и продолжать после отдельного result message;</li>
+<li>не строить циклические цепочки синхронных Actor calls;</li>
+<li>после каждого await валидировать generation и current state.</li>
+</ul>
+
+<h2>Delivery semantics и protocol messages</h2>
+<p>Actor reference создаёт удобную адресацию, но сообщение остаётся распределённой операцией. Оно может потеряться до mailbox, обработаться до потери reply или повториться из-за retry. Поэтому protocol проектируется так же строго, как control-plane API:</p>
+<ul>
+<li>command имеет message ID и expected generation;</li>
+<li>receiver сохраняет deduplication record или делает effect идемпотентным;</li>
+<li>business acknowledgement сообщает не «байты дошли», а «переход state выполнен»;</li>
+<li>deadline ограничивает ожидание sender;</li>
+<li>late reply проверяется по correlation ID и current state;</li>
+<li>dead letters служат диагностике, а не гарантии доставки.</li>
+</ul>
+<p>Ordering обычно гарантируется только в узкой границе. Даже если сообщения одного sender приходят по порядку, сообщения от разных senders могут перемежаться. Посредник, retry или relocation также меняют наблюдаемую последовательность. Если порядок важен, protocol несёт sequence/generation и отклоняет stale message.</p>
+
+<h2>Supervision: восстановить процесс недостаточно</h2>
+<p>В Erlang/OTP и Akka Actor hierarchy связывает child lifecycle с supervisor strategy. Supervisor решает, перезапускать ли один child, зависимую группу или останавливать ветку. Это воплощает принцип «let it crash» только при важном условии: state можно безопасно пересоздать или восстановить.</p>
+<p>На agent platform существует несколько уровней supervision:</p>
+<table><thead><tr><th>Уровень</th><th>Что обнаруживает</th><th>Что способен восстановить</th></tr></thead><tbody>
+<tr><td>application actor runtime</td><td>exception/invalid behavior</td><td>behavior instance, mailbox strategy, child hierarchy</td></tr>
+<tr><td>process supervisor</td><td>process exit</td><td>process и локальную конфигурацию</td></tr>
+<tr><td>Substrate</td><td>Actor/Worker lifecycle failure</td><td>sandbox из последнего завершённого snapshot</td></tr>
+<tr><td>Kubernetes</td><td>container/Pod/node failure</td><td>Worker infrastructure и platform components</td></tr>
+<tr><td>AX control plane</td><td>Task не достиг desired state</td><td>workflow step через reconciliation</td></tr>
+</tbody></table>
+<p>Каждый верхний слой должен понимать семантику нижнего recovery. Если Kubernetes перезапустил Worker, это не доказывает, что Actor side effect можно повторить. Если Substrate восстановил snapshot, это не означает, что потерянные после snapshot messages появятся снова. Infrastructure recovery возвращает вычислительную способность; business recovery возвращает корректность.</p>
+
+<h2>Backpressure и hot Actors</h2>
+<p>Последовательный owner state имеет конечную пропускную способность. Если входящий поток быстрее обработки, mailbox растёт. Unbounded mailbox превращает временную перегрузку в memory exhaustion с большой задержкой, когда пользователю уже не нужен результат.</p>
+<p>Нужны явные controls:</p>
+<ul>
+<li>bounded queue и понятное поведение при заполнении;</li>
+<li>per-tenant и per-Actor admission limits;</li>
+<li>deadline/TTL сообщения, чтобы не исполнять просроченную работу;</li>
+<li>метрики queue depth, oldest age и service time;</li>
+<li>отдельные limits для user commands и background events;</li>
+<li>приоритет control messages, но без starvation обычной работы.</li>
+</ul>
+<p>Hot Actor нельзя бесконечно ускорять добавлением Workers: одна logical identity по определению остаётся одной точкой владения state. Варианты - уменьшить границу Actor, вынести read-only work, разделить state на независимые partitions или использовать несколько aggregator stages. Если инвариант требует глобальной последовательности, предел throughput является ценой этого инварианта.</p>
+<h2>Security и multi-tenancy</h2>
+<p>Actor boundary полезна для reasoning, но не является security boundary автоматически. Два Actors в одном process могут иметь логически раздельный state и всё же разделять memory address space. На уровне Substrate изоляцию обеспечивает sandbox class и platform configuration из главы 8.</p>
+<p>Особого внимания требуют snapshots. Они могут содержать prompts, credentials, tool outputs, source code и остатки process memory. Поэтому нужны encryption, tenant-scoped authorization, integrity verification, lifecycle retention и audit. Route также является security-sensitive mapping: запрос Actor A не должен попасть в activation Actor B после быстрого reassignment Worker.</p>
+<p>Identity внутри восстановленного snapshot требует проверки. Клонирование golden state не должно переносить уникальный actor token, telemetry identity или lease прежнего экземпляра. После resume runtime/application должны привязать окружение к текущим Actor ID, generation и short-lived credentials.</p>
+
+<h2>Наблюдаемость Actor lifecycle</h2>
+<p>Логи только по Pod name теряют связь после relocation. Основная correlation identity - Actor ID, дополненная activation ID, Worker ID и snapshot generation. Минимальный набор telemetry:</p>
+<ul>
+<li>Actor lifecycle state и время последнего перехода;</li>
+<li>activation/resume latency по этапам: lookup, assignment, download, restore, readiness;</li>
+<li>suspend latency, snapshot size и upload throughput;</li>
+<li>Actor ID, activation ID, Worker/Pod и template version;</li>
+<li>request/message ID, mailbox depth, oldest message age и processing time;</li>
+<li>число retries, duplicates, stale messages и dead letters;</li>
+<li>частота crashes, reverts и повторных activations;</li>
+<li>доля warm Workers и ожидание capacity.</li>
+</ul>
+<p>Следует различать <strong>actor unavailable</strong> и <strong>actor cold</strong>. Cold Actor может быть здоров, но требовать resume. SLO полезно разложить на warm-request latency, cold-resume latency и долю requests, которые встретили activation.</p>
+
+<h2>Когда Actor model подходит</h2>
+<p>Модель особенно сильна, когда система состоит из большого числа независимо адресуемых stateful entities:</p>
+<ul>
+<li>chat/conversation sessions;</li>
+<li>autonomous tasks с долгим ожиданием;</li>
+<li>user assistants с персональной memory;</li>
+<li>digital twins, game entities, devices;</li>
+<li>workflow coordinators, владеющие небольшой state machine;</li>
+<li>изолированные development workspaces, которые большую часть времени idle.</li>
+</ul>
+<p>Общий признак: state естественно partitioned по identity, requests к одной identity удобно сериализовать, а разные identities работают независимо. Тогда Actor boundary уменьшает область locks и failure, а virtual activation экономит capacity.</p>
+
+<h2>Когда лучше выбрать другой инструмент</h2>
+<table><thead><tr><th>Задача</th><th>Почему Actor может мешать</th><th>Что рассмотреть</th></tr></thead><tbody>
+<tr><td>stateless transformation</td><td>identity и lifecycle ничего не добавляют</td><td>обычный service/worker pool</td></tr>
+<tr><td>массовая аналитика по всем entities</td><td>fan-out по миллионам Actors дорог</td><td>warehouse, stream processor, batch engine</td></tr>
+<tr><td>сложные cross-entity transactions</td><td>много coordination messages и partial failures</td><td>relational transaction boundary</td></tr>
+<tr><td>общий большой mutable dataset</td><td>неясно, какой Actor владеет state</td><td>database/service с явной concurrency model</td></tr>
+<tr><td>очень короткие независимые jobs</td><td>activation и snapshot overhead больше работы</td><td>queue + ephemeral workers</td></tr>
+<tr><td>одна глобальная identity с огромным QPS</td><td>Actor становится serial bottleneck</td><td>partitioning, CRDT, sharded data model</td></tr>
+</tbody></table>
+<p>Не следует превращать каждую таблицу БД в Actor. Модель ценна там, где behavior и lifecycle принадлежат entity, а не просто потому, что у строки есть primary key.</p>
+
+<h2>Антипаттерны</h2>
+<ul>
+<li><strong>Actor = Pod.</strong> Logical identity оказывается привязана к расходному infrastructure object.</li>
+<li><strong>Actor = thread.</strong> Теряется multiplexing; тысячи idle entities требуют тысячи threads.</li>
+<li><strong>Snapshot = database.</strong> Domain state становится непрозрачным и плохо мигрируемым.</li>
+<li><strong>Mailbox без limit.</strong> Перегрузка маскируется до OOM и многоминутной latency.</li>
+<li><strong>Синхронные циклы Actor calls.</strong> Последовательная обработка превращается в deadlock.</li>
+<li><strong>Resume сразу Ready.</strong> Приложение получает трафик до пересоздания connections и проверки leases.</li>
+<li><strong>Worker IP как identity.</strong> Relocation ломает references и направляет запросы устаревшей activation.</li>
+<li><strong>«Один Actor на всё».</strong> Глобальная state machine становится hot spot и общей failure domain.</li>
+<li><strong>Вера в автоматическую exactly-once.</strong> Message delivery, snapshot и внешний side effect остаются разными границами.</li>
+</ul>
+
+<h2>Практический чек-лист Actor design</h2>
+<ol>
+<li>Какую domain entity представляет Actor и как выглядит стабильный ID?</li>
+<li>Какими инвариантами Actor владеет единолично?</li>
+<li>Где находится точка сериализации: mailbox, application queue или storage?</li>
+<li>Разрешена ли reentrancy и что происходит после await?</li>
+<li>Mailbox bounded? Что происходит при overflow и expired message?</li>
+<li>Каковы delivery, ordering, acknowledgement и deduplication semantics?</li>
+<li>Какой state живёт в snapshot, database, object store и внешних системах?</li>
+<li>Как workload достигает quiescent point перед suspend?</li>
+<li>Что пересоздаётся при resume и когда публикуется readiness?</li>
+<li>Как предотвращаются stale route и duplicate activation?</li>
+<li>Как разделены application supervision, Substrate recovery и Kubernetes restart?</li>
+<li>Как обнаружить hot Actor и когда менять partitioning?</li>
+<li>Какие данные snapshot содержит и кто имеет право их восстановить?</li>
+<li>Как Actor version/template обновляется без несовместимого state?</li>
+<li>Когда Actor удаляется и какой retention остаётся после него?</li>
+</ol>
+
+<h2>Итог</h2>
+<ul>
+<li>Actor - это прежде всего logical identity и владелец state/behavior, а не process или Pod.</li>
+<li>Классическая actor model добавляет message protocol и mailbox; virtual actor добавляет автоматическую activation и location management.</li>
+<li>Agent Substrate применяет virtual-identity идею к sandboxed workload, но не навязывает приложению классическую mailbox semantics.</li>
+<li>Suspend/resume экономит capacity только при явном quiescence protocol и разделении snapshot, domain state и external state.</li>
+<li>Последовательная обработка упрощает инварианты, но создаёт throughput ceiling, hot-key risk и вопросы reentrancy.</li>
+<li>Infrastructure recovery возвращает Actor к вычислению; бизнес-корректность возвращают idempotency, journal и protocol из главы 10.</li>
+</ul>
+<p><strong>Дальше.</strong> Теперь Actor, activation и Worker разведены концептуально. Следующая глава рассматривает конкретную operational architecture Agent Substrate: ateapi, atecontroller, atelet, ateom, atenet, PostgreSQL, object storage и путь запроса от gateway до восстановленного sandbox.</p>
+
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://arxiv.org/abs/1008.1459">Carl Hewitt: Actor Model of Computation</a> - обзор Actor model автором исходной идеи.</li>
+<li><a href="https://doc.akka.io/libraries/akka-core/current/general/actors.html">Akka: What is an Actor?</a> - state, behavior, reference, mailbox и supervision.</li>
+<li><a href="https://doc.akka.io/libraries/akka-core/current/general/message-delivery-reliability.html">Akka: Message Delivery Reliability</a> - at-most-once, ordering, ACK/retry и deduplication.</li>
+<li><a href="https://learn.microsoft.com/en-us/dotnet/orleans/overview">Microsoft Orleans Overview</a> - virtual actors, stable identity и managed activation.</li>
+<li><a href="https://learn.microsoft.com/en-us/dotnet/orleans/grains/request-scheduling">Orleans Request Scheduling</a> - single-threaded turns, interleaving и reentrancy.</li>
+<li><a href="https://learn.microsoft.com/en-us/dotnet/orleans/host/grain-directory">Orleans Grain Directory</a> - mapping logical identity на activation location.</li>
+<li><a href="https://www.erlang.org/doc/system/sup_princ.html">Erlang/OTP Supervisor Behaviour</a> - supervision trees и restart strategies.</li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md">Agent Substrate Architecture</a> - Actor/Worker lifecycle, routing и snapshot state.</li>
+<li><a href="https://github.com/agent-substrate/substrate/security">Agent Substrate Security</a> - cross-Actor isolation, routing, identity и snapshot risks.</li>
+</ul></div></section><section class="chapter" id="ch-12"><div class="chapter-num">Глава 12</div><h1>Agent Substrate: назначение и operational architecture</h1><div class="badges"><span class="badge">IMPLEMENTED / VERIFIED</span><span class="badge">MAIN DELTA where noted</span><span class="badge">ROADMAP kept separate</span></div><figure><figcaption>Agent Substrate: operational data path</figcaption><svg class="diagram" viewBox="0 0 910 310" role="img" aria-label="Agent Substrate: operational data path"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="90.0" y1="185" x2="265.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="177.5" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">state</text><line x1="90.0" y1="185" x2="265.0" y2="200" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="177.5" y="186.5" text-anchor="middle" font-size="10" fill="#5c6875">desired capacity</text><line x1="330" y1="232.5" x2="380" y2="232.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="355.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">reconcile</text><line x1="445.0" y1="85" x2="90.0" y2="115" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="267.5" y="94.0" text-anchor="middle" font-size="10" fill="#5c6875">locate/resume</text><line x1="90.0" y1="185" x2="635.0" y2="200" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="362.5" y="186.5" text-anchor="middle" font-size="10" fill="#5c6875">assignment</text><line x1="700" y1="232.5" x2="750" y2="232.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="725.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">checkpoint/restore</text><line x1="635.0" y1="265" x2="635.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="635.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">stream snapshot</text><rect x="30" y="115" rx="12" ry="12" width="120" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="90.0" y="139" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ateapi</text><text x="90.0" y="160" text-anchor="middle" font-size="11" fill="#465569">control API</text><rect x="200" y="20" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="265.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">PostgreSQL</text><text x="265.0" y="65" text-anchor="middle" font-size="11" fill="#465569">dynamic state</text><rect x="200" y="200" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="265.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">atecontroller</text><text x="265.0" y="245" text-anchor="middle" font-size="11" fill="#465569">WorkerPool CRD</text><rect x="380" y="20" rx="12" ry="12" width="130" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="445.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">atenet</text><text x="445.0" y="65" text-anchor="middle" font-size="11" fill="#465569">route/wakeup</text><rect x="380" y="200" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="445.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">WorkerPool</text><text x="445.0" y="245" text-anchor="middle" font-size="11" fill="#465569">K8s Deployment</text><rect x="570" y="200" rx="12" ry="12" width="130" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="635.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">atelet</text><text x="635.0" y="245" text-anchor="middle" font-size="11" fill="#465569">node supervisor</text><rect x="750" y="200" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="815.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ateom</text><text x="815.0" y="245" text-anchor="middle" font-size="11" fill="#465569">gVisor/microVM</text><rect x="570" y="20" rx="12" ry="12" width="130" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="635.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Object store</text><text x="635.0" y="65" text-anchor="middle" font-size="11" fill="#465569">snapshots</text><text x="455.0" y="298" text-anchor="middle" font-size="11" fill="#5b6672">Названия компонентов соответствуют current Substrate; отдельные детали остаются быстро меняющимися.</text></svg></figure><p>Agent Substrate позиционируется как runtime для большого количества sandboxed stateful actors поверх Kubernetes. Он намеренно не является agent SDK: внутренняя reasoning logic остаётся приложению. Его задача - lifecycle, placement, isolation, snapshot/restore и routing.</p>
 <h3>Основные компоненты current architecture</h3>
 <ul>
 <li><code>ateapi</code> - control API.</li>
