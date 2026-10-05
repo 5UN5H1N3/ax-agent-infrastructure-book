@@ -1592,16 +1592,1017 @@ termination:
 <li><a href="https://github.com/5UN5H1N3/ax-core/blob/e70162a024fc4bb55015341c761fe0b8d7c56ac3/docs/CORE_CONCEPTS.md">AX Core concepts, baseline e70162a</a> - границы базовых примитивов AX.</li>
 </ul></div>
 </section>
-<section class="chapter" id="ch-4"><div class="chapter-num">Глава 4</div><h1>Agent harness: система вокруг LLM</h1><figure><figcaption>Agent harness: минимальная операционная анатомия</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent harness: минимальная операционная анатомия"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent loop</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">decide next step</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p><code>Harness</code> - удобный термин для слоя, который превращает модель в управляемый исполняемый процесс. В разных frameworks границы отличаются, но эксплуатационно полезно выделять одинаковые обязанности.</p>
-<h3>Обязательные функции harness</h3>
-<p><strong>Context assembly</strong> выбирает инструкции, goal, историю, memory и результаты tools. <strong>Model adapter</strong> нормализует различия OpenAI/Anthropic/Gemini/local endpoints. <strong>Tool executor</strong> преобразует tool proposal в настоящий вызов. <strong>State manager</strong> хранит progression. <strong>Policy layer</strong> решает, допустима ли операция. <strong>Budget controller</strong> ограничивает число шагов, tokens, wall time и деньги. <strong>Retry policy</strong> различает временный сбой и логическую ошибку. <strong>Tracing</strong> связывает LLM request, tool call и task/actor identity.</p>
-<p>Хороший harness не должен полагаться на prompt как на единственную защиту. Правило «никогда не выполняй <code>shutdown</code>» внутри system prompt слабее технического deny policy, потому что prompt injection воздействует на тот же канал принятия решения. Правильный подход: model proposes, policy decides, tool enforces.</p>
-<h3>Harness и orchestrator - разные роли</h3>
-<p>Harness управляет шагами <strong>внутри</strong> agent execution. Orchestrator управляет множеством executions: создать Task, выбрать Workspace, приостановить idle workload, выделить ресурсы, повторить при инфраструктурном сбое, уничтожить sandbox. Если смешать уровни, возникает путаница: retry HTTP 503 модели должен быть обязанностью harness/model gateway, а восстановление Actor после падения Worker - обязанностью runtime/control plane.</p>
-<h3>Minimal production contract</h3>
-<p>Для каждого агента стоит явно определить: входной schema, maximum wall time, maximum steps, token budget, разрешённые tools, outbound destinations, persistent state location, checkpoint strategy, termination semantics и expected artifacts. Это превращает «автономного агента» в управляемую workload единицу.</p>
-<p>AX не навязывает конкретный harness. Это важная архитектурная граница: можно запускать собственный Python/Go/Node agent, framework или CLI-agent, если container/runner contract соблюдён.</p>
-</section><section class="chapter" id="ch-5"><div class="chapter-num">Глава 5</div><h1>Context, state, memory и snapshot: не смешивать</h1><figure><figcaption>Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»</figcaption><svg class="diagram" viewBox="0 0 800 345" role="img" aria-label="Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130.0" y1="105" x2="130.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="220" y1="177.5" x2="300" y2="177.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="171.5" text-anchor="middle" font-size="10" fill="#5c6875">persist</text><line x1="130.0" y1="210" x2="390.0" y2="40" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">artifacts</text><line x1="650.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">checkpoint</text><line x1="390.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="520.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">durable data</text><line x1="650.0" y1="210" x2="650.0" y2="250" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="224.0" text-anchor="middle" font-size="10" fill="#5c6875">store</text><rect x="40" y="40" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM context</text><text x="130.0" y="85" text-anchor="middle" font-size="11" fill="#465569">tokens in request</text><rect x="40" y="145" rx="12" ry="12" width="180" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="130.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Working state</text><text x="130.0" y="190" text-anchor="middle" font-size="11" fill="#465569">plan, scratchpad</text><rect x="300" y="40" rx="12" ry="12" width="180" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="390.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Filesystem</text><text x="390.0" y="85" text-anchor="middle" font-size="11" fill="#465569">workspace/artifacts</text><rect x="300" y="145" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="390.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">External DB</text><text x="390.0" y="190" text-anchor="middle" font-size="11" fill="#465569">memory/events</text><rect x="560" y="40" rx="12" ry="12" width="180" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="650.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process RAM</text><text x="650.0" y="85" text-anchor="middle" font-size="11" fill="#465569">runtime state</text><rect x="560" y="145" rx="12" ry="12" width="180" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="650.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Snapshot</text><text x="650.0" y="190" text-anchor="middle" font-size="11" fill="#465569">RAM/durable data</text><rect x="560" y="250" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="650.0" y="274" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Object storage</text><text x="650.0" y="295" text-anchor="middle" font-size="11" fill="#465569">snapshot blobs</text></svg></figure><p>В agent systems слово «memory» часто скрывает несколько совершенно разных механизмов. Для правильной эксплуатации их нужно разделять.</p>
+<section class="chapter" id="ch-4"><div class="chapter-num">Глава 4</div><h1>Agent harness: система вокруг LLM</h1><figure><figcaption>Agent harness: control loop, adapters, policy и evidence</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Agent harness: control loop, adapters, policy и evidence"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="177.5" x2="330" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="222.5" y1="105" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="311.25" y="114.0" text-anchor="middle" font-size="10" fill="#5c6875">context</text><line x1="400.0" y1="210" x2="585.0" y2="35" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">prompt</text><line x1="585.0" y1="100" x2="400.0" y2="135" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">result</text><line x1="470" y1="172.5" x2="520" y2="167.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">call</text><line x1="520" y1="167.5" x2="470" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="495.0" y="164.0" text-anchor="middle" font-size="10" fill="#5c6875">observation</text><line x1="400.0" y1="210" x2="585.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="492.5" y="216.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="470" y1="172.5" x2="700" y2="172.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="585.0" y="166.5" text-anchor="middle" font-size="10" fill="#5c6875">before action</text><rect x="20" y="145" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="75.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Goal/Event</text><text x="75.0" y="190" text-anchor="middle" font-size="11" fill="#465569">input</text><rect x="160" y="40" rx="12" ry="12" width="125" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="222.5" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Context</text><text x="222.5" y="85" text-anchor="middle" font-size="11" fill="#465569">assembler</text><rect x="330" y="135" rx="12" ry="12" width="140" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="400.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Run controller</text><text x="400.0" y="180" text-anchor="middle" font-size="11" fill="#465569">state + gates</text><rect x="520" y="35" rx="12" ry="12" width="130" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="585.0" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="585.0" y="80" text-anchor="middle" font-size="11" fill="#465569">inference</text><rect x="520" y="135" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="585.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tools/MCP</text><text x="585.0" y="180" text-anchor="middle" font-size="11" fill="#465569">side effects</text><rect x="520" y="235" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="585.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">State/Memory</text><text x="585.0" y="280" text-anchor="middle" font-size="11" fill="#465569">persist/retrieve</text><rect x="700" y="135" rx="12" ry="12" width="150" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="775.0" y="159" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Policy + budget</text><text x="775.0" y="180" text-anchor="middle" font-size="11" fill="#465569">allow/deny/approve</text></svg></figure><p>В предыдущей главе агент был описан как ограниченный control loop: получить observation, выбрать действие, выполнить его, проверить результат и решить, продолжать ли работу. Но эта схема не отвечает на главный практический вопрос: <strong>какой код обеспечивает ограничения, сохраняет состояние, вызывает модель, проверяет tool call и переживает сбой процесса?</strong></p>
+<p>Этот код и образует agent harness.</p>
+<p>Представим маленького агента для анализа incident logs. В демонстрации он выглядит просто: system prompt, список tools и цикл из нескольких вызовов модели. Затем появляются production-требования:</p>
+<ul>
+<li>выбрать модель с нужными capabilities;</li>
+<li>не потерять Task после restart;</li>
+<li>ограничить стоимость и число шагов;</li>
+<li>не передать модели лишние secrets;</li>
+<li>проверить arguments до tool execution;</li>
+<li>запросить approval перед production write;</li>
+<li>отличить provider timeout от неправильного решения модели;</li>
+<li>повторить безопасную операцию, но не продублировать side effect;</li>
+<li>связать model request, tool call и итоговый artifact в trace;</li>
+<li>остановить всё дерево работы по cancel.</li>
+</ul>
+<p>Если добавлять эти обязанности прямо в <code>while</code>-цикл, он быстро превращается в неявный framework со случайными контрактами. Harness делает эти контракты явными.</p>
+<p><strong>Agent harness - это runtime одного агентного execution, который связывает model, state, context, tools, policy и lifecycle в управляемый процесс.</strong></p>
+<p>Слово <code>harness</code> буквально означает оснастку или систему крепления. Модель остаётся вычислительным компонентом, а harness удерживает её внутри инженерных границ. Он не делает модель детерминированной, но делает детерминированными условия, при которых её предложение может стать действием.</p>
+<h2>Harness не равен агенту, framework или orchestrator</h2>
+<p>Эти понятия часто смешивают, потому что один продукт может реализовывать сразу несколько ролей.</p>
+<table>
+<thead>
+<tr>
+<th>Сущность</th>
+<th>Главный вопрос</th>
+<th>Пример ответственности</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Model</td>
+<td>Как получить следующее вероятностное решение?</td>
+<td>inference, structured output, tool proposal</td>
+</tr>
+<tr>
+<td>Agent</td>
+<td>Какое поведение решает задачу?</td>
+<td>goal, loop, strategy, termination semantics</td>
+</tr>
+<tr>
+<td>Harness</td>
+<td>Как безопасно выполнить один agent run?</td>
+<td>context, state, validation, tools, budgets, checkpoint</td>
+</tr>
+<tr>
+<td>Framework/SDK</td>
+<td>Какими abstractions это программировать?</td>
+<td>Agent, Tool, Runner, graph node, middleware</td>
+</tr>
+<tr>
+<td>Orchestrator</td>
+<td>Где и когда запустить workload?</td>
+<td>scheduling, Task lifecycle, Worker, restart, resource placement</td>
+</tr>
+<tr>
+<td>Sandbox</td>
+<td>Где физически выполняется недоверенный код?</td>
+<td>process isolation, filesystem, network boundary</td>
+</tr>
+<tr>
+<td>Model gateway</td>
+<td>Как унифицировать доступ к providers?</td>
+<td>routing, credentials, quotas, provider telemetry</td>
+</tr>
+<tr>
+<td>Workflow engine</td>
+<td>Как надёжно провести известный процесс?</td>
+<td>durable timers, retries, signals, state-machine history</td>
+</tr>
+</tbody>
+</table>
+<p>Framework может предоставить готовый harness. Но наличие класса <code>Agent</code> ещё не означает, что определены recovery, cancellation, idempotency и audit. И наоборот, небольшой собственный harness может состоять из нескольких модулей без отдельного framework.</p>
+<p>Полезная граница такова:</p>
+<ul>
+<li><strong>agent design</strong> определяет, какие решения допустимо делегировать модели;</li>
+<li><strong>harness</strong> исполняет эти решения внутри одного логического run;</li>
+<li><strong>orchestrator</strong> обеспечивает жизнь процесса и инфраструктурных ресурсов;</li>
+<li><strong>platform policy</strong> определяет внешние полномочия и организационные правила.</li>
+</ul>
+<h2>Главный контракт: proposal не является action</h2>
+<p>Модель не должна напрямую вызывать shell, HTTP API или MCP server. Она формирует предложение в структурированном формате. Harness превращает его в действие только после последовательности проверок.</p>
+<pre><code class="language-text">model proposal
+  -&gt; parse
+  -&gt; schema validation
+  -&gt; capability lookup
+  -&gt; policy decision
+  -&gt; approval check
+  -&gt; budget reservation
+  -&gt; idempotency registration
+  -&gt; execution
+  -&gt; output normalization
+  -&gt; postcondition verification
+  -&gt; durable observation
+</code></pre>
+<p>Эта цепочка важнее конкретного SDK. Если framework скрывает её за одним методом, инженер всё равно должен понимать, где проходит каждый gate и что произойдёт при сбое между ними.</p>
+<p>Например, модель предложила:</p>
+<pre><code class="language-json">{
+  &quot;action&quot;: &quot;dns.update_record&quot;,
+  &quot;arguments&quot;: {
+    &quot;zone&quot;: &quot;example.com&quot;,
+    &quot;name&quot;: &quot;api&quot;,
+    &quot;value&quot;: &quot;203.0.113.25&quot;
+  },
+  &quot;reason&quot;: &quot;authoritative record differs from desired state&quot;
+}
+</code></pre>
+<p>Harness обязан ответить на вопросы, которые модель не может решать единолично:</p>
+<ol>
+<li>Существует ли tool с таким именем и версией?</li>
+<li>Соответствуют ли arguments schema?</li>
+<li>Разрешена ли зона текущему identity и Task scope?</li>
+<li>Требует ли действие approval?</li>
+<li>Не устарел ли plan после получения approval?</li>
+<li>Есть ли remaining budget?</li>
+<li>Не выполнялась ли эта operation раньше?</li>
+<li>Как проверить фактический результат?</li>
+<li>Какие данные можно сохранить в trace?</li>
+</ol>
+<p>Prompt с фразой «будь осторожен» не заменяет ни одну из этих проверок.</p>
+<h2>Внутренняя архитектура harness</h2>
+<p>Удобно разделить harness на control path и data path.</p>
+<p><strong>Control path</strong> решает, что должно произойти: создаёт run, переводит state machine, проверяет policy, учитывает budget, управляет pause/resume и termination.</p>
+<p><strong>Data path</strong> переносит содержимое: собирает model context, отправляет запрос provider, передаёт arguments tool executor, нормализует observation и сохраняет artifacts.</p>
+<p>Такое разделение не требует отдельных сервисов. В маленьком приложении оба пути живут в одном процессе. Важно, чтобы их обязанности не смешивались логически.</p>
+<p>Минимальный набор компонентов:</p>
+<table>
+<thead>
+<tr>
+<th>Компонент</th>
+<th>Вход</th>
+<th>Выход</th>
+<th>Что он не должен решать</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Run controller</td>
+<td>событие и durable state</td>
+<td>следующий transition</td>
+<td>domain-факты без evidence</td>
+</tr>
+<tr>
+<td>Context assembler</td>
+<td>state, instructions, observations</td>
+<td>model request</td>
+<td>policy на side effects</td>
+</tr>
+<tr>
+<td>Model adapter</td>
+<td>normalized request</td>
+<td>normalized response</td>
+<td>выполнение tool call</td>
+</tr>
+<tr>
+<td>Decision parser</td>
+<td>raw/structured response</td>
+<td>typed proposal</td>
+<td>authorization</td>
+</tr>
+<tr>
+<td>Tool registry</td>
+<td>identity, scope, capabilities</td>
+<td>доступные tool descriptors</td>
+<td>фактическое выполнение</td>
+</tr>
+<tr>
+<td>Policy engine</td>
+<td>proposal, identity, state</td>
+<td>allow, deny, require approval</td>
+<td>убеждать модель текстом</td>
+</tr>
+<tr>
+<td>Tool executor</td>
+<td>approved operation</td>
+<td>raw result</td>
+<td>объявлять Task успешной</td>
+</tr>
+<tr>
+<td>Observation normalizer</td>
+<td>raw result</td>
+<td>typed observation</td>
+<td>скрывать partial failure</td>
+</tr>
+<tr>
+<td>State store/journal</td>
+<td>events и checkpoints</td>
+<td>восстановимый progression</td>
+<td>быть единственной копией external state</td>
+</tr>
+<tr>
+<td>Budget controller</td>
+<td>reservation/usage events</td>
+<td>remaining limits</td>
+<td>оценивать бизнес-ценность</td>
+</tr>
+<tr>
+<td>Trace/audit sink</td>
+<td>correlation events</td>
+<td>searchable evidence</td>
+<td>хранить secrets без фильтрации</td>
+</tr>
+<tr>
+<td>Result builder</td>
+<td>verified state и artifacts</td>
+<td>terminal result</td>
+<td>придумывать отсутствующие evidence</td>
+</tr>
+</tbody>
+</table>
+<p>Далее разберём не названия классов, а инженерные контракты между ними.</p>
+<h2>Run controller: место, где живёт lifecycle</h2>
+<p>Run controller реализует state machine из предыдущей главы. Он принимает события и решает, какой transition выполнить. Событием может быть model response, tool result, approval, timeout, cancel или recovery signal.</p>
+<p>Хороший controller не состоит из рекурсивных вызовов <code>run_agent()</code> и не держит всё состояние только в stack. Его логику можно представить функцией:</p>
+<pre><code class="language-text">new_state, effects = transition(current_state, event)
+</code></pre>
+<p><code>effects</code> - не уже выполненные внешние операции, а команды harness: вызвать model, запросить approval, запустить tool, сохранить artifact или завершить Task. Благодаря этому transition можно тестировать без сети и модели.</p>
+<p>Основные обязанности controller:</p>
+<ul>
+<li>назначать монотонный <code>state_version</code>;</li>
+<li>проверять terminal conditions до нового шага;</li>
+<li>резервировать budget до вызова внешней зависимости;</li>
+<li>связывать event с ожидающим operation;</li>
+<li>игнорировать duplicate и stale events;</li>
+<li>распространять cancellation;</li>
+<li>checkpoint-ить состояние перед паузой;</li>
+<li>строить terminal result только из verified evidence.</li>
+</ul>
+<p>Если controller не умеет выразить <code>WaitingForApproval</code> или <code>WaitingForTool</code>, приложение начинает удерживать process и надеяться, что ответ когда-нибудь придёт. Это дорого и плохо восстанавливается.</p>
+<h2>Context assembler: compiler, а не конкатенация строк</h2>
+<p>Context assembly часто реализуют как <code>system_prompt + history + latest_message</code>. Для короткого demo этого достаточно. В production assembler больше похож на compiler pipeline.</p>
+<p>Он должен:</p>
+<ol>
+<li>принять цель, текущее состояние и тип следующего решения;</li>
+<li>выбрать инструкции с явными версиями;</li>
+<li>получить только релевантные observations и artifacts;</li>
+<li>отметить provenance и trust level каждого фрагмента;</li>
+<li>добавить доступные tools и их schema;</li>
+<li>применить redaction и data policy;</li>
+<li>оценить token budget;</li>
+<li>выполнить truncation, summarization или retrieval;</li>
+<li>сформировать provider-neutral request;</li>
+<li>сохранить manifest того, что действительно ушло модели.</li>
+</ol>
+<p>Manifest нужен для воспроизводимости. Запись «модель увидела контекст задачи» недостаточна. Нужны identifiers и версии: prompt bundle, tool catalog, memory snapshot, included artifact hashes, compaction strategy и model settings.</p>
+<h3>Инструкции и данные должны различаться</h3>
+<p>Любой текст из issue, log, web page или tool output потенциально недоверенный. Harness не обязан понимать все prompt injection, но должен сохранять границы происхождения.</p>
+<p>Практичная классификация:</p>
+<table>
+<thead>
+<tr>
+<th>Класс</th>
+<th>Пример</th>
+<th>Допустимое использование</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Platform instruction</td>
+<td>policy о запрете production write</td>
+<td>authoritative instruction</td>
+</tr>
+<tr>
+<td>Agent instruction</td>
+<td>роль и procedure конкретного агента</td>
+<td>instruction внутри platform policy</td>
+</tr>
+<tr>
+<td>User objective</td>
+<td>«исследовать ошибку TLS»</td>
+<td>цель, но не новые полномочия</td>
+</tr>
+<tr>
+<td>Trusted state</td>
+<td>approved scope, identity, budget</td>
+<td>control data</td>
+</tr>
+<tr>
+<td>Retrieved evidence</td>
+<td>runbook из контролируемого repo</td>
+<td>данные с provenance</td>
+</tr>
+<tr>
+<td>Untrusted content</td>
+<td>issue body, log line, web page</td>
+<td>только evidence, не инструкция</td>
+</tr>
+<tr>
+<td>Tool metadata</td>
+<td>schema, side-effect class</td>
+<td>contract для proposal</td>
+</tr>
+</tbody>
+</table>
+<p>Если все категории превращаются в один текстовый блок, модель может принять строку из лога за системную команду. Даже если provider поддерживает роли сообщений, harness должен дополнительно ограничивать authority на уровне tools и policy.</p>
+<h3>Context window - не база данных</h3>
+<p>Assembler не должен пытаться поместить всю историю. Его задача - собрать достаточный контекст для текущего decision point.</p>
+<p>Полезный порядок при переполнении:</p>
+<ol>
+<li>сохранить immutable platform и safety instructions;</li>
+<li>сохранить objective, current state и open decision;</li>
+<li>сохранить последние verified observations;</li>
+<li>сохранить schemas только доступных сейчас tools;</li>
+<li>заменить старые подробности ссылками и summaries;</li>
+<li>убрать дубли и нерелевантные transcripts;</li>
+<li>остановиться с <code>NeedsInput</code> или <code>Blocked</code>, если безопасное сокращение невозможно.</li>
+</ol>
+<p>Summarization является lossy transformation. Summary нельзя считать authoritative evidence; оно должно ссылаться на исходные artifacts.</p>
+<h2>Model adapter: единый интерфейс без иллюзии одинаковых моделей</h2>
+<p>Model adapter переводит normalized request в API конкретного provider и возвращает normalized response. Его цель - изолировать транспортные различия, но не скрыть смысловые capabilities.</p>
+<p>Минимальный request contract может включать:</p>
+<pre><code class="language-yaml">model_request:
+  request_id: mr-0182
+  model_profile: reasoning-medium
+  messages_ref: ctx-09a1
+  tools_ref: catalog-v17
+  required_output_schema: decision-v3
+  max_output_tokens: 1800
+  deadline: 2026-10-05T01:30:00Z
+  cancellation_token: cancel-task-412
+  trace_parent: 00-abcd-1234-01
+</code></pre>
+<p>Ответ должен нормализовать:</p>
+<ul>
+<li>provider request/response IDs;</li>
+<li>text и structured parts;</li>
+<li>tool proposals;</li>
+<li>finish reason;</li>
+<li>usage, включая cached и reasoning tokens, если доступны;</li>
+<li>latency и retry attempts;</li>
+<li>safety/refusal signals;</li>
+<li>provider-specific warnings;</li>
+<li>raw response reference для отладки.</li>
+</ul>
+<h3>Абстракция всегда протекает</h3>
+<p>Разные providers и модели по-разному поддерживают parallel tool calls, strict JSON schema, streaming, reasoning controls, prompt caching, image/audio input и server-managed conversation state. Нельзя свести всё к наименьшему общему знаменателю и затем ожидать одинакового поведения.</p>
+<p>Вместо одного списка model names лучше использовать capability profile:</p>
+<table>
+<thead>
+<tr>
+<th>Capability</th>
+<th>Зачем знать harness</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Structured output strictness</td>
+<td>можно ли доверять provider-side schema enforcement</td>
+</tr>
+<tr>
+<td>Tool-call concurrency</td>
+<td>может ли ответ содержать несколько независимых proposals</td>
+</tr>
+<tr>
+<td>Context limit</td>
+<td>какой compaction нужен до запроса</td>
+</tr>
+<tr>
+<td>Streaming semantics</td>
+<td>какие partial events считаются только UI, а какие durable</td>
+</tr>
+<tr>
+<td>Cancellation support</td>
+<td>можно ли остановить inference или только игнорировать результат</td>
+</tr>
+<tr>
+<td>Usage reporting</td>
+<td>когда и насколько точно доступна стоимость</td>
+</tr>
+<tr>
+<td>Data residency/retention</td>
+<td>разрешён ли provider для данного Task</td>
+</tr>
+<tr>
+<td>Server-managed state</td>
+<td>где находится часть conversation history</td>
+</tr>
+</tbody>
+</table>
+<p>Routing должен происходить до отправки чувствительных данных. Если policy запрещает внешний provider, fallback после ошибки не может молча выбрать его ради доступности.</p>
+<h3>Ошибки model adapter</h3>
+<p><code>ModelError</code> слишком широк. Harness должен различать хотя бы:</p>
+<ul>
+<li>authentication/authorization failure;</li>
+<li>quota или rate limit;</li>
+<li>provider unavailable;</li>
+<li>request timeout;</li>
+<li>context overflow;</li>
+<li>unsupported capability;</li>
+<li>malformed structured output;</li>
+<li>safety refusal;</li>
+<li>cancelled request;</li>
+<li>unknown/ambiguous outcome.</li>
+</ul>
+<p>Только часть этих ошибок допускает автоматический retry. <code>context overflow</code> требует нового context assembly, а malformed decision - repair или новый model step. Authorization failure обычно требует оператора. Timeout после provider acceptance может оставить неизвестность по usage, но не создаёт внешний domain side effect, пока proposal не прошёл executor.</p>
+<h2>Decision parser: недоверенный компиляторный front end</h2>
+<p>Даже при strict structured output ответ модели остаётся недоверенным входом. Parser должен:</p>
+<ul>
+<li>проверять JSON/schema;</li>
+<li>запрещать неизвестные action types;</li>
+<li>нормализовать identifiers, paths и URLs;</li>
+<li>устанавливать size limits;</li>
+<li>отклонять смешение final answer и несовместимого action;</li>
+<li>сохранять raw response отдельно от typed proposal;</li>
+<li>возвращать диагностируемую ошибку, а не <code>None</code>.</li>
+</ul>
+<p>Repair полезен только для синтаксических проблем. Если модель выбрала запрещённый tool, нельзя автоматически «починить» решение на похожий разрешённый tool: это уже новое semantic decision и новый model step.</p>
+<h2>Tool registry и executor: каталог отдельно, выполнение отдельно</h2>
+<p>Tool registry отвечает на вопрос «что доступно этому run сейчас?». Tool executor отвечает на вопрос «как выполнить уже разрешённую operation?». Разделение позволяет менять discovery, не смешивая его с credentials и side effects.</p>
+<p>Descriptor полезного tool содержит больше, чем имя и JSON Schema:</p>
+<pre><code class="language-yaml">tool:
+  name: dns.read_record
+  version: 2.1.0
+  input_schema_ref: sha256:8f2...
+  output_schema_ref: sha256:91b...
+  side_effect: read_only
+  authority: dns:zone/read
+  timeout: 8s
+  retry_class: safe_read
+  concurrency_key: zone:{zone}
+  data_classification: internal
+  verifier: dns.verify_read
+</code></pre>
+<p>Для write tool добавляются approval class, idempotency support, compensation/rollback metadata и postcondition verifier.</p>
+<p>MCP может дать discovery и transport для tools, resources и prompts, но протокол не определяет, как приложение управляет model context или agent loop. Именно harness агрегирует discovered capabilities, применяет local policy и решает, какие descriptors показать модели. Наличие tool в MCP server не означает автоматического разрешения на его вызов.</p>
+<h3>Полный путь tool call</h3>
+<p>Production executor обычно выполняет такую последовательность:</p>
+<ol>
+<li>Получает typed proposal и immutable operation identity.</li>
+<li>Повторно загружает актуальный state.</li>
+<li>Проверяет, что proposal создан для текущего <code>state_version</code>.</li>
+<li>Валидирует arguments и canonical form.</li>
+<li>Разрешает identity, scope и capability.</li>
+<li>Вычисляет risk/approval class.</li>
+<li>Проверяет approval, expiry и exact arguments.</li>
+<li>Резервирует budget и concurrency slot.</li>
+<li>Регистрирует operation как <code>prepared</code>.</li>
+<li>Выполняет call с deadline и cancellation propagation.</li>
+<li>Сохраняет raw result или error.</li>
+<li>Нормализует result в observation.</li>
+<li>Проверяет postcondition отдельным read.</li>
+<li>Помечает operation как <code>verified</code>, <code>failed</code> или <code>unknown</code>.</li>
+<li>Публикует event для run controller.</li>
+</ol>
+<p>Особенно опасен промежуток между пунктами 10 и 11. Внешняя система могла применить write, а процесс упал до записи результата. После recovery нельзя считать операцию ни успешной, ни неуспешной. Статус <code>unknown</code> должен запускать reconciliation.</p>
+<h3>Error и observation не одно и то же</h3>
+<p>Tool может вернуть HTTP 200 и domain failure внутри payload. Может вернуть timeout после фактически выполненного write. Может завершиться частично. Поэтому normalized result должен явно представлять:</p>
+<ul>
+<li>transport outcome;</li>
+<li>provider/application outcome;</li>
+<li>side-effect certainty;</li>
+<li>retryability;</li>
+<li>raw artifact reference;</li>
+<li>observed external identifiers;</li>
+<li>suggested reconciliation action.</li>
+</ul>
+<pre><code class="language-yaml">operation_result:
+  operation_id: op-441
+  transport: timeout
+  application: unknown
+  side_effect: unknown
+  retryable: after_reconcile
+  external_id: change-9841
+  raw_artifact: artifact://tool/op-441-response
+</code></pre>
+<p>Фраза tool exception не содержит достаточной информации для безопасного retry.</p>
+<h3>Output normalization защищает и контекст</h3>
+<p>Tool result способен быть огромным, бинарным, секретным или вредоносным для model context. Executor не должен автоматически возвращать модели весь stdout.</p>
+<p>Нормализатор:</p>
+<ul>
+<li>ограничивает размер;</li>
+<li>отделяет structured result от human-readable text;</li>
+<li>удаляет или маскирует secrets;</li>
+<li>сохраняет полный payload как artifact при допустимой policy;</li>
+<li>добавляет provenance и timestamps;</li>
+<li>помечает недоверенный контент;</li>
+<li>возвращает модели digest и ссылки вместо мегабайтного вывода.</li>
+</ul>
+<p>Tool design подробно рассматривается в главе 6, а безопасность исполнения - в главе 37. Здесь важно увидеть роль harness: он является точкой, где model proposal превращается в контролируемую operation и обратно в observation.</p>
+<h2>Policy и approval: решения вне prompt</h2>
+<p>Policy engine получает факты, а не свободный текст:</p>
+<pre><code class="language-text">subject + task scope + action + canonical arguments + state + environment
+    -&gt; allow | deny | require_approval | constrain
+</code></pre>
+<p><code>constrain</code> может сузить действие: ограничить path, maximum rows, destination host, duration или набор fields. Лучше предоставить model уже attenuated tool, чем показывать широкую capability и каждый раз надеяться на правильные arguments.</p>
+<p>Policy должна применяться как минимум дважды:</p>
+<ol>
+<li>когда формируется доступный tool catalog;</li>
+<li>непосредственно перед execution.</li>
+</ol>
+<p>Первая проверка уменьшает число невозможных proposals. Вторая защищает от stale context, изменения identity и подмены arguments.</p>
+<p>Approval не заменяет policy. Человек не должен получать просьбу «разрешить shell». Нужен конкретный proposal:</p>
+<ul>
+<li>что изменится;</li>
+<li>где именно;</li>
+<li>какими arguments;</li>
+<li>какие side effects ожидаются;</li>
+<li>чем подтверждена необходимость;</li>
+<li>как проверить результат;</li>
+<li>как откатить изменение;</li>
+<li>до какого времени и для какой <code>state_version</code> действует решение.</li>
+</ul>
+<p>После approval harness повторяет policy и input validation. Между паузой и нажатием кнопки среда могла измениться.</p>
+<h3>Fail-open и fail-closed</h3>
+<table>
+<thead>
+<tr>
+<th>Сбой компонента</th>
+<th>Read-only действие</th>
+<th>Необратимый write</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Policy service недоступен</td>
+<td>возможно ограниченное local rule</td>
+<td>deny/pause</td>
+</tr>
+<tr>
+<td>Audit sink недоступен</td>
+<td>buffer с жёстким лимитом</td>
+<td>обычно pause</td>
+</tr>
+<tr>
+<td>Budget store недоступен</td>
+<td>conservative local remainder</td>
+<td>deny нового expensive step</td>
+</tr>
+<tr>
+<td>Approval store недоступен</td>
+<td>продолжить без write</td>
+<td>deny/pause</td>
+</tr>
+<tr>
+<td>Verifier недоступен</td>
+<td>вернуть incomplete evidence</td>
+<td>не объявлять success</td>
+</tr>
+</tbody>
+</table>
+<p>Решение fail-open должно быть явным и привязано к risk class. Глобальная настройка <code>continue_on_error</code> почти всегда слишком груба.</p>
+<h2>State, journal и checkpoint</h2>
+<p>Глава 5 подробно разделяет context, working state, memory и snapshot. Для harness сейчас достаточно трёх правил.</p>
+<p><strong>Первое:</strong> logical state должен переживать restart процесса.</p>
+<p><strong>Второе:</strong> transition и намерение выполнить side effect должны записываться до внешнего действия.</p>
+<p><strong>Третье:</strong> checkpoint не доказывает, что external world соответствует локальному state.</p>
+<p>Event journal полезен для расследования:</p>
+<pre><code class="language-text">RunCreated
+ContextAssembled
+ModelRequestStarted
+ModelResponseReceived
+ProposalValidated
+ApprovalRequested
+ApprovalGranted
+OperationPrepared
+OperationStarted
+OperationOutcomeUnknown
+ReconciliationObserved
+OperationVerified
+RunSucceeded
+</code></pre>
+<p>Необязательно строить полноценный event-sourced system. Можно хранить current state и append-only operation ledger. Но инженер должен иметь возможность ответить: что harness собирался сделать, что начал, что увидел после recovery и на основании чего объявил успех.</p>
+<p>Checkpoint создаётся:</p>
+<ul>
+<li>после значимого observation;</li>
+<li>перед <code>WaitingForApproval</code>;</li>
+<li>перед долгим tool execution;</li>
+<li>после регистрации operation result;</li>
+<li>перед terminal transition;</li>
+<li>периодически в длинном read-only исследовании.</li>
+</ul>
+<p>Checkpoint слишком часто увеличивает latency и write amplification. Слишком редко - увеличивает объём повторной работы и риск потерять provenance. Выбор интервала является частью SLO, а не вкусовой настройкой.</p>
+<h2>Budgets, deadlines и cancellation</h2>
+<p>Budget controller учитывает несколько ограничений одновременно:</p>
+<ul>
+<li>model requests и tokens;</li>
+<li>wall-clock deadline;</li>
+<li>tool calls;</li>
+<li>денежную стоимость;</li>
+<li>объём artifacts и retrieved data;</li>
+<li>parallel operations;</li>
+<li>write proposals;</li>
+<li>nested/delegated runs.</li>
+</ul>
+<p>Budget должен резервироваться до операции, а фактическое usage сверяться после. Иначе несколько параллельных steps могут одновременно увидеть один остаток и совместно превысить лимит.</p>
+<pre><code class="language-text">remaining = limit - committed_usage - active_reservations
+</code></pre>
+<p>Если точная стоимость неизвестна до завершения, резервируется upper bound. Неиспользованный остаток освобождается.</p>
+<h3>Deadline не равен timeout</h3>
+<ul>
+<li><strong>Run deadline</strong> ограничивает всю работу.</li>
+<li><strong>Step timeout</strong> ограничивает одну model/tool operation.</li>
+<li><strong>Connect/read timeout</strong> описывает транспорт.</li>
+<li><strong>Approval expiry</strong> ограничивает актуальность решения человека.</li>
+<li><strong>Lease timeout</strong> определяет, когда другой worker может подобрать abandoned run.</li>
+</ul>
+<p>Один параметр <code>timeout=60</code> не способен выразить эти semantics.</p>
+<p>Cancellation должна быть cooperative и observable. Controller отмечает run как cancelling, прекращает новые proposals, передаёт token активным adapters/executors, ждёт bounded grace period и затем завершает оставшиеся процессы инфраструктурным способом. External writes, которые нельзя отменить, переходят в reconciliation queue.</p>
+<p>Terminal <code>Cancelled</code> означает не «мы послали сигнал», а «harness больше не инициирует действия, локальные executions остановлены, незавершённые external operations перечислены».</p>
+<h2>Concurrency и backpressure</h2>
+<p>Параллельные tool calls сокращают latency, но усложняют state.</p>
+<p>Перед параллельным запуском harness должен знать:</p>
+<ul>
+<li>независимы ли operations;</li>
+<li>читают ли они один mutable resource;</li>
+<li>есть ли ordering requirement;</li>
+<li>как объединяются observations;</li>
+<li>можно ли отменить оставшиеся calls после первого достаточного результата;</li>
+<li>какой общий и per-tool concurrency limit;</li>
+<li>как зарезервирован budget.</li>
+</ul>
+<p>Полезны <code>concurrency_key</code> и conflict policy. Два read для разных hosts могут выполняться одновременно. Два write в одну DNS zone должны сериализоваться или отклоняться. Read после write часто требует ordering barrier.</p>
+<p>Backpressure нужен на трёх уровнях:</p>
+<ol>
+<li>model request queue;</li>
+<li>tool/provider-specific queue;</li>
+<li>artifact and trace pipeline.</li>
+</ol>
+<p>Если trace exporter замедлился, harness не должен бесконечно накапливать payload в RAM. Если model provider отвечает 429, тысяча runs не должна одновременно выполнить retry. Нужны bounded queues, jitter, global rate limiter и понятный overload result.</p>
+<h2>Retry: только после классификации</h2>
+<p>Harness должен различать три класса ошибок.</p>
+<p><strong>Transport/infrastructure error</strong> - connection reset, rate limit, temporary unavailable. Часто подходит bounded retry.</p>
+<p><strong>Contract error</strong> - invalid schema, unsupported capability, tool not found. Retry без изменения request бесполезен.</p>
+<p><strong>Semantic error</strong> - модель выбрала не тот шаг, observation опровергла гипотезу, verifier не подтвердил результат. Нужен новый decision, а не повтор байтов.</p>
+<p>Retry policy включает:</p>
+<ul>
+<li>error class;</li>
+<li>maximum attempts;</li>
+<li>backoff и jitter;</li>
+<li>deadline awareness;</li>
+<li>idempotency requirement;</li>
+<li>whether retry creates a new model step;</li>
+<li>what telemetry links attempts into one logical operation.</li>
+</ul>
+<p>Важно различать logical call и physical attempt. Пользователь просит один model decision, но adapter может выполнить три HTTP attempts. Trace должен показывать оба уровня, а budget policy - явно решать, что считается платным request.</p>
+<p>Circuit breaker защищает provider от лавины повторов, но сам по себе не является fallback strategy. Fallback model может отличаться capabilities, data policy, cost и behavior. Переключение допускается только на совместимый profile и должно фиксироваться в state.</p>
+<h2>Tracing, audit и privacy</h2>
+<p>Harness находится в лучшей точке для correlation, потому что видит весь путь:</p>
+<pre><code class="language-text">Task -&gt; run -&gt; state version -&gt; model request -&gt; proposal
+     -&gt; policy decision -&gt; operation -&gt; observation -&gt; transition
+</code></pre>
+<p>Для каждого run нужны стабильные identifiers. Для каждого внешнего call - собственный span/operation ID. OpenTelemetry уже определяет GenAI operations вроде <code>invoke_agent</code>, <code>chat</code> и <code>execute_tool</code>; их можно использовать как основу, добавив domain attributes AX.</p>
+<p>Но полный prompt и tool output часто содержат secrets, personal data или proprietary code. Поэтому tracing pipeline должен иметь режимы:</p>
+<ul>
+<li>metadata only;</li>
+<li>redacted content;</li>
+<li>encrypted restricted payload;</li>
+<li>sampled full content для специально разрешённой среды.</li>
+</ul>
+<p>Нельзя сначала отправить полный prompt внешнему trace backend, а затем пытаться отредактировать dashboard. Redaction выполняется до export. Raw payload, если он вообще сохраняется, получает отдельную retention и access policy.</p>
+<p>Audit event и debug log служат разным целям. Debug log можно sampling-овать. Audit trail для high-risk write должен быть complete, append-only и связывать identity, approval, exact arguments и verified outcome.</p>
+<h2>Harness и orchestrator: где проходит recovery</h2>
+<p>Harness управляет логическим run. Orchestrator управляет workload, в котором этот run исполняется.</p>
+<table>
+<thead>
+<tr>
+<th>Ситуация</th>
+<th>Основной владелец</th>
+<th>Действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Provider вернул 429</td>
+<td>Harness/model gateway</td>
+<td>backoff, quota-aware retry</td>
+</tr>
+<tr>
+<td>Model response не прошёл schema</td>
+<td>Harness</td>
+<td>repair/new decision/fail</td>
+</tr>
+<tr>
+<td>Tool timeout с unknown side effect</td>
+<td>Harness</td>
+<td>reconciliation</td>
+</tr>
+<tr>
+<td>Process получил OOMKill</td>
+<td>Orchestrator + harness</td>
+<td>restart workload, load checkpoint</td>
+</tr>
+<tr>
+<td>Worker исчез</td>
+<td>Orchestrator</td>
+<td>reschedule/recover Task</td>
+</tr>
+<tr>
+<td>Workspace mount не доступен</td>
+<td>Runtime/orchestrator</td>
+<td>infrastructure failure</td>
+</tr>
+<tr>
+<td>Approval ожидается сутки</td>
+<td>Harness сохраняет pause; orchestrator освобождает compute</td>
+<td>resume по событию</td>
+</tr>
+<tr>
+<td>Пользователь отменил Task</td>
+<td>Оба</td>
+<td>logical cancel + process cleanup</td>
+</tr>
+</tbody>
+</table>
+<p>Граница проявляется при restart. Orchestrator способен снова запустить runner. Но только harness знает, какой logical state загрузить и какую незавершённую operation reconcile.</p>
+<p>Не следует позволять обоим уровням независимо повторять один и тот же side effect. Task-level retry перезапускает runner с прежним operation ledger. Он не создаёт новую identity для write только потому, что process новый.</p>
+<h2>Граница с AX</h2>
+<p>AX предоставляет инфраструктурные primitives и execution substrate: Task lifecycle, Workspace, Model/Gateway, runner contract, размещение и наблюдаемость workload. Конкретный harness может быть Python-процессом, Go binary, Node application, graph framework или CLI-agent.</p>
+<p>Для интеграции harness с AX достаточно явного runner contract:</p>
+<ul>
+<li>где получить Task input и identity;</li>
+<li>где находится durable Workspace;</li>
+<li>как вызвать Model/Gateway;</li>
+<li>как публиковать heartbeat и status;</li>
+<li>как получить cancel/approval event;</li>
+<li>куда записать artifacts;</li>
+<li>как вернуть terminal result;</li>
+<li>что должно сохраниться перед exit.</li>
+</ul>
+<p>AX не должен угадывать внутренний plan агента. Harness не должен реализовывать собственный cluster scheduler. Такая независимость позволяет менять agent framework без миграции control plane и менять инфраструктуру без переписывания domain loop.</p>
+<h3>Pause и suspend - разные операции</h3>
+<p><code>WaitingForApproval</code> - логическое состояние run. <code>suspend</code> - инфраструктурная оптимизация workload. Сначала harness сохраняет checkpoint и сообщает, что способен быть возобновлён по событию. Затем AX может освободить compute или snapshot-ить workload.</p>
+<p>Если workload был suspended без логического checkpoint, resume может вернуть процесс в устаревшее соединение или середину операции. Если run логически paused, но workload продолжает занимать GPU, корректность сохранена, однако ресурсы используются плохо. Production-система должна согласовать оба слоя.</p>
+<h2>Как выбирать готовый framework или писать свой harness</h2>
+<p>Выбор не начинается со списка популярных библиотек. Сначала фиксируется required contract.</p>
+<p>Спросите:</p>
+<ol>
+<li>Есть ли typed state и явные transitions?</li>
+<li>Можно ли durable pause/resume без удержания процесса?</li>
+<li>Где хранятся operation IDs и approvals?</li>
+<li>Какие hooks существуют до и после каждого tool call?</li>
+<li>Можно ли гарантировать blocking guardrail до side effect?</li>
+<li>Как распространяется cancellation?</li>
+<li>Различаются ли logical call и retry attempts?</li>
+<li>Можно ли заменить model provider без потери нужных capabilities?</li>
+<li>Как тестировать controller без реальной модели?</li>
+<li>Можно ли экспортировать traces без sensitive content?</li>
+<li>Что происходит после process crash между tool execution и checkpoint?</li>
+<li>Можно ли встроить собственные identity и policy services?</li>
+</ol>
+<p>Если framework не даёт ответа, это не всегда причина отказаться. Но недостающую semantics придётся реализовать вокруг него, а не прятать в prompt.</p>
+<h3>Когда достаточно маленького собственного harness</h3>
+<p>Собственный минимальный runtime разумен, когда:</p>
+<ul>
+<li>один агент и небольшой набор tools;</li>
+<li>короткий run;</li>
+<li>нет долгих human pauses;</li>
+<li>state легко сериализовать;</li>
+<li>поведение нужно жёстко контролировать;</li>
+<li>команда готова владеть lifecycle и тестами.</li>
+</ul>
+<p>Framework полезнее, когда нужны готовые graph transitions, sessions, tool middleware, streaming, handoffs, tracing integrations или multi-agent patterns. Workflow engine полезен, когда главная сложность - durable timers, signals и recovery на дни, а agentic decisions являются отдельными activities.</p>
+<p>Нередко лучший вариант - framework внутри activity, durable workflow снаружи и AX как execution platform. Важно назначить один authoritative owner для каждого retry, timeout и state transition.</p>
+<h2>Референсный run contract</h2>
+<p>Конфигурация не обязана выглядеть именно так, но все поля должны иметь владельца и semantics.</p>
+<pre><code class="language-yaml">run:
+  id: run-412
+  task_id: task-981
+  agent_spec: incident-investigator@4
+  objective_ref: artifact://task/input.json
+  state_schema: incident-state@3
+  state_store: workspace://state/run-412.json
+  operation_ledger: workspace://ledger/run-412.ndjson
+
+model:
+  profile: reasoning-medium
+  allowed_providers: [local, approved-cloud]
+  required_capabilities: [structured-output, tool-calling]
+  context_policy: incident-context@7
+
+policy:
+  identity: actor://oncall-agent
+  scope: service:payments-api
+  tool_catalog: incident-read-tools@9
+  write_mode: approval-required
+
+limits:
+  deadline: 15m
+  model_steps: 20
+  input_tokens: 180000
+  output_tokens: 24000
+  tool_calls: 40
+  parallel_tools: 4
+  artifact_bytes: 50000000
+  cost_usd: 4.00
+
+recovery:
+  checkpoint: after-observation
+  lease: 60s
+  unknown_operation: reconcile
+  max_model_attempts: 3
+  max_tool_attempts: 2
+
+telemetry:
+  content_mode: redacted
+  trace_sample: always
+  audit_writes: always
+</code></pre>
+<p>Такой contract полезен даже для single-process приложения. Он заставляет ответить, где хранится state, какие providers допустимы и кто отвечает за unknown operation.</p>
+<h3>Упрощённый skeleton runtime</h3>
+<pre><code class="language-text">on_event(run_id, event):
+    state = store.load(run_id)
+    state = controller.apply_event(state, event)
+
+    while state.is_runnable():
+        controller.check_terminal(state)
+        budgets.reserve_next_step(state)
+
+        request, manifest = context.build(state)
+        store.record(ContextAssembled(manifest))
+
+        response = models.generate(request, state.deadline)
+        proposal = decisions.parse(response)
+
+        decision = policy.evaluate(proposal, state)
+        if decision.requires_approval:
+            store.checkpoint(state.waiting_for(decision))
+            return PAUSED
+
+        operation = ledger.prepare(decision, state.version)
+        raw_result = tools.execute(operation)
+        observation = observations.normalize(raw_result)
+        verified = verifier.check(operation, observation)
+
+        state = controller.apply_observation(state, verified)
+        store.checkpoint(state)
+
+    return results.build(state)
+</code></pre>
+<p>В реальной реализации каждая строка может завершиться ошибкой или получить cancel. Скелет показывает порядок ответственности: context manifest записан до model call; operation создаётся после policy; verification предшествует success; state сохраняется после observation.</p>
+<h2>Как развивать harness по этапам</h2>
+<p>Не каждому проекту сразу нужен распределённый runtime. Полезно расти по мере появления требований.</p>
+<h3>Этап 1. Управляемый single-process loop</h3>
+<p>Минимум:</p>
+<ul>
+<li>typed proposals;</li>
+<li>фиксированный tool registry;</li>
+<li>schema validation;</li>
+<li>maximum steps и deadline;</li>
+<li>structured logs;</li>
+<li>read-only tools или ручное approval;</li>
+<li>terminal result с evidence.</li>
+</ul>
+<p>Этого достаточно для коротких внутренних экспериментов.</p>
+<h3>Этап 2. Восстанавливаемый run</h3>
+<p>Добавляются:</p>
+<ul>
+<li>durable state;</li>
+<li>operation ledger;</li>
+<li>idempotency keys;</li>
+<li>pause/resume;</li>
+<li>cancellation;</li>
+<li>error taxonomy;</li>
+<li>simulated tools и replay tests.</li>
+</ul>
+<p>Это граница, после которой agent можно безопасно оставлять без живого terminal session.</p>
+<h3>Этап 3. Production control</h3>
+<p>Появляются:</p>
+<ul>
+<li>identity-aware policy;</li>
+<li>attenuated capabilities;</li>
+<li>versioned approvals;</li>
+<li>cost and concurrency reservations;</li>
+<li>reconciliation workers;</li>
+<li>redacted distributed tracing;</li>
+<li>provider routing с data policy;</li>
+<li>SLO, overload behavior и runbooks.</li>
+</ul>
+<h3>Этап 4. Platform capability</h3>
+<p>Общие части выносятся в reusable services: model gateway, tool registry, policy service, artifact store, trace pipeline и SDK для runner. На этом этапе важно не заставлять все агенты использовать один универсальный prompt или state schema. Платформа стандартизирует contracts, а не domain reasoning.</p>
+<h2>Как тестировать harness</h2>
+<p>Тесты model behavior и тесты harness - разные наборы. Harness в значительной части детерминирован и должен проверяться без настоящего provider.</p>
+<h3>Contract tests компонентов</h3>
+<p>Model adapter получает scripted responses: text, tool proposal, refusal, malformed JSON, stream interruption, timeout и rate limit. Tool adapter получает success, partial result, timeout-after-write и duplicate request. State store симулирует conflict и lost lease.</p>
+<p>Проверяются:</p>
+<ul>
+<li>нормализация provider response;</li>
+<li>schema и size limits;</li>
+<li>policy order;</li>
+<li>budget reservation/release;</li>
+<li>correlation IDs;</li>
+<li>retry classification;</li>
+<li>redaction до trace export;</li>
+<li>terminal result без недоказанных утверждений.</li>
+</ul>
+<h3>Transition tests</h3>
+<p>Каждый event проверяется против каждого допустимого state. Особенно важны race conditions:</p>
+<ul>
+<li>cancel одновременно с tool completion;</li>
+<li>approval одновременно с expiry;</li>
+<li>duplicate model response после retry;</li>
+<li>старый worker пишет state после lease transfer;</li>
+<li>два parallel calls завершаются в обратном порядке;</li>
+<li>process падает после external write до local commit.</li>
+</ul>
+<p>Ожидаемый результат теста - конкретный state, ledger и набор effects, а не строка ответа модели.</p>
+<h3>Failure injection</h3>
+<p>Harness должен переживать искусственные сбои в каждой границе:</p>
+<ol>
+<li>до model request;</li>
+<li>после отправки, до response;</li>
+<li>после response, до parsing;</li>
+<li>после approval request;</li>
+<li>после operation registration;</li>
+<li>после external side effect;</li>
+<li>во время verification;</li>
+<li>после checkpoint, до status publish.</li>
+</ol>
+<p>Для каждого места задаётся recovery invariant. Например: после повторного запуска существует не более одной domain operation с данным idempotency key; <code>Succeeded</code> невозможен без verifier evidence.</p>
+<h3>Replay и golden trajectories</h3>
+<p>Replay запускает controller и adapters на сохранённой последовательности events. Он помогает проверить upgrade harness без повторного вызова внешних systems.</p>
+<p>Golden trajectory не должна фиксировать каждую формулировку модели. Она фиксирует существенные свойства:</p>
+<ul>
+<li>использованы только разрешённые tools;</li>
+<li>write не выполнен без approval;</li>
+<li>budget не превышен;</li>
+<li>найдено evidence нужного типа;</li>
+<li>terminal state корректен;</li>
+<li>sensitive payload не попал в telemetry.</li>
+</ul>
+<p>Официальные testing utilities некоторых SDK позволяют подставлять scripted model и записывать normalized interactions. Даже если выбран другой framework, такой interface стоит реализовать самостоятельно.</p>
+<h2>Практикум: harness для агента проверки change request</h2>
+<p>Спроектируем harness для задачи: «Проанализируй change request, проверь repository и CI, затем подготовь recommendation. Ничего не merge и не изменяй без отдельного approval».</p>
+<h3>1. Определить границы</h3>
+<p>Agent может:</p>
+<ul>
+<li>читать change request и diff;</li>
+<li>искать по repository;</li>
+<li>запускать tests в sandbox;</li>
+<li>читать CI logs;</li>
+<li>создавать локальный report artifact.</li>
+</ul>
+<p>Agent не может:</p>
+<ul>
+<li>push-ить commits;</li>
+<li>изменять branch protection;</li>
+<li>публиковать review comment;</li>
+<li>merge-ить change request;</li>
+<li>читать secrets вне test environment.</li>
+</ul>
+<p>Это не текстовая просьба к модели, а tool catalog и policy.</p>
+<h3>2. Описать state</h3>
+<pre><code class="language-yaml">phase: collecting
+change_ref: repo/pr/184
+state_version: 1
+verified:
+  diff_loaded: false
+  tests_run: false
+findings: []
+operations: {}
+budgets:
+  model_steps_left: 12
+  tool_calls_left: 25
+terminal:
+  status: running
+  evidence: []
+</code></pre>
+<h3>3. Собрать контекст для конкретного решения</h3>
+<p>На первом step не нужно отправлять модели весь repository. Context assembler передаёт objective, diff summary, changed paths, available read-only tools и policy. Когда model просит конкретный файл, tool возвращает содержимое с path, commit SHA и line ranges.</p>
+<p>CI log сохраняется artifact, а в context попадает нормализованный fragment с job ID и timestamp. Строка из log не получает instruction authority.</p>
+<h3>4. Выполнить tools через gates</h3>
+<p>Proposal <code>repo.read_file</code> проходит schema и path scope. Proposal <code>shell.run_tests</code> дополнительно проходит command policy и запускается в sandbox с deadline. Proposal <code>github.merge</code> отсутствует в catalog, поэтому parser возвращает capability error, а не пытается найти похожую функцию.</p>
+<h3>5. Построить результат из evidence</h3>
+<p>Recommendation содержит:</p>
+<ul>
+<li>verified findings со ссылками на diff или log artifacts;</li>
+<li>tests и их exit status;</li>
+<li>непроверенные assumptions;</li>
+<li>residual risks;</li>
+<li>точное предложение следующего действия.</li>
+</ul>
+<p>Если tests не запустились из-за отсутствующей dependency, результат <code>Blocked</code> честнее, чем модельное «изменение выглядит безопасно».</p>
+<h3>6. Проверить recovery</h3>
+<p>В тесте process завершается после запуска tests, но до записи результата. После restart harness находит operation ID, проверяет sandbox job status и присоединяет существующий result. Он не запускает второй дорогостоящий job автоматически.</p>
+<p>Это упражнение показывает назначение harness лучше абстрактного списка компонентов: он сохраняет границу между тем, что model предложила, тем, что система разрешила, тем, что действительно произошло, и тем, что удалось доказать.</p>
+<h2>Типичные антипаттерны</h2>
+<p><strong>Prompt-only safety.</strong> Все правила записаны в system prompt, а executor исполняет любой syntactically valid call.</p>
+<p><strong>God Runner.</strong> Один класс собирает context, вызывает provider, исполняет shell, пишет state и решает policy. Его невозможно тестировать по частям.</p>
+<p><strong>Provider-shaped domain model.</strong> Вся система хранит raw messages одного API; смена provider или версии ломает recovery.</p>
+<p><strong>Retry everything.</strong> Одинаковый decorator повторяет model calls, reads и non-idempotent writes.</p>
+<p><strong>Success by narration.</strong> Финальный текст модели автоматически становится <code>Succeeded</code> без verifier.</p>
+<p><strong>Transcript as state.</strong> Progression восстанавливается только из conversation history.</p>
+<p><strong>Unbounded tool output.</strong> Полный log, binary или database dump возвращается в model context и trace.</p>
+<p><strong>Approval without version.</strong> Оператор подтверждает старый plan, а harness выполняет его после изменения target state.</p>
+<p><strong>Double orchestration.</strong> Workflow engine и agent framework независимо retry-ят одну operation.</p>
+<p><strong>Invisible fallback.</strong> При provider error harness переключается на модель с другой data policy или capabilities, не фиксируя переход.</p>
+<p><strong>Tracing all content by default.</strong> Debug удобство превращается в неконтролируемую копию secrets и пользовательских данных.</p>
+<h2>Итоги главы</h2>
+<ul>
+<li>Harness - runtime одного agent execution, а не синоним модели или orchestration platform.</li>
+<li>Его базовый invariant: model proposal никогда не является action напрямую.</li>
+<li>Run controller владеет state transitions; context assembler строит воспроизводимый request; adapters нормализуют внешние systems.</li>
+<li>Tool execution требует schema, policy, approval, budget, idempotency, normalization и verification.</li>
+<li>Logical state, operation ledger и reconciliation позволяют переживать crash в опасной точке между side effect и checkpoint.</li>
+<li>Budgets резервируются до параллельной работы; deadlines, timeouts, leases и approval expiry имеют разные semantics.</li>
+<li>Retry применяется к классифицированной ошибке, а semantic failure запускает новое решение.</li>
+<li>Tracing связывает Task, model и tool operations, но sensitive content редактируется до export.</li>
+<li>AX управляет workload и инфраструктурным lifecycle; harness управляет внутренним run и восстанавливает его из durable state.</li>
+<li>Framework выбирают по recovery и enforcement contracts, а не по количеству готовых agent abstractions.</li>
+<li>Начинать можно с маленького loop, но production-уровень требует явных identity, policy, audit и failure injection tests.</li>
+</ul>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://openai.github.io/openai-agents-python/running_agents/">OpenAI Agents SDK: Running agents</a> - run configuration, tool execution, sessions, approvals и tracing.</li>
+<li><a href="https://openai.github.io/openai-agents-python/guardrails/">OpenAI Agents SDK: Guardrails</a> - границы input, output и tool guardrails, включая blocking execution.</li>
+<li><a href="https://openai.github.io/openai-agents-python/testing/">OpenAI Agents SDK: Testing</a> - provider-neutral scripted testing orchestration.</li>
+<li><a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Anthropic: Writing effective tools for agents</a> - tools как контракт между детерминированной системой и вероятностным агентом.</li>
+<li><a href="https://modelcontextprotocol.io/docs/learn/architecture">Model Context Protocol: Architecture overview</a> - границы protocol, host/client/server и discovery tools/resources/prompts.</li>
+<li><a href="https://docs.temporal.io/activity-definition">Temporal: Activity Definition</a> - retries, timeouts, heartbeats и требования к idempotent external operations.</li>
+<li><a href="https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/">OpenTelemetry GenAI semantic conventions</a> - общие attributes и operations для agent/model/tool telemetry.</li>
+</ul></div>
+</section>
+<section class="chapter" id="ch-5"><div class="chapter-num">Глава 5</div><h1>Context, state, memory и snapshot: не смешивать</h1><figure><figcaption>Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»</figcaption><svg class="diagram" viewBox="0 0 800 345" role="img" aria-label="Состояние агента: шесть разных сущностей, которые часто ошибочно называют «памятью»"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130.0" y1="105" x2="130.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="220" y1="177.5" x2="300" y2="177.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="171.5" text-anchor="middle" font-size="10" fill="#5c6875">persist</text><line x1="130.0" y1="210" x2="390.0" y2="40" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="260.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">artifacts</text><line x1="650.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">checkpoint</text><line x1="390.0" y1="105" x2="650.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="520.0" y="119.0" text-anchor="middle" font-size="10" fill="#5c6875">durable data</text><line x1="650.0" y1="210" x2="650.0" y2="250" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="650.0" y="224.0" text-anchor="middle" font-size="10" fill="#5c6875">store</text><rect x="40" y="40" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM context</text><text x="130.0" y="85" text-anchor="middle" font-size="11" fill="#465569">tokens in request</text><rect x="40" y="145" rx="12" ry="12" width="180" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="130.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Working state</text><text x="130.0" y="190" text-anchor="middle" font-size="11" fill="#465569">plan, scratchpad</text><rect x="300" y="40" rx="12" ry="12" width="180" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="390.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Filesystem</text><text x="390.0" y="85" text-anchor="middle" font-size="11" fill="#465569">workspace/artifacts</text><rect x="300" y="145" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="390.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">External DB</text><text x="390.0" y="190" text-anchor="middle" font-size="11" fill="#465569">memory/events</text><rect x="560" y="40" rx="12" ry="12" width="180" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="650.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process RAM</text><text x="650.0" y="85" text-anchor="middle" font-size="11" fill="#465569">runtime state</text><rect x="560" y="145" rx="12" ry="12" width="180" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="650.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Snapshot</text><text x="650.0" y="190" text-anchor="middle" font-size="11" fill="#465569">RAM/durable data</text><rect x="560" y="250" rx="12" ry="12" width="180" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="650.0" y="274" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Object storage</text><text x="650.0" y="295" text-anchor="middle" font-size="11" fill="#465569">snapshot blobs</text></svg></figure><p>В agent systems слово «memory» часто скрывает несколько совершенно разных механизмов. Для правильной эксплуатации их нужно разделять.</p>
 <p><strong>LLM context</strong> существует только в рамках конкретного inference request и ограничен context window. <strong>Working state</strong> - текущий plan, cursor, промежуточные результаты и state machine. <strong>Persistent memory</strong> - записи, которые переживают перезапуск и могут быть retrieved. <strong>Workspace</strong> - файлы проекта, artifacts и tool configuration. <strong>Process RAM</strong> - heap/stack конкретного процесса. <strong>Snapshot</strong> - технический checkpoint части runtime state. <strong>External system state</strong> - Git, ticket, router config, DB - authoritative data, которые нельзя «откатить» восстановлением локального snapshot.</p>
 <h3>Почему это важно при resume</h3>
 <p>Если runtime восстанавливает RAM image, TCP connection к внешнему API всё равно может оказаться недействительным: peer закрыл сессию, DNS/IP изменились, token протух. Если AX восстанавливает только durable <code>/workspace</code> и запускает новое process tree, агент должен самостоятельно восстановить in-memory progression из файлов/DB. Оба поведения могут называться «resume», но требования к приложению принципиально различаются.</p>
