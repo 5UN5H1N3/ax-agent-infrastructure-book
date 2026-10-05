@@ -4276,16 +4276,679 @@ proposal:
 <li><a href="https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents">Anthropic: Effective context engineering for AI agents</a> - ясные, непересекающиеся и context-efficient tool sets.</li>
 <li><a href="https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents">Anthropic: Demystifying evals for AI agents</a> - multi-turn evals и проверка environment state.</li>
 <li>Главы 36 и 37 этой книги - подробности MCP architecture, idempotency, approvals и safe tool execution.</li>
-</ul></div></section><section class="chapter" id="ch-7"><div class="chapter-num">Глава 7</div><h1>Multi-agent архитектуры без лишней магии</h1><figure><figcaption>Практика: software-engineering multi-agent workflow</figcaption><svg class="diagram" viewBox="0 0 850 350" role="img" aria-label="Практика: software-engineering multi-agent workflow"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="440.0" y1="90" x2="135.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="287.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="330.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="385.0" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="525.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="482.5" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="440.0" y1="90" x2="720.0" y2="145" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="580.0" y="111.5" text-anchor="middle" font-size="10" fill="#5c6875">delegate</text><line x1="330.0" y1="210" x2="330.0" y2="255" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="330.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">write</text><line x1="525.0" y1="210" x2="525.0" y2="255" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="525.0" y="226.5" text-anchor="middle" font-size="10" fill="#5c6875">run</text><line x1="720.0" y1="210" x2="440.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="580.0" y="109.0" text-anchor="middle" font-size="10" fill="#5c6875">verdict</text><rect x="360" y="20" rx="12" ry="12" width="160" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="440.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Coordinator</text><text x="440.0" y="65" text-anchor="middle" font-size="11" fill="#465569">scope/budget</text><rect x="60" y="145" rx="12" ry="12" width="150" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="135.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Researcher</text><text x="135.0" y="190" text-anchor="middle" font-size="11" fill="#465569">read</text><rect x="255" y="145" rx="12" ry="12" width="150" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="330.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Implementer</text><text x="330.0" y="190" text-anchor="middle" font-size="11" fill="#465569">write branch</text><rect x="450" y="145" rx="12" ry="12" width="150" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="525.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tester</text><text x="525.0" y="190" text-anchor="middle" font-size="11" fill="#465569">execute tests</text><rect x="645" y="145" rx="12" ry="12" width="150" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="720.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Reviewer</text><text x="720.0" y="190" text-anchor="middle" font-size="11" fill="#465569">evaluate</text><rect x="255" y="255" rx="12" ry="12" width="150" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="330.0" y="279" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Git/MCP</text><text x="330.0" y="300" text-anchor="middle" font-size="11" fill="#465569">scoped repo</text><rect x="450" y="255" rx="12" ry="12" width="150" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="525.0" y="279" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">CI tools</text><text x="525.0" y="300" text-anchor="middle" font-size="11" fill="#465569">sandbox</text></svg></figure><p>Multi-agent architecture оправдана, когда разделение даёт хотя бы одно из трёх: меньший context, разные полномочия/tools или параллельное выполнение. Если этих преимуществ нет, один хорошо ограниченный agent часто проще и дешевле.</p>
-<h3>Основные топологии</h3>
-<p><strong>Supervisor/worker.</strong> Supervisor хранит high-level цель и делегирует ограниченные subtasks. Worker не должен получать больше authority, чем нужно его роли. <strong>Hierarchical delegation</strong> продолжает этот pattern на несколько уровней, но требует budget propagation и ограничения глубины. <strong>Fan-out/fan-in</strong> запускает несколько независимых проверок и агрегирует вывод. <strong>Specialist routing</strong> выбирает агента по типу инцидента или ресурса. <strong>Evaluator gate</strong> проверяет результат перед следующей стадией.</p>
-<h3>Coordination state</h3>
-<p>Не стоит передавать всё через естественный язык. Надёжнее иметь structured task state: ID, parent ID, input artifact refs, expected output schema, deadline, allowed tools, budget, status. Текстовая summary может быть частью context, но не должна заменять machine-readable contract.</p>
-<h3>Failure propagation</h3>
-<p>Если child Task упал, parent должен знать: retryable ли ошибка, был ли side effect, можно ли повторить с тем же idempotency key, стоит ли отменять siblings. В infrastructure workflow особенно важно отличать «не смог прочитать telemetry» от «изменил конфигурацию, но потерял ответ».</p>
-<h3>AX и дерево задач</h3>
-<p>AX концептуально допускает, что один Task создаёт другие и таким образом формирует большое дерево. При этом сама платформа не обязана моделировать бизнес-семантику дерева за вас. Это сознательное решение: Task остаётся дешёвой изолированной единицей, а relation/budget/authority должны проектироваться на уровне agentic application до тех пор, пока соответствующие primitives не появятся в стабильной спецификации.</p>
-</section><section class="chapter" id="ch-8"><div class="chapter-num">Глава 8</div><h1>От Linux process к gVisor и microVM</h1><figure><figcaption>Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность</figcaption><svg class="diagram" viewBox="0 0 850 250" role="img" aria-label="Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="157.5" x2="160" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="145.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">isolate</text><line x1="300" y1="157.5" x2="330" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="315.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">restrict</text><line x1="470" y1="157.5" x2="500" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="485.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">syscall boundary</text><line x1="640" y1="157.5" x2="670" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="655.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">stronger boundary</text><rect x="10" y="120" rx="12" ry="12" width="120" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="70.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process</text><text x="70.0" y="165" text-anchor="middle" font-size="11" fill="#465569">same OS</text><rect x="160" y="120" rx="12" ry="12" width="140" height="75" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="230.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Container</text><text x="230.0" y="165" text-anchor="middle" font-size="11" fill="#465569">namespaces + cgroups</text><rect x="330" y="120" rx="12" ry="12" width="140" height="75" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="400.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Hardened</text><text x="400.0" y="165" text-anchor="middle" font-size="11" fill="#465569">seccomp/caps</text><rect x="500" y="120" rx="12" ry="12" width="140" height="75" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="570.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">gVisor</text><text x="570.0" y="165" text-anchor="middle" font-size="11" fill="#465569">userspace kernel</text><rect x="670" y="120" rx="12" ry="12" width="150" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="745.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">microVM</text><text x="745.0" y="165" text-anchor="middle" font-size="11" fill="#465569">guest kernel + KVM</text></svg></figure><p>Изоляция agent workload важнее, чем у обычного внутреннего микросервиса: агент способен генерировать и запускать код, клонировать внешние repository, подключать инструменты и реагировать на потенциально hostile content. Поэтому «он же в контейнере» - недостаточный threat model.</p>
+</ul></div></section><section class="chapter" id="ch-7"><div class="chapter-num">Глава 7</div><h1>Multi-agent архитектуры без лишней магии</h1>
+<p>Команда создаёт четырёх агентов: architect, developer, tester и reviewer. На демонстрации это выглядит как автономная инженерная организация. В реальной задаче architect пишет общий план, developer меняет файлы до завершения плана, tester запускает тесты на старом commit, а reviewer читает summary вместо diff. Все четыре используют один repository, один token и одну модель. Работа стала дороже, но не быстрее и не надёжнее.</p>
+<p>Проблема не в количестве агентов. В системе не было настоящих границ: независимых subtasks, разных capabilities, изолированного state и проверяемого protocol передачи результата. Названия ролей создали театральную организацию, но не архитектуру.</p>
+<p>Главный принцип главы:</p>
+<p><strong>Multi-agent система оправдана, когда разделение создаёт измеримую пользу: параллелизм, изоляцию context, специализацию capabilities или независимую проверку. Если такой пользы нет, один хорошо спроектированный agent почти всегда проще, дешевле и надёжнее.</strong></p>
+<h2>Что именно считается отдельным агентом</h2>
+<p>Не каждый LLM call является агентом, и не каждый параллельный worker делает систему multi-agent.</p>
+<table>
+<thead>
+<tr>
+<th>Сущность</th>
+<th>Что сохраняется между шагами</th>
+<th>Самостоятельно выбирает действия</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Function/model call</td>
+<td>ничего, кроме входа и ответа</td>
+<td>нет</td>
+<td>классификация issue</td>
+</tr>
+<tr>
+<td>Workflow node</td>
+<td>state задаёт workflow engine</td>
+<td>обычно нет</td>
+<td>generate -&gt; validate -&gt; publish</td>
+</tr>
+<tr>
+<td>Worker</td>
+<td>process и служебный state</td>
+<td>не обязательно</td>
+<td>executor test jobs</td>
+</tr>
+<tr>
+<td>Agent</td>
+<td>objective, context, tools, loop и termination</td>
+<td>да, в заданных пределах</td>
+<td>исследователь repository</td>
+</tr>
+<tr>
+<td>Multi-agent system</td>
+<td>несколько автономных loops плюс coordination layer</td>
+<td>да</td>
+<td>coordinator и независимые specialists</td>
+</tr>
+</tbody>
+</table>
+<p>Роль - это configuration, а не identity. Два prompts <code>researcher</code> и <code>reviewer</code>, вызванные последовательно одним controller, могут быть обычным workflow. Это хорошо: не нужно называть multi-agent то, что проще выразить pipeline.</p>
+<p>Отдельный agent появляется там, где есть собственный decision loop:</p>
+<pre><code class="language-text">objective -&gt; observe -&gt; decide -&gt; act -&gt; update state -&gt; stop/escalate
+</code></pre>
+<p>Если несколько таких loops взаимодействуют, архитектура должна определить ownership, protocol и failure semantics. Иначе автономность умножает неопределённость.</p>
+<h2>Начинайте с single-agent baseline</h2>
+<p>Перед добавлением второго агента соберите однопоточную версию и измерьте:</p>
+<ul>
+<li>качество результата;</li>
+<li>end-to-end latency;</li>
+<li>model tokens и tool calls;</li>
+<li>долю успешных Tasks;</li>
+<li>число human interventions;</li>
+<li>ошибки verification;</li>
+<li>стоимость одного verified outcome.</li>
+</ul>
+<p>Без baseline нельзя понять, принесло ли разделение пользу. Multi-agent система может дать лучший ответ просто потому, что потратила в пятнадцать раз больше tokens. Это допустимо для дорогой research-задачи, но не доказывает эффективность архитектуры.</p>
+<h3>Четыре причины разделять работу</h3>
+<p><strong>Независимый параллелизм.</strong> Несколько направлений можно исследовать одновременно: регионы, источники, модули repository, hypothesis.</p>
+<p><strong>Context isolation.</strong> Каждому specialist нужен свой большой корпус данных, а coordinator получает только сжатые findings и evidence refs.</p>
+<p><strong>Capability isolation.</strong> Researcher читает, implementer пишет только branch, tester исполняет untrusted code в sandbox, approver не имеет execution tool.</p>
+<p><strong>Независимая проверка.</strong> Другой agent оценивает artifact по rubric или пытается опровергнуть hypothesis.</p>
+<p>Пятая возможная причина - модельная специализация: дешёвая модель делает широкую фильтрацию, сильная решает сложные cases. Но смена модели сама по себе не требует multi-agent runtime; это может быть routing в обычном workflow.</p>
+<h3>Когда разделение не помогает</h3>
+<p>Оставляйте один agent, если:</p>
+<ul>
+<li>каждый следующий шаг зависит от полного результата предыдущего;</li>
+<li>всем участникам нужен один и тот же большой context;</li>
+<li>несколько writers должны постоянно менять одни файлы;</li>
+<li>задачу быстрее решить одним дополнительным tool call;</li>
+<li>проверяющий не имеет независимого evidence или rubric;</li>
+<li>стоимость coordination сравнима с самой работой;</li>
+<li>outcome нельзя разложить на проверяемые части.</li>
+</ul>
+<p>Особенно плохо параллелизуются короткие задачи с высокой связностью. Пять агентов, обсуждающих имя одной function, создают latency, а не производительность.</p>
+<h2>Сначала нарисуйте граф зависимостей</h2>
+<p>Multi-agent architecture начинается не со списка персонажей, а с directed acyclic graph работы.</p>
+<pre><code class="language-text">                 +-&gt; dependency audit -+
+issue -&gt; scope --+-&gt; code inspection ---+-&gt; synthesis -&gt; implementation
+                 +-&gt; test discovery ----+                  |
+                                                            v
+                                                     tests -&gt; review
+</code></pre>
+<p>Ветки audit, inspection и test discovery независимы и могут идти параллельно. Implementation зависит от synthesis. Tests зависят от конкретного commit. Review зависит от diff и test results.</p>
+<p>Если параллельная доля работы равна <code>P</code>, а число workers равно <code>N</code>, идеальное ускорение ограничено:</p>
+<pre><code class="language-text">speedup &lt;= 1 / ((1 - P) + P / N)
+</code></pre>
+<p>В agent system добавляется coordination overhead <code>C</code>:</p>
+<pre><code class="language-text">wall_time ~= serial_path + max(parallel_branches) + C
+</code></pre>
+<p>Если decomposing, context packaging, queueing и merging занимают больше, чем сэкономлено на ветках, система стала медленнее. Закон не требует точного математического прогнозирования; он заставляет увидеть critical path.</p>
+<h3>Независимость бывает трёх видов</h3>
+<table>
+<thead>
+<tr>
+<th>Вид</th>
+<th>Вопрос</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data independence</td>
+<td>могут ли agents читать разные данные без обмена каждым шагом?</td>
+<td>поиск по разным регионам</td>
+</tr>
+<tr>
+<td>Write independence</td>
+<td>могут ли они менять разные targets без конфликтов?</td>
+<td>разные branches или modules</td>
+</tr>
+<tr>
+<td>Decision independence</td>
+<td>можно ли принять локальное решение без глобального context?</td>
+<td>проверить license dependency</td>
+</tr>
+</tbody>
+</table>
+<p>Параллелизм чтения обычно проще параллелизма записи. Поэтому production multi-agent workflow часто делает широкий fan-out для исследования, а write оставляет одному owner.</p>
+<h2>Основные топологии</h2>
+<p>Topology отвечает на вопросы: кто выбирает следующего участника, кто владеет разговором, где сходятся результаты и кто имеет право завершить Task.</p>
+<h3>Manager и agents-as-tools</h3>
+<p>Manager сохраняет objective и user-facing ownership. Specialists вызываются как tools для bounded subtasks и возвращают результат manager.</p>
+<pre><code class="language-text">user -&gt; manager -&gt; specialist A
+                -&gt; specialist B
+                -&gt; specialist C
+             &lt;- structured results
+user &lt;- final synthesis
+</code></pre>
+<p>Подходит, когда нужен единый final answer, общая policy и централизованная агрегация. Specialist получает сформированный input, а не обязательно всю conversation history.</p>
+<p>Риск - manager становится bottleneck: плохо decomposes, теряет minority finding или пересказывает evidence с ошибкой. Manager не должен вручную копировать большие результаты; лучше принимать schemas и artifact refs.</p>
+<h3>Handoff</h3>
+<p>Текущий agent передаёт ownership specialist, который продолжает interaction.</p>
+<pre><code class="language-text">user -&gt; triage -&gt; billing specialist -&gt; user
+</code></pre>
+<p>Handoff полезен для routing между distinct domains: support, legal intake, incident type. Он уменьшает manager narration и позволяет specialist работать со своими instructions.</p>
+<p>Нужно точно определить:</p>
+<ul>
+<li>какой history получает новый agent;</li>
+<li>какие pending approvals переходят вместе с Task;</li>
+<li>кто отвечает за возврат или следующий handoff;</li>
+<li>сохраняются ли guardrails;</li>
+<li>как предотвращается цикл A -&gt; B -&gt; A.</li>
+</ul>
+<p>Handoff не равен вызову function. Меняется owner текущего диалога, поэтому trace и UX должны это отражать.</p>
+<h3>Fan-out/fan-in</h3>
+<p>Coordinator создаёт несколько независимых subtasks, затем агрегирует результаты.</p>
+<pre><code class="language-text">             +-&gt; region A -+
+objective ---+-&gt; region B --+-&gt; merge -&gt; verify
+             +-&gt; region C -+
+</code></pre>
+<p>Это сильная topology для research, vulnerability discovery и независимых checks. Она требует overlap policy: ветки должны либо сознательно искать разные области, либо сознательно дублировать поиск для оценки recall.</p>
+<p>Fan-in - не простая конкатенация. Aggregator валидирует schema, удаляет duplicates, сохраняет provenance, разрешает contradictions и отмечает gaps.</p>
+<h3>Pipeline</h3>
+<p>Каждая стадия преобразует artifact и передаёт его следующей:</p>
+<pre><code class="language-text">research -&gt; plan -&gt; implementation -&gt; test -&gt; review
+</code></pre>
+<p>Pipeline проще наблюдать, но часто это workflow, а не несколько автономных agents. Он оправдан, когда стадии используют разные tools или authority. Если все стадии детерминированы, реализуйте их code, а не LLM loops.</p>
+<h3>Generator/evaluator</h3>
+<p>Generator создаёт artifact, evaluator проверяет по rubric и возвращает defects. Controller решает, повторять ли цикл.</p>
+<pre><code class="language-text">generator -&gt; candidate -&gt; evaluator -&gt; pass
+     ^                       |
+     +------- defects -------+
+</code></pre>
+<p>Evaluator не должен бесконечно говорить «можно улучшить». Нужны pass criteria, maximum iterations и terminal outcome <code>needs_human</code>.</p>
+<p>Независимость evaluator не возникает от другого имени. Та же модель, тот же context и те же assumptions дают correlated errors. Усилить проверку можно отдельным evidence, adversarial prompt, deterministic tests, другой model family или human review.</p>
+<h3>Blackboard и peer swarm</h3>
+<p>Agents публикуют findings в общее пространство и сами выбирают следующую работу. Такая схема полезна для open-ended exploration, где заранее неизвестна decomposition.</p>
+<p>Но coordination становится сложнее: duplicate claims, stale records, race conditions, popularity bias и отсутствие owner. Blackboard должен иметь typed records, versioning, leases и moderator/arbiter. Общий чат без protocol - не blackboard architecture.</p>
+<p>Для большинства production systems начинайте с manager или fan-out/fan-in. Peer swarm нужен только после доказательства, что централизованная decomposition действительно ограничивает outcome.</p>
+<h2>Delegation contract: что получает child</h2>
+<p>Фраза «изучи security» создаёт дублирование и gaps. Child должен получить ограниченный task envelope.</p>
+<pre><code class="language-yaml">task_id: sec-audit-42/dependency-review
+parent_id: sec-audit-42
+objective: Identify exploitable dependency risks in the current lockfile
+non_goals:
+  - do not modify files
+  - do not review application authorization logic
+inputs:
+  repository_ref: 31f27ab
+  files:
+    - package.json
+    - package-lock.json
+required_output:
+  schema: vulnerability-findings@2
+  artifact: artifact://sec-audit-42/dependencies.json
+authority:
+  tools: [repository.read, advisory.lookup]
+  network: advisories-only
+budget:
+  model_steps: 12
+  tool_calls: 30
+  wall_time_seconds: 300
+termination:
+  success: all direct and transitive packages assessed
+  escalate: lockfile missing or advisory source unavailable
+</code></pre>
+<p>Contract отвечает минимум на девять вопросов:</p>
+<ol>
+<li>Какую часть общей цели решает child?</li>
+<li>Что явно не входит в scope?</li>
+<li>Какая version входных artifacts?</li>
+<li>Какие tools и authority разрешены?</li>
+<li>Какой budget?</li>
+<li>В каком schema вернуть результат?</li>
+<li>Как доказать claims?</li>
+<li>Когда остановиться?</li>
+<li>Когда вернуть вопрос parent, а не импровизировать?</li>
+</ol>
+<h3>Делегирование уменьшает authority</h3>
+<p>Child не должен получать больше полномочий, чем parent:</p>
+<pre><code class="language-text">child_authority &lt;= parent_authority AND task_scope
+</code></pre>
+<p>Coordinator с read/write repository scope может выдать researcher только read. Implementer получает write в отдельный branch, но не merge. Tester запускает code в sandbox без production secrets. Reviewer читает diff и test artifacts.</p>
+<p>Если child способен повторно делегировать, attenuation применяется рекурсивно. Глубокая иерархия не должна случайно восстановить привилегии через другого worker.</p>
+<h3>Делегирование передаёт objective, а не чужой transcript</h3>
+<p>Полная history parent часто содержит нерелевантные instructions, untrusted text и большой token cost. Child обычно нужны:</p>
+<ul>
+<li>objective и constraints;</li>
+<li>selected evidence;</li>
+<li>versioned artifact refs;</li>
+<li>известные uncertainties;</li>
+<li>expected output schema.</li>
+</ul>
+<p>Это projection state, а не копия разговора. Handoff может требовать conversation history для UX, но даже тогда input filter должен удалять secrets и не относящиеся к domain данные.</p>
+<h2>Coordination state: сообщения не заменяют базу данных</h2>
+<p>Agents могут обмениваться natural language, но application state должен оставаться structured.</p>
+<pre><code class="language-yaml">parent_task: migration-81
+state_version: 17
+children:
+  - id: inventory
+    status: succeeded
+    output_ref: artifact://migration-81/inventory.json
+  - id: compatibility
+    status: running
+    lease_expires_at: 2026-10-05T09:10:00Z
+  - id: rollback
+    status: blocked
+    reason_code: MISSING_BACKUP_POLICY
+join:
+  policy: all_required
+  required: [inventory, compatibility, rollback]
+</code></pre>
+<p>Natural-language summary полезна модели, но controller не должен извлекать из неё status, budget или operation ID.</p>
+<h3>Разделяйте control messages и evidence</h3>
+<table>
+<thead>
+<tr>
+<th>Тип</th>
+<th>Назначение</th>
+<th>Пример</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Command</td>
+<td>назначить bounded work</td>
+<td><code>analyze module payments at commit X</code></td>
+</tr>
+<tr>
+<td>Progress</td>
+<td>сообщить состояние без изменения conclusion</td>
+<td><code>12/18 files checked</code></td>
+</tr>
+<tr>
+<td>Finding</td>
+<td>передать claim и evidence</td>
+<td>vulnerability + file/line + reproduction</td>
+</tr>
+<tr>
+<td>Question</td>
+<td>запросить missing decision</td>
+<td>target environment unknown</td>
+</tr>
+<tr>
+<td>Cancellation</td>
+<td>прекратить новые действия</td>
+<td>parent no longer needs branch</td>
+</tr>
+<tr>
+<td>Completion</td>
+<td>зафиксировать terminal result</td>
+<td>succeeded/failed/partial</td>
+</tr>
+</tbody>
+</table>
+<p>Finding не должен скрываться в progress text. Completion не доказывает correctness. Каждый тип имеет schema, correlation ID и timestamp.</p>
+<h3>Shared workspace требует ownership</h3>
+<p>Несколько agents в одном filesystem без правил создают lost updates. Выберите один из patterns:</p>
+<ul>
+<li>один writer, остальные read-only;</li>
+<li>отдельный branch/worktree на child;</li>
+<li>file/module ownership;</li>
+<li>append-only artifacts;</li>
+<li>transactional store с optimistic concurrency;</li>
+<li>proposal вместо прямой записи.</li>
+</ul>
+<p>Lock на весь repository безопасен, но уничтожает параллелизм. Лучше уменьшать write overlap архитектурой.</p>
+<h2>Budgets, backpressure и защита от task explosion</h2>
+<p>Если каждый agent создаёт пять children на глубине четыре, получится до 625 leaf tasks. Даже если каждый дешёвый, система быстро исчерпает concurrency, rate limit и context budget.</p>
+<p>Root задаёт envelope для всего дерева:</p>
+<pre><code class="language-yaml">subtree_budget:
+  model_tokens: 2_000_000
+  tool_calls: 800
+  wall_time_seconds: 1800
+  max_concurrency: 8
+  max_depth: 2
+  max_children_total: 24
+</code></pre>
+<p>Parent резервирует budget до spawn. Неиспользованный остаток возвращается после terminal state. Формально:</p>
+<pre><code class="language-text">sum(reserved_child_budget) &lt;= parent_remaining_budget
+</code></pre>
+<p>Дополнительно нужны:</p>
+<ul>
+<li>queue capacity;</li>
+<li>per-tool rate limits;</li>
+<li>admission control;</li>
+<li>priority и fairness между Tasks;</li>
+<li>backoff вместо aggressive polling;</li>
+<li>circuit breaker при повторяющейся системной ошибке.</li>
+</ul>
+<p>Agent не должен создавать нового child только потому, что не знает следующий шаг. Spawn является дорогим действием и требует причины: independent scope, expected gain и available budget.</p>
+<h3>Dynamic effort scaling</h3>
+<p>Coordinator оценивает complexity до fan-out:</p>
+<table>
+<thead>
+<tr>
+<th>Класс</th>
+<th>Типичная стратегия</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Simple fact</td>
+<td>один agent, без delegation</td>
+</tr>
+<tr>
+<td>Bounded comparison</td>
+<td>2-3 независимые ветки</td>
+</tr>
+<tr>
+<td>Broad research</td>
+<td>несколько domain/region specialists</td>
+</tr>
+<tr>
+<td>Coupled implementation</td>
+<td>один writer плюс параллельные read-only checks</td>
+</tr>
+<tr>
+<td>High-risk change</td>
+<td>planner, policy/approval, executor, independent verifier</td>
+</tr>
+</tbody>
+</table>
+<p>Числа не универсальны. Их калибруют evals и production telemetry, а не интуиция модели.</p>
+<h2>Failure semantics дерева Tasks</h2>
+<p>Multi-agent система добавляет распределённые failure modes поверх ошибок каждого agent.</p>
+<h3>Дублирование и gaps</h3>
+<p>Два children выполняют один и тот же поиск, а третий scope остаётся пустым. Причина обычно в расплывчатом contract или отсутствии global coverage map.</p>
+<p>Исправление: явные non-goals, partition key и проверка overlap до spawn.</p>
+<h3>Role drift и reasoning-action mismatch</h3>
+<p>Reviewer начинает исправлять code, researcher объявляет release, implementer делает вывод без tests. Название роли не ограничивает capability.</p>
+<p>Исправление: tool catalog и authority соответствуют роли; output schema не допускает скрытый side effect.</p>
+<h3>Потеря важного finding</h3>
+<p>Child нашёл исключение, но aggregator выбрал majority summary. Consensus не является truth. Несколько agents одной model family могут повторять одинаковую ошибку, а один dissenter держать решающее evidence.</p>
+<p>Исправление: merge claims по evidence, сохранять contradictions и отдельно поднимать high-severity minority findings.</p>
+<h3>Premature termination</h3>
+<p>Coordinator завершает Task после первых успешных branches или evaluator выдаёт pass без проверки required criteria.</p>
+<p>Исправление: join policy и completion predicate проверяются code. Только определённый controller переводит root в terminal state.</p>
+<h3>Livelock и conversation loops</h3>
+<p>Agents бесконечно передают Task друг другу, критикуют и переписывают один artifact без measurable progress.</p>
+<p>Исправление: max handoffs, max iterations, progress metric и outcome <code>needs_human</code>.</p>
+<h3>Stale result</h3>
+<p>Child работал с commit X, а parent уже перешёл к X+3. Формально успешный result больше не применим.</p>
+<p>Исправление: каждый output связывается с input versions. Fan-in отклоняет stale artifacts или запускает targeted revalidation.</p>
+<h3>Неизвестный side effect</h3>
+<p>Child применил изменение, но умер до completion message. Parent считает его failed и повторяет операцию.</p>
+<p>Исправление: operation ledger, idempotency key и reconciliation с external source of truth. Cancellation не откатывает уже выполненный write.</p>
+<h3>Коррелированная ошибка</h3>
+<p>Десять одинаковых agents с одинаковым prompt и sources могут быть уверены в одной неверной hypothesis. Голосование создаёт иллюзию независимости.</p>
+<p>Исправление: разнообразить evidence и method, а не только random seed. Один agent ищет подтверждение, другой - counterexample, третий выполняет deterministic test.</p>
+<p>Исследование MAST группирует наблюдаемые multi-agent failures в три большие категории: specification/system design, inter-agent misalignment и verification/termination. Практический вывод не в конкретных процентах, а в том, что большинство проблем находятся в orchestration layer и не исчезают от более длинного role prompt.</p>
+<h2>Fan-in: как собирать результат без потери смысла</h2>
+<p>Aggregator получает не «мнения агентов», а набор claims.</p>
+<pre><code class="language-json">{
+  "claim_id": "finding-17",
+  "statement": "dependency X is reachable from the public endpoint",
+  "confidence": "supported",
+  "evidence": [
+    "artifact://audit/callgraph.json#path-81",
+    "repo://payments@31f27ab/src/api.ts:44"
+  ],
+  "input_versions": {
+    "repository": "31f27ab",
+    "advisory_db": "2026-10-05T08:00Z"
+  },
+  "limitations": ["runtime feature flag not observed"]
+}
+</code></pre>
+<p>Правильный merge:</p>
+<ol>
+<li>валидирует output schema;</li>
+<li>проверяет input versions;</li>
+<li>группирует claims, но не удаляет provenance;</li>
+<li>различает duplicate evidence и независимое подтверждение;</li>
+<li>сохраняет conflicts;</li>
+<li>проверяет coverage required scopes;</li>
+<li>вызывает verifier для high-impact claims;</li>
+<li>создаёт compact synthesis для следующего decision point.</li>
+</ol>
+<p>Если два children ссылаются на одну web page, это не два независимых подтверждения. Если conclusions расходятся, aggregator не обязан выбирать среднее: он может вернуть <code>unresolved</code> и назначить discriminating test.</p>
+<h2>Cancellation, retry и recovery</h2>
+<p>Parent restart не должен повторно создавать всех children. Используйте deterministic child ID:</p>
+<pre><code class="language-text">child_id = hash(parent_id, decomposition_version, partition_key)
+</code></pre>
+<p>После recovery coordinator читает journal и для каждого child выбирает:</p>
+<ul>
+<li>attach к running Task;</li>
+<li>принять terminal output;</li>
+<li>reclaim после expired lease;</li>
+<li>retry с тем же logical ID;</li>
+<li>cancel, если result больше не нужен;</li>
+<li>reconcile, если outcome write неизвестен.</li>
+</ul>
+<p>Cancellation является request, а не мгновенным фактом. Child может находиться внутри external call. Controller ждёт acknowledged stop или помечает Task <code>cancel_requested</code> и отслеживает поздний result.</p>
+<p>При fan-out fail-fast подходит не всегда. Если одна region query упала, остальные findings всё ещё полезны. Join policy должна различать:</p>
+<pre><code class="language-yaml">join:
+  mode: quorum
+  minimum_success: 3
+  required_partitions: [production]
+  allow_partial: true
+  partial_label: incomplete_coverage
+</code></pre>
+<h2>Observability: видеть дерево, а не набор чатов</h2>
+<p>Trace должен связывать root, children, tool calls и artifacts.</p>
+<p>Минимальные identifiers:</p>
+<ul>
+<li><code>trace_id</code> общей цели;</li>
+<li><code>task_id</code> и <code>parent_task_id</code>;</li>
+<li><code>agent_config_version</code>;</li>
+<li><code>delegation_contract_version</code>;</li>
+<li><code>input_state_version</code>;</li>
+<li><code>tool_catalog_version</code>;</li>
+<li><code>operation_id</code> для side effects;</li>
+<li><code>artifact_ref</code> результата.</li>
+</ul>
+<p>Полезные метрики:</p>
+<table>
+<thead>
+<tr>
+<th>Метрика</th>
+<th>Что показывает</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Spawn count/depth</td>
+<td>task explosion и качество decomposition</td>
+</tr>
+<tr>
+<td>Useful parallelism</td>
+<td>сколько branches реально перекрылись по времени</td>
+</tr>
+<tr>
+<td>Duplicate work rate</td>
+<td>стоимость плохого partitioning</td>
+</tr>
+<tr>
+<td>Handoff count</td>
+<td>routing loops и UX complexity</td>
+</tr>
+<tr>
+<td>Join wait time</td>
+<td>bottleneck fan-in</td>
+</tr>
+<tr>
+<td>Stale output rate</td>
+<td>слишком долгие subtasks или слабое versioning</td>
+</tr>
+<tr>
+<td>Verified outcome rate</td>
+<td>конечное качество, а не число завершённых agents</td>
+</tr>
+<tr>
+<td>Cost per verified outcome</td>
+<td>экономическую полезность topology</td>
+</tr>
+<tr>
+<td>Cancellation lag</td>
+<td>способность остановить дерево</td>
+</tr>
+</tbody>
+</table>
+<p>Красивый transcript не заменяет distributed trace. Оператор должен быстро ответить: какой child держит critical path, кто расходует budget и какие writes уже произошли.</p>
+<h2>Как оценивать multi-agent систему</h2>
+<p>Сравнивайте минимум три variants:</p>
+<ol>
+<li>сильный single agent;</li>
+<li>deterministic workflow с теми же tools;</li>
+<li>multi-agent topology.</li>
+</ol>
+<p>Уравняйте или отдельно покажите token/tool budgets. Иначе «архитектура» побеждает просто дополнительным compute.</p>
+<h3>Outcome metrics</h3>
+<ul>
+<li>factual/correctness score;</li>
+<li>completeness и coverage;</li>
+<li>verified environment state;</li>
+<li>defects escaped после review;</li>
+<li>human acceptance;</li>
+<li>latency p50/p95;</li>
+<li>model и tool cost;</li>
+<li>failure recovery rate.</li>
+</ul>
+<h3>Coordination metrics</h3>
+<ul>
+<li>правильность routing и decomposition;</li>
+<li>overlap/gap rate;</li>
+<li>schema-valid child outputs;</li>
+<li>ignored findings;</li>
+<li>incorrect or premature termination;</li>
+<li>количество cycles;</li>
+<li>authority violations;</li>
+<li>reproducibility при одинаковом input version.</li>
+</ul>
+<h3>Ablation tests</h3>
+<p>Удаляйте по одному элементу:</p>
+<ul>
+<li>без reviewer;</li>
+<li>без parallelism;</li>
+<li>один model вместо разных;</li>
+<li>text summary вместо structured result;</li>
+<li>общий workspace вместо branches;</li>
+<li>фиксированная decomposition вместо dynamic.</li>
+</ul>
+<p>Так становится видно, какой component даёт benefit. Если removal evaluator не меняет качество, evaluator был ритуалом.</p>
+<p>End-state evaluation важнее проверки единственного «правильного» пути. Agents могут прийти к одному verified outcome разными trajectories. Но process constraints - authority, budget, запрещённые actions - всё равно оцениваются отдельно.</p>
+<h2>Практика: software-engineering workflow</h2><figure><figcaption>Практика: software-engineering multi-agent workflow</figcaption><svg aria-label="Практика: software-engineering multi-agent workflow" class="diagram" role="img" viewbox="0 0 850 350"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="135.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="287.5" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="330.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="385.0" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="525.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="482.5" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="720.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="580.0" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="330.0" x2="330.0" y1="210" y2="255"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="330.0" y="226.5">write</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="525.0" x2="525.0" y1="210" y2="255"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="525.0" y="226.5">run</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="720.0" x2="440.0" y1="210" y2="20"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="580.0" y="109.0">verdict</text><rect fill="#f8efff" height="70" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="160" x="360" y="20"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="440.0" y="44">Coordinator</text><text fill="#465569" font-size="11" text-anchor="middle" x="440.0" y="65">scope/budget</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="150" x="60" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="135.0" y="169">Researcher</text><text fill="#465569" font-size="11" text-anchor="middle" x="135.0" y="190">read</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="150" x="255" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="330.0" y="169">Implementer</text><text fill="#465569" font-size="11" text-anchor="middle" x="330.0" y="190">write branch</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="150" x="450" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="525.0" y="169">Tester</text><text fill="#465569" font-size="11" text-anchor="middle" x="525.0" y="190">execute tests</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="150" x="645" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="720.0" y="169">Reviewer</text><text fill="#465569" font-size="11" text-anchor="middle" x="720.0" y="190">evaluate</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="150" x="255" y="255"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="330.0" y="279">Git/MCP</text><text fill="#465569" font-size="11" text-anchor="middle" x="330.0" y="300">scoped repo</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="150" x="450" y="255"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="525.0" y="279">CI tools</text><text fill="#465569" font-size="11" text-anchor="middle" x="525.0" y="300">sandbox</text></svg></figure>
+<p>Рассмотрим issue: «после обновления cache library периодически теряются session records».</p>
+<h3>1. Coordinator фиксирует scope</h3>
+<p>Он создаёт immutable task manifest:</p>
+<pre><code class="language-yaml">goal: identify cause and prepare reviewed fix
+repository_ref: 31f27ab
+acceptance:
+  - regression test reproduces loss before fix
+  - test passes after fix
+  - no production deployment
+budgets:
+  children: 4
+  wall_time_minutes: 30
+</code></pre>
+<h3>2. Read-only fan-out</h3>
+<p>Три children работают параллельно:</p>
+<ul>
+<li>Researcher прослеживает session lifecycle и возвращает call graph.</li>
+<li>Dependency analyst читает changelog и semantics новой cache library.</li>
+<li>Test analyst ищет existing race tests и строит reproduction plan.</li>
+</ul>
+<p>У каждого distinct scope и один repository commit. Они пишут только artifacts.</p>
+<h3>3. Synthesis gate</h3>
+<p>Coordinator объединяет evidence. Если analysts расходятся, он не выбирает majority, а формирует discriminating experiment: искусственно задержать cache callback и проверить порядок delete/write.</p>
+<h3>4. Один implementer</h3>
+<p>Implementer получает:</p>
+<ul>
+<li>confirmed hypothesis;</li>
+<li>reproduction artifact;</li>
+<li>allowed files;</li>
+<li>отдельный branch;</li>
+<li>запрет merge и release.</li>
+</ul>
+<p>Он создаёт test и fix в одном bounded change set.</p>
+<h3>5. Tester проверяет конкретный commit</h3>
+<p>Tester запускает commands в sandbox, записывает environment digest и возвращает machine-readable report. Он не принимает summary «tests passed» от implementer.</p>
+<h3>6. Reviewer оценивает artifact</h3>
+<p>Reviewer получает goal, diff, test results и rubric. Он не имеет write tool. Verdict содержит blocking defects, evidence и coverage gaps.</p>
+<h3>7. Human/policy gate</h3>
+<p>Merge остаётся отдельной capability. Approval связан с exact commit SHA, а не с фразой «исправь проблему».</p>
+<p>Эта система multi-agent не потому, что роли похожи на людей. Её ценность в parallel read, одном writer, независимом execution environment и отдельном verification evidence.</p>
+<h2>AX и дерево Tasks</h2>
+<p>AX Task может служить unit isolation для child agent: отдельные resources, Workspace, lifecycle и credentials. Но платформа не обязана угадывать business semantics дерева.</p>
+<p>Application layer всё равно определяет:</p>
+<ul>
+<li>parent/child relation;</li>
+<li>deterministic task IDs;</li>
+<li>budget propagation;</li>
+<li>authority attenuation;</li>
+<li>join policy;</li>
+<li>cancellation и recovery;</li>
+<li>output schemas.</li>
+</ul>
+<p>Не создавайте AX Task на каждый model call. Новая Task оправдана, когда нужны isolation, отдельный lifecycle, параллельная capacity или другой security scope. Подробная реализация на AX рассматривается в главе 22, а две полные reference architectures - в главе 33.</p>
+<h2>Где заканчивается orchestration protocol</h2>
+<p>Внутри одного application agents можно вызывать как tools или handoffs. Между независимыми systems нужен protocol discovery, messaging и long-running task exchange. A2A, например, стандартизует взаимодействие потенциально opaque agents: capability discovery, structured messages, streaming и asynchronous task updates.</p>
+<p>Но interoperability protocol не решает:</p>
+<ul>
+<li>правильно ли decomposed objective;</li>
+<li>можно ли доверять remote agent;</li>
+<li>какой budget ему выдать;</li>
+<li>достаточно ли evidence;</li>
+<li>кто авторизует side effect;</li>
+<li>когда root Task считается успешной.</li>
+</ul>
+<p>Протокол переносит delegation contract и artifacts. Orchestrator остаётся ответственным за смысл.</p>
+<h2>Типичные антипаттерны</h2>
+<p><strong>Role-play organization.</strong> Названия CEO, architect и engineer есть, а capabilities и boundaries одинаковы.</p>
+<p><strong>Spawn before decompose.</strong> Coordinator создаёт children до построения coverage map.</p>
+<p><strong>Everyone writes.</strong> Несколько agents меняют общий workspace без ownership.</p>
+<p><strong>Chat as state.</strong> Status и operation IDs извлекаются из сообщений.</p>
+<p><strong>Transcript forwarding.</strong> Каждый child получает всю history, включая secrets и irrelevant instructions.</p>
+<p><strong>Majority means truth.</strong> Correlated answers принимаются за независимое подтверждение.</p>
+<p><strong>Reviewer can silently fix.</strong> Verification и mutation смешаны в одной роли.</p>
+<p><strong>Unlimited recursion.</strong> Children создают children без subtree budget и depth limit.</p>
+<p><strong>Cancel means rollback.</strong> Parent считает остановленный child доказательством отсутствия side effect.</p>
+<p><strong>Success means done.</strong> Completion message принимается без output validation и external verification.</p>
+<p><strong>More agents in every eval.</strong> Multi-agent variant получает больше tokens, но cost не учитывается.</p>
+<p><strong>A2A/MCP as architecture.</strong> Наличие protocol заменяет design decomposition, authority и join semantics.</p>
+<h2>Checklist выбора и проектирования</h2>
+<p>Перед внедрением ответьте:</p>
+<ol>
+<li>Какую метрику single-agent baseline нужно улучшить?</li>
+<li>Какая часть работы действительно параллельна?</li>
+<li>Где critical path и coordination overhead?</li>
+<li>Почему нужен agent, а не function или workflow node?</li>
+<li>Какая topology соответствует ownership?</li>
+<li>Как выглядит delegation contract?</li>
+<li>Какие input versions связывают child result?</li>
+<li>Кто единственный owner каждого write target?</li>
+<li>Как attenuate authority?</li>
+<li>Как ограничены subtree cost, concurrency и depth?</li>
+<li>Как fan-in сохраняет contradictions и provenance?</li>
+<li>Кто имеет право завершить root Task?</li>
+<li>Что происходит при parent restart и child timeout?</li>
+<li>Как измеряется verified outcome и стоимость?</li>
+<li>Какой ablation докажет, что дополнительный agent действительно нужен?</li>
+</ol>
+<p>Если на вопросы 2, 6, 8 и 12 нет ответа, система ещё не готова к нескольким автономным loops.</p>
+<h2>Итоги главы</h2>
+<ul>
+<li>Multi-agent architecture - это несколько decision loops плюс coordination layer, а не несколько role prompts.</li>
+<li>Начинайте с single-agent baseline и измеримой проблемы, которую должно решить разделение.</li>
+<li>Основные источники пользы: независимый параллелизм, context isolation, capability isolation и verification.</li>
+<li>Dependency graph и critical path важнее списка агентов.</li>
+<li>Manager, handoff, fan-out/fan-in, pipeline, evaluator и swarm имеют разные ownership semantics.</li>
+<li>Delegation требует structured contract: objective, non-goals, versions, authority, budget, schema и termination.</li>
+<li>Child authority должна быть уже parent authority и Task scope.</li>
+<li>Coordination state хранится структурированно; сообщения передают commands, findings и progress, но не заменяют state store.</li>
+<li>Shared writes требуют одного owner, отдельных branches или transactional concurrency control.</li>
+<li>Subtree budgets, admission control и depth limits предотвращают task explosion.</li>
+<li>Multi-agent failures включают gaps, duplication, role drift, lost findings, stale outputs, cycles и correlated errors.</li>
+<li>Fan-in агрегирует claims и evidence, а не голосует за самый популярный текст.</li>
+<li>Recovery опирается на deterministic child IDs, journal, leases и reconciliation side effects.</li>
+<li>Evals сравнивают outcome, latency и cost с single-agent и workflow baselines.</li>
+<li>На AX отдельная Task нужна для isolation, lifecycle, capacity или security boundary, а не для каждого шага reasoning.</li>
+<li>Protocol interoperability не заменяет orchestration design, trust и authorization.</li>
+</ul>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://www.anthropic.com/engineering/multi-agent-research-system">Anthropic: How we built our multi-agent research system</a> - orchestrator-worker, delegation, parallelism, cost и evals.</li>
+<li><a href="https://www.anthropic.com/research/multiagent-systems">Anthropic: Patterns and problems in emerging multiagent systems</a> - coordination, systemic resource failures, correlated behavior и epistemic risks.</li>
+<li><a href="https://openai.github.io/openai-agents-python/multi_agent/">OpenAI Agents SDK: Agent orchestration</a> - manager/agents-as-tools, handoffs и code-driven orchestration.</li>
+<li><a href="https://openai.github.io/openai-agents-python/handoffs/">OpenAI Agents SDK: Handoffs</a> - ownership transfer, input filters и handoff configuration.</li>
+<li><a href="https://a2a-protocol.org/v0.3.0/specification/">A2A Protocol Specification 0.3.0</a> - interoperability между независимыми agent systems.</li>
+<li><a href="https://arxiv.org/abs/2503.13657">Cemri et al.: Why Do Multi-Agent LLM Systems Fail?</a> - MAST taxonomy и empirical analysis multi-agent failures.</li>
+<li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic: Building effective agents</a> - routing, parallelization, orchestrator-workers и evaluator-optimizer workflows.</li>
+<li>Главы 22, 33 и 37 этой книги - AX Task delegation, reference architectures и safe execution.</li>
+</ul></div></section><section class="chapter" id="ch-8"><div class="chapter-num">Глава 8</div><h1>От Linux process к gVisor и microVM</h1><figure><figcaption>Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность</figcaption><svg class="diagram" viewBox="0 0 850 250" role="img" aria-label="Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="157.5" x2="160" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="145.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">isolate</text><line x1="300" y1="157.5" x2="330" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="315.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">restrict</text><line x1="470" y1="157.5" x2="500" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="485.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">syscall boundary</text><line x1="640" y1="157.5" x2="670" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="655.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">stronger boundary</text><rect x="10" y="120" rx="12" ry="12" width="120" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="70.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process</text><text x="70.0" y="165" text-anchor="middle" font-size="11" fill="#465569">same OS</text><rect x="160" y="120" rx="12" ry="12" width="140" height="75" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="230.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Container</text><text x="230.0" y="165" text-anchor="middle" font-size="11" fill="#465569">namespaces + cgroups</text><rect x="330" y="120" rx="12" ry="12" width="140" height="75" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="400.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Hardened</text><text x="400.0" y="165" text-anchor="middle" font-size="11" fill="#465569">seccomp/caps</text><rect x="500" y="120" rx="12" ry="12" width="140" height="75" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="570.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">gVisor</text><text x="570.0" y="165" text-anchor="middle" font-size="11" fill="#465569">userspace kernel</text><rect x="670" y="120" rx="12" ry="12" width="150" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="745.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">microVM</text><text x="745.0" y="165" text-anchor="middle" font-size="11" fill="#465569">guest kernel + KVM</text></svg></figure><p>Изоляция agent workload важнее, чем у обычного внутреннего микросервиса: агент способен генерировать и запускать код, клонировать внешние repository, подключать инструменты и реагировать на потенциально hostile content. Поэтому «он же в контейнере» - недостаточный threat model.</p>
 <h3>Linux process и container</h3>
 <p>Namespaces разделяют представления PID, mount, network, user и других ресурсов. cgroups ограничивают/учитывают CPU, memory, I/O и число процессов. Linux capabilities дробят привилегии root на отдельные права. seccomp фильтрует системные вызовы. <code>no_new_privileges</code> запрещает процессу получать новые privileges через exec. Вместе эти механизмы значительно уменьшают blast radius, но обычный container всё ещё разделяет kernel host'а.</p>
 <h3>gVisor</h3>
