@@ -289,6 +289,8 @@ Repair полезен только для синтаксических проб�
 
 ## Tool registry и executor: каталог отдельно, выполнение отдельно
 
+Здесь нас интересует место tool execution внутри harness. Семантику Tool, границу с MCP и роль Skills мы отдельно разберём в главе 6.
+
 Tool registry отвечает на вопрос «что доступно этому run сейчас?». Tool executor отвечает на вопрос «как выполнить уже разрешённую operation?». Разделение позволяет менять discovery, не смешивая его с credentials и side effects.
 
 Descriptor полезного tool содержит больше, чем имя и JSON Schema:
@@ -419,6 +421,8 @@ Approval не заменяет policy. Человек не должен полу
 Решение fail-open должно быть явным и привязано к risk class. Глобальная настройка `continue_on_error` почти всегда слишком груба.
 
 ## State, journal и checkpoint
+
+Здесь мы фиксируем компоненты recovery внутри harness. Точные различия между context, working state, memory, workspace, checkpoint и snapshot будут определены в главе 5.
 
 Глава 5 подробно разделяет context, working state, memory и snapshot. Для harness сейчас достаточно трёх правил.
 
@@ -947,6 +951,8 @@ Recommendation содержит:
 - AX управляет workload и инфраструктурным lifecycle; harness управляет внутренним run и восстанавливает его из durable state.
 - Framework выбирают по recovery и enforcement contracts, а не по количеству готовых agent abstractions.
 - Начинать можно с маленького loop, но production-уровень требует явных identity, policy, audit и failure injection tests.
+
+**Дальше.** Harness задаёт места хранения и recovery hooks. Следующая глава уточнит семантику данных в этих местах, чтобы restart не превращал transcript, memory и authoritative state в одну неразличимую массу.
 
 ### Источники и дальнейшее чтение
 

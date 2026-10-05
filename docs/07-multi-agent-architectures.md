@@ -1,5 +1,7 @@
 # Multi-agent архитектуры без лишней магии
 
+Главы 3-6 построили один bounded agent: loop, harness, state и capabilities. Теперь решим, когда нескольких таких loops действительно требуют dependency graph, isolation или независимая проверка, а когда multi-agent только увеличивает стоимость.
+
 Команда создаёт четырёх агентов: architect, developer, tester и reviewer. На демонстрации это выглядит как автономная инженерная организация. В реальной задаче architect пишет общий план, developer меняет файлы до завершения плана, tester запускает тесты на старом commit, а reviewer читает summary вместо diff. Все четыре используют один repository, один token и одну модель. Работа стала дороже, но не быстрее и не надёжнее.
 
 Проблема не в количестве агентов. В системе не было настоящих границ: независимых subtasks, разных capabilities, изолированного state и проверяемого protocol передачи результата. Названия ролей создали театральную организацию, но не архитектуру.
@@ -109,6 +111,8 @@ wall_time ~= serial_path + max(parallel_branches) + C
 Параллелизм чтения обычно проще параллелизма записи. Поэтому production multi-agent workflow часто делает широкий fan-out для исследования, а write оставляет одному owner.
 
 ## Основные топологии
+
+В этой главе **coordinator** - прикладная роль: она декомпозирует цель, делегирует работу и собирает результат. Это не infrastructure orchestrator из глав 1 и 4, который размещает workloads и обеспечивает их lifecycle.
 
 Topology отвечает на вопросы: кто выбирает следующего участника, кто владеет разговором, где сходятся результаты и кто имеет право завершить Task.
 
@@ -646,7 +650,7 @@ Application layer всё равно определяет:
 - кто авторизует side effect;
 - когда root Task считается успешной.
 
-Протокол переносит delegation contract и artifacts. Orchestrator остаётся ответственным за смысл.
+Протокол переносит delegation contract и artifacts. Coordinator и прикладной orchestration layer остаются ответственными за смысл; infrastructure orchestrator лишь исполняет lifecycle выделенных workloads.
 
 ## Типичные антипаттерны
 
@@ -714,6 +718,8 @@ Application layer всё равно определяет:
 - Evals сравнивают outcome, latency и cost с single-agent и workflow baselines.
 - На AX отдельная Task нужна для isolation, lifecycle, capacity или security boundary, а не для каждого шага reasoning.
 - Protocol interoperability не заменяет orchestration design, trust и authorization.
+
+**Дальше.** Логическое разделение ролей требует физических границ выполнения. В следующей главе сравним process, container, gVisor и microVM и свяжем степень изоляции с threat model.
 
 ### Источники и дальнейшее чтение
 
