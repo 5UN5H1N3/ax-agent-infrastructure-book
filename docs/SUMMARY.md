@@ -30,7 +30,7 @@
 ## III. Google AX
 
 * [AX control plane: от декларации к Actor и граница с Substrate](16-ax-control-plane.md)
-* [AX primitives: Task, Workspace, Gateway и Model](17-ax-primitives.md)
+* [AX primitives: Task, Workspace и Model без магии](17-ax-primitives.md)
 * [Runner: PID 1 как платформенный контракт](18-ax-runner.md)
 * [Полный lifecycle Task: от YAML до suspend/resume](19-ax-task-lifecycle.md)
 
