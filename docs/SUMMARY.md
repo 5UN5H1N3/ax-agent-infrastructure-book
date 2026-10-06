@@ -24,7 +24,7 @@
 * [Actor model для агентных workload: identity, state и lifecycle](11-actor-model.md)
 * [Agent Substrate: как устроен runtime для stateful Actors](12-agent-substrate-architecture.md)
 * [Ресурсная модель Substrate: от capacity до долговечного Actor](13-substrate-resources.md)
-* [Suspend, snapshot, resume и golden snapshot](14-suspend-snapshot-resume.md)
+* [Lifecycle stateful Actor: pause, suspend, resume и восстановление](14-suspend-snapshot-resume.md)
 * [Substrate networking: routing, wake-up и egress](15-substrate-networking.md)
 
 ## III. Google AX
