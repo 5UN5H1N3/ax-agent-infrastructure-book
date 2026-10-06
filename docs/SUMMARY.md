@@ -25,7 +25,7 @@
 * [Agent Substrate: как устроен runtime для stateful Actors](12-agent-substrate-architecture.md)
 * [Ресурсная модель Substrate: от capacity до долговечного Actor](13-substrate-resources.md)
 * [Lifecycle stateful Actor: pause, suspend, resume и восстановление](14-suspend-snapshot-resume.md)
-* [Substrate networking: routing, wake-up и egress](15-substrate-networking.md)
+* [Substrate networking: routing, request parking и безопасный egress](15-substrate-networking.md)
 
 ## III. Google AX
 
