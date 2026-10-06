@@ -19,8 +19,7 @@
 - почему текущая direct-execution схема удобна для ранней версии, но ограничивает масштабирование;
 - что уже реализовано, а что пока существует только в roadmap.
 
-![AX Task: фактический путь current main](.gitbook/assets/diagrams/16-15.png)
-
+![AX Task: фактический путь current main](.gitbook/assets/diagrams/16-15.png)  
 *AX Task: фактический путь current main*
 
 ## Сначала разделим три контракта
