@@ -73,7 +73,7 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 <section class="toc">
 <h1>Содержание</h1>
 <p>Книга построена от фундаментальных mental models к AX/Substrate и затем к эксплуатации. Ссылки кликабельны в PDF.</p>
-<ol><li><a href="#ch-0">0. Как читать эту книгу и что именно зафиксировано</a></li><li><a href="#ch-1">1. Карта современной агентной системы: от модели до кластера</a></li><li><a href="#ch-2">2. LLM как вычислительный компонент агентной системы</a></li><li><a href="#ch-3">3. Что такое агент: цикл, границы и критерии остановки</a></li><li><a href="#ch-4">4. Agent harness: система вокруг LLM</a></li><li><a href="#ch-5">5. Context, state, memory и snapshot: не смешивать</a></li><li><a href="#ch-6">6. Tools, MCP и Skills</a></li><li><a href="#ch-7">7. Multi-agent архитектуры без лишней магии</a></li><li><a href="#ch-8">8. От Linux process к gVisor и microVM</a></li><li><a href="#ch-9">9. Kubernetes: необходимый минимум для понимания AX/Substrate</a></li><li><a href="#ch-10">10. Control plane и distributed systems: база без академической перегрузки</a></li><li><a href="#ch-11">11. Actor model применительно к агентным workload</a></li><li><a href="#ch-12">12. Agent Substrate: назначение и operational architecture</a></li><li><a href="#ch-13">13. Substrate resources: Atespace, WorkerPool, ActorTemplate, Actor, Tag</a></li><li><a href="#ch-14">14. Suspend, snapshot, resume и golden snapshot</a></li><li><a href="#ch-15">15. Substrate networking: routing, wake-up и egress</a></li><li><a href="#ch-16">16. AX: архитектура control plane и реальная граница с Substrate</a></li><li><a href="#ch-17">17. AX primitives: Task, Workspace и Model без магии</a></li><li><a href="#ch-18">18. Runner: PID 1 как платформенный контракт, а не просто entrypoint</a></li><li><a href="#ch-19">19. Полный lifecycle Task: от YAML до suspend/resume</a></li><li><a href="#ch-20">20. Local inference: CPU, GPU, vLLM и llama.cpp</a></li><li><a href="#ch-21">21. Производительность inference: что измерять для 10-15+ агентов</a></li><li><a href="#ch-22">22. Multi-agent на AX: как делегировать без task explosion</a></li><li><a href="#ch-23">23. Security architecture: threat model agent platform</a></li><li><a href="#ch-24">24. Identity, authorization и Human-in-the-loop</a></li><li><a href="#ch-25">25. Observability: четыре слоя и единая correlation identity</a></li><li><a href="#ch-26">26. Лабораторный стенд на Proxmox/KVM: Kind, k3s или kubeadm</a></li><li><a href="#ch-27">27. Production engineering: HA, persistence, upgrades и DR</a></li><li><a href="#ch-28">28. Performance и scaling: что реально ограничивает систему</a></li><li><a href="#ch-29">29. Failure modes и troubleshooting handbook</a></li><li><a href="#ch-30">30. Когда AX нужен, а когда проще другой инструмент</a></li><li><a href="#ch-31">31. Антипаттерны</a></li><li><a href="#ch-32">32. Практикум: 14 последовательных лабораторных работ</a></li><li><a href="#ch-33">33. Две референсные multi-agent архитектуры</a></li><li><a href="#ch-34">34. Mental models, glossary и cheatsheets</a></li><li><a href="#ch-35">35. Context engineering: управление контекстом и durable state</a></li><li><a href="#ch-36">36. MCP 2026: протокол, discovery, transport и trust boundaries</a></li><li><a href="#ch-37">37. Безопасное выполнение tools: idempotency, approvals и attenuation полномочий</a></li><li><a href="#ch-38">38. AX control plane: state, event flow и operational truth</a></li><li><a href="#ch-39">39. Substrate snapshots: ownership, storage и совместимость</a></li><li><a href="#ch-40">40. Gateway и egress: DNS, TLS и проверка реальной доступности</a></li><li><a href="#ch-41">41. Local inference sizing: память GPU, parallelism и эксплуатационные SLO</a></li><li><a href="#ch-42">42. Production security, secrets и disaster recovery</a></li><li><a href="#ch-43">43. Operations runbook: диагностика по слоям и release acceptance</a></li><li><a href="#appendix">Приложения: аудит, checklist, источники</a></li></ol>
+<ol><li><a href="#ch-0">0. Как читать эту книгу и что именно зафиксировано</a></li><li><a href="#ch-1">1. Карта современной агентной системы: от модели до кластера</a></li><li><a href="#ch-2">2. LLM как вычислительный компонент агентной системы</a></li><li><a href="#ch-3">3. Что такое агент: цикл, границы и критерии остановки</a></li><li><a href="#ch-4">4. Agent harness: система вокруг LLM</a></li><li><a href="#ch-5">5. Context, state, memory и snapshot: не смешивать</a></li><li><a href="#ch-6">6. Tools, MCP и Skills</a></li><li><a href="#ch-7">7. Multi-agent архитектуры без лишней магии</a></li><li><a href="#ch-8">8. От Linux process к gVisor и microVM</a></li><li><a href="#ch-9">9. Kubernetes: необходимый минимум для понимания AX/Substrate</a></li><li><a href="#ch-10">10. Control plane и distributed systems: база без академической перегрузки</a></li><li><a href="#ch-11">11. Actor model применительно к агентным workload</a></li><li><a href="#ch-12">12. Agent Substrate: назначение и operational architecture</a></li><li><a href="#ch-13">13. Substrate resources: Atespace, WorkerPool, ActorTemplate, Actor, Tag</a></li><li><a href="#ch-14">14. Suspend, snapshot, resume и golden snapshot</a></li><li><a href="#ch-15">15. Substrate networking: routing, wake-up и egress</a></li><li><a href="#ch-16">16. AX: архитектура control plane и реальная граница с Substrate</a></li><li><a href="#ch-17">17. AX primitives: Task, Workspace и Model без магии</a></li><li><a href="#ch-18">18. Runner: PID 1 как платформенный контракт, а не просто entrypoint</a></li><li><a href="#ch-19">19. Task lifecycle в AX: synchronous reconciliation, состояния и recovery</a></li><li><a href="#ch-20">20. Local inference: CPU, GPU, vLLM и llama.cpp</a></li><li><a href="#ch-21">21. Производительность inference: что измерять для 10-15+ агентов</a></li><li><a href="#ch-22">22. Multi-agent на AX: как делегировать без task explosion</a></li><li><a href="#ch-23">23. Security architecture: threat model agent platform</a></li><li><a href="#ch-24">24. Identity, authorization и Human-in-the-loop</a></li><li><a href="#ch-25">25. Observability: четыре слоя и единая correlation identity</a></li><li><a href="#ch-26">26. Лабораторный стенд на Proxmox/KVM: Kind, k3s или kubeadm</a></li><li><a href="#ch-27">27. Production engineering: HA, persistence, upgrades и DR</a></li><li><a href="#ch-28">28. Performance и scaling: что реально ограничивает систему</a></li><li><a href="#ch-29">29. Failure modes и troubleshooting handbook</a></li><li><a href="#ch-30">30. Когда AX нужен, а когда проще другой инструмент</a></li><li><a href="#ch-31">31. Антипаттерны</a></li><li><a href="#ch-32">32. Практикум: 14 последовательных лабораторных работ</a></li><li><a href="#ch-33">33. Две референсные multi-agent архитектуры</a></li><li><a href="#ch-34">34. Mental models, glossary и cheatsheets</a></li><li><a href="#ch-35">35. Context engineering: управление контекстом и durable state</a></li><li><a href="#ch-36">36. MCP 2026: протокол, discovery, transport и trust boundaries</a></li><li><a href="#ch-37">37. Безопасное выполнение tools: idempotency, approvals и attenuation полномочий</a></li><li><a href="#ch-38">38. AX control plane: state, event flow и operational truth</a></li><li><a href="#ch-39">39. Substrate snapshots: ownership, storage и совместимость</a></li><li><a href="#ch-40">40. Gateway и egress: DNS, TLS и проверка реальной доступности</a></li><li><a href="#ch-41">41. Local inference sizing: память GPU, parallelism и эксплуатационные SLO</a></li><li><a href="#ch-42">42. Production security, secrets и disaster recovery</a></li><li><a href="#ch-43">43. Operations runbook: диагностика по слоям и release acceptance</a></li><li><a href="#appendix">Приложения: аудит, checklist, источники</a></li></ol>
 </section>
 <section class="chapter" id="ch-0"><div class="chapter-num">Глава 0</div><h1>Как читать эту книгу и что именно зафиксировано</h1><div class="badges"><span class="badge">IMPLEMENTED / VERIFIED</span><span class="badge">MAIN DELTA where noted</span><span class="badge">ROADMAP kept separate</span></div><p>Эта книга построена не как пересказ README, а как инженерный учебник: сначала даётся mental model, затем ровно та фундаментальная база, без которой конкретный механизм AX или Agent Substrate превращается в «магический чёрный ящик», после чего идут эксплуатационные выводы и практика. Целевая аудитория - системные и сетевые инженеры, архитекторы инфраструктуры и разработчики платформ, которым важнее <strong>развернуть, наблюдать, ограничивать и диагностировать агентные workload'ы</strong>, чем изменять внутренний Go-код проекта.</p>
 <h3>Версионная база</h3>
@@ -7876,30 +7876,438 @@ curl -s http://127.0.0.1:8080/metadata/v1alpha1/ax/task</code></pre>
 <li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/sandbox.md">Inside the AX sandbox</a></li>
 <li><a href="https://man7.org/linux/man-pages/man7/pid_namespaces.7.html">Linux PID namespaces and PID 1 behavior</a></li>
 <li><a href="https://man7.org/linux/man-pages/man2/waitpid.2.html">Linux wait and zombie process semantics</a></li>
-</ul></div></section><section class="chapter" id="ch-19"><div class="chapter-num">Глава 19</div><h1>Полный lifecycle Task: от YAML до suspend/resume</h1><figure><figcaption>AX Task: путь от декларации до выполняемого агента</figcaption><svg class="diagram" viewBox="0 0 920 310" role="img" aria-label="AX Task: путь от декларации до выполняемого агента"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="140" y1="155.0" x2="170" y2="155.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="155.0" y="149.0" text-anchor="middle" font-size="10" fill="#5c6875">apply</text><line x1="280" y1="155.0" x2="310" y2="155.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="295.0" y="149.0" text-anchor="middle" font-size="10" fill="#5c6875">gRPC</text><line x1="370.0" y1="190" x2="520.0" y2="30" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="445.0" y="104.0" text-anchor="middle" font-size="10" fill="#5c6875">persist/event</text><line x1="520.0" y1="95" x2="520.0" y2="210" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="520.0" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">stream</text><line x1="520.0" y1="275" x2="685.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="602.5" y="191.5" text-anchor="middle" font-size="10" fill="#5c6875">Actor API</text><line x1="685.0" y1="190" x2="845.0" y2="40" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="765.0" y="109.0" text-anchor="middle" font-size="10" fill="#5c6875">assign</text><line x1="845.0" y1="105" x2="845.0" y2="200" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="845.0" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">start</text><rect x="20" y="120" rx="12" ry="12" width="120" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="80.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Manifest</text><text x="80.0" y="165" text-anchor="middle" font-size="11" fill="#465569">Task + refs</text><rect x="170" y="120" rx="12" ry="12" width="110" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="225.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ax CLI</text><text x="225.0" y="165" text-anchor="middle" font-size="11" fill="#465569">gRPC</text><rect x="310" y="120" rx="12" ry="12" width="120" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="370.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ax-server</text><text x="370.0" y="165" text-anchor="middle" font-size="11" fill="#465569">validate/store</text><rect x="460" y="30" rx="12" ry="12" width="120" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="520.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Redis</text><text x="520.0" y="75" text-anchor="middle" font-size="11" fill="#465569">desired/status</text><rect x="460" y="210" rx="12" ry="12" width="120" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="520.0" y="234" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ax-controller</text><text x="520.0" y="255" text-anchor="middle" font-size="11" fill="#465569">reconcile</text><rect x="620" y="120" rx="12" ry="12" width="130" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="685.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Substrate</text><text x="685.0" y="165" text-anchor="middle" font-size="11" fill="#465569">Actor lifecycle</text><rect x="790" y="40" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="845.0" y="64" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Worker</text><text x="845.0" y="85" text-anchor="middle" font-size="11" fill="#465569">sandbox</text><rect x="790" y="200" rx="12" ry="12" width="110" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="845.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Runner</text><text x="845.0" y="245" text-anchor="middle" font-size="11" fill="#465569">PID 1</text><text x="460.0" y="298" text-anchor="middle" font-size="11" fill="#5b6672">Фактическая схема current main уже разделяет ax-server и ax-controller; design-документ частично отстаёт.</text></svg></figure><p>Разберём Task как распределённую state machine, а не как «контейнер, который стартовал».</p>
-<h3>Create path</h3>
+</ul></div></section><section class="chapter" id="ch-19"><div class="chapter-num">Глава 19</div><h1>Task lifecycle в AX: synchronous reconciliation, состояния и recovery</h1><figure><figcaption>AX Task current main: synchronous lifecycle под per-resource lock</figcaption><svg xmlns="http://www.w3.org/2000/svg" width="920" height="430" viewBox="0 0 920 430" role="img" aria-label="AX Task current main: synchronous lifecycle под per-resource lock" class="diagram">
+  <defs>
+    <marker id="arrow19" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#53657a"/>
+    </marker>
+  </defs>
+
+  <line x1="150" y1="161" x2="190" y2="161" stroke="#53657a" stroke-width="2" marker-end="url(#arrow19)"/>
+  <text x="170" y="151" text-anchor="middle" font-size="10" fill="#5c6875">gRPC</text>
+
+  <line x1="350" y1="140" x2="430" y2="78" stroke="#53657a" stroke-width="2" marker-end="url(#arrow19)"/>
+  <text x="388" y="97" text-anchor="middle" font-size="10" fill="#5c6875">lock + state</text>
+
+  <line x1="350" y1="181" x2="430" y2="250" stroke="#53657a" stroke-width="2" marker-end="url(#arrow19)"/>
+  <text x="389" y="227" text-anchor="middle" font-size="10" fill="#5c6875">direct RPC</text>
+
+  <line x1="595" y1="256" x2="700" y2="256" stroke="#53657a" stroke-width="2" marker-end="url(#arrow19)"/>
+  <text x="647" y="246" text-anchor="middle" font-size="10" fill="#5c6875">assign + start</text>
+
+  <line x1="790" y1="220" x2="790" y2="102" stroke="#53657a" stroke-width="2" marker-end="url(#arrow19)"/>
+  <text x="800" y="163" text-anchor="start" font-size="10" fill="#5c6875">/readyz</text>
+
+  <line x1="700" y1="66" x2="595" y2="66" stroke="#7a6a8e" stroke-width="2" marker-end="url(#arrow19)"/>
+  <text x="647" y="56" text-anchor="middle" font-size="10" fill="#6a587b">observation</text>
+
+  <rect x="20" y="125" rx="12" ry="12" width="130" height="72" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/>
+  <text x="85" y="150" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Manifest + CLI</text>
+  <text x="85" y="172" text-anchor="middle" font-size="11" fill="#465569">create / resume</text>
+  <text x="85" y="188" text-anchor="middle" font-size="11" fill="#465569">suspend / delete</text>
+
+  <rect x="190" y="115" rx="12" ry="12" width="160" height="92" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/>
+  <text x="270" y="141" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">ax-server</text>
+  <text x="270" y="163" text-anchor="middle" font-size="11" fill="#465569">validate + reconcile</text>
+  <text x="270" y="180" text-anchor="middle" font-size="11" fill="#465569">synchronously</text>
+  <text x="270" y="197" text-anchor="middle" font-size="11" fill="#465569">one request path</text>
+
+  <rect x="430" y="30" rx="12" ry="12" width="165" height="72" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/>
+  <text x="512.5" y="55" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Redis</text>
+  <text x="512.5" y="77" text-anchor="middle" font-size="11" fill="#465569">resource + status</text>
+  <text x="512.5" y="93" text-anchor="middle" font-size="11" fill="#465569">lock + watch Pub/Sub</text>
+
+  <rect x="430" y="220" rx="12" ry="12" width="165" height="72" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/>
+  <text x="512.5" y="245" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent Substrate</text>
+  <text x="512.5" y="267" text-anchor="middle" font-size="11" fill="#465569">Actor lifecycle</text>
+  <text x="512.5" y="283" text-anchor="middle" font-size="11" fill="#465569">runtime truth</text>
+
+  <rect x="700" y="220" rx="12" ry="12" width="180" height="72" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/>
+  <text x="790" y="245" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Worker + Runner</text>
+  <text x="790" y="267" text-anchor="middle" font-size="11" fill="#465569">sandbox, Workspace</text>
+  <text x="790" y="283" text-anchor="middle" font-size="11" fill="#465569">child process</text>
+
+  <rect x="700" y="30" rx="12" ry="12" width="180" height="72" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/>
+  <text x="790" y="55" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Readiness snapshot</text>
+  <text x="790" y="77" text-anchor="middle" font-size="11" fill="#465569">poll by ax-server</text>
+  <text x="790" y="93" text-anchor="middle" font-size="11" fill="#465569">up to 15 seconds</text>
+
+  <rect x="65" y="350" rx="10" ry="10" width="235" height="55" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.4"/>
+  <text x="182.5" y="374" text-anchor="middle" font-size="12" font-weight="700" fill="#17212b">No queue / no ax-controller</text>
+  <text x="182.5" y="394" text-anchor="middle" font-size="10.5" fill="#465569">unfinished work is not replayed</text>
+
+  <rect x="342" y="350" rx="10" ry="10" width="235" height="55" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.4"/>
+  <text x="459.5" y="374" text-anchor="middle" font-size="12" font-weight="700" fill="#17212b">Lock lease: 30 seconds</text>
+  <text x="459.5" y="394" text-anchor="middle" font-size="10.5" fill="#465569">current code has no renewal</text>
+
+  <rect x="619" y="350" rx="10" ry="10" width="235" height="55" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.4"/>
+  <text x="736.5" y="374" text-anchor="middle" font-size="12" font-weight="700" fill="#17212b">No cross-system transaction</text>
+  <text x="736.5" y="394" text-anchor="middle" font-size="10.5" fill="#465569">Redis and Substrate may diverge</text>
+</svg></figure><p>В предыдущей главе мы разобрали жизнь процесса внутри sandbox. Теперь поднимемся на уровень выше и проследим, что происходит с самим <code>Task</code>: от первого RPC до Actor, suspend, повторного запуска и удаления.</p>
+<p>Здесь особенно опасна устаревшая mental model. В старых версиях и ранних материалах AX фигурировали Redis Streams и отдельный <code>ax-controller</code>. В current main на commit <code>ac23328</code> эта очередь и отдельный controller удалены. <code>ax-server</code> сам выполняет reconciliation синхронно в обработчиках <code>CreateTask</code>, <code>ResumeTask</code>, <code>SuspendTask</code> и <code>DeleteTask</code>, а Redis используется как resource store, канал watch-уведомлений и backend распределённых блокировок.</p>
+<p>Это не косметическая перестановка компонентов. Она меняет latency API, failure windows, способ повторять операции и то, что инженер должен считать доказательством успеха.</p>
+<h2>Сначала разделите три вида правды</h2>
+<p>У Task нет одной магической записи, которая всегда описывает всё происходящее. В работе участвуют как минимум три источника состояния.</p>
+<table>
+<thead>
+<tr>
+<th>Слой</th>
+<th>Что он знает</th>
+<th>Чего он не доказывает</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Redis AX</td>
+<td>Task spec, phase, conditions, actor name, worker IP</td>
+<td>Что Actor действительно существует и процесс внутри жив</td>
+</tr>
+<tr>
+<td>Agent Substrate</td>
+<td>Actor, Worker assignment, suspend/resume и snapshot lifecycle</td>
+<td>Что agent command достиг цели или корректно завершился</td>
+</tr>
+<tr>
+<td>Runner и harness</td>
+<td>Workspace bootstrap, child process, checkpoint и application progress</td>
+<td>Что AX успел сохранить актуальный status</td>
+</tr>
+</tbody>
+</table>
+<p>Reconciliation пытается сблизить эти представления, но не превращает Redis и Substrate в одну транзакционную базу. Между любыми двумя удалёнными вызовами процесс может завершиться, сеть может оборваться, deadline клиента может истечь, а одна система уже успеет принять изменение.</p>
+<p>Поэтому lifecycle полезно читать не как красивую последовательность стрелок, а как цепочку отдельно подтверждаемых side effects.</p>
+<h2>Что значит synchronous reconciliation</h2>
+<p>Запрос к Task проходит примерно так:</p>
 <ol>
-<li><code>ax apply</code> разбирает multi-document manifest.</li>
-<li><code>ax-server</code> валидирует resource schemas/refs и сохраняет desired state.</li>
-<li>Controller получает event из store/stream.</li>
-<li>Разрешаются Workspace/Gateway/Model и runtime requirements.</li>
-<li>Формируется/выбирается Substrate ActorTemplate и Actor.</li>
-<li>Runtime назначает Worker и поднимает sandbox.</li>
-<li>Runner стартует PID 1.</li>
-<li>Workspace bootstrap выполняется один раз.</li>
-<li><code>/readyz</code> становится 200.</li>
-<li>Controller выставляет <code>WorkspaceReady</code>/<code>Ready</code>.</li>
-<li>Agent command выполняет loop.</li>
+<li>CLI вызывает gRPC API <code>ax-server</code>.</li>
+<li><code>ax-server</code> валидирует объект и захватывает lock для конкретного <code>kind/atespace/name</code>.</li>
+<li>Обработчик читает или записывает AX resource в Redis.</li>
+<li>Тот же обработчик напрямую вызывает Agent Substrate.</li>
+<li>Для resume он может ждать Workspace readiness до 15 секунд.</li>
+<li>Итоговый status записывается в Redis, lock освобождается, RPC возвращается клиенту.</li>
 </ol>
-<p>Каждый пункт - отдельный failure domain. Поэтому «Task Pending» и «Task Running but useless» требуют разных playbooks.</p>
-<h3>Suspend path</h3>
-<p>Пользователь или policy инициирует suspend. AX переводит lifecycle вниз в Substrate, runner получает termination signal и обязан flush state. Substrate/AX сохраняют durable workspace/runtime snapshot согласно текущей integration semantics, освобождают physical Worker и обновляют status. Suspended Task остаётся logical resource.</p>
-<h3>Resume path</h3>
-<p>Task снова получает Worker. Durable <code>/workspace</code> возвращается, runner запускается заново, видит markers и пропускает destructive re-bootstrap, затем запускает agent command. Harness должен определить, где остановилась работа, и продолжить по durable journal/state. Именно здесь хорошо спроектированный state machine превосходит prompt-only memory.</p>
-<h3>Delete</h3>
-<p>Delete должен освобождать AX resource, Substrate Actor/snapshot ownership и связанные runtime artifacts согласно lifecycle. External side effects - Git commits, tickets, конфигурации устройств - не исчезают. Поэтому delete Task никогда не является бизнес rollback.</p>
-<h3>Operational invariant</h3>
-<p>На каждом этапе задавайте три вопроса: <strong>какой слой владеет desired state? какой слой владеет runtime state? какой сигнал доказывает readiness?</strong> Если ответ нельзя сформулировать, система будет плохо диагностироваться.</p>
+<p>Отдельной durable queue между пунктами 3 и 4 нет. Отдельный worker не подберёт незавершённое событие после рестарта <code>ax-server</code>. Плюс такого дизайна - простой request path и немедленная обратная связь об ошибке. Цена - более длинные RPC, сильная зависимость от client deadline и необходимость явно проектировать recovery после частично выполненной операции.</p>
+<blockquote>
+<p><strong>Важно:</strong> Redis Pub/Sub в current main обслуживает <code>WatchTask</code> и ожидание освобождения lock. Это не прежняя очередь reconciliation и не журнал событий с повторной доставкой.</p>
+</blockquote>
+<h2>Create: создать означает подготовить suspended Task</h2>
+<p><code>CreateTask</code> не запускает агента. Его нормальный результат - зарегистрированный Task и подготовленный Actor в состоянии <code>Suspended</code>.</p>
+<h3>1. Admission и immutable identity</h3>
+<p>Сервер проверяет schema, DNS-подобные имена и коллизии путей Workspace bindings. Пустой <code>atespace</code> становится <code>default</code>. Затем захватывается lock <code>task/&lt;atespace&gt;/&lt;name&gt;</code> и проверяется отсутствие Task с таким именем.</p>
+<p>Task в current API immutable: повторный <code>CreateTask</code> для существующего имени возвращает <code>FailedPrecondition</code>, даже если предыдущая попытка provisioning закончилась <code>Failed</code>. Это защищает identity Actor и launch envelope от неявной подмены, но означает, что retry create не является идемпотентным в привычном HTTP-смысле.</p>
+<p>Для автоматизации используйте правило: после неоднозначного timeout сначала сделайте <code>GetTask</code>; не отправляйте create вслепую. Если объект уже существует, выбирайте осознанно между <code>ResumeTask</code> после устранения причины и delete/recreate.</p>
+<h3>2. Первая запись в Redis</h3>
+<p>Сервер добавляет creation timestamp, создаёт status и устанавливает <code>phase=Suspended</code>. Запись попадает в Redis до обращения к Substrate. Store одновременно обновляет индексы и публикует новое значение в task-specific Pub/Sub channel.</p>
+<p>Это важная граница. Если всё последующее сломается, Task уже существует и его имя занято.</p>
+<h3>3. Формирование launch envelope</h3>
+<p>Reconciler гарантирует существование Atespace, назначает Actor имя Task и формирует окружение контейнера:</p>
+<ul>
+<li>переменные из <code>Task.spec.env</code>;</li>
+<li><code>AX_TASK_YAML</code> без status;</li>
+<li><code>AX_WORKSPACES_YAML</code> с найденными Workspace specs;</li>
+<li>credential для Gemini, если он разрешён через Kubernetes Secret или окружение сервера.</li>
+</ul>
+<p>По image и environment вычисляется короткий digest, который входит в имя per-task <code>ActorTemplate</code>. Status намеренно исключён из digest: смена <code>Ready</code> не должна создавать новый template и новый golden state.</p>
+<p><code>fetchWorkspaces</code> добавляет только те references, которые реально нашлись в store. Текущая validation проверяет форму bindings и коллизии paths, но не превращает отсутствие Workspace в отдельную admission error. Поэтому platform policy должна заранее проверять существование всех ссылок, иначе runner может получить неполный <code>AX_WORKSPACES_YAML</code>.</p>
+<h3>4. Actor создаётся и сразу suspends</h3>
+<p>Reconciler вызывает <code>EnsureActor</code>. Если Actor уже существует, helper возвращает его; crashed Actor сначала пытается revert к последнему snapshot, а Actor в <code>Deleting</code> коротко ожидается перед повторным create.</p>
+<p>Так как desired phase равен <code>Suspended</code>, reconciler вызывает <code>SuspendActor</code>, очищает <code>workerIp</code>, выставляет <code>Ready=False</code> с reason <code>TaskSuspended</code> и возвращает status серверу. После успешной записи status RPC завершается.</p>
+<p>Есть тонкость текущей реализации: ошибка <code>SuspendActor</code> на create/suspend только записывается в log как warning, после чего Task всё равно получает <code>phase=Suspended</code>. Следовательно, один только AX status не доказывает, что Actor действительно перестал исполняться. Для строгого контроля стоимости или security boundary проверяйте состояние Actor в Substrate.</p>
+<h2>Resume: Running появляется раньше Ready</h2>
+<p><code>ResumeTask</code> снова захватывает task lock, читает immutable spec, меняет phase в памяти на <code>Running</code> и вызывает тот же <code>Reconcile</code>.</p>
+<p>Reconciler повторно обеспечивает Atespace, template и Actor, после чего вызывает <code>ResumeActor</code>. Substrate назначает Worker, а AX сохраняет его адрес в <code>status.workerIp</code>. На Worker запускается sandbox, затем runner как PID 1, Workspace bootstrap и agent command.</p>
+<p>После успешного <code>ResumeActor</code> phase уже становится <code>Running</code>. Дальше AX проверяет <code>/readyz?check=workspace</code> напрямую по Worker IP или через atenet-router. Poll interval равен 500 миллисекундам, default timeout - 15 секунд.</p>
+<p>Результаты принципиально разные:</p>
+<table>
+<thead>
+<tr>
+<th>Наблюдение</th>
+<th>Phase</th>
+<th>Conditions</th>
+<th>Что это означает</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Actor resume не удался</td>
+<td><code>Failed</code></td>
+<td><code>Ready=False</code>, reason <code>ActorResumeFailed</code></td>
+<td>Runtime не подтверждён</td>
+</tr>
+<tr>
+<td>Actor работает, Workspace ещё готовится</td>
+<td><code>Running</code></td>
+<td><code>WorkspaceReady=False</code>, <code>Ready=False</code></td>
+<td>Sandbox запущен, но рабочая среда не готова</td>
+</tr>
+<tr>
+<td>Workspace probe вернул 200</td>
+<td><code>Running</code></td>
+<td><code>WorkspaceReady=True</code>, <code>Ready=True</code></td>
+<td>Workspace bootstrap завершён</td>
+</tr>
+</tbody>
+</table>
+<p><code>Running</code> поэтому не следует использовать как сигнал для выдачи новой работы. И даже <code>Ready=True</code> не доказывает, что child process жив, model endpoint доступен или агент достиг application goal: эти границы мы разобрали в главе о runner.</p>
+<h3>Что происходит после 15 секунд</h3>
+<p>Timeout readiness не переводит Task в <code>Failed</code>. RPC возвращает Task в <code>Running</code> с <code>WorkspaceReady=False</code> и reason <code>Initializing</code>.</p>
+<p>В current architecture нет фонового controller loop, который обязательно проверит probe позднее. Если Workspace станет готов на шестнадцатой секунде, сохранённый status может остаться <code>Initializing</code> до следующей lifecycle-операции, вызывающей reconcile. Это не значит, что runner не готов; это значит, что control-plane observation устарела.</p>
+<p>Для production нужны один из трёх подходов:</p>
+<ul>
+<li>внешний observer периодически сверяет AX status с runner probe и инициирует repair;</li>
+<li>platform extension добавляет background reconciliation;</li>
+<li>вызывающая система считает AX condition snapshot-ом и проверяет фактическую readiness перед назначением работы.</li>
+</ul>
+<h3>Почему WorkspaceReady остаётся True</h3>
+<p>После первого успешного bootstrap condition <code>WorkspaceReady=True</code> считается sticky и не опрашивается повторно при последующих suspend/resume. Идея разумна: setup выполняется один раз, а durable filesystem возвращается из snapshot.</p>
+<p>Но sticky condition - утверждение о прошлом успешном setup, а не криптографическая проверка текущего filesystem. Повреждение snapshot, смена bootstrap contract или ручное изменение volume требуют отдельной version/health policy. Иначе control plane мгновенно выставит <code>Ready=True</code>, хотя application-level проверка ещё не выполнена.</p>
+<h2>Suspend: остановить вычисление, сохранить логическую сущность</h2>
+<p><code>SuspendTask</code> сериализуется тем же task lock. Сервер читает Task, ставит phase <code>Suspended</code> в памяти и вызывает reconciler.</p>
+<p>Reconciler снова проходит ensure-шаги, затем просит Substrate suspend Actor. Успешный suspend должен остановить sandbox и запустить предусмотренный Substrate snapshot lifecycle. AX очищает <code>workerIp</code>, ставит <code>Ready=False/TaskSuspended</code>, но сохраняет прежний <code>WorkspaceReady=True</code>, если bootstrap уже когда-то завершался.</p>
+<p>Практический смысл suspend:</p>
+<ul>
+<li>AX resource и identity Task остаются;</li>
+<li>Actor и durable workspace остаются частью runtime lifecycle;</li>
+<li>Worker capacity может быть освобождена;</li>
+<li>process memory, sockets и текущий child tree не сохраняются;</li>
+<li>внешний side effect не откатывается;</li>
+<li>после resume harness начинает новый process и восстанавливает semantic progress из durable state.</li>
+</ul>
+<p>Не используйте ответ <code>SuspendTask</code> как единственное подтверждение остановки расхода ресурсов. Из-за warning-only обработки ошибки <code>SuspendActor</code> строгий automation должен после вызова проверить Actor state и отсутствие Worker assignment.</p>
+<h2>Delete: сначала Terminating, затем Actor, потом Redis</h2>
+<p>Удаление построено осторожнее, чем suspend:</p>
+<ol>
+<li>Task lock захвачен.</li>
+<li>В Redis сохраняется <code>phase=Terminating</code>.</li>
+<li><code>ReconcileDelete</code> удаляет Actor в Substrate.</li>
+<li>Client опрашивает Actor до ответа <code>NotFound</code>.</li>
+<li>Reconciler пытается удалить все per-task ActorTemplates.</li>
+<li>Только после этого AX удаляет Task record и индексы из Redis.</li>
+</ol>
+<p>Если удаление Actor завершается ошибкой или deadline истекает, Task остаётся в Redis как <code>Terminating</code>. Это полезный recovery marker: оператор видит незавершённую очистку и может повторить delete. Если Actor уже исчез, повторная очистка трактует <code>NotFound</code> как успех.</p>
+<p>Удаление templates является best effort. Ошибки после нескольких попыток записываются как warning, но Task всё равно может исчезнуть из Redis. Поэтому при расследовании утечки image/template artifacts проверяйте Substrate отдельно.</p>
+<p>И, конечно, delete Task не равен business rollback. Git commit, ticket, письмо, изменение устройства или cloud resource, созданные агентом, остаются во внешней системе.</p>
+<h2>Per-resource lock: что он гарантирует и где заканчивается</h2>
+<p>Production server использует Redis lock с ключом <code>lock:&lt;kind&gt;:&lt;atespace&gt;:&lt;name&gt;</code>. Захват выполняется через <code>SET NX</code> с уникальным token, освобождение - Lua script, который удаляет только lock с тем же token. Ожидающие клиенты просыпаются через Pub/Sub, а периодический retry страхует пропущенное уведомление.</p>
+<p>Это даёт полезное свойство: два обычных <code>ResumeTask</code>/<code>SuspendTask</code> для одного Task не должны одновременно менять его lifecycle. Операции с разными Task могут идти параллельно.</p>
+<p>Но lock не является глобальной транзакцией:</p>
+<ul>
+<li>default TTL равен 30 секундам;</li>
+<li>renewal/heartbeat lease в current implementation отсутствует;</li>
+<li>readiness wait сам может занять 15 секунд, а медленные Substrate calls добавляют время;</li>
+<li>Task lock не блокирует referenced Workspace или Model;</li>
+<li>side effect в Substrate и запись Redis не коммитятся атомарно.</li>
+</ul>
+<p>Если обработчик работает дольше TTL, другой запрос способен получить тот же lock, пока первый ещё выполняется. Инженеру нужно либо держать RPC и dependencies заметно быстрее lease, либо добавить renewal/fencing token, либо вынести долгие операции в durable state machine.</p>
+<p>Отдельно тестируйте race между resume Task и обновлением Workspace/Model. Reconciler собирает launch envelope из snapshot-а прочитанных объектов, но не захватывает их locks вместе с Task.</p>
+<h2>Failure windows и осмысленный retry</h2>
+<table>
+<thead>
+<tr>
+<th>Где произошёл сбой</th>
+<th>Возможное состояние</th>
+<th>Безопасное действие</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>До первой записи Redis</td>
+<td>Task отсутствует</td>
+<td>Повторить create</td>
+</tr>
+<tr>
+<td>После SaveTask, до Actor</td>
+<td>Task существует как Suspended/Failed, Actor может отсутствовать</td>
+<td><code>GetTask</code>, устранить причину, resume или delete/recreate</td>
+</tr>
+<tr>
+<td>Actor создан, status не записан</td>
+<td>Substrate впереди Redis</td>
+<td>Сверить Actor по имени Task, затем повторить lifecycle operation</td>
+</tr>
+<tr>
+<td>ResumeActor успешен, RPC оборвался</td>
+<td>Actor может работать, клиент видит timeout</td>
+<td>Не делать create; проверить Task, Actor и runner probe</td>
+</tr>
+<tr>
+<td>Readiness timeout</td>
+<td><code>Running</code>, <code>Ready=False</code>; runner может стать готов позже</td>
+<td>Проверить фактический probe, затем repair/reconcile policy</td>
+</tr>
+<tr>
+<td>SuspendActor вернул ошибку</td>
+<td>AX всё равно может показать <code>Suspended</code></td>
+<td>Проверить Actor state и Worker assignment</td>
+</tr>
+<tr>
+<td>Actor удалён, Redis delete не выполнен</td>
+<td>Task остаётся <code>Terminating</code></td>
+<td>Повторить delete; <code>NotFound</code> Actor считается успехом</td>
+</tr>
+<tr>
+<td>Template cleanup не завершён</td>
+<td>Task удалён, templates остались</td>
+<td>Периодический orphan audit и garbage collection</td>
+</tr>
+</tbody>
+</table>
+<p>Главное правило retry: сначала выясните, какой side effect уже состоялся. Повтор без чтения двух систем безопасен только там, где API явно гарантирует idempotency.</p>
+<h2>WatchTask - уведомление о status, а не доказательство progress</h2>
+<p><code>WatchTask</code> сначала читает текущий Task и отправляет событие <code>INITIAL</code>, затем подписывается на task-specific Redis Pub/Sub channel и пересылает <code>MODIFIED</code> при сохранении status. Канал не является durable event log: отключившийся consumer не воспроизведёт все промежуточные переходы, но после reconnect получит актуальный snapshot через <code>INITIAL</code>.</p>
+<p>Server завершает stream автоматически для <code>Failed</code> или <code>Completed</code>. Однако default runner не переводит Task в <code>Completed</code> по exit child process. Следовательно, долгоживущий watch не является ожиданием результата Job. Для application completion нужен отдельный durable protocol harness-а.</p>
+<h2>Как читать status без самообмана</h2>
+<table>
+<thead>
+<tr>
+<th>Поле</th>
+<th>Полезная интерпретация</th>
+<th>Опасная интерпретация</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>phase=Suspended</code></td>
+<td>Desired/control-plane lifecycle остановлен</td>
+<td>«Actor точно не потребляет Worker»</td>
+</tr>
+<tr>
+<td><code>phase=Running</code></td>
+<td>ResumeActor прошёл и назначение Worker было получено</td>
+<td>«Агент жив и выполняет полезную работу»</td>
+</tr>
+<tr>
+<td><code>phase=Failed</code></td>
+<td>Последний synchronous reconcile вернул ошибку</td>
+<td>«Никаких runtime side effects не осталось»</td>
+</tr>
+<tr>
+<td><code>phase=Terminating</code></td>
+<td>Delete начат, record сохранён для recovery</td>
+<td>«Удаление обязательно завершится само»</td>
+</tr>
+<tr>
+<td><code>WorkspaceReady=True</code></td>
+<td>Workspace setup когда-то успешно завершился</td>
+<td>«Текущий restored filesystem полностью исправен»</td>
+</tr>
+<tr>
+<td><code>Ready=True</code></td>
+<td>Actor running и AX считает Workspace готовым</td>
+<td>«Model, tools и business outcome готовы»</td>
+</tr>
+<tr>
+<td><code>workerIp</code></td>
+<td>Последний сохранённый routing hint</td>
+<td>«Worker assignment гарантированно актуален»</td>
+</tr>
+</tbody>
+</table>
+<p>Phase <code>Completed</code> распознаётся watch API, но current Task reconciler и runner не устанавливают его после завершения команды. Не проектируйте batch semantics вокруг поля, которое никто не обновляет.</p>
+<h2>Минимальные operational playbooks</h2>
+<h3>Create вернул ошибку</h3>
+<ol>
+<li>Выполните <code>GetTask</code> по тому же atespace/name.</li>
+<li>Если Task отсутствует, retry create допустим.</li>
+<li>Если Task есть, проверьте phase/conditions и Actor с тем же именем.</li>
+<li>Не меняйте manifest под тем же именем: Task immutable.</li>
+<li>После исправления dependency выберите resume или контролируемый delete/recreate.</li>
+</ol>
+<h3>Task долго остаётся Initializing</h3>
+<ol>
+<li>Сверьте <code>workerIp</code> с реальным Actor assignment.</li>
+<li>Проверьте runner <code>/healthz</code> и <code>/readyz?check=workspace</code> отдельно.</li>
+<li>Посмотрите workspace setup logs и доступность Git/files sources.</li>
+<li>Помните, что status сам может не обновиться после 15-секундного окна.</li>
+<li>Не объявляйте инцидент model serving, пока не доказана готовность workspace.</li>
+</ol>
+<h3>Suspend не освобождает Worker</h3>
+<ol>
+<li>Не доверяйте только <code>phase=Suspended</code>.</li>
+<li>Проверьте Actor state и Worker assignment в Substrate.</li>
+<li>Ищите warning <code>could not suspend actor on Substrate</code> в <code>ax-server</code>.</li>
+<li>Убедитесь, что snapshot backend доступен и suspend не завис на runtime-слое.</li>
+</ol>
+<h3>Delete застрял в Terminating</h3>
+<ol>
+<li>Проверьте, существует ли Actor.</li>
+<li>Если Actor ещё удаляется, не удаляйте Redis key вручную.</li>
+<li>После <code>NotFound</code> повторите штатный delete, чтобы завершить очистку record.</li>
+<li>Отдельно проверьте per-task templates и внешние side effects.</li>
+</ol>
+<h2>Acceptance matrix для платформенной команды</h2>
+<table>
+<thead>
+<tr>
+<th>Сценарий</th>
+<th>Что должно быть доказано</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Два одновременных resume одного Task</td>
+<td>Операции сериализуются до истечения lock lease</td>
+</tr>
+<tr>
+<td>Reconcile дольше 30 секунд</td>
+<td>Нет overlap или внедрены renewal/fencing</td>
+</tr>
+<tr>
+<td><code>ax-server</code> падает после SaveTask</td>
+<td>Recovery находит persisted Task и состояние Actor</td>
+</tr>
+<tr>
+<td>Client timeout после ResumeActor</td>
+<td>Повтор не создаёт второй Actor и не теряет первый</td>
+</tr>
+<tr>
+<td>Workspace готов после 15 секунд</td>
+<td>Observer обнаруживает readiness и исправляет stale status</td>
+</tr>
+<tr>
+<td>SuspendActor возвращает ошибку</td>
+<td>Monitoring не принимает <code>Suspended</code> за доказательство остановки</td>
+</tr>
+<tr>
+<td>Delete прерывается после удаления Actor</td>
+<td>Повтор завершает Redis cleanup</td>
+</tr>
+<tr>
+<td>Redis Pub/Sub сообщение потеряно</td>
+<td>Reconnect watch возвращает актуальный <code>INITIAL</code> snapshot</td>
+</tr>
+<tr>
+<td>Runner child завершился</td>
+<td>Application protocol фиксирует outcome независимо от AX phase</td>
+</tr>
+</tbody>
+</table>
+<h2>Антипаттерны</h2>
+<ul>
+<li><strong>Искать отдельный <code>ax-controller</code> в current main.</strong> Lifecycle выполняет <code>ax-server</code>.</li>
+<li><strong>Называть Redis Pub/Sub очередью reconciliation.</strong> Это transient notification, а не durable work log.</li>
+<li><strong>Повторять create после timeout без Get.</strong> Task мог уже занять immutable имя.</li>
+<li><strong>Считать synchronous RPC транзакцией Redis + Substrate.</strong> Между side effects остаются failure windows.</li>
+<li><strong>Назначать работу по <code>phase=Running</code>.</strong> Сначала проверьте <code>Ready</code>, затем application dependencies.</li>
+<li><strong>Считать <code>WorkspaceReady=True</code> вечной проверкой данных.</strong> Condition sticky и не валидирует restored state повторно.</li>
+<li><strong>Считать lock абсолютной защитой.</strong> Lease истекает, а cross-resource transaction отсутствует.</li>
+<li><strong>Удалять застрявший Redis record вручную.</strong> Так легко потерять ownership Actor и templates.</li>
+<li><strong>Считать delete откатом действий агента.</strong> Внешние side effects живут отдельно.</li>
+</ul>
+<h2>Итог</h2>
+<p>Task lifecycle в current AX - это synchronous orchestration внутри <code>ax-server</code>: resource lock, Redis state, прямые Substrate calls и короткое окно проверки runner readiness. Такой дизайн легче проследить, чем прежнюю очередь с отдельным controller, но он требует дисциплины на границах систем.</p>
+<p>Инженер должен уметь ответить на четыре вопроса: какой side effect уже произошёл, где хранится последняя observation, истёк ли lock lease и какое действие действительно безопасно повторить. Тогда <code>Suspended</code>, <code>Running</code>, <code>Ready</code> и <code>Terminating</code> становятся полезными сигналами, а не успокаивающими ярлыками.</p>
+<p>В следующей главе мы перейдём к model endpoint. Теперь связь ясна: даже идеально reconciled и ready Task бесполезен, если inference service не выдерживает контекст, parallelism и latency agent workload.</p>
+<h3>Источники и дальнейшее чтение</h3>
+<ul>
+<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/DESIGN.md">AX current-main architecture</a></li>
+<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">Task API and synchronous lifecycle handlers</a></li>
+<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go">Task reconciliation and Workspace readiness</a></li>
+<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/store/redis/store.go">Redis resource store and WatchTask Pub/Sub</a></li>
+<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/lock/lock.go">Per-resource Redis locks</a></li>
+<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go">Substrate Actor operations used by AX</a></li>
+<li><a href="https://github.com/google/ax/commit/ac2332829f22360ff97b0ba34d94dd0dd782f17e">Change removing Redis Streams and ax-controller</a></li>
+</ul>
 </section><section class="chapter" id="ch-20"><div class="chapter-num">Глава 20</div><h1>Local inference: CPU, GPU, vLLM и llama.cpp</h1><figure><figcaption>Local inference: путь запроса через batching, prefill, KV cache и decode</figcaption><svg class="diagram" viewBox="0 0 920 300" role="img" aria-label="Local inference: путь запроса через batching, prefill, KV cache и decode"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="142.5" x2="165" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="275" y1="142.5" x2="310" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="375.0" y1="175" x2="550.0" y2="30" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="462.5" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">batch</text><line x1="550.0" y1="95" x2="550.0" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="550.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">populate</text><line x1="550.0" y1="255" x2="725.0" y2="110" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="637.5" y="176.5" text-anchor="middle" font-size="10" fill="#5c6875">read/write</text><line x1="785" y1="142.5" x2="825" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="805.0" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">token</text><line x1="665" y1="142.5" x2="440" y2="142.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="552.5" y="136.5" text-anchor="middle" font-size="10" fill="#5c6875">continuous batching</text><rect x="20" y="110" rx="12" ry="12" width="110" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="75.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Requests</text><text x="75.0" y="155" text-anchor="middle" font-size="11" fill="#465569">prompts</text><rect x="165" y="110" rx="12" ry="12" width="110" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="220.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tokenizer</text><text x="220.0" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text><rect x="310" y="110" rx="12" ry="12" width="130" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="375.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Scheduler</text><text x="375.0" y="155" text-anchor="middle" font-size="11" fill="#465569">batch/queue</text><rect x="485" y="30" rx="12" ry="12" width="130" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="550.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Prefill</text><text x="550.0" y="75" text-anchor="middle" font-size="11" fill="#465569">prompt compute</text><rect x="485" y="190" rx="12" ry="12" width="130" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="550.0" y="214" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">KV cache</text><text x="550.0" y="235" text-anchor="middle" font-size="11" fill="#465569">attention state</text><rect x="665" y="110" rx="12" ry="12" width="120" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="725.0" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Decode</text><text x="725.0" y="155" text-anchor="middle" font-size="11" fill="#465569">token loop</text><rect x="825" y="110" rx="12" ry="12" width="75" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="862.5" y="134" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Stream</text><text x="862.5" y="155" text-anchor="middle" font-size="11" fill="#465569">tokens</text></svg></figure><p>Локальный inference позволяет контролировать данные, latency profile, стоимость hardware и availability, но переносит на вас capacity planning, model serving и upgrades. Для AX это просто model endpoint: orchestration не должно зависеть от того, облачный он или локальный.</p>
 <h3>Два практических server класса</h3>
 <p><strong>vLLM</strong> ориентирован на throughput GPU serving, continuous batching и масштабирование крупных моделей. Current release line 2026-09 - <code>v0.30.0</code>. OpenAI-compatible server упрощает интеграцию с harnesses. <strong>llama.cpp</strong> удобен для CPU, hybrid CPU/GPU, GGUF quantization, homelab и fallback; server тоже предоставляет OpenAI-compatible интерфейс и умеет parallel decoding/continuous batching.</p>

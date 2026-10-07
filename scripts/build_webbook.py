@@ -166,6 +166,11 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
         # dimensions. CairoSVG cannot resolve a standalone width="100%" SVG.
         svg["width"] = str(int(vb_w) if vb_w.is_integer() else vb_w)
         svg["height"] = str(int(vb_h) if vb_h.is_integer() else vb_h)
+        # Graphviz emits width:100%;height:auto on the root SVG.  CairoSVG
+        # treats the unresolved auto height as zero for standalone assets,
+        # producing a fully transparent PNG.  Intrinsic dimensions above are
+        # authoritative, so remove the conflicting inline style before render.
+        svg.attrs.pop("style", None)
 
         svg_bytes = str(svg).encode("utf-8")
         svg_path.write_bytes(svg_bytes)
