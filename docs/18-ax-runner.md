@@ -20,7 +20,7 @@ Runner легко принять за тонкую shell-обёртку: про�
 - когда достаточно расширить default image, а когда нужен embedded или custom runner;
 - как проверить runner до запуска production workload.
 
-![Runner contract: граница между AX, sandbox и agent process](.gitbook/assets/diagrams/18-16.png)
+![Runner contract: граница между AX, sandbox и agent process](.gitbook/assets/diagrams/18-16.png)  
 *Runner contract: граница между AX, sandbox и agent process*
 
 ## Зачем runner существует отдельно от harness
