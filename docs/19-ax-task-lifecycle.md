@@ -1,7 +1,6 @@
 # Task lifecycle в AX: synchronous reconciliation, состояния и recovery
 
-![AX Task current main: synchronous lifecycle под per-resource lock](.gitbook/assets/diagrams/19-17.png)
-
+![AX Task current main: synchronous lifecycle под per-resource lock](.gitbook/assets/diagrams/19-17.png)  
 *AX Task current main: synchronous lifecycle под per-resource lock*
 
 В предыдущей главе мы разобрали жизнь процесса внутри sandbox. Теперь поднимемся на уровень выше и проследим, что происходит с самим `Task`: от первого RPC до Actor, suspend, повторного запуска и удаления.
