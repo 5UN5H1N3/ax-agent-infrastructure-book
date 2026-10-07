@@ -31,7 +31,7 @@
 
 * [AX control plane: от декларации к Actor и граница с Substrate](16-ax-control-plane.md)
 * [AX primitives: Task, Workspace и Model без магии](17-ax-primitives.md)
-* [Runner: PID 1 как платформенный контракт](18-ax-runner.md)
+* [Runner: PID 1 как платформенный контракт, а не просто entrypoint](18-ax-runner.md)
 * [Полный lifecycle Task: от YAML до suspend/resume](19-ax-task-lifecycle.md)
 
 ## IV. Local inference и multi-agent execution
