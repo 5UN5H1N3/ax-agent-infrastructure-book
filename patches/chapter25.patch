@@ -1,0 +1,457 @@
+diff --git a/book/AX_Agent_Infrastructure_Book_RU.html b/book/AX_Agent_Infrastructure_Book_RU.html
+index 09b259d..24ec131 100644
+--- a/book/AX_Agent_Infrastructure_Book_RU.html
++++ b/book/AX_Agent_Infrastructure_Book_RU.html
+@@ -8981,20 +8981,438 @@ idempotencyKey: op-7f81
+ <li><a href="https://genai.owasp.org/llmrisk/llm062025-excessive-agency/">OWASP LLM06:2025 Excessive Agency</a></li>
+ <li><a href="https://airc.nist.gov/airmf-resources/airmf/5-sec-core/">NIST AI RMF Core: роли и процессы human oversight</a></li>
+ </ul>
+-</section><section class="chapter" id="ch-25"><div class="chapter-num">Глава 25</div><h1>Observability: четыре слоя и единая correlation identity</h1><figure><figcaption>Четыре слоя observability нельзя смешивать в один «лог агента»</figcaption><svg class="diagram" viewBox="0 0 900 330" role="img" aria-label="Четыре слоя observability нельзя смешивать в один «лог агента»"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><rect x="70" y="30" rx="12" ry="12" width="760" height="55" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="450.0" y="54" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Infrastructure</text><text x="450.0" y="75" text-anchor="middle" font-size="11" fill="#465569">nodes, CPU/RAM/GPU, network, storage,</text><text x="450.0" y="90" text-anchor="middle" font-size="11" fill="#465569">Kubernetes</text><rect x="70" y="100" rx="12" ry="12" width="760" height="55" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="450.0" y="124" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Runtime / sandbox</text><text x="450.0" y="145" text-anchor="middle" font-size="11" fill="#465569">Worker, Actor, snapshot, resume, process</text><rect x="70" y="170" rx="12" ry="12" width="760" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="450.0" y="194" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent</text><text x="450.0" y="215" text-anchor="middle" font-size="11" fill="#465569">steps, tool calls, retries, delegated</text><text x="450.0" y="230" text-anchor="middle" font-size="11" fill="#465569">Tasks</text><rect x="70" y="240" rx="12" ry="12" width="760" height="55" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="450.0" y="264" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">LLM</text><text x="450.0" y="285" text-anchor="middle" font-size="11" fill="#465569">TTFT, ITL, tokens, errors, cache, cost</text></svg></figure><p>Наблюдаемость agent system должна позволять пройти путь от user goal до конкретного tool side effect и одновременно увидеть infrastructure bottleneck.</p>
+-<h3>Infrastructure layer</h3>
+-<p>Node/Pod CPU, RAM, disk latency, network drops, GPU memory/utilization, Redis/PostgreSQL/object-store metrics, Kubernetes events. Это отвечает на вопрос «платформа физически здорова?».</p>
+-<h3>Runtime layer</h3>
+-<p>Actor state, Worker assignment, resume/suspend duration, snapshot size/transfer, WorkerPool occupancy, scheduling wait. Substrate actor логически переживает разные Workers, поэтому logs должны иметь stable actor metadata, иначе история распадётся по Pod names.</p>
+-<h3>Agent layer</h3>
+-<p>Step number, plan/route decision, tool name, sanitized arguments, result class, retry, child Task, approval state. Логи chain-of-thought не являются обязательным или желательным telemetry format; нужен структурированный event trail действий и решений без раскрытия скрытого reasoning.</p>
+-<h3>LLM layer</h3>
+-<p>Provider/model/revision, prompt/output token counts, TTFT, ITL, queue time, error class, cache hit, request ID и cost estimate. Prompt content следует логировать выборочно/редактированно: observability storage сама может стать источником утечки secrets/PII.</p>
+-<h3>Correlation</h3>
+-<p>Минимальные IDs: <code>trace_id</code>, user/job id, AX Task id, Substrate Actor UID, tool call id, model request id. Для multi-agent добавляется parent/root task. Один trace должен переживать suspend/resume и Worker relocation.</p>
+-<h3>SLO</h3>
+-<p>Примеры SLO: time-to-Task-ready, resume p95, tool success rate, model TTFT p95, successful agent outcome rate, percentage actions requiring manual recovery. «Tokens/s» сам по себе не является SLO бизнеса.</p>
+-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/agent-substrate/substrate/blob/main/docs/observability.md">Substrate observability</a></li></ul></div></section><section class="chapter" id="ch-26"><div class="chapter-num">Глава 26</div><h1>Лабораторный стенд на Proxmox/KVM: Kind, k3s или kubeadm</h1><figure><figcaption>Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX</figcaption><svg class="diagram" viewBox="0 0 900 290" role="img" aria-label="Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130.0" y1="85" x2="130.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="130.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">VM</text><line x1="130.0" y1="185" x2="360.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="245.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">runtime</text><line x1="360.0" y1="85" x2="360.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="360.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">nodes</text><line x1="360.0" y1="185" x2="590.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="475.0" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">deploy</text><line x1="670" y1="92.5" x2="720" y2="92.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="695.0" y="86.5" text-anchor="middle" font-size="10" fill="#5c6875">runtime</text><line x1="590.0" y1="245" x2="795.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="692.5" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">model API</text><line x1="795.0" y1="245" x2="795.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="795.0" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">workspace/tools</text><rect x="40" y="20" rx="12" ry="12" width="180" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="130.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Proxmox/KVM</text><text x="130.0" y="65" text-anchor="middle" font-size="11" fill="#465569">host</text><rect x="40" y="120" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Debian/Ubuntu VM</text><text x="130.0" y="165" text-anchor="middle" font-size="11" fill="#465569">lab node</text><rect x="280" y="20" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="360.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Docker</text><text x="360.0" y="65" text-anchor="middle" font-size="11" fill="#465569">Kind nodes</text><rect x="280" y="120" rx="12" ry="12" width="160" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="360.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Kind cluster</text><text x="360.0" y="165" text-anchor="middle" font-size="11" fill="#465569">Kubernetes</text><rect x="510" y="60" rx="12" ry="12" width="160" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="590.0" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Substrate</text><text x="590.0" y="105" text-anchor="middle" font-size="11" fill="#465569">PostgreSQL + RustFS</text><rect x="720" y="60" rx="12" ry="12" width="150" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="795.0" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX</text><text x="795.0" y="105" text-anchor="middle" font-size="11" fill="#465569">Redis + control plane</text><rect x="510" y="180" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="590.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Local inference</text><text x="590.0" y="225" text-anchor="middle" font-size="11" fill="#465569">vLLM/llama.cpp</text><rect x="720" y="180" rx="12" ry="12" width="150" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="795.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">MCP services</text><text x="795.0" y="225" text-anchor="middle" font-size="11" fill="#465569">tools</text></svg></figure><p>Для первой воспроизводимой установки выбираем <strong>Kind внутри одной Debian/Ubuntu VM на Proxmox/KVM</strong>, потому что Substrate current quickstart имеет автоматизированный Kind path и локально поднимает зависимые PostgreSQL/RustFS. Это учебный выбор, не production recommendation.</p>
++</section><section class="chapter" id="ch-25"><div class="chapter-num">Глава 25</div><h1>Observability: от user goal до подтверждённого результата</h1><blockquote>
++<p>Снимок главы: <strong>AX main <code>ac233282</code> · Substrate main <code>df78882</code> · проверено 2026-10-08</strong>. Реализованные возможности и целевая архитектура ниже разделены явно.</p>
++</blockquote>
++<p>Пользователь пишет: «агент завис». На одном dashboard CPU свободен. В логах модели последний запрос завершился успешно. Actor числится <code>RUNNING</code>. Инструмент вернул HTTP 200. Каждая подсистема по отдельности выглядит здоровой, но результата нет.</p>
++<p>Причина может находиться где угодно в причинной цепочке. Task ждёт approval, запрос припаркован из-за заполненного WorkerPool, model gateway держит очередь, tool ответил до фактического применения изменения, verification читает устаревшую replica, а дочерний Task завершился без передачи результата родителю. Набор разрозненных графиков не отвечает, какой из этих сценариев произошёл.</p>
++<p><strong>Observability — способность восстановить внутреннее состояние и причинный путь системы по её внешним сигналам.</strong> Monitoring проверяет заранее известные условия: «очередь выше порога», «p95 превысил цель». Observability нужна для вопроса, который заранее не был записан в alert rule: «почему именно этот user goal не дошёл до подтверждённого outcome?»</p>
++<figure><figcaption>Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals</figcaption><svg class="diagram" viewBox="0 0 1100 430" role="img" aria-label="Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs>
++<line x1="170" y1="70" x2="215" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="192" y="61" text-anchor="middle" font-size="10" fill="#5c6875">создаёт</text>
++<line x1="360" y1="70" x2="405" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="382" y="61" text-anchor="middle" font-size="10" fill="#5c6875">исполняется</text>
++<line x1="550" y1="70" x2="595" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="572" y="61" text-anchor="middle" font-size="10" fill="#5c6875">вызывает</text>
++<line x1="740" y1="70" x2="785" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="762" y="61" text-anchor="middle" font-size="10" fill="#5c6875">изменяет</text>
++<line x1="930" y1="70" x2="975" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="952" y="61" text-anchor="middle" font-size="10" fill="#5c6875">verify</text>
++<line x1="285" y1="105" x2="190" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="230" y="143" text-anchor="middle" font-size="10" fill="#5c6875">decisions</text>
++<line x1="475" y1="105" x2="430" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="447" y="143" text-anchor="middle" font-size="10" fill="#5c6875">lifecycle</text>
++<line x1="665" y1="105" x2="670" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="655" y="143" text-anchor="middle" font-size="10" fill="#5c6875">latency</text>
++<line x1="855" y1="105" x2="910" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="872" y="143" text-anchor="middle" font-size="10" fill="#5c6875">platform</text>
++<line x1="190" y1="260" x2="475" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="325" y="287" text-anchor="middle" font-size="10" fill="#5c6875">events</text>
++<line x1="430" y1="260" x2="510" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="455" y="287" text-anchor="middle" font-size="10" fill="#5c6875">logs + traces</text>
++<line x1="670" y1="260" x2="590" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="630" y="287" text-anchor="middle" font-size="10" fill="#5c6875">traces + metrics</text>
++<line x1="910" y1="260" x2="625" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="770" y="287" text-anchor="middle" font-size="10" fill="#5c6875">metrics</text>
++<rect x="25" y="35" rx="12" ry="12" width="145" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="97" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">User goal</text><text x="97" y="82" text-anchor="middle" font-size="11" fill="#465569">root_job_id</text>
++<rect x="215" y="35" rx="12" ry="12" width="145" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="287" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX Task</text><text x="287" y="82" text-anchor="middle" font-size="11" fill="#465569">task_id · step_id</text>
++<rect x="405" y="35" rx="12" ry="12" width="145" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="477" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor activation</text><text x="477" y="82" text-anchor="middle" font-size="11" fill="#465569">UID · epoch</text>
++<rect x="595" y="35" rx="12" ry="12" width="145" height="70" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="667" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Model / Tool</text><text x="667" y="82" text-anchor="middle" font-size="11" fill="#465569">request · call ID</text>
++<rect x="785" y="35" rx="12" ry="12" width="145" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="857" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">External state</text><text x="857" y="82" text-anchor="middle" font-size="11" fill="#465569">authoritative source</text>
++<rect x="975" y="35" rx="12" ry="12" width="100" height="70" fill="#e9f7ef" stroke="#1f7a4d" stroke-width="1.5"/><text x="1025" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Outcome</text><text x="1025" y="82" text-anchor="middle" font-size="11" fill="#465569">verified</text>
++<rect x="95" y="190" rx="12" ry="12" width="190" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="190" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent events</text><text x="190" y="237" text-anchor="middle" font-size="11" fill="#465569">policy · approval · step</text>
++<rect x="335" y="190" rx="12" ry="12" width="190" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="430" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Runtime signals</text><text x="430" y="237" text-anchor="middle" font-size="11" fill="#465569">state · resume · parking</text>
++<rect x="575" y="190" rx="12" ry="12" width="190" height="70" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="670" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Inference signals</text><text x="670" y="237" text-anchor="middle" font-size="11" fill="#465569">queue · TTFT · tokens</text>
++<rect x="815" y="190" rx="12" ry="12" width="190" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="910" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Infrastructure</text><text x="910" y="237" text-anchor="middle" font-size="11" fill="#465569">node · network · storage</text>
++<rect x="390" y="330" rx="12" ry="12" width="320" height="72" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.8"/><text x="550" y="355" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Telemetry contract + collector</text><text x="550" y="377" text-anchor="middle" font-size="11" fill="#465569">metrics · events · traces · audit evidence</text>
++</svg></figure>
++<p>Главная идея главы проста: метрики, логи и traces становятся полезными только после того, как система договорилась об identity, событиях и критерии результата. Сначала проектируют <strong>telemetry contract</strong>, затем выбирают backend.</p>
++<h2>Что именно требуется наблюдать</h2>
++<p>У agent system есть четыре технических слоя и одна сквозная плоскость результата.</p>
++<table>
++<thead>
++<tr>
++<th>Слой</th>
++<th>Что происходит</th>
++<th>Главный вопрос</th>
++<th>Примеры сигналов</th>
++</tr>
++</thead>
++<tbody>
++<tr>
++<td>Infrastructure</td>
++<td>Nodes, Pods, сеть, storage, GPU, Redis/PostgreSQL/object store</td>
++<td>Есть ли физический или платформенный bottleneck?</td>
++<td>CPU throttling, memory pressure, disk latency, packet drops, GPU memory, workqueue depth</td>
++</tr>
++<tr>
++<td>Runtime / Substrate</td>
++<td>Actor назначается Worker, запускается, suspend/resume, checkpoint/restore, request parking</td>
++<td>Где находится логический Actor и почему он не исполняется?</td>
++<td>actor state, WorkerPool saturation, resume phases, snapshot size, parked requests</td>
++</tr>
++<tr>
++<td>Agent / harness</td>
++<td>Goal превращается в план, шаги, delegation, approvals, tools и verification</td>
++<td>Какое решение принял orchestrator и на каком переходе остановился workflow?</td>
++<td>step events, policy decision, approval state, retry, child Task, tool outcome</td>
++</tr>
++<tr>
++<td>LLM / inference</td>
++<td>Request попадает в gateway, очередь и model server</td>
++<td>Сколько времени и ресурсов ушло на inference и чем закончился вызов?</td>
++<td>queue time, TTFT, inter-token latency, tokens, cache hit, error class, cost estimate</td>
++</tr>
++<tr>
++<td>Outcome</td>
++<td>Внешнее состояние изменилось или проверяемый ответ доставлен пользователю</td>
++<td>Получил ли пользователь требуемый результат, а не просто успешный RPC?</td>
++<td>verified outcome, end-to-end latency, manual recovery, unsafe side effects</td>
++</tr>
++</tbody>
++</table>
++<p>Outcome — не «пятый dashboard». Это верхняя плоскость, которая связывает остальные. Если tool process завершился с <code>exit_code=0</code>, но требуемый route не появился в authoritative control plane, tool execution успешен технически, а outcome не достигнут.</p>
++<h2>Три сигнала и два вида доказательств</h2>
++<p>Разные сигналы отвечают на разные вопросы. Попытка складывать всё в один «лог агента» быстро создаёт дорогой архив, в котором трудно расследовать инцидент.</p>
++<table>
++<thead>
++<tr>
++<th>Сигнал</th>
++<th>Для чего он нужен</th>
++<th>Что в нём хранить</th>
++<th>Чего в нём не должно быть</th>
++</tr>
++</thead>
++<tbody>
++<tr>
++<td>Metrics</td>
++<td>агрегаты, тенденции, SLI и alerts</td>
++<td>bounded labels, counts, histograms, gauges</td>
++<td>Task ID, Actor UID, prompt, URL с параметрами, user ID</td>
++</tr>
++<tr>
++<td>Logs / events</td>
++<td>точные факты с высокой cardinality</td>
++<td>event name, identity, state transition, reason, error, sanitized details</td>
++<td>secrets, raw credentials, скрытый chain-of-thought</td>
++</tr>
++<tr>
++<td>Traces</td>
++<td>причинный путь и разложение latency</td>
++<td>spans, parent/child relations, links, status, bounded attributes</td>
++<td>один span длиной в дни, полный prompt по умолчанию</td>
++</tr>
++</tbody>
++</table>
++<p>Profiles полезны для CPU и memory hotspots, но не заменяют эти три сигнала. Они объяснят, где process тратит время, но не покажут, почему policy отправила действие на approval.</p>
++<p>Нужно также разделить <strong>diagnostic telemetry</strong> и <strong>audit evidence</strong>. Диагностические логи могут сэмплироваться, теряться при backpressure и удаляться по короткому retention. Audit trail должен доказывать, кто инициировал действие, какая policy сработала, что именно было разрешено, какой executor применил side effect и чем закончилась verification. Он требует другой целостности, доступа и срока хранения. Копия обычных application logs не становится аудитом только из-за долгого retention.</p>
++<h2>Correlation identity: карта, а не один ID</h2>
++<p>Фраза «добавим <code>trace_id</code>» недостаточна. В agent workflow несколько временных масштабов: пользовательская цель живёт часы, Task — дни, Actor переживает много activations, RPC — миллисекунды, а external operation может продолжаться после timeout клиента. Один identifier не выражает все эти отношения.</p>
++<p>Практический correlation contract разделяет четыре класса identity.</p>
++<table>
++<thead>
++<tr>
++<th>Класс</th>
++<th>Примеры</th>
++<th>Жизненный цикл</th>
++</tr>
++</thead>
++<tbody>
++<tr>
++<td>Логическая цель</td>
++<td><code>root_job_id</code>, <code>session_id_hash</code>, <code>task_id</code>, <code>parent_task_id</code></td>
++<td>от постановки цели до terminal outcome</td>
++</tr>
++<tr>
++<td>Исполняемая сущность</td>
++<td><code>ate.atespace</code>, <code>ate.actor.uid</code>, <code>ate.actor.name</code>, template</td>
++<td>Actor UID стабилен в течение жизни Actor</td>
++</tr>
++<tr>
++<td>Попытка</td>
++<td><code>activation_id</code>/epoch, <code>step_id</code>, <code>attempt</code>, <code>tool_call_id</code>, <code>approval_id</code>, <code>model_request_id</code></td>
++<td>один resume, шаг или внешний вызов</td>
++</tr>
++<tr>
++<td>Физическое размещение</td>
++<td><code>service.instance.id</code>, cluster, Pod, Worker, node, sandbox class</td>
++<td>меняется при relocation и restart</td>
++</tr>
++</tbody>
++</table>
++<p>У каждого класса своя роль. <code>task_id</code> отвечает «какая работа?», <code>actor.uid</code> — «какой логический runtime?», activation/epoch — «какая попытка исполнения?», Pod и Worker — «где она выполнялась в этот момент?». Pod name нельзя использовать как основную identity: после suspend/resume история распадётся на несколько машин. Actor name тоже недостаточен без atespace, а повторно созданный объект нельзя смешивать с прежним — для этого нужен server-assigned UID.</p>
++<p><code>trace_id</code> связывает операции внутри конкретного причинного графа, но не должен подменять resource ID или idempotency key. Повтор команды может получить новый trace и сохранить тот же idempotency key. Новый Actor может получить прежнее имя, но обязан иметь другой UID.</p>
++<h3>Минимальный propagation contract</h3>
++<p>На каждой границе — gRPC/HTTP, queue, child Task, model gateway, MCP/tool executor — передаются:</p>
++<ul>
++<li>W3C <code>traceparent</code> и при необходимости <code>tracestate</code>;</li>
++<li><code>root_job_id</code>, <code>task_id</code>, <code>parent_task_id</code> как явно определённые application attributes;</li>
++<li>Actor identity, которую authoritative runtime добавляет сам;</li>
++<li>operation-specific ID: <code>tool_call_id</code>, <code>model_request_id</code>, <code>approval_id</code> или external request ID.</li>
++</ul>
++<p>Не доверяйте workload самостоятельно присвоить себе platform identity. Substrate резервирует namespace <code>ate.*</code> и отбрасывает такие ключи из actor output: иначе workload мог бы выдать себя за другой Actor. Тот же принцип нужен AX и tool gateway — authoritative identity добавляется на доверенной границе.</p>
++<h2>Trace не должен жить столько же, сколько Task</h2>
++<p>Долгий agent workflow не следует представлять одним незавершённым span. Span, открытый на часы или дни, плохо экспортируется, неудобен для sampling и может исчезнуть при crash. Parent span также не всегда охватывает асинхронного потомка по времени.</p>
++<p>Лучше использовать короткие traces по активным участкам и связывать их:</p>
++<ol>
++<li>Входной request создаёт trace для принятия goal и создания Task.</li>
++<li>Resume или новая activation создаёт новый trace, связанный с root job и предыдущей attempt.</li>
++<li>Producer span заканчивается после постановки работы в queue; consumer span описывает фактическое выполнение.</li>
++<li>Child Task получает собственный trace и <code>parent_task_id</code>; scatter/gather связывает результаты через span links.</li>
++<li>Tool и model requests создают отдельные client spans, а gateway/server — соответствующие server spans.</li>
++</ol>
++<p>OpenTelemetry links предназначены именно для причинных отношений, которые не укладываются в одного parent. Они особенно полезны после suspend/resume, retries, fan-out и при пересечении trust boundary, где входной trace сознательно заменяется новым. Для расследования сохраняется link, но входной <code>traceparent</code> не принимается как доверенная identity пользователя.</p>
++<h2>События агента: фиксируйте переходы, а не внутренний монолог</h2>
++<p>Agent observability не требует сохранять chain-of-thought. Скрытое reasoning нестабильно как interface, может содержать чувствительные данные и не является надёжным доказательством принятого решения. Нужен структурированный журнал <strong>наблюдаемых решений и действий</strong>.</p>
++<p>Полезный минимальный словарь событий:</p>
++<ul>
++<li><code>agent.task.created</code>, <code>agent.task.completed</code>, <code>agent.task.failed</code>;</li>
++<li><code>agent.step.started</code>, <code>agent.step.completed</code>;</li>
++<li><code>agent.route.selected</code>, <code>agent.child.created</code>, <code>agent.child.result_received</code>;</li>
++<li><code>agent.tool.proposed</code>, <code>agent.tool.authorized</code>, <code>agent.tool.executed</code>, <code>agent.tool.verified</code>;</li>
++<li><code>agent.approval.requested</code>, <code>agent.approval.granted</code>, <code>agent.approval.expired</code>;</li>
++<li><code>agent.model.requested</code>, <code>agent.model.completed</code>;</li>
++<li><code>agent.outcome.verified</code>.</li>
++</ul>
++<p>Событие должно быть машинно разбираемым и версионированным. Свободный текст остаётся для человека, но не несёт единственную копию semantics.</p>
++<pre><code class="language-json">{
++  &quot;event.name&quot;: &quot;agent.tool.verified&quot;,
++  &quot;event.schema.version&quot;: &quot;1.0&quot;,
++  &quot;timestamp&quot;: &quot;2026-10-08T10:41:12.381Z&quot;,
++  &quot;trace_id&quot;: &quot;4bf92f3577b34da6a3ce929d0e0e4736&quot;,
++  &quot;root_job_id&quot;: &quot;job-8041&quot;,
++  &quot;task_id&quot;: &quot;task-net-17&quot;,
++  &quot;step_id&quot;: &quot;step-06&quot;,
++  &quot;tool_call_id&quot;: &quot;tool-923&quot;,
++  &quot;tool.name&quot;: &quot;network.apply_prefix_list&quot;,
++  &quot;action.class&quot;: &quot;write&quot;,
++  &quot;policy.decision_id&quot;: &quot;dec-118&quot;,
++  &quot;approval.id&quot;: &quot;apr-551&quot;,
++  &quot;outcome&quot;: &quot;verified&quot;,
++  &quot;verification.source&quot;: &quot;network-controller&quot;,
++  &quot;duration_ms&quot;: 842
++}
++</code></pre>
++<p>Этот record не содержит raw token, prompt или полный tool payload. Если для forensic analysis нужен payload, храните его в отдельном зашифрованном evidence store, а в событии — digest, classification и access-controlled reference.</p>
++<h3>Tool call — не одно событие</h3>
++<p>Для write operation различайте минимум четыре момента:</p>
++<ol>
++<li><strong>Proposed</strong> — модель или rule предложили typed action.</li>
++<li><strong>Authorized</strong> — PDP/approval разрешили конкретный digest действия.</li>
++<li><strong>Executed</strong> — executor отправил downstream request и получил protocol result.</li>
++<li><strong>Verified</strong> — authoritative source подтвердил ожидаемое состояние.</li>
++</ol>
++<p>Если записать только <code>tool.success=true</code>, невозможно понять, было ли действие разрешено, применилось ли оно и не относится ли ответ к повторной попытке. Та же модель полезна для read: request, response classification, freshness и provenance.</p>
++<h2>Metrics: cardinality — часть архитектуры</h2>
++<p>Metric backend создаёт отдельную time series для каждой комбинации labels. Если добавить <code>task_id</code> или <code>actor.uid</code>, число series растёт вместе с числом задач и может превратить observability в причину отказа.</p>
++<p><strong>Подходящие labels ограничены известным набором:</strong></p>
++<ul>
++<li><code>service.name</code>, environment, region;</li>
++<li>model provider и model family/revision;</li>
++<li>tool class, а не произвольный command;</li>
++<li>outcome и документированный <code>error.type</code>;</li>
++<li>Substrate template, WorkerPool, sandbox class;</li>
++<li>bounded policy/result class.</li>
++</ul>
++<p><strong>Высокая cardinality уходит в logs, events и traces:</strong> Task ID, Actor UID, user/session, repository URL, prompt digest, external operation ID. В metric exemplar можно оставить ссылку на конкретный trace, не превращая trace ID в label.</p>
++<p>В Substrate это уже сделано намеренно: агрегированные <code>ate.actor.stats.*</code> metrics используют bounded template/pool dimensions, а per-actor measurements идут как events. Не создавайте поверх них log-based metric с label <code>ate.actor.uid</code> — это вернёт ту же проблему под другим названием.</p>
++<p>Метрика должна сохранять смысл. Например, <code>atenet.router.parking.wait.duration</code> различает <code>served</code>, <code>budget_exhausted</code>, <code>canceled</code>, <code>timeout</code> и <code>error</code>. <code>budget_exhausted</code> означает capacity bottleneck, а не обычный application error. Один counter <code>requests_failed_total</code> стёр бы это различие и направил расследование не туда.</p>
++<h2>Что уже даёт Substrate</h2>
++<p>На снимке <code>df78882</code> Substrate реализует существенно больше, чем было видно из краткой версии этой главы:</p>
++<ul>
++<li>оборачивает stdout/stderr контейнеров в structured JSON и добавляет <code>ate.actor.*</code>, atespace, template и container metadata;</li>
++<li>позволяет смотреть текущий Actor через <code>kubectl ate logs actors ... --atespace ...</code>; для истории через migration/resume нужен central log backend;</li>
++<li>при <code>--follow</code> способен продолжить stream после migration Actor;</li>
++<li>экспортирует foundational OTLP metrics и on-demand distributed traces;</li>
++<li>выдаёт authoritative lifecycle events <code>ate.actor.state_changed</code>, <code>ate.actor.crashed</code> и <code>ate.actor.usage_sampled</code>;</li>
++<li>фиксирует per-restore timing breakdown и actor usage без добавления Actor UID в metric labels;</li>
++<li>имеет metric registry и event registry, проверяемые CI;</li>
++<li>предоставляет request-parking metrics и <code>/statusz</code> для capacity diagnosis.</li>
++</ul>
++<p>Есть важные ограничения.</p>
++<p><strong>Во-первых, lifecycle stream нельзя сэмплировать.</strong> <code>ate.actor.state_changed</code> записывается после committed state transition. Consumer, строящий derived state, принимает последнее событие для Actor UID; потеря одного record создаёт тихо устаревшее состояние. Current state всё равно следует запрашивать у control plane: event stream — история переходов, а не гарантированная база текущего состояния.</p>
++<p><strong>Во-вторых, container line получает trace context только тогда, когда actor SDK сам его эмитирует.</strong> Runtime не может достоверно определить, какому concurrent request относится строка общего stdout. Component records имеют <code>trace_id</code>, <code>span_id</code>, <code>trace_flags</code>, но полная actor-level correlation остаётся частично roadmap.</p>
++<p><strong>В-третьих, доставка имеет failure modes.</strong> OTLP processor может потерять records при заполненной queue, недоступном collector или завершении process до flush. Режим <code>otlp,console</code> создаёт резервную stdout-копию, но при одновременном сборе stdout и OTLP способен дать duplicates. Pipeline должен выбрать одну authoritative ingestion path или дедуплицировать по event identity.</p>
++<p><strong>В-четвёртых, ресурсные события и metrics имеют разную semantics.</strong> <code>ate.actor.usage_sampled</code> несёт Actor identity и epoch; CPU counter может сброситься при новой activation. Отрицательная дельта означает reset, а не отрицательное потребление. Отсутствующее измерение означает «не измерено», а не ноль.</p>
++<h2>Что реально есть в AX, а что ещё предстоит</h2>
++<p>На снимке AX <code>ac233282</code> control plane и runner используют стандартный Go <code>slog</code>. Сообщения содержат полезные отдельные поля: Task name, atespace, Actor name, image, PID, command и exit code. Они помогают локальной диагностике, но это ещё не end-to-end observability contract:</p>
++<ul>
++<li><code>ax-server</code> и <code>ax-task-runner</code> настраивают text handler в stdout;</li>
++<li>gRPC server создаётся без OpenTelemetry interceptors;</li>
++<li>нет общей propagation цепочки Task → Actor → runner → model/tool;</li>
++<li>нет стандартной schema событий agent steps, policy, approval и verification;</li>
++<li>Telemetry and Trajectory Collection прямо указана в AX roadmap как будущая работа.</li>
++</ul>
++<p>Поэтому корректная архитектура сейчас — не утверждать, что AX уже экспортирует полную trajectory, а поставить <strong>telemetry adapter на границах, которыми вы управляете</strong>:</p>
++<ol>
++<li>instrument AX API/gRPC и reconciler;</li>
++<li>передавать Task/root identity в runner как отдельный доверенный context;</li>
++<li>instrument agent harness, model gateway и tool gateway;</li>
++<li>принимать authoritative Actor metadata от Substrate;</li>
++<li>нормализовать всё в версионированную schema в collector;</li>
++<li>проверять propagation и redaction integration tests.</li>
++</ol>
++<p>Когда AX добавит native trajectory export, adapter можно заменить, сохранив contract и backend queries.</p>
++<h2>LLM telemetry без утечки данных</h2>
++<p>Для model request полезно разложить end-to-end latency:</p>
++<p><code>agent wait → gateway queue → provider/network → model queue → time to first token → generation → post-processing</code></p>
++<p>Минимальный набор attributes:</p>
++<ul>
++<li>provider, model name и revision;</li>
++<li>operation (<code>chat</code>, <code>generate_content</code>, <code>embeddings</code> и аналогичная stable class);</li>
++<li>input/output token counts, cache read/write tokens;</li>
++<li>queue duration, TTFT, generation duration, inter-token latency, total duration;</li>
++<li>finish reason, retry count, throttling и bounded error type;</li>
++<li>provider request ID в trace/log, но не в metric label;</li>
++<li>estimated cost с явно указанной версией pricing table.</li>
++</ul>
++<p>OpenTelemetry GenAI semantic conventions уже определяют общие <code>gen_ai.*</code> names и операции, включая <code>execute_tool</code> и <code>invoke_agent</code>, но многие conventions ещё имеют development status. Зафиксируйте используемую версию schema и план migration.</p>
++<p>Prompt, completion, tool arguments и results могут содержать secrets и PII. Их запись должна быть <strong>opt-in</strong>, redacted, ограничена по размеру и доступна меньшему кругу людей, чем обычные latency metrics. Для production диагностики чаще достаточно token counts, digests, content class, policy flags и защищённой ссылки на отдельно сохранённый sample. Никогда не записывайте hidden reasoning как обязательный telemetry field.</p>
++<h2>SLI и SLO: измеряйте пользовательский результат</h2>
++<p>SLO — не список красивых percentiles. Для каждого SLI задайте:</p>
++<ul>
++<li>измеряемую population и источник истины;</li>
++<li>good/bad event и исключения;</li>
++<li>окно и objective;</li>
++<li>owner и действие при расходовании error budget.</li>
++</ul>
++<p>Например:</p>
++<p><code>verified outcome ratio = verified terminal goals / eligible terminal goals</code></p>
++<p>В denominator нельзя молча исключать timeout, manual abort или задачи, потерянные при restart. Exclusion policy должна быть явной. Sampled traces нельзя использовать как точный denominator — SLI считается по unsampled metric/event stream.</p>
++<p>Практический набор для agent platform:</p>
++<table>
++<thead>
++<tr>
++<th>SLI</th>
++<th>Что защищает</th>
++<th>Примечание</th>
++</tr>
++</thead>
++<tbody>
++<tr>
++<td>Verified outcome ratio</td>
++<td>полезный результат</td>
++<td>определяется отдельно для каждого класса задач</td>
++</tr>
++<tr>
++<td>End-to-end outcome latency</td>
++<td>ожидание пользователя</td>
++<td>от accepted goal до verified outcome, а не до model response</td>
++</tr>
++<tr>
++<td>Time to first useful action</td>
++<td>отзывчивость</td>
++<td>«полезное» задаётся наблюдаемым событием, не первым token</td>
++</tr>
++<tr>
++<td>Manual recovery ratio</td>
++<td>автономность</td>
++<td>отделять плановый approval от аварийного вмешательства</td>
++</tr>
++<tr>
++<td>Unsafe/unauthorized side effects</td>
++<td>safety guardrail</td>
++<td>абсолютный count может быть важнее процента</td>
++</tr>
++<tr>
++<td>Task ready / resume latency</td>
++<td>runtime readiness</td>
++<td>разделять cold boot, restore и queue/parking</td>
++</tr>
++<tr>
++<td>Tool verified success ratio</td>
++<td>надёжность действий</td>
++<td>protocol success не считается verification</td>
++</tr>
++<tr>
++<td>Model TTFT и request success</td>
++<td>inference health</td>
++<td>не подменяет end-to-end outcome</td>
++</tr>
++</tbody>
++</table>
++<p>Tokens/s, GPU utilization и cache hit — важные engineering metrics, но сами по себе не SLO продукта. Высокий throughput не помогает пользователю, если agent циклически повторяет бесполезный tool call.</p>
++<h2>Sampling и надёжность telemetry pipeline</h2>
++<p>Цена хранения контролируется не одинаковым sampling для всех данных, а их критичностью:</p>
++<ul>
++<li>SLI metrics и counters — не сэмплировать;</li>
++<li>lifecycle, authorization, approval, execution и verified outcome — не сэмплировать;</li>
++<li>error и high-impact traces — сохранять полностью;</li>
++<li>normal traces — head sampling для бюджета и tail sampling по latency/outcome;</li>
++<li>verbose model/tool content — opt-in sampling с redaction и коротким retention;</li>
++<li>actor usage events — можно снижать по документированному правилу, если они не являются billing evidence.</li>
++</ul>
++<p>Collector — часть production path наблюдаемости и сам требует metrics: accepted, dropped, refused, queue size, retry и export latency. При его отказе приложение не должно бесконечно блокировать user request, но критическое evidence не должно тихо исчезать. Используйте bounded queue, disk buffer там, где он оправдан, flush budget, drop counters и отдельный канал для audit events.</p>
++<p>Проверьте clock synchronization. Trace UI может нарисовать невозможный порядок, если часы Worker и gateway расходятся. Для causal order важны parent/link relations и monotonic duration внутри process, а wall-clock timestamp требует синхронизированных hosts.</p>
++<h2>Security telemetry</h2>
++<p>Observability backend видит topology, identities, error details и иногда содержимое запросов. Это высокоценный control-plane asset.</p>
++<p>Минимальные controls:</p>
++<ul>
++<li>tenant isolation и field-level access для sensitive payload;</li>
++<li>encryption in transit/at rest и отдельная workload identity exporters;</li>
++<li>redaction до выхода из trust boundary;</li>
++<li>allowlist полей вместо попытки найти все возможные secrets regex-ами;</li>
++<li>retention по типу сигнала, а не один срок на всё;</li>
++<li>integrity и append-only guarantees для audit trail;</li>
++<li>журнал доступа к evidence;</li>
++<li>запрет workload подменять reserved platform attributes.</li>
++</ul>
++<p><code>root_job_id</code> и Task ID тоже могут раскрывать business context, поэтому публичный dashboard не должен превращаться в directory активных целей. User identity лучше хранить как scoped pseudonymous reference и разрешать обратное сопоставление только уполномоченному incident/audit process.</p>
++<h2>Dashboards и alerts, которыми можно пользоваться</h2>
++<p>Один огромный dashboard создаёт иллюзию полноты. Разделите views по вопросу:</p>
++<ol>
++<li><strong>Outcome:</strong> verified success, end-to-end latency, manual recovery, safety guardrails.</li>
++<li><strong>Agent:</strong> active Tasks, steps, retry loops, approvals, tool verification, child fan-out.</li>
++<li><strong>Runtime:</strong> Actor states, restore phases, WorkerPool saturation, parking outcomes, crashes.</li>
++<li><strong>Inference:</strong> request/queue latency, TTFT, tokens, cache, throttling, GPU saturation.</li>
++<li><strong>Infrastructure:</strong> nodes, network, storage, databases, collector health.</li>
++</ol>
++<p>Каждый верхнеуровневый panel должен вести к traces/events с тем же time range и dimensions. Dashboard без drill-down отвечает «плохо», но не помогает дежурному найти причинный путь.</p>
++<p>Page должен приходить по пользовательскому симптому или быстрому расходованию error budget. Cause alerts вроде «CPU 82%» полезны как diagnostic signals, но часто не требуют ночного звонка. Multi-window burn-rate alert различает быстрый catastrophic burn и медленное устойчивое ухудшение. У alert должны быть owner, impact, ссылка на runbook и несколько первых запросов, которые подтверждают или опровергают гипотезу.</p>
++<h2>Разбор инцидента «агент завис»</h2>
++<p>Рабочий runbook идёт сверху вниз, сохраняя correlation identity.</p>
++<ol>
++<li>Найти <code>root_job_id</code> и определить terminal/expected outcome. Goal ещё исполняется, ждёт человека или уже завершён без verification?</li>
++<li>По <code>task_id</code> проверить последний committed agent event. Если это <code>approval.requested</code>, искать approval ID и deadline, а не CPU.</li>
++<li>По Actor UID запросить current state у Substrate и сравнить его с lifecycle history. Не принимать последний log event за authoritative current state.</li>
++<li>Если Actor ждёт resume, разложить route/parking/restore latency. <code>budget_exhausted</code> указывает на capacity, <code>timeout</code> — на deadline клиента, <code>error</code> — на non-retryable failure.</li>
++<li>Для работающей activation перейти по trace link к model/tool spans. Отделить gateway queue, provider latency и tool execution.</li>
++<li>Для write tool сопоставить proposed → authorized → executed → verified. HTTP 200 без verification не закрывает инцидент.</li>
++<li>Если сигнал обрывается, проверить сам telemetry pipeline: dropped records, collector queue, duplicate ingestion и clock skew.</li>
++</ol>
++<p>Такой путь превращает фразу «завис» в проверяемую последовательность гипотез. Без общей identity команда прыгает между пятью dashboards и вручную сравнивает timestamps.</p>
++<h2>Минимальный план внедрения</h2>
++<p>Не начинайте с покупки observability platform. Начните с контракта и одного end-to-end сценария.</p>
++<h3>Этап 1. Identity и schema</h3>
++<ul>
++<li>определить root, Task, Actor, activation, step, tool/model IDs;</li>
++<li>зафиксировать reserved namespaces и owners полей;</li>
++<li>версионировать event schemas;</li>
++<li>описать redaction и cardinality budgets.</li>
++</ul>
++<h3>Этап 2. Один golden path</h3>
++<p>Instrument путь <code>CreateTask → ResumeActor → model request → read-only tool → verified answer</code>. Для него должны работать log-to-trace переходы и поиск от user goal до каждого слоя.</p>
++<h3>Этап 3. Failure paths</h3>
++<p>Добавить approval timeout, tool retry, WorkerPool saturation, suspend/resume, child Task, collector outage и external operation, завершившуюся после client timeout.</p>
++<h3>Этап 4. SLO и alerts</h3>
++<p>Сначала определить outcome SLI и denominator, затем platform decomposition и burn-rate alerts. Не выводить reliability из sampled traces.</p>
++<h3>Этап 5. Проверка контрактов</h3>
++<p>Автоматические tests должны ловить:</p>
++<ul>
++<li>потерю <code>traceparent</code> на HTTP/gRPC/queue boundary;</li>
++<li>отсутствие span link после resume или delegation;</li>
++<li>попадание Task/Actor IDs в metric labels;</li>
++<li>secret/PII в events и model content;</li>
++<li>sampling lifecycle/audit events;</li>
++<li>duplicates при одновременном OTLP и stdout ingestion;</li>
++<li>неверный порядок из-за clock skew;</li>
++<li>незаметную потерю данных при backpressure/collector outage;</li>
++<li>расхождение event registry и реально эмитируемого кода.</li>
++</ul>
++<h2>Итог</h2>
++<p>Наблюдаемость agent infrastructure начинается не с dashboard и не с полного сохранения мыслей модели. Она начинается с точной причинной модели: user goal порождает Task, Task исполняется через Actor activations, agent принимает наблюдаемые решения, policy разрешает конкретное действие, executor выполняет его, а verification подтверждает внешний outcome.</p>
++<p>Metrics показывают масштаб и тенденции, events — конкретные переходы, traces — причинный путь. Stable logical IDs переживают relocation, attempt IDs различают retries, а physical IDs объясняют, где возник bottleneck. Lifecycle и audit evidence не сэмплируются; высококардинальные identity не попадают в metric labels; чувствительное содержимое не собирается по умолчанию.</p>
++<p>Substrate уже предоставляет прочную runtime-базу, но её semantics и ограничения нужно учитывать. Текущий AX ещё не реализует целостную OpenTelemetry trajectory, поэтому эту связность сегодня строят на контролируемых границах harness, gateway и runner. В следующей главе мы развернём учебный стенд и сразу заложим минимальный telemetry path, чтобы последующие эксперименты измерялись, а не оценивались на глаз.</p>
++<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
++<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md">Substrate observability на снимке df78882</a></li>
++<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md">Substrate request parking на снимке df78882</a></li>
++<li><a href="https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/metrics/registry">Substrate metric registry на снимке df78882</a></li>
++<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX server на снимке ac233282</a></li>
++<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go">AX runner на снимке ac233282</a></li>
++<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md">AX roadmap: Telemetry and Trajectory Collection</a></li>
++<li><a href="https://opentelemetry.io/docs/specs/otel/logs/">OpenTelemetry logs и correlation</a></li>
++<li><a href="https://opentelemetry.io/docs/specs/otel/trace/api/">OpenTelemetry tracing API и span links</a></li>
++<li><a href="https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/">OpenTelemetry GenAI semantic conventions</a></li>
++<li><a href="https://www.w3.org/TR/trace-context/">W3C Trace Context</a></li>
++<li><a href="https://sre.google/workbook/alerting-on-slos/">Google SRE Workbook: alerting on SLOs</a></li>
++</ul></div></section><section class="chapter" id="ch-26"><div class="chapter-num">Глава 26</div><h1>Лабораторный стенд на Proxmox/KVM: Kind, k3s или kubeadm</h1><figure><figcaption>Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX</figcaption><svg class="diagram" viewBox="0 0 900 290" role="img" aria-label="Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130.0" y1="85" x2="130.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="130.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">VM</text><line x1="130.0" y1="185" x2="360.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="245.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">runtime</text><line x1="360.0" y1="85" x2="360.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="360.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">nodes</text><line x1="360.0" y1="185" x2="590.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="475.0" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">deploy</text><line x1="670" y1="92.5" x2="720" y2="92.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="695.0" y="86.5" text-anchor="middle" font-size="10" fill="#5c6875">runtime</text><line x1="590.0" y1="245" x2="795.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="692.5" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">model API</text><line x1="795.0" y1="245" x2="795.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="795.0" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">workspace/tools</text><rect x="40" y="20" rx="12" ry="12" width="180" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="130.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Proxmox/KVM</text><text x="130.0" y="65" text-anchor="middle" font-size="11" fill="#465569">host</text><rect x="40" y="120" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Debian/Ubuntu VM</text><text x="130.0" y="165" text-anchor="middle" font-size="11" fill="#465569">lab node</text><rect x="280" y="20" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="360.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Docker</text><text x="360.0" y="65" text-anchor="middle" font-size="11" fill="#465569">Kind nodes</text><rect x="280" y="120" rx="12" ry="12" width="160" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="360.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Kind cluster</text><text x="360.0" y="165" text-anchor="middle" font-size="11" fill="#465569">Kubernetes</text><rect x="510" y="60" rx="12" ry="12" width="160" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="590.0" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Substrate</text><text x="590.0" y="105" text-anchor="middle" font-size="11" fill="#465569">PostgreSQL + RustFS</text><rect x="720" y="60" rx="12" ry="12" width="150" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="795.0" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX</text><text x="795.0" y="105" text-anchor="middle" font-size="11" fill="#465569">Redis + control plane</text><rect x="510" y="180" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="590.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Local inference</text><text x="590.0" y="225" text-anchor="middle" font-size="11" fill="#465569">vLLM/llama.cpp</text><rect x="720" y="180" rx="12" ry="12" width="150" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="795.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">MCP services</text><text x="795.0" y="225" text-anchor="middle" font-size="11" fill="#465569">tools</text></svg></figure><p>Для первой воспроизводимой установки выбираем <strong>Kind внутри одной Debian/Ubuntu VM на Proxmox/KVM</strong>, потому что Substrate current quickstart имеет автоматизированный Kind path и локально поднимает зависимые PostgreSQL/RustFS. Это учебный выбор, не production recommendation.</p>
+ <h3>Kind</h3>
+ <p>Kind запускает Kubernetes nodes как Docker containers и сам использует kubeadm внутри node images. Плюсы: быстро удалить/создать cluster, повторяемость, удобно для CI/lab. Минусы: дополнительный слой container-in-VM, networking/storage отличаются от production, hardware/runtime integration сложнее.</p>
+ <h3>k3s</h3>
