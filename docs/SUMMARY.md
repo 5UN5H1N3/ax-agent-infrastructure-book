@@ -44,7 +44,7 @@
 
 * [Security architecture агентной платформы: как построить threat model и defense in depth](23-security-architecture.md)
 * [Identity, authorization и human-in-the-loop: как безопасно делегировать authority агенту](24-identity-authorization-hitl.md)
-* [Observability: четыре слоя и единая correlation identity](25-observability.md)
+* [Observability: от user goal до подтверждённого результата](25-observability.md)
 * [Лабораторный стенд на Proxmox/KVM: Kind, k3s или kubeadm](26-proxmox-kvm-lab.md)
 * [Production engineering: HA, persistence, upgrades и DR](27-production-engineering.md)
 * [Performance и scaling: что реально ограничивает систему](28-performance-scaling.md)

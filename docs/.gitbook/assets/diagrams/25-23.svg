@@ -1,35 +1,173 @@
-<svg aria-label="Четыре слоя observability нельзя смешивать в один «лог агента»" class="diagram diagram-redrawn" height="77.92" role="img" viewBox="0 0 990.42 77.92" width="990.42" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 64.96)">
+<svg aria-label="Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals" class="diagram diagram-redrawn" height="271.92" role="img" viewBox="0 0 1097.92 271.92" width="1097.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 258.96)">
 <title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M93.2,-225C113.97,-225 138.71,-225 160.96,-225" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="161.2,-227.52 168.4,-225 161.2,-222.48 161.2,-227.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="130.75" y="-230.56">создаёт</text>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge">
+<title>n1-&gt;n2</title>
+<path d="M276.6,-225C303.81,-225 337.24,-225 366.94,-225" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="367.2,-227.52 374.4,-225 367.2,-222.48 367.2,-227.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="325.5" y="-230.56">исполняется</text>
+</g>
+<!-- n1&#45;&gt;n6 -->
+<g class="edge">
+<title>n1-&gt;n6</title>
+<path d="M230.8,-203.76C237.02,-188.58 245.6,-167.65 252.42,-151.03" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="254.82,-151.82 255.22,-144.21 250.15,-149.91 254.82,-151.82" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="266" y="-171.56">decisions</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M510.57,-225C535.23,-225 562.96,-225 587.11,-225" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="587.29,-227.52 594.49,-225 587.29,-222.48 587.29,-227.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="552.5" y="-230.56">вызывает</text>
+</g>
+<!-- n2&#45;&gt;n7 -->
+<g class="edge">
+<title>n2-&gt;n7</title>
+<path d="M445.74,-203.76C448.15,-188.72 451.46,-168.02 454.1,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="456.62,-151.71 455.27,-144.21 451.64,-150.92 456.62,-151.71" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="470.5" y="-171.56">lifecycle</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge">
+<title>n3-&gt;n4</title>
+<path d="M704.68,-225C727.42,-225 754.05,-225 778.24,-225" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="778.46,-227.52 785.66,-225 778.46,-222.48 778.46,-227.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="745.25" y="-230.56">изменяет</text>
+</g>
+<!-- n3&#45;&gt;n8 -->
+<g class="edge">
+<title>n3-&gt;n8</title>
+<path d="M648.69,-203.76C648.09,-188.72 647.26,-168.02 646.6,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="649.11,-151.3 646.31,-144.21 644.08,-151.5 649.11,-151.3" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="666" y="-171.56">latency</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge">
+<title>n4-&gt;n5</title>
+<path d="M913.01,-225C933.46,-225 955.87,-225 975.4,-225" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="975.54,-227.52 982.74,-225 975.54,-222.48 975.54,-227.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="948" y="-230.56">verify</text>
+</g>
+<!-- n4&#45;&gt;n9 -->
+<g class="edge">
+<title>n4-&gt;n9</title>
+<path d="M847.48,-203.76C845.97,-188.72 843.9,-168.02 842.25,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="844.74,-151.12 841.52,-144.21 839.73,-151.62 844.74,-151.12" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="864.5" y="-171.56">platform</text>
+</g>
+<!-- n6&#45;&gt;n10 -->
+<g class="edge">
+<title>n6-&gt;n10</title>
+<path d="M321.43,-101.88C369.28,-85.27 437.16,-61.7 486.78,-44.47" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="487.68,-46.83 493.66,-42.08 486.03,-42.07 487.68,-46.83" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="432.5" y="-69.56">events</text>
+</g>
+<!-- n7&#45;&gt;n10 -->
+<g class="edge">
+<title>n7-&gt;n10</title>
+<path d="M477.32,-101.76C491.82,-86.18 511.96,-64.52 527.59,-47.71" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="529.65,-49.19 532.71,-42.21 525.96,-45.76 529.65,-49.19" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="539.5" y="-69.56">logs + traces</text>
+</g>
+<!-- n8&#45;&gt;n10 -->
+<g class="edge">
+<title>n8-&gt;n10</title>
+<path d="M626.48,-101.76C611.83,-86.18 591.47,-64.52 575.66,-47.71" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="577.26,-45.73 570.49,-42.21 573.59,-49.18 577.26,-45.73" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="640.5" y="-69.56">traces + metrics</text>
+</g>
+<!-- n9&#45;&gt;n10 -->
+<g class="edge">
+<title>n9-&gt;n10</title>
+<path d="M784.19,-101.99C740.73,-86.26 687.5,-67 687.5,-67 687.5,-67 653.55,-55.77 619.58,-44.53" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="619.97,-42 612.34,-42.13 618.38,-46.79 619.97,-42" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="731" y="-69.56">metrics</text>
+</g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M213,-52C213,-52 12,-52 12,-52 6,-52 0,-46 0,-40 0,-40 0,-12 0,-12 0,-6 6,0 12,0 12,0 213,0 213,0 219,0 225,-6 225,-12 225,-12 225,-40 225,-40 225,-46 219,-52 213,-52" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="64.5" y="-33.4">Infrastructure</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-23">nodes, CPU/RAM/GPU, network, storage,</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="85" y="-13">Kubernetes</text>
+<path d="M81,-246C81,-246 12,-246 12,-246 6,-246 0,-240 0,-234 0,-234 0,-216 0,-216 0,-210 6,-204 12,-204 12,-204 81,-204 81,-204 87,-204 93,-210 93,-216 93,-216 93,-234 93,-234 93,-240 87,-246 81,-246" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-227.4">User goal</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="19" y="-217">root_job_id</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M478.5,-47C478.5,-47 272.5,-47 272.5,-47 266.5,-47 260.5,-41 260.5,-35 260.5,-35 260.5,-17 260.5,-17 260.5,-11 266.5,-5 272.5,-5 272.5,-5 478.5,-5 478.5,-5 484.5,-5 490.5,-11 490.5,-17 490.5,-17 490.5,-35 490.5,-35 490.5,-41 484.5,-47 478.5,-47" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="312" y="-28.4">Runtime / sandbox</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="274.5" y="-18">Worker, Actor, snapshot, resume, process</text>
+<path d="M264.5,-246C264.5,-246 180.5,-246 180.5,-246 174.5,-246 168.5,-240 168.5,-234 168.5,-234 168.5,-216 168.5,-216 168.5,-210 174.5,-204 180.5,-204 180.5,-204 264.5,-204 264.5,-204 270.5,-204 276.5,-210 276.5,-216 276.5,-216 276.5,-234 276.5,-234 276.5,-240 270.5,-246 264.5,-246" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="195.5" y="-227.4">AX Task</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="182.5" y="-217">task_id · step_id</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M711,-52C711,-52 538,-52 538,-52 532,-52 526,-46 526,-40 526,-40 526,-12 526,-12 526,-6 532,0 538,0 538,0 711,0 711,0 717,0 723,-6 723,-12 723,-12 723,-40 723,-40 723,-46 717,-52 711,-52" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="604.5" y="-33.4">Agent</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="540" y="-23">steps, tool calls, retries, delegated</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="610.5" y="-13">Tasks</text>
+<path d="M498.5,-246C498.5,-246 386.5,-246 386.5,-246 380.5,-246 374.5,-240 374.5,-234 374.5,-234 374.5,-216 374.5,-216 374.5,-210 380.5,-204 386.5,-204 386.5,-204 498.5,-204 498.5,-204 504.5,-204 510.5,-210 510.5,-216 510.5,-216 510.5,-234 510.5,-234 510.5,-240 504.5,-246 498.5,-246" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="388.5" y="-227.4">Actor activation</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="414" y="-217">UID · epoch</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M952.5,-47C952.5,-47 770.5,-47 770.5,-47 764.5,-47 758.5,-41 758.5,-35 758.5,-35 758.5,-17 758.5,-17 758.5,-11 764.5,-5 770.5,-5 770.5,-5 952.5,-5 952.5,-5 958.5,-5 964.5,-11 964.5,-17 964.5,-17 964.5,-35 964.5,-35 964.5,-41 958.5,-47 952.5,-47" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="847.5" y="-28.4">LLM</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="772.5" y="-18">TTFT, ITL, tokens, errors, cache, cost</text>
+<path d="M692.5,-246C692.5,-246 606.5,-246 606.5,-246 600.5,-246 594.5,-240 594.5,-234 594.5,-234 594.5,-216 594.5,-216 594.5,-210 600.5,-204 606.5,-204 606.5,-204 692.5,-204 692.5,-204 698.5,-204 704.5,-210 704.5,-216 704.5,-216 704.5,-234 704.5,-234 704.5,-240 698.5,-246 692.5,-246" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="608.5" y="-227.4">Model / Tool</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="611" y="-217">request · call ID</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M901,-246C901,-246 798,-246 798,-246 792,-246 786,-240 786,-234 786,-234 786,-216 786,-216 786,-210 792,-204 798,-204 798,-204 901,-204 901,-204 907,-204 913,-210 913,-216 913,-216 913,-234 913,-234 913,-240 907,-246 901,-246" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="801" y="-227.4">External state</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="800" y="-217">authoritative source</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M1060,-246C1060,-246 995,-246 995,-246 989,-246 983,-240 983,-234 983,-234 983,-216 983,-216 983,-210 989,-204 995,-204 995,-204 1060,-204 1060,-204 1066,-204 1072,-210 1072,-216 1072,-216 1072,-234 1072,-234 1072,-240 1066,-246 1060,-246" fill="#e9f7ef" stroke="#1f7a4d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="997" y="-227.4">Outcome</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="1009" y="-217">verified</text>
+</g>
+<!-- n6 -->
+<g class="node">
+<title>n6</title>
+<path d="M321.5,-144C321.5,-144 205.5,-144 205.5,-144 199.5,-144 193.5,-138 193.5,-132 193.5,-132 193.5,-114 193.5,-114 193.5,-108 199.5,-102 205.5,-102 205.5,-102 321.5,-102 321.5,-102 327.5,-102 333.5,-108 333.5,-114 333.5,-114 333.5,-132 333.5,-132 333.5,-138 327.5,-144 321.5,-144" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="218" y="-125.4">Agent events</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="207.5" y="-115">policy · approval · step</text>
+</g>
+<!-- n7 -->
+<g class="node">
+<title>n7</title>
+<path d="M519,-144C519,-144 398,-144 398,-144 392,-144 386,-138 386,-132 386,-132 386,-114 386,-114 386,-108 392,-102 398,-102 398,-102 519,-102 519,-102 525,-102 531,-108 531,-114 531,-114 531,-132 531,-132 531,-138 525,-144 519,-144" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="404" y="-125.4">Runtime signals</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="400" y="-115">state · resume · parking</text>
+</g>
+<!-- n8 -->
+<g class="node">
+<title>n8</title>
+<path d="M705.5,-144C705.5,-144 585.5,-144 585.5,-144 579.5,-144 573.5,-138 573.5,-132 573.5,-132 573.5,-114 573.5,-114 573.5,-108 579.5,-102 585.5,-102 585.5,-102 705.5,-102 705.5,-102 711.5,-102 717.5,-108 717.5,-114 717.5,-114 717.5,-132 717.5,-132 717.5,-138 711.5,-144 705.5,-144" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="587.5" y="-125.4">Inference signals</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="593.5" y="-115">queue · TTFT · tokens</text>
+</g>
+<!-- n9 -->
+<g class="node">
+<title>n9</title>
+<path d="M901,-144C901,-144 778,-144 778,-144 772,-144 766,-138 766,-132 766,-132 766,-114 766,-114 766,-108 772,-102 778,-102 778,-102 901,-102 901,-102 907,-102 913,-108 913,-114 913,-114 913,-132 913,-132 913,-138 907,-144 901,-144" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="791.5" y="-125.4">Infrastructure</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="780" y="-115">node · network · storage</text>
+</g>
+<!-- n10 -->
+<g class="node">
+<title>n10</title>
+<path d="M656,-42C656,-42 447,-42 447,-42 441,-42 435,-36 435,-30 435,-30 435,-12 435,-12 435,-6 441,0 447,0 447,0 656,0 656,0 662,0 668,-6 668,-12 668,-12 668,-30 668,-30 668,-36 662,-42 656,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="449" y="-23.4">Telemetry contract + collector</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="452" y="-13">metrics · events · traces · audit evidence</text>
 </g>
 </g>
 </svg>
