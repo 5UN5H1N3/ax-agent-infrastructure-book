@@ -81,3 +81,5 @@ jobs:
             --branch main \
             --message "docs: publish collision-free redrawn diagrams [skip ci]" \
             docs
+
+# Publication trigger: chapter 25

@@ -89,3 +89,5 @@ jobs:
             book/AX_Agent_Infrastructure_Book_RU.html
             book/CHECKSUMS.sha256
             assets/
+
+# Publication trigger: chapter 25
