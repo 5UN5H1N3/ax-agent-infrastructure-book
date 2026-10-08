@@ -82,4 +82,4 @@ jobs:
             --message "docs: publish collision-free redrawn diagrams [skip ci]" \
             docs
 
-# Publication trigger: chapter 25
+# Publication trigger: chapter 26
