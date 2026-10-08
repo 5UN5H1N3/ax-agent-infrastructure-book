@@ -37,7 +37,7 @@
 ## IV. Local inference и multi-agent execution
 
 * [Local inference как сервис: как выбрать runtime, модель и границу ответственности](20-local-inference.md)
-* [Производительность inference: что измерять для 10-15+ агентов](21-inference-performance.md)
+* [Производительность inference: как измерять latency, throughput и capacity для 10-15+ агентов](21-inference-performance.md)
 * [Multi-agent на AX: как делегировать без task explosion](22-multi-agent-on-ax.md)
 
 ## V. Security, observability и эксплуатация
