@@ -42,7 +42,7 @@
 
 ## V. Security, observability и эксплуатация
 
-* [Security architecture: threat model agent platform](23-security-architecture.md)
+* [Security architecture агентной платформы: как построить threat model и defense in depth](23-security-architecture.md)
 * [Identity, authorization и Human-in-the-loop](24-identity-authorization-hitl.md)
 * [Observability: четыре слоя и единая correlation identity](25-observability.md)
 * [Лабораторный стенд на Proxmox/KVM: Kind, k3s или kubeadm](26-proxmox-kvm-lab.md)
