@@ -1,78 +1,159 @@
-<svg aria-label="Controlled action pattern: observe → diagnose → propose → approve → execute → verify" class="diagram diagram-redrawn" height="67.92" role="img" viewBox="0 0 834.92 67.92" width="834.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 54.96)">
+<svg aria-label="Authority path: identity, policy и approval превращают proposal в ограниченный execution grant" class="diagram diagram-redrawn" height="336.92" role="img" viewBox="0 0 1072.92 336.92" width="1072.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 323.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
 <g class="edge">
 <title>n0-&gt;n1</title>
-<path d="M85.2,-21C98.82,-21 114.15,-21 128.54,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="128.76,-23.52 135.96,-21 128.76,-18.48 128.76,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M137.21,-290C162.95,-290 191.94,-290 216.43,-290" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="216.68,-292.52 223.88,-290 216.68,-287.48 216.68,-292.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="180.5" y="-292.56">initiates</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M231,-21C245.06,-21 260.52,-21 274.68,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="274.76,-23.52 281.96,-21 274.76,-18.48 274.76,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M322.1,-290C350.82,-290 387.65,-290 418.78,-290" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="418.95,-292.52 426.15,-290 418.95,-287.48 418.95,-292.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="370.5" y="-292.56">delegates</text>
 </g>
 <!-- n2&#45;&gt;n3 -->
 <g class="edge">
 <title>n2-&gt;n3</title>
-<path d="M366.18,-21C379.76,-21 395.07,-21 409.47,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="409.69,-23.52 416.89,-21 409.69,-18.48 409.69,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M540.76,-290C581.77,-290 637.2,-290 678.86,-290" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="679.01,-292.52 686.21,-290 679.01,-287.48 679.01,-292.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="611" y="-292.56">attenuates</text>
 </g>
-<!-- n3&#45;&gt;n4 -->
+<!-- n2&#45;&gt;n5 -->
 <g class="edge">
-<title>n3-&gt;n4</title>
-<path d="M512.04,-21C533.43,-21 558.84,-21 580.67,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="580.73,-23.52 587.93,-21 580.73,-18.48 580.73,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="550" y="-23.56">grant</text>
+<title>n2-&gt;n5</title>
+<path d="M427.23,-268.99C350.52,-239.83 212.2,-187.24 131.88,-156.71" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
+<polygon fill="#7a6a8e" points="132.4,-154.21 124.77,-154.01 130.61,-158.92 132.4,-154.21" stroke="#7a6a8e" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="273" y="-229.56">typed proposal</text>
 </g>
-<!-- n4&#45;&gt;n5 -->
+<!-- n4&#45;&gt;n7 -->
 <g class="edge">
-<title>n4-&gt;n5</title>
-<path d="M676.14,-21C689.95,-21 705.32,-21 719.43,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="719.48,-23.52 726.68,-21 719.48,-18.48 719.48,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<title>n4-&gt;n7</title>
+<path d="M938.73,-207.13C853.29,-195.79 674,-172 674,-172 674,-172 609.14,-158.65 555.3,-147.57" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
+<polygon fill="#7a6a8e" points="555.69,-145.08 548.13,-146.09 554.67,-150.01 555.69,-145.08" stroke="#7a6a8e" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="739" y="-191.56">approves digest</text>
+</g>
+<!-- n5&#45;&gt;n6 -->
+<g class="edge">
+<title>n5-&gt;n6</title>
+<path d="M126.72,-133C154.85,-133 188.61,-133 216.5,-133" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="216.63,-135.52 223.83,-133 216.63,-130.48 216.63,-135.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="180.5" y="-135.56">PARC</text>
+</g>
+<!-- n6&#45;&gt;n7 -->
+<g class="edge">
+<title>n6-&gt;n7</title>
+<path d="M322.1,-133C348.59,-133 381.99,-133 411.44,-133" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="411.64,-135.52 418.84,-133 411.64,-130.48 411.64,-135.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="370.5" y="-135.56">obligation</text>
+</g>
+<!-- n7&#45;&gt;n8 -->
+<g class="edge">
+<title>n7-&gt;n8</title>
+<path d="M548.14,-133C584.44,-133 630.01,-133 667.41,-133" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="667.57,-135.52 674.77,-133 667.57,-130.48 667.57,-135.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="611" y="-135.56">single-use grant</text>
+</g>
+<!-- n8&#45;&gt;n9 -->
+<g class="edge">
+<title>n8-&gt;n9</title>
+<path d="M803.21,-133C837.08,-133 878.88,-133 913.64,-133" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="913.75,-135.52 920.95,-133 913.75,-130.48 913.75,-135.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="862.5" y="-135.56">scoped action</text>
+</g>
+<!-- n8&#45;&gt;n10 -->
+<g class="edge">
+<title>n8-&gt;n10</title>
+<path d="M739,-111.65C739,-94 739,-68.79 739,-49.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="741.52,-49.27 739,-42.07 736.48,-49.27 741.52,-49.27" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="731" y="-74.56">audit</text>
+</g>
+<!-- n9&#45;&gt;n10 -->
+<g class="edge">
+<title>n9-&gt;n10</title>
+<path d="M937.09,-111.84C895.91,-92.86 835.53,-65.03 792.46,-45.18" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
+<polygon fill="#7a6a8e" points="793.3,-42.79 785.71,-42.07 791.19,-47.37 793.3,-42.79" stroke="#7a6a8e" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="862.5" y="-92.56">post-state</text>
 </g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M73,-42C73,-42 12,-42 12,-42 6,-42 0,-36 0,-30 0,-30 0,-12 0,-12 0,-6 6,0 12,0 12,0 73,0 73,0 79,0 85,-6 85,-12 85,-12 85,-30 85,-30 85,-36 79,-42 73,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-23.4">Observe</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="19" y="-13">read-only</text>
+<path d="M125,-311C125,-311 12,-311 12,-311 6,-311 0,-305 0,-299 0,-299 0,-281 0,-281 0,-275 6,-269 12,-269 12,-269 125,-269 125,-269 131,-269 137,-275 137,-281 137,-281 137,-299 137,-299 137,-305 131,-311 125,-311" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-292.4">Human / service</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="50.5" y="-282">subject</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M219,-42C219,-42 148,-42 148,-42 142,-42 136,-36 136,-30 136,-30 136,-12 136,-12 136,-6 142,0 148,0 148,0 219,0 219,0 225,0 231,-6 231,-12 231,-12 231,-30 231,-30 231,-36 225,-42 219,-42" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="152" y="-23.4">Diagnose</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="150" y="-13">no side effect</text>
+<path d="M310,-311C310,-311 236,-311 236,-311 230,-311 224,-305 224,-299 224,-299 224,-281 224,-281 224,-275 230,-269 236,-269 236,-269 310,-269 310,-269 316,-269 322,-275 322,-281 322,-281 322,-299 322,-299 322,-305 316,-311 310,-311" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="244.5" y="-292.4">Root job</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="238" y="-282">goal + budget</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M354,-42C354,-42 294,-42 294,-42 288,-42 282,-36 282,-30 282,-30 282,-12 282,-12 282,-6 288,0 294,0 294,0 354,0 354,0 360,0 366,-6 366,-12 366,-12 366,-30 366,-30 366,-36 360,-42 354,-42" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="296" y="-23.4">Propose</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="296.5" y="-13">action plan</text>
+<path d="M528.5,-311C528.5,-311 438.5,-311 438.5,-311 432.5,-311 426.5,-305 426.5,-299 426.5,-299 426.5,-281 426.5,-281 426.5,-275 432.5,-269 438.5,-269 438.5,-269 528.5,-269 528.5,-269 534.5,-269 540.5,-275 540.5,-281 540.5,-281 540.5,-299 540.5,-299 540.5,-305 534.5,-311 528.5,-311" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="443" y="-292.4">Task / Actor</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="440.5" y="-282">workload identity</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M500,-42C500,-42 429,-42 429,-42 423,-42 417,-36 417,-30 417,-30 417,-12 417,-12 417,-6 423,0 429,0 429,0 500,0 500,0 506,0 512,-6 512,-12 512,-12 512,-30 512,-30 512,-36 506,-42 500,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="434.5" y="-23.4">Approval</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="431" y="-13">human/policy</text>
+<path d="M779.5,-311C779.5,-311 698.5,-311 698.5,-311 692.5,-311 686.5,-305 686.5,-299 686.5,-299 686.5,-281 686.5,-281 686.5,-275 692.5,-269 698.5,-269 698.5,-269 779.5,-269 779.5,-269 785.5,-269 791.5,-275 791.5,-281 791.5,-281 791.5,-299 791.5,-299 791.5,-305 785.5,-311 779.5,-311" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="700.5" y="-292.4">Child agent</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="701" y="-282">narrower scope</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M664,-42C664,-42 600,-42 600,-42 594,-42 588,-36 588,-30 588,-30 588,-12 588,-12 588,-6 594,0 600,0 600,0 664,0 664,0 670,0 676,-6 676,-12 676,-12 676,-30 676,-30 676,-36 670,-42 664,-42" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="605" y="-23.4">Execute</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="602" y="-13">scoped MCP</text>
+<path d="M1017,-234C1017,-234 951,-234 951,-234 945,-234 939,-228 939,-222 939,-222 939,-204 939,-204 939,-198 945,-192 951,-192 951,-192 1017,-192 1017,-192 1023,-192 1029,-198 1029,-204 1029,-204 1029,-222 1029,-222 1029,-228 1023,-234 1017,-234" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="953" y="-215.4">Approver</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="954.5" y="-205">accepts risk</text>
 </g>
 <!-- n5 -->
 <g class="node">
 <title>n5</title>
-<path d="M797,-42C797,-42 739,-42 739,-42 733,-42 727,-36 727,-30 727,-30 727,-12 727,-12 727,-6 733,0 739,0 739,0 797,0 797,0 803,0 809,-6 809,-12 809,-12 809,-30 809,-30 809,-36 803,-42 797,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="748" y="-23.4">Verify</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="741" y="-13">post-check</text>
+<path d="M114.5,-154C114.5,-154 22.5,-154 22.5,-154 16.5,-154 10.5,-148 10.5,-142 10.5,-142 10.5,-124 10.5,-124 10.5,-118 16.5,-112 22.5,-112 22.5,-112 114.5,-112 114.5,-112 120.5,-112 126.5,-118 126.5,-124 126.5,-124 126.5,-142 126.5,-142 126.5,-148 120.5,-154 114.5,-154" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="38.5" y="-135.4">Proposal</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="24.5" y="-125">normalized action</text>
+</g>
+<!-- n6 -->
+<g class="node">
+<title>n6</title>
+<path d="M310,-154C310,-154 236,-154 236,-154 230,-154 224,-148 224,-142 224,-142 224,-124 224,-124 224,-118 230,-112 236,-112 236,-112 310,-112 310,-112 316,-112 322,-118 322,-124 322,-124 322,-142 322,-142 322,-148 316,-154 310,-154" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="238" y="-135.4">PDP + PIP</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="238.5" y="-125">policy + state</text>
+</g>
+<!-- n7 -->
+<g class="node">
+<title>n7</title>
+<path d="M536,-154C536,-154 431,-154 431,-154 425,-154 419,-148 419,-142 419,-142 419,-124 419,-124 419,-118 425,-112 431,-112 431,-112 536,-112 536,-112 542,-112 548,-118 548,-124 548,-124 548,-142 548,-142 548,-148 542,-154 536,-154" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="433" y="-135.4">Approval grant</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="445.5" y="-125">digest + expiry</text>
+</g>
+<!-- n8 -->
+<g class="node">
+<title>n8</title>
+<path d="M791,-154C791,-154 687,-154 687,-154 681,-154 675,-148 675,-142 675,-142 675,-124 675,-124 675,-118 681,-112 687,-112 687,-112 791,-112 791,-112 797,-112 803,-118 803,-124 803,-124 803,-142 803,-142 803,-148 797,-154 791,-154" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="689" y="-135.4">Executor / PEP</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="697" y="-125">recheck + broker</text>
+</g>
+<!-- n9 -->
+<g class="node">
+<title>n9</title>
+<path d="M1035,-154C1035,-154 933,-154 933,-154 927,-154 921,-148 921,-142 921,-142 921,-124 921,-124 921,-118 927,-112 933,-112 933,-112 1035,-112 1035,-112 1041,-112 1047,-118 1047,-124 1047,-124 1047,-142 1047,-142 1047,-148 1041,-154 1035,-154" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="935" y="-135.4">Target system</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="938.5" y="-125">authoritative state</text>
+</g>
+<!-- n10 -->
+<g class="node">
+<title>n10</title>
+<path d="M792,-42C792,-42 686,-42 686,-42 680,-42 674,-36 674,-30 674,-30 674,-12 674,-12 674,-6 680,0 686,0 686,0 792,0 792,0 798,0 804,-6 804,-12 804,-12 804,-30 804,-30 804,-36 798,-42 792,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="695" y="-23.4">Verify / audit</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="688" y="-13">evidence + outcome</text>
 </g>
 </g>
 </svg>
