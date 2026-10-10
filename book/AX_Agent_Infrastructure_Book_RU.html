@@ -10102,28 +10102,191 @@ kubectl get workerpools -A</code></pre>
 <p>Следующая глава использует накопившееся operational понимание для решения более раннего вопроса: нужен ли конкретному workload сам дополнительный control plane AX/Substrate. Чем дороже система в диагностике, upgrades и on-call expertise, тем убедительнее должна быть польза от isolation, durable Actors и oversubscription.</p>
 
 <div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax/issues/346">AX issue #346: Task остаётся Running/Ready после завершения command</a></li><li><a href="https://github.com/google/ax/issues/347">AX issue #347: пустой Git checkout при WorkspaceReady</a></li><li><a href="https://github.com/google/ax/issues/345">AX issue #345: hostname egress allowlist и TLS outcome</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture: assignment, hydration и snapshot lifecycle</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: WorkerPool, ActorTemplate и recovery semantics</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md">Substrate observability: lifecycle, scheduler, restore и WorkerPool signals</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md">Substrate request parking: bounded wait при pool saturation</a></li><li><a href="https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/">Kubernetes: debugging running Pods</a></li></ul></div></section>
-<section class="chapter" id="ch-30"><div class="chapter-num">Глава 30</div><h1>Когда AX нужен, а когда проще другой инструмент</h1><figure><figcaption>Когда AX является разумным кандидатом, а когда это избыточный слой</figcaption><svg class="diagram" viewBox="0 0 850 340" role="img" aria-label="Когда AX является разумным кандидатом, а когда это избыточный слой"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="420.0" y1="85" x2="130.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="275.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="85" x2="420.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="510" y1="160.0" x2="620" y2="160.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="154.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="195" x2="420.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="209.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="330" y1="270.0" x2="230" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="280.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="510" y1="270.0" x2="620" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><rect x="330" y="20" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужна изоляция + state?</text><text x="420.0" y="65" text-anchor="middle" font-size="11" fill="#465569">decision</text><rect x="40" y="125" rx="12" ry="12" width="180" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="130.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="130.0" y="170" text-anchor="middle" font-size="11" fill="#465569">queue / workflow / Job</text><rect x="330" y="125" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Много idle agents?</text><text x="420.0" y="170" text-anchor="middle" font-size="11" fill="#465569">logical &gt; physical</text><rect x="620" y="125" rx="12" ry="12" width="190" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="715.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="715.0" y="170" text-anchor="middle" font-size="11" fill="#465569">K8s/Temporal may suffice</text><rect x="330" y="235" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужен suspend/resume?</text><text x="420.0" y="280" text-anchor="middle" font-size="11" fill="#465569">fast rehydrate</text><rect x="620" y="235" rx="12" ry="12" width="190" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="715.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Да</text><text x="715.0" y="280" text-anchor="middle" font-size="11" fill="#465569">AX/Substrate candidate</text><rect x="40" y="235" rx="12" ry="12" width="190" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="135.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="135.0" y="280" text-anchor="middle" font-size="11" fill="#465569">simpler runtime first</text></svg></figure><p>AX разумно оценивать по workload properties, а не по моде на agents.</p>
-<h3>Сильные сигналы в пользу AX/Substrate</h3>
+<section class="chapter" id="ch-30"><div class="chapter-num">Глава 30</div><h1>Когда AX нужен, а когда проще другой инструмент</h1><figure><figcaption>Когда AX является разумным кандидатом, а когда это избыточный слой</figcaption><svg class="diagram" viewBox="0 0 850 340" role="img" aria-label="Когда AX является разумным кандидатом, а когда это избыточный слой"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="420.0" y1="85" x2="130.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="275.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="85" x2="420.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="510" y1="160.0" x2="620" y2="160.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="154.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="195" x2="420.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="209.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="330" y1="270.0" x2="230" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="280.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="510" y1="270.0" x2="620" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><rect x="330" y="20" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужна изоляция + state?</text><text x="420.0" y="65" text-anchor="middle" font-size="11" fill="#465569">decision</text><rect x="40" y="125" rx="12" ry="12" width="180" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="130.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="130.0" y="170" text-anchor="middle" font-size="11" fill="#465569">queue / workflow / Job</text><rect x="330" y="125" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Много idle agents?</text><text x="420.0" y="170" text-anchor="middle" font-size="11" fill="#465569">logical &gt; physical</text><rect x="620" y="125" rx="12" ry="12" width="190" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="715.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="715.0" y="170" text-anchor="middle" font-size="11" fill="#465569">K8s/Temporal may suffice</text><rect x="330" y="235" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужен suspend/resume?</text><text x="420.0" y="280" text-anchor="middle" font-size="11" fill="#465569">fast rehydrate</text><rect x="620" y="235" rx="12" ry="12" width="190" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="715.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Да</text><text x="715.0" y="280" text-anchor="middle" font-size="11" fill="#465569">AX/Substrate candidate</text><rect x="40" y="235" rx="12" ry="12" width="190" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="135.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="135.0" y="280" text-anchor="middle" font-size="11" fill="#465569">simpler runtime first</text></svg></figure>
+
+<p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df78882</code> · проверено 2026-10-10</strong>. AX и Substrate остаются pre-1.0 проектами; их собственные README предупреждают о возможных breaking changes. Решение о внедрении нужно принимать по закреплённой версии и результатам собственного pilot, а не по roadmap или headline claims.</p>
+
+<p>После глав о production, capacity и troubleshooting выбор AX выглядит не как вопрос «нравится ли нам технология», а как обмен. Платформа добавляет изоляцию, декларативный lifecycle, stateful Actors и возможность отделить число логических агентов от числа физических Workers. Одновременно она добавляет control plane, state store, snapshot storage, networking, version compatibility, новые failure modes и on-call нагрузку.</p>
+
+<p>Правильный вопрос звучит так: <strong>какая доминирующая проблема workload-а уже не решается более простым runtime с приемлемым риском и стоимостью?</strong> Если ответа нет, AX пока не нужен. Если ответ есть, нужно доказать, что именно AX/Substrate закрывает этот gap лучше сочетания уже используемых инструментов.</p>
+
+<h2>Сначала определите слой задачи</h2>
+<p>Названия продуктов создают ложное ощущение прямой конкуренции. На практике они часто находятся на разных слоях и могут использоваться вместе.</p>
+<table><thead><tr><th>Слой</th><th>Главный вопрос</th><th>Типичные инструменты</th><th>Чего слой сам по себе не решает</th></tr></thead><tbody>
+<tr><td>Agent logic / harness</td><td>Как агент рассуждает, вызывает tools и хранит logical state?</td><td>LangGraph, AutoGen, CrewAI, собственный loop</td><td>Изоляцию untrusted code, Worker lifecycle и cluster capacity</td></tr>
+<tr><td>Task distribution</td><td>Как доставить короткую работу свободному worker-у?</td><td>Celery, RQ, RabbitMQ/SQS consumers</td><td>Process snapshot и sandbox на задачу</td></tr>
+<tr><td>Durable workflow</td><td>Как пережить crash, timer, approval и многошаговый business process?</td><td>Temporal и другие workflow engines</td><td>Безопасное выполнение произвольного кода внутри шага</td></tr>
+<tr><td>Batch/container execution</td><td>Как запустить container до завершения?</td><td>Kubernetes Job/CronJob</td><td>Живой stateful process после остановки Pod</td></tr>
+<tr><td>Distributed compute</td><td>Как распределить функции, actors и данные по cluster resources?</td><td>Ray, Spark, Dask</td><td>Agent-specific Workspace/Gateway и security boundary</td></tr>
+<tr><td>Sandboxed agent runtime</td><td>Как изолировать, приостановить и восстановить stateful execution?</td><td>AX поверх Agent Substrate</td><td>Сам agent loop и durable business workflow верхнего уровня</td></tr>
+</tbody></table>
+<p>Поэтому «AX или LangGraph» обычно неверная постановка. LangGraph может реализовать agent orchestration внутри AX Task. Temporal может владеть business process, а опасный coding step выполнять через AX. Kubernetes продолжает управлять Pods самой платформы. Решение начинается с границы ответственности, а не со списка features.</p>
+
+<h2>Разделите обязательные свойства и удобства</h2>
+<p>Перед сравнением напишите requirements без названий продуктов. Для каждого свойства укажите <strong>must</strong>, <strong>should</strong> или <strong>not needed</strong>, затем добавьте измеримый acceptance criterion.</p>
+<table><thead><tr><th>Ось</th><th>Вопрос</th><th>Пример проверяемого требования</th></tr></thead><tbody>
+<tr><td>Trust</td><td>Кто создаёт код, prompt, skills и repository?</td><td>Код tenant-а не должен читать state другого tenant-а</td></tr>
+<tr><td>Isolation</td><td>Достаточен process/container или нужен gVisor/microVM class?</td><td>Escape одного Task не даёт host credentials</td></tr>
+<tr><td>State</td><td>Что должно пережить pause, node loss и upgrade?</td><td>Workspace и process state восстанавливаются с определённым RPO</td></tr>
+<tr><td>Lifecycle</td><td>Нужен ли именно живой process suspend/resume?</td><td>Idle Task освобождает Worker и возобновляется за p95 SLO</td></tr>
+<tr><td>Population</td><td>Сколько logical executions существует и сколько активно?</td><td>100 000 Actors при не более 2 000 одновременно активных</td></tr>
+<tr><td>Churn</td><td>Какова скорость create/resume/suspend/delete?</td><td>Burst в 500 wakeups не нарушает interactive SLO</td></tr>
+<tr><td>Image diversity</td><td>Нужны ли разные ОС/runtime/toolchains?</td><td>Версионированные templates для Python, Go и coding images</td></tr>
+<tr><td>Network policy</td><td>Нужна ли отдельная egress identity/policy на Task?</td><td>Разрешён только model и выбранный Git/MCP endpoint</td></tr>
+<tr><td>Operations</td><td>Кто обновляет, наблюдает и восстанавливает платформу?</td><td>On-call локализует отказ и восстанавливает SLO за заданный MTTR</td></tr>
+</tbody></table>
+<p>Фраза «нужны stateful agents» недостаточна. State может означать row в PostgreSQL, event history workflow-а, файлы в object store, agent memory или RAM живого процесса. Только последний случай действительно приближает выбор к process snapshot/runtime; остальные часто дешевле хранить явно.</p>
+
+<h2>Сигналы, что AX/Substrate действительно решает доминирующую проблему</h2>
 <ul>
-<li>Много логических agents, значительная часть времени idle.</li>
-<li>Нужна изоляция untrusted/generated code.</li>
-<li>Workspace/state должны переживать паузы.</li>
-<li>Желательны suspend/resume и reclaim physical capacity.</li>
-<li>Нужен единый declarative lifecycle для heterogeneous agent images.</li>
-<li>Task population и churn выходят за удобную модель «один Pod/Job на всё».</li>
+<li><strong>Недоверенный или сгенерированный код является нормой.</strong> Каждый Task требует самостоятельной sandbox, network boundary и scoped identity, а не общего trusted worker.</li>
+<li><strong>Workspace и process state дороги для повторного построения.</strong> Агент должен продолжать с локальными файлами и runtime state, а cold restart регулярно нарушает latency или стоимость.</li>
+<li><strong>Логических агентов намного больше, чем одновременно активных.</strong> Низкий duty cycle позволяет reclaim Workers через suspend/resume; без этого oversubscription не даёт экономии.</li>
+<li><strong>Task является естественной isolation/resource/lifecycle boundary.</strong> Делегирование создаёт независимую работу, которой нужны отдельные limits, policy и audit.</li>
+<li><strong>Нужны heterogeneous images и повторяемые environments.</strong> Workspace, Model, Gateway и Task удобно описывать декларативно и версионировать.</li>
+<li><strong>Population и churn неудобны для «Pod на каждый логический agent».</strong> Важны быстрые state transitions и тёплый физический pool, а не только создание Jobs.</li>
+<li><strong>Команда готова эксплуатировать платформу.</strong> Есть owners для AX, Substrate, Kubernetes, store, snapshot path, networking и security response.</li>
 </ul>
-<h3>Когда обычный Kubernetes Job лучше</h3>
-<p>Если workload stateless, запускается, делает deterministic batch и завершает работу, Job проще. Он интегрирован с Kubernetes auth/observability и не требует дополнительного control plane.</p>
-<h3>Когда worker queue лучше</h3>
-<p>Если code trusted, tasks короткие, state хранится в DB, а изоляция не нужна, Celery/RQ/custom workers или message queue могут быть намного дешевле операционно.</p>
-<h3>Когда Temporal/workflow engine лучше</h3>
-<p>Если главная сложность - durable business workflow, timers, retries и exactly-tracked transitions, а execution code trusted, workflow engine часто естественнее. AX можно комбинировать с ним: workflow engine решает business orchestration, AX - sandboxed agent execution.</p>
-<h3>Когда LangGraph/AutoGen/CrewAI уместны</h3>
-<p>Они находятся ближе к agent logic/harness. Их можно запускать <strong>внутри</strong> AX Task. Сравнивать «AX vs LangGraph» как взаимоисключающие продукты некорректно.</p>
-<h3>Ray</h3>
-<p>Ray решает distributed compute/scheduling и actors в другом смысле. Он может быть хорош для parallel Python/ML workloads, но security/sandbox/suspend semantics и agent-specific primitives отличаются. Выбор зависит от dominant problem.</p>
-<p>Главный принцип: сначала используйте самый простой runtime, который удовлетворяет threat model, state и scaling requirements. Дополнительный control plane должен окупать собственную сложность.</p>
-</section><section class="chapter" id="ch-31"><div class="chapter-num">Глава 31</div><h1>Антипаттерны</h1><h3>Один гигантский агент</h3>
+<p>Даже совместное выполнение трёх или четырёх сигналов не заменяет pilot. Например, suspend/resume полезен только если конкретный runtime, sockets, threads и filesystem корректно переживают checkpoint; глава 29 уже показала, почему <code>RUNNING</code> не равно полезному outcome.</p>
+
+<h2>Красные флаги: когда AX пока избыточен или не подходит</h2>
+<ul>
+<li>Работа stateless, короткая, deterministic и естественно завершается.</li>
+<li>Код trusted, одинаковый для всех задач, а state уже находится в DB/object store.</li>
+<li>Главная сложность - timers, approvals, compensation и audit business workflow, а не sandboxed execution.</li>
+<li>Нужно лишь построить agent loop, tool calling или graph; runtime cluster problem ещё не возник.</li>
+<li>Каждый agent постоянно активен: reclaim почти невозможен, поэтому logical-to-physical multiplexing не окупает snapshot overhead.</li>
+<li>Нагрузка мала и хорошо обслуживается одним service/worker pool; отдельный control plane увеличит MTTR.</li>
+<li>Нет команды, способной поддерживать Kubernetes, state store, snapshots, network policy и versioned upgrades.</li>
+<li>Обязательная hardware capability не поддерживается выбранным snapshot. Например, pinned Substrate API guide помечает передачу GPU devices в Actors как временно unsupported; наличие GPU на Worker node не означает доступ Actor-а к нему.</li>
+<li>Нужна стабильная public contract без готовности закреплять версии и принимать pre-1.0 breaking changes.</li>
+</ul>
+<p>«В будущем будет миллион агентов» не является текущим требованием. Платформа, выбранная под гипотетический scale, может годами создавать реальную сложность для сотни задач.</p>
+
+<h2>Когда Kubernetes Job проще и правильнее</h2>
+<p>Kubernetes Job моделирует one-off работу, которая запускается в Pod, завершается и имеет явное число successful completions. Он умеет parallelism, deadlines, retry/backoff, failure policy и cleanup. Для batch task это уже сильный lifecycle contract.</p>
+<p>Выбирайте Job, если:</p>
+<ul>
+<li>результат можно записать во внешнее durable storage, а process state после завершения не нужен;</li>
+<li>startup container-а укладывается в latency budget;</li>
+<li>изоляция Pod/container соответствует threat model;</li>
+<li>задача имеет понятный terminal success/failure;</li>
+<li>повторный запуск с checkpoint или с начала допустим;</li>
+<li>команда уже умеет наблюдать и ограничивать Kubernetes workloads.</li>
+</ul>
+<p>Важно различать Job suspension и Actor suspension. При suspend Job active Pods завершаются; приложение само должно сохранить progress. Это не snapshot RAM и filesystem живого процесса. Если explicit checkpoint достаточно, Job часто оказывается прозрачнее и переносимее.</p>
+
+<h2>Когда worker queue дешевле</h2>
+<p>Queue + workers хорошо решает доставку множества однотипных сообщений к долгоживущим trusted processes. Broker обеспечивает buffering, workers масштабируются, а task state/result хранится отдельно. Celery, например, строится вокруг producer → broker → worker и поддерживает routing, retries, rate limits и monitoring.</p>
+<p>Queue предпочтительнее, когда payload мал, execution короткое, code заранее развёрнут в worker image, а tenant isolation достигается разделением queues/workers или вообще не требуется. Она особенно удобна, когда web application уже использует broker и команда понимает delivery semantics.</p>
+<p>Но queue не делает arbitrary payload безопасным. Worker обычно выполняет много задач в одном trust domain; memory leak, malicious code или dependency conflict могут затронуть соседнюю работу. Нельзя считать message acknowledgement доказательством exactly-once side effect: idempotency и action journal всё равно нужны.</p>
+
+<h2>Когда durable workflow engine естественнее</h2>
+<p>Workflow engine нужен, если главная ценность - durable sequence: ждать событие или человека, выполнять timers, повторять отдельные Activities, хранить историю решений и возобновлять orchestration после crash. Temporal описывает Workflow Execution как durable execution, состояние и progress которого восстанавливаются из event history.</p>
+<p>Это другой вид persistence, чем snapshot Actor-а:</p>
+<table><thead><tr><th>Вопрос</th><th>Workflow history</th><th>Actor snapshot</th></tr></thead><tbody>
+<tr><td>Что сохраняется</td><td>Логические события и deterministic progress</td><td>Process memory/filesystem/runtime state</td></tr>
+<tr><td>Что выполняется повторно</td><td>Workflow code replay, Activities по policy</td><td>Процесс продолжает с checkpoint</td></tr>
+<tr><td>Сильная сторона</td><td>Дни/месяцы ожидания, timers, audit, compensation</td><td>Быстрый возврат сложного живого environment</td></tr>
+<tr><td>Главный риск</td><td>Determinism/versioning workflow code и side effects Activities</td><td>Snapshot compatibility, storage, hidden external connections</td></tr>
+</tbody></table>
+<p>Часто правильная архитектура комбинирует их: Temporal владеет заказом, approval и retry policy, а Activity создаёт AX Task для untrusted coding/research step. Workflow хранит business truth; AX владеет sandboxed execution и его временным workspace.</p>
+
+<h2>Agent framework находится внутри, а не вместо runtime</h2>
+<p>LangGraph и похожие framework-ы описывают state graph, agent loop, tool calls, streaming, persistence и human-in-the-loop на application layer. Они отвечают на вопрос «какой шаг выполнить дальше». AX отвечает на вопрос «где и с какими правами этот шаг/Task физически выполняется».</p>
+<p>Варианты использования:</p>
+<ul>
+<li>LangGraph в обычном service, если code trusted и отдельная sandbox не нужна;</li>
+<li>один graph run внутри AX Task, если всё выполнение имеет общий trust/resource boundary;</li>
+<li>coordinator graph вне AX, создающий AX Tasks только для опасных или тяжёлых узлов;</li>
+<li>несколько framework-ов поверх единого AX runtime, если platform team стандартизирует execution, а application teams выбирают harness.</li>
+</ul>
+<p>Не создавайте AX Task на каждый node graph автоматически. Task boundary оправдана, когда меняется authority, isolation, resource envelope, image или lifecycle. Reasoning step сам по себе такой границей не является.</p>
+
+<h2>Когда Ray лучше</h2>
+<p>Ray Core предлагает distributed tasks и stateful actors с resource-aware scheduling. Он естественен для Python/ML compute, parallel functions, shared object references и stateful services, которым нужны CPU/GPU/custom resources и locality.</p>
+<p>Ray Actor - dedicated stateful worker process, а не Substrate Actor с теми же snapshot, sandbox и oversubscription semantics. Выбирайте Ray, когда доминирует compute graph и data locality, код trusted, а parallel Python/ML ecosystem важнее per-agent workspace и security boundary.</p>
+<p>Комбинация тоже возможна, но требует ясной границы. Например, AX Task изолирует untrusted planner, который отправляет ограниченное compute-задание trusted Ray service. Запуск полноценного Ray cluster внутри каждого Task обычно дублирует schedulers и усложняет capacity.</p>
+
+<h2>Сравнительная матрица без ложной точности</h2>
+<table><thead><tr><th>Кандидат</th><th>Оптимизирует</th><th>State/execution model</th><th>Хороший первый выбор</th></tr></thead><tbody>
+<tr><td>Service/Deployment</td><td>Постоянный API</td><td>Долгоживущие replicas, state обычно внешний</td><td>Один trusted agent service с предсказуемой нагрузкой</td></tr>
+<tr><td>Kubernetes Job</td><td>Run-to-completion container</td><td>Pod пересоздаётся; progress сохраняет приложение</td><td>Batch, CI, deterministic processing</td></tr>
+<tr><td>Worker queue</td><td>Доставка коротких tasks</td><td>Общие workers, broker, внешний result state</td><td>Trusted homogeneous background work</td></tr>
+<tr><td>Workflow engine</td><td>Durable orchestration</td><td>Event history + Activities</td><td>Timers, approvals, compensation, long business flow</td></tr>
+<tr><td>Agent framework</td><td>Agent logic</td><td>Graph/loop/checkpoints приложения</td><td>Построение reasoning/tool workflow</td></tr>
+<tr><td>Ray</td><td>Distributed compute</td><td>Tasks, actors и object store</td><td>Parallel Python/ML и resource scheduling</td></tr>
+<tr><td>AX/Substrate</td><td>Sandboxed stateful agent execution</td><td>Task/Workspace поверх suspendable Actors</td><td>Untrusted code, дорогой state, низкий duty cycle, большой churn</td></tr>
+</tbody></table>
+<p>Матрица не является scorecard. Security, durability и operations зависят от конкретной конфигурации. Например, Job с microVM runtime может дать сильную изоляцию, а плохо настроенный AX deployment - нет. Сравнивайте проверенные contracts своего окружения.</p>
+
+<h2>Экономика: считать не только compute</h2>
+<p>AX может уменьшить idle compute благодаря multiplexing, но TCO включает больше компонентов:</p>
+<ul>
+<li>разработка и поддержка platform manifests, images и policies;</li>
+<li>control-plane/store/snapshot storage и network traffic;</li>
+<li>наблюдаемость, on-call, incident drills и upgrade rehearsals;</li>
+<li>security review, credential brokerage и tenant isolation;</li>
+<li>стоимость несовместимых snapshots и миграций templates;</li>
+<li>время application teams на изучение новых primitives;</li>
+<li>потери от более длинного MTTR на незрелой платформе.</li>
+</ul>
+<p>Сравнивайте стоимость одного <strong>успешного outcome в пределах SLO</strong>, а не цену Worker-hour. Если suspend экономит compute, но restore tail уменьшает goodput или создаёт больше повторных model calls, экономия может исчезнуть.</p>
+
+<h2>Пилот: доказать fit, а не продемонстрировать hello world</h2>
+<p>Хороший pilot использует один репрезентативный workload и один намеренно сложный workload. Он должен иметь exit criteria до начала, иначе любая запущенная demo объявляется успехом.</p>
+<ol>
+<li><strong>Зафиксируйте baseline.</strong> Измерьте текущий Job/queue/service: latency, goodput, cost, failure recovery и operator time.</li>
+<li><strong>Опишите threat model.</strong> Что именно недоверенно, какие secrets и destinations доступны, какой blast radius приемлем.</li>
+<li><strong>Проверьте lifecycle.</strong> Create, cold start, golden resume, Actor-owned resume, suspend, cancellation, delete и cleanup.</li>
+<li><strong>Проверьте state.</strong> Filesystem, memory, external DB, snapshot ownership, RPO и поведение несовместимой версии.</li>
+<li><strong>Проверьте isolation.</strong> Positive/negative egress, identity separation, cross-Task access и debug policy.</li>
+<li><strong>Проведите capacity sweep.</strong> Expected load, burst, saturation, recovery и потеря Worker/node.</li>
+<li><strong>Проведите upgrade rehearsal.</strong> AX/Substrate/runtime/image/store, rollback и старые snapshots.</li>
+<li><strong>Дайте on-call сценарий.</strong> Инженер, не строивший pilot, должен локализовать три заранее внесённых отказа.</li>
+<li><strong>Сравните TCO.</strong> Compute, storage, model/tool retries и engineering/operator hours.</li>
+</ol>
+<p>Пример exit criteria: «AX принимается, если coding workspace resume p95 меньше 5 s, interactive goodput сохраняется при потере одного Worker node, запрещённый egress не проходит, snapshot compatibility описана, а стоимость успешной задачи при 5% duty cycle минимум на 25% ниже baseline». Конкретные числа должны исходить из бизнеса и SLO, а не из этого примера.</p>
+
+<h2>Пять типовых решений</h2>
+<table><thead><tr><th>Сценарий</th><th>Вероятный выбор</th><th>Почему</th></tr></thead><tbody>
+<tr><td>Ночная конвертация документов</td><td>Kubernetes Job</td><td>Stateless run-to-completion, результат в object store</td></tr>
+<tr><td>Фоновая отправка уведомлений</td><td>Worker queue</td><td>Короткие trusted tasks и естественный broker</td></tr>
+<tr><td>Заказ с approvals и ожиданием дней</td><td>Workflow engine</td><td>Durable business state, timers и audit</td></tr>
+<tr><td>Coding agents с большими workspaces, untrusted repos и длинными паузами</td><td>AX/Substrate candidate</td><td>Isolation, сохранение environment и низкий duty cycle</td></tr>
+<tr><td>Параллельный trusted ML preprocessing/training</td><td>Ray/Kubernetes ML stack</td><td>Compute/data locality и GPU scheduling доминируют</td></tr>
+</tbody></table>
+<p>Смешанный сценарий не обязан иметь одного победителя. Заказ может жить в Temporal, planner - в LangGraph, untrusted execution - в AX, inference - в отдельном GPU service, а итоговые batch steps - в Jobs. Архитектура хороша, если каждый слой имеет одного owner-а truth и минимально необходимый contract с соседями.</p>
+
+<h2>Путь внедрения с обратимыми шагами</h2>
+<ol>
+<li>Начните с process/service или Job и explicit external state.</li>
+<li>Добавьте queue, если проблема стала в buffering и worker utilization.</li>
+<li>Добавьте workflow engine, если retries/timers/approvals образовали самодельную state machine.</li>
+<li>Вынесите только untrusted execution в sandboxed runtime.</li>
+<li>Добавьте suspend/resume, когда measurements докажут дорогой rebuild и низкий duty cycle.</li>
+<li>Стандартизируйте AX Tasks/Workspaces/Gateways, когда несколько команд повторяют один и тот же verified pattern.</li>
+</ol>
+<p>Такой путь не означает, что AX всегда последний этап. Если threat model с первого дня требует строгой sandbox для пользовательского кода, runtime boundary нужна сразу. Принцип в другом: добавлять только тот слой, для которого уже существует проверяемая обязанность.</p>
+
+<h2>Антипаттерны выбора платформы</h2>
+<ul>
+<li><strong>Feature checklist без dominant problem.</strong> Побеждает продукт с самым длинным списком, а не подходящим contract.</li>
+<li><strong>«Мы уже на Kubernetes, значит нужен AX».</strong> Kubernetes является prerequisite, но не business case.</li>
+<li><strong>«Actors есть и в Ray, и в Substrate».</strong> Одинаковое слово скрывает разные lifecycle и security semantics.</li>
+<li><strong>Framework вместо sandbox.</strong> Agent orchestration не изолирует untrusted code автоматически.</li>
+<li><strong>Snapshot вместо durable workflow.</strong> RAM checkpoint не заменяет event history, audit и compensation.</li>
+<li><strong>Пилот на пустом counter.</strong> Он не проверяет реальные repositories, tools, snapshots и policies.</li>
+<li><strong>Сравнение только compute cost.</strong> Игнорируются storage, network, upgrades, on-call и MTTR.</li>
+<li><strong>Решение по future scale.</strong> Гипотетические миллионы Tasks оправдывают сегодняшнюю сложность.</li>
+<li><strong>Нет exit strategy.</strong> Workload привязывается к platform state без export/rebuild path.</li>
+</ul>
+
+<h2>Итог</h2>
+<p>AX/Substrate оправдан не потому, что workload использует LLM или называется агентом. Его сильная область - большое число sandboxed stateful executions с дорогим environment, низким duty cycle, самостоятельными policy boundaries и необходимостью suspend/resume. Kubernetes Job, queue, workflow engine, agent framework и Ray решают другие доминирующие задачи и часто должны оставаться вокруг AX, а не исчезать после его внедрения.</p>
+<p>Выбирайте самый простой набор слоёв, который выполняет threat model, state contract и SLO. Затем доказывайте выбор representative pilot-ом, failure drills и полной стоимостью успешного outcome. Следующая глава соберёт типичные архитектурные ошибки, которые появляются, когда эти границы размываются: гигантский агент, state только в prompt, unlimited retries, shared credentials и Task на каждый reasoning step.</p>
+
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax/blob/ac233282/docs/concepts.md">AX concepts: Task, Workspace, Model и lifecycle на снимке ac233282</a></li><li><a href="https://github.com/google/ax/blob/ac233282/README.md">AX README: scope и pre-1.0 warning на снимке ac233282</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture: WorkerPool, Actor и suspend/resume</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: resource model и device limitations</a></li><li><a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/">Kubernetes Jobs: run-to-completion, parallelism и failure policy</a></li><li><a href="https://docs.celeryq.dev/en/stable/getting-started/introduction.html">Celery: task queue, broker и workers</a></li><li><a href="https://docs.temporal.io/temporal">Temporal: durable execution и event history</a></li><li><a href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph: agent orchestration, persistence и human-in-the-loop</a></li><li><a href="https://docs.ray.io/en/latest/ray-core/key-concepts.html">Ray Core: distributed tasks и actors</a></li></ul></div></section><section class="chapter" id="ch-31"><div class="chapter-num">Глава 31</div><h1>Антипаттерны</h1><h3>Один гигантский агент</h3>
 <p>Один process с доступом ко всем tools и credentials удобен для demo, но создаёт огромный blast radius, context pollution и плохую диагностику. Разделяйте роли там, где различаются authority или context.</p>
 <h3>Agent вместо deterministic logic</h3>
 <p>Не просите LLM считать CIDR, проверять обязательный формат или решать, выполнен ли health check, если это можно сделать кодом. LLM полезна для неоднозначного reasoning; deterministic constraints должны исполняться deterministically.</p>
