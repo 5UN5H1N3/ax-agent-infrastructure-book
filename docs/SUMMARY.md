@@ -48,7 +48,7 @@
 * [Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal](26-proxmox-kvm-lab.md)
 * [Production engineering: как доказать HA, persistence, upgrades и DR](27-production-engineering.md)
 * [Performance и scaling: как найти bottleneck и доказать capacity](28-performance-scaling.md)
-* [Failure modes и troubleshooting handbook](29-failure-modes-troubleshooting.md)
+* [Failure modes и troubleshooting: как локализовать нарушенный контракт](29-failure-modes-troubleshooting.md)
 * [Когда AX нужен, а когда проще другой инструмент](30-when-to-use-ax.md)
 * [Антипаттерны](31-antipatterns.md)
 
