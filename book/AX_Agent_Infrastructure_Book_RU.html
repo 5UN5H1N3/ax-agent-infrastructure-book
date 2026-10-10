@@ -10286,26 +10286,213 @@ kubectl get workerpools -A</code></pre>
 <p>AX/Substrate оправдан не потому, что workload использует LLM или называется агентом. Его сильная область - большое число sandboxed stateful executions с дорогим environment, низким duty cycle, самостоятельными policy boundaries и необходимостью suspend/resume. Kubernetes Job, queue, workflow engine, agent framework и Ray решают другие доминирующие задачи и часто должны оставаться вокруг AX, а не исчезать после его внедрения.</p>
 <p>Выбирайте самый простой набор слоёв, который выполняет threat model, state contract и SLO. Затем доказывайте выбор representative pilot-ом, failure drills и полной стоимостью успешного outcome. Следующая глава соберёт типичные архитектурные ошибки, которые появляются, когда эти границы размываются: гигантский агент, state только в prompt, unlimited retries, shared credentials и Task на каждый reasoning step.</p>
 
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax/blob/ac233282/docs/concepts.md">AX concepts: Task, Workspace, Model и lifecycle на снимке ac233282</a></li><li><a href="https://github.com/google/ax/blob/ac233282/README.md">AX README: scope и pre-1.0 warning на снимке ac233282</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture: WorkerPool, Actor и suspend/resume</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: resource model и device limitations</a></li><li><a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/">Kubernetes Jobs: run-to-completion, parallelism и failure policy</a></li><li><a href="https://docs.celeryq.dev/en/stable/getting-started/introduction.html">Celery: task queue, broker и workers</a></li><li><a href="https://docs.temporal.io/temporal">Temporal: durable execution и event history</a></li><li><a href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph: agent orchestration, persistence и human-in-the-loop</a></li><li><a href="https://docs.ray.io/en/latest/ray-core/key-concepts.html">Ray Core: distributed tasks и actors</a></li></ul></div></section><section class="chapter" id="ch-31"><div class="chapter-num">Глава 31</div><h1>Антипаттерны</h1><h3>Один гигантский агент</h3>
-<p>Один process с доступом ко всем tools и credentials удобен для demo, но создаёт огромный blast radius, context pollution и плохую диагностику. Разделяйте роли там, где различаются authority или context.</p>
-<h3>Agent вместо deterministic logic</h3>
-<p>Не просите LLM считать CIDR, проверять обязательный формат или решать, выполнен ли health check, если это можно сделать кодом. LLM полезна для неоднозначного reasoning; deterministic constraints должны исполняться deterministically.</p>
-<h3>State только в prompt</h3>
-<p>После context compaction/restart состояние исчезнет или исказится. Critical progression фиксируется в durable structured state.</p>
-<h3>Unlimited retries</h3>
-<p>Retry без классификации error создаёт loops и дублирует side effects. Нужны limits, exponential backoff и idempotency.</p>
-<h3>Shared root credentials</h3>
-<p>Один token на всех agents уничтожает возможность least privilege/audit. Используйте scoped/short-lived identity.</p>
-<h3><code>egress: *</code> навсегда</h3>
-<p>Wildcard удобен на первом smoke test и опасен как постоянная production policy. Сначала измерьте реальные destinations, затем сузьте allowlist и добавьте отрицательные probes.</p>
-<h3>Debug всегда включён</h3>
-<p><code>spec.debug</code> расширяет control surface внутри sandbox. Включайте только там, где есть операционная необходимость.</p>
-<h3>Task per thought</h3>
-<p>Создание Task на каждый reasoning step превращает control plane в дорогую шину сообщений. Task boundary должна соответствовать isolation/resource/lifecycle boundary.</p>
-<h3>Snapshot как backup</h3>
-<p>Snapshot оптимизирует resume; он не заменяет backup authoritative state. Особенно это верно для внешних systems и Tag lifetime.</p>
-<h3>Benchmark на одном пустом actor</h3>
-<p>Результат не переносится на real workspace, dirty memory, large snapshots и concurrent bursts. Benchmark должен репрезентировать production distribution.</p>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax/blob/ac233282/docs/concepts.md">AX concepts: Task, Workspace, Model и lifecycle на снимке ac233282</a></li><li><a href="https://github.com/google/ax/blob/ac233282/README.md">AX README: scope и pre-1.0 warning на снимке ac233282</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture: WorkerPool, Actor и suspend/resume</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: resource model и device limitations</a></li><li><a href="https://kubernetes.io/docs/concepts/workloads/controllers/job/">Kubernetes Jobs: run-to-completion, parallelism и failure policy</a></li><li><a href="https://docs.celeryq.dev/en/stable/getting-started/introduction.html">Celery: task queue, broker и workers</a></li><li><a href="https://docs.temporal.io/temporal">Temporal: durable execution и event history</a></li><li><a href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph: agent orchestration, persistence и human-in-the-loop</a></li><li><a href="https://docs.ray.io/en/latest/ray-core/key-concepts.html">Ray Core: distributed tasks и actors</a></li></ul></div></section><section class="chapter" id="ch-31"><div class="chapter-num">Глава 31</div><h1>Антипаттерны</h1>
+<p><strong>Антипаттерн - не просто «плохой код».</strong> Обычно это удобное локальное решение, которое скрывает системный риск. Один общий token ускоряет первый demo. Бесконечный retry помогает пережить случайный timeout. Wildcard egress убирает сетевые помехи. Проблема проявляется позже, когда shortcut превращается в постоянный контракт и несколько безобидных допущений складываются в один серьёзный incident.</p>
+<p>В агентной системе цена таких ошибок выше, чем в обычном service. LLM выбирает следующий шаг вероятностно, читает недоверенный контент и может вызывать tools с внешними эффектами. AX/Substrate добавляет isolation и lifecycle primitives, но платформа не исправит неверную границу полномочий, плохую retry policy или отсутствие authoritative state. Sandbox ограничивает место выполнения; безопасность результата всё равно определяется всей цепочкой от prompt до downstream API.</p>
+<p><strong>Снимок главы:</strong> AX main <code>ac233282</code>, Substrate main <code>df78882</code>, внешние рекомендации проверены 2026-10-10. Конкретные поля API нужно сверять с закреплённой версией, а инженерные проверки ниже должны оставаться частью собственного threat model и production readiness review.</p>
+
+<h2>Как распознать антишаблон до инцидента</h2>
+<p>Начинайте не с названия framework-а, а с шести вопросов. Если команда не может дать проверяемый ответ, архитектура пока держится на надежде.</p>
+<table><thead><tr><th>Граница</th><th>Контрольный вопрос</th><th>Что должно быть видно в evidence</th></tr></thead><tbody>
+<tr><td>Authority</td><td>Кто и от чьего имени может читать, изменять и удалять?</td><td>Scoped identity, перечень разрешённых actions, срок действия и субъект делегирования</td></tr>
+<tr><td>State</td><td>Где находится истина после compaction, restart или потери node?</td><td>Structured durable record, version/epoch, action journal и ссылка на artifacts</td></tr>
+<tr><td>Effects</td><td>Что произойдёт, если один шаг будет доставлен или выполнен дважды?</td><td>Idempotency key, precondition, deduplication и проверка post-state</td></tr>
+<tr><td>Network</td><td>К каким destinations реально нужен доступ?</td><td>Default deny, узкий allowlist, DNS/TLS policy и отрицательные probes</td></tr>
+<tr><td>Lifecycle</td><td>Что является самостоятельной единицей изоляции, ресурса и восстановления?</td><td>Осмысленная Task boundary, owner, budget, timeout и terminal outcome</td></tr>
+<tr><td>Operations</td><td>Как отличить полезный progress от процесса, который просто ещё жив?</td><td>Trace по task/tool/action, domain metrics, deadline и recovery drill</td></tr>
+</tbody></table>
+<p>Полезный практический тест: мысленно замените LLM на ошибочного, но очень быстрого стажёра, который буквально исполняет доступные команды. Если безопасность зависит от того, что стажёр «догадается не делать опасное», контроль находится не на той границе.</p>
+
+<h2>Как антишаблоны собираются в цепочку отказа</h2>
+<p>Представим coding agent, который читает repository с вредоносной инструкцией в issue или README. У агента общий privileged token, доступен shell, egress открыт, state живёт только в context, а tool timeout повторяется без лимита. Ни один элемент по отдельности не гарантирует катастрофу. Вместе они дают цепочку:</p>
+<ol>
+<li>Недоверенный текст влияет на план и предлагает отправить «диагностику» на внешний endpoint.</li>
+<li>Гигантский agent уже имеет repository write, secrets read и deployment permissions.</li>
+<li>Wildcard egress позволяет установить соединение.</li>
+<li>Timeout делает outcome неоднозначным; retry повторяет side effect.</li>
+<li>После compaction исчезает запись о предыдущей попытке, и действие выглядит новым.</li>
+<li>Shared identity не позволяет уверенно восстановить, какая Task и от чьего имени выполнила операцию.</li>
+</ol>
+<p>Защита строится не одним «лучшим prompt». Цепочку должны независимо разрывать scoped tool, short-lived identity, egress policy, durable action journal, idempotency и approval перед high-impact effect. Ни один слой не идеален, поэтому важна композиция.</p>
+
+<h2>1. Один гигантский агент</h2>
+<p><strong>Запах.</strong> Один process планирует, читает все данные, вызывает любые tools, хранит весь context и имеет credentials на весь workflow. В demo это удобно: нет protocol между ролями и всё видно в одном окне. В production такой agent объединяет слишком разные authority, failure domain и cognitive context.</p>
+<p><strong>Почему ломается.</strong> Чем больше tools и данных доступно одновременно, тем выше blast radius ошибочного выбора и тем труднее понять, какой фрагмент context повлиял на action. Независимые задачи конкурируют за context window; секреты и результаты одного tenant-а могут попасть в reasoning другого; долгий agent loop становится общей точкой отказа. OWASP называет сочетание избыточной functionality, permissions и autonomy проблемой excessive agency.</p>
+<p><strong>Замена.</strong> Разделяйте систему не на декоративные «персоны», а по реальным границам:</p>
+<ul>
+<li><strong>authority:</strong> read-only исследователь не получает write tool;</li>
+<li><strong>data:</strong> agent видит только нужный Workspace или набор документов;</li>
+<li><strong>effect:</strong> планирование отделено от execution, а high-impact action проходит approval;</li>
+<li><strong>lifecycle:</strong> работа с отдельным timeout, budget и recovery становится самостоятельной Task;</li>
+<li><strong>trust:</strong> недоверенный код исполняется в отдельной sandbox, а не внутри coordinator.</li>
+</ul>
+<p>Coordinator должен передавать bounded task description, ссылки на authoritative artifacts и budget, а не копировать весь внутренний transcript. Исполнитель возвращает typed result с evidence. Разделение оправдано, если уменьшает полномочия или failure radius; создавать пять агентов с одинаковыми credentials и общим context бессмысленно.</p>
+<p><strong>Проверка исправления.</strong> Компрометация любого одного executor не даёт изменить объект вне его scope. По audit trail можно восстановить parent Task, делегированную capability, tool call, approval и post-state.</p>
+
+<h2>2. Agent вместо deterministic logic</h2>
+<p><strong>Запах.</strong> LLM проверяет CIDR, обязательные поля JSON, арифметический budget, allowlist, health condition или право пользователя на action. Ответ выглядит правдоподобно, поэтому команда постепенно превращает model judgment в policy engine.</p>
+<p><strong>Почему ломается.</strong> Вероятностная модель может по-разному решить один и тот же формальный вопрос, принять убедительное объяснение вместо факта или пропустить крайний случай. Prompt не является надёжным механизмом enforcement: его можно вытеснить context-ом, исказить недоверенными данными или изменить вместе с model version.</p>
+<p><strong>Замена.</strong> Разделите proposal и enforcement:</p>
+<ul>
+<li>LLM интерпретирует неоднозначный запрос, предлагает план и объясняет намерение;</li>
+<li>parser/schema validator проверяет форму;</li>
+<li>policy code вычисляет разрешённый scope;</li>
+<li>tool adapter строит конкретный bounded request;</li>
+<li>downstream system повторно авторизует identity и проверяет preconditions;</li>
+<li>verifier читает post-state и сравнивает его с intended outcome.</li>
+</ul>
+<p>Например, модель может предложить «разрешить egress к registry проекта», но DNS name, port, protocol, tenant ownership и срок действия валидирует код. Модель может классифицировать incident, но не должна сама объявлять health check успешным без измеримого predicate.</p>
+<p><strong>Проверка исправления.</strong> Для каждого запрета существует deterministic negative test. Замена модели, temperature или prompt не меняет решение policy при одинаковом structured input.</p>
+
+<h2>3. State только в prompt</h2>
+<p><strong>Запах.</strong> Единственная запись о progress находится в conversation history: «мы уже создали branch», «approval получен», «этот tool call не удался». После context compaction, restart или handoff система пытается восстановить факты из естественного языка.</p>
+<p><strong>Почему ломается.</strong> Prompt - рабочая память, а не журнал транзакций. Он обрезается, суммируется и содержит одновременно факты, предположения и инструкции. Snapshot процесса тоже не решает задачу полностью: внешняя операция могла завершиться после последнего checkpoint, а её ответ потеряться.</p>
+<p><strong>Замена.</strong> Разделите минимум четыре вида state:</p>
+<table><thead><tr><th>Вид state</th><th>Пример</th><th>Где хранить</th></tr></thead><tbody>
+<tr><td>Conversation context</td><td>Объяснения, промежуточное reasoning, последние сообщения</td><td>Prompt/checkpoint framework-а; можно сокращать</td></tr>
+<tr><td>Workflow state</td><td>Шаг, owner, deadline, approval, attempt, terminal outcome</td><td>Durable structured store или workflow history</td></tr>
+<tr><td>Artifacts</td><td>Patch, report, test log, dataset, Workspace content</td><td>Versioned repository/object store/Workspace с явной ссылкой</td></tr>
+<tr><td>Action journal</td><td>Intent, idempotency key, request, response и verified post-state</td><td>Append-oriented durable record</td></tr>
+</tbody></table>
+<p>Каждый переход должен иметь version или epoch. Actor, возобновившийся со старого snapshot, не имеет права перезаписать более новый workflow state. Прежде чем повторить действие с неоднозначным outcome, он сначала читает journal и downstream state.</p>
+<p><strong>Проверка исправления.</strong> Удалите весь prompt и перезапустите Task. Система должна определить следующий допустимый шаг, уже выполненные effects и доступные artifacts без догадок по chat transcript.</p>
+
+<h2>4. Unlimited retries</h2>
+<p><strong>Запах.</strong> Любая ошибка приводит к «попробуй ещё раз». LLM меняет формулировку, SDK повторяет HTTP request, queue повторно доставляет message, а workflow ещё раз запускает Activity. Лимиты каждого слоя рассматриваются отдельно, поэтому суммарное число попыток никто не знает.</p>
+<p><strong>Почему ломается.</strong> Retry умножает load именно тогда, когда dependency уже деградирует. Без idempotency повторяются платежи, commits, tickets и infrastructure changes. Backoff без jitter синхронизирует клиентов. Semantic error никогда не исправится ожиданием, а policy denial не должен обходиться новой формулировкой. AWS Well-Architected рекомендует ограничивать retries, применять backoff/jitter и сначала проверять idempotency.</p>
+<p><strong>Замена.</strong> Классифицируйте outcome до retry:</p>
+<table><thead><tr><th>Класс</th><th>Пример</th><th>Действие</th></tr></thead><tbody>
+<tr><td>Transient</td><td>429, временный network reset, leader election</td><td>Ограниченный retry с exponential backoff, jitter и deadline</td></tr>
+<tr><td>Permanent</td><td>Invalid schema, отсутствующий object, несовместимая version</td><td>Fail fast; исправить input или deployment</td></tr>
+<tr><td>Policy</td><td>Forbidden, approval отсутствует, scope превышен</td><td>Не повторять автоматически; запросить новую authority</td></tr>
+<tr><td>Ambiguous</td><td>Timeout после отправки write request</td><td>Сначала reconcile по idempotency key или post-state</td></tr>
+<tr><td>Capacity</td><td>Queue saturation, snapshot store overload</td><td>Load shedding/admission control, а не массовый retry</td></tr>
+</tbody></table>
+<p>Вводите единый retry budget на root request, а не независимый лимит в каждом слое. Записывайте attempt number и причину. После исчерпания budget задача переходит в terminal state или manual review, а не начинает новый скрытый loop.</p>
+<p><strong>Проверка исправления.</strong> Fault injection на timeout после успешного side effect создаёт ровно один внешний результат. При массовом отказе dependency исходящий request rate уменьшается, а не растёт.</p>
+
+<h2>5. Shared root credentials и excessive agency</h2>
+<p><strong>Запах.</strong> Все Tasks используют один долгоживущий token администратора. Prompt просит «не трогать production», но технически tool способен читать secrets, менять ACL и удалять resources. В audit log виден только общий service account.</p>
+<p><strong>Почему ломается.</strong> Изоляция container-а не ограничивает облачный API, если credential имеет глобальные права. Общая identity уничтожает attribution и делает отзыв доступа аварией для всех agents. Срок жизни Task может быть минутами, а украденный token действует месяцами.</p>
+<p><strong>Замена.</strong> NIST формулирует least privilege как выдачу только минимальных resources и authorizations, необходимых сущности для её функции. Для agents это означает:</p>
+<ul>
+<li>identity на user/tenant/Task или хотя бы на role и execution scope;</li>
+<li>short-lived credential, выдаваемый после policy decision;</li>
+<li>отдельные read, propose и execute capabilities;</li>
+<li>resource selectors и preconditions внутри capability, а не только в prompt;</li>
+<li>approval для high-impact action на границе tool/downstream API;</li>
+<li>немедленный revoke при завершении, cancellation или изменении scope.</li>
+</ul>
+<p>Human approval не должен быть театром. Человек видит конкретный diff: какой action, над каким object, с какими параметрами и ожидаемым эффектом. После approval нельзя незаметно подменить payload.</p>
+<p><strong>Проверка исправления.</strong> Украденная capability одной Task бесполезна для другого tenant-а, объекта, action или времени. Downstream audit связывает effect с user, root Task, approval и конкретным attempt.</p>
+
+<h2>6. <code>egress: *</code> как постоянная policy</h2>
+<p><strong>Запах.</strong> Для первого запуска открыли весь outbound traffic и больше к policy не возвращались. Считается, что container isolation уже достаточно, а HTTPS делает соединение безопасным.</p>
+<p><strong>Почему ломается.</strong> Egress - путь exfiltration и command-and-control. Разрешение любого destination превращает prompt injection или compromised dependency в сетевой инцидент. В Kubernetes Pod по умолчанию не изолирован для egress; restrictions появляются только когда подходящая NetworkPolicy выбирает Pod, причём разрешающие правила складываются аддитивно.</p>
+<p><strong>Замена.</strong> Начинайте с default deny и добавляйте измеренные зависимости: model endpoint, выбранный Git/MCP service, artifact store, DNS и необходимые control-plane endpoints. Контролируйте не только IP: динамический DNS, CDN, TLS SNI, proxies и redirects могут расширить фактический scope. Для HTTP/API полезен application gateway, который проверяет identity, method, host и resource, а не просто разрешает TCP 443.</p>
+<p>Policy должна иметь owner, причину, срок пересмотра и отрицательные probes. Временное диагностическое разрешение оформляется как time-bound exception с audit, а не как edit постоянного manifest-а.</p>
+<p><strong>Проверка исправления.</strong> Из Task успешны только документированные destinations. Запрос к test exfiltration domain, metadata endpoint, private ranges и неожиданному redirect блокируется и создаёт наблюдаемый security event.</p>
+
+<h2>7. Debug всегда включён</h2>
+<p><strong>Запах.</strong> Debug shell, exec, verbose logs, port-forward или расширенный tool set остаются включёнными «на случай инцидента». Операционный обход постепенно становится обычным интерфейсом.</p>
+<p><strong>Почему ломается.</strong> Debug path часто обходит нормальные policy, открывает process/filesystem state и записывает prompts, secrets или tool payloads в logs. Постоянный доступ увеличивает attack surface, а его редкое использование означает, что путь плохо тестируется именно перед аварией.</p>
+<p><strong>Замена.</strong> Считайте debug отдельной привилегированной операцией: just-in-time enablement, named operator, ticket/incident ID, ограниченный TTL, scoped target, session audit и автоматическое выключение. Собирайте безопасную telemetry заранее, чтобы стандартная диагностика не требовала shell. Sensitive content логируйте только по явной opt-in policy с redaction и retention.</p>
+<p><strong>Проверка исправления.</strong> Обычная Task не может активировать debug самостоятельно. Просроченная session закрывается автоматически; audit показывает, кто, зачем и какие команды выполнял.</p>
+
+<h2>8. Task per thought</h2>
+<p><strong>Запах.</strong> Каждый внутренний reasoning step, LLM turn или вызов простого read tool создаёт новую AX Task. Архитектура выглядит «по-настоящему multi-agent», но control plane используется как message bus.</p>
+<p><strong>Почему ломается.</strong> На один пользовательский outcome приходятся десятки create/watch/schedule/delete transitions, Workspaces и snapshots. Latency и стоимость определяются control-plane churn, а не полезной работой. Теряется единый context, растёт число partial failures и усложняется cancellation.</p>
+<p><strong>Замена.</strong> Создавайте Task, когда меняется хотя бы одна существенная граница: trust/authority, resource envelope, image/runtime, Workspace visibility, lifecycle/deadline или независимый recovery. Обычный reasoning, локальный parsing и серия безопасных reads могут оставаться шагами одного harness.</p>
+<table><thead><tr><th>Работа</th><th>Обычно шаг внутри Task</th><th>Обычно отдельная Task</th></tr></thead><tbody>
+<tr><td>Суммировать два уже доступных файла</td><td>Да</td><td>Нет отдельной boundary</td></tr>
+<tr><td>Запустить untrusted repository code</td><td>Нет</td><td>Новая sandbox и resource limit</td></tr>
+<tr><td>Попросить модель уточнить план</td><td>Да</td><td>Тот же authority и Workspace</td></tr>
+<tr><td>Делегировать write в другой tenant/project</td><td>Нет</td><td>Новая identity, approval и audit</td></tr>
+<tr><td>Долгая независимая проверка с собственным SLO</td><td>Зависит</td><td>Отдельный lifecycle и retry budget оправданы</td></tr>
+</tbody></table>
+<p><strong>Проверка исправления.</strong> Для каждой Task можно одним предложением назвать изменившуюся boundary. Метрика Tasks per successful outcome имеет объяснимый диапазон и не растёт вместе с числом внутренних мыслей модели.</p>
+
+<h2>9. Snapshot как backup или источник истины</h2>
+<p><strong>Запах.</strong> Команда считает, что раз Actor можно suspend/resume, то данные защищены. Snapshot хранится рядом с рабочим state, не имеет независимой retention policy, restore никогда не проверялся.</p>
+<p><strong>Почему ломается.</strong> Snapshot оптимизирует продолжение конкретного process image. Он может содержать старые credentials, несовместимый runtime state и ссылки на внешние connections, которые уже не существуют. Он не фиксирует согласованно состояние внешних DB/API и может быть удалён вместе с Tag или lifecycle object. Повреждение платформы, ошибка оператора и security incident способны затронуть и рабочий state, и snapshots одновременно.</p>
+<p><strong>Замена.</strong> Определите authoritative data и отдельный recovery contract:</p>
+<ul>
+<li>RPO/RTO для PostgreSQL, object store, repositories, manifests и action journal;</li>
+<li>backup в отдельном failure/security domain с retention и immutability по требованиям;</li>
+<li>versioned export/rebuild path для Workspace и platform configuration;</li>
+<li>регулярный restore drill на чистой среде;</li>
+<li>snapshot только как cache ускоренного resume, который допустимо потерять и перестроить.</li>
+</ul>
+<p>Документация PostgreSQL показывает различие между crash recovery и backup/PITR: для восстановления нужны base backup и сохранённая WAL history, а не просто память работающего process.</p>
+<p><strong>Проверка исправления.</strong> Удалите Actors, Workers и snapshot storage в test environment. Команда восстанавливает authoritative state в пределах RPO/RTO и явно знает, какие transient данные потеряны.</p>
+
+<h2>10. Benchmark на одном пустом Actor</h2>
+<p><strong>Запах.</strong> Измерили десять suspend/resume пустого process на свободном cluster и объявили capacity. Среднее latency выглядит отлично; correctness, tail и failure recovery не проверяются.</p>
+<p><strong>Почему ломается.</strong> Реальная стоимость зависит от dirty memory, числа файлов, compression, snapshot store throughput, image diversity, Worker cache, concurrent wakeups и downstream latency. Среднее скрывает p99, а successful API response не доказывает правильный outcome. Вблизи saturation система становится нелинейной: очереди растут, retries усиливают load, control plane и store конкурируют за ресурсы.</p>
+<p><strong>Замена.</strong> Benchmark должен воспроизводить распределение workload-а:</p>
+<ul>
+<li>малые, типичные и крупные Workspace/snapshot sizes;</li>
+<li>cold и warm start, clean и dirty memory;</li>
+<li>steady load, burst create/resume и массовую cancellation;</li>
+<li>node loss, slow store, network partition и несовместимый image;</li>
+<li>реальные proportions read/write/tool/model operations;</li>
+<li>p50/p95/p99 latency, goodput, error taxonomy, correctness и cost per successful outcome;</li>
+<li>soak run для leaks, fragmentation и накопления stale resources.</li>
+</ul>
+<p>Google SRE рекомендует проверять capacity и режим отказа при overload в реалистичной среде: заранее трудно угадать, какой ресурс исчерпается первым и как проявится каскадный отказ.</p>
+<p><strong>Проверка исправления.</strong> Результат содержит saturation point и безопасный operating envelope, а не одну цифру «Actors per node». Повторный прогон на production-like distribution укладывается в заранее заданные SLO и correctness checks.</p>
+
+<h2>Ещё четыре скрытых антишаблона</h2>
+<h3>«RUNNING значит работает»</h3>
+<p>Lifecycle status сообщает, что controller видит объект в определённой фазе, но не подтверждает полезный progress. Нужны domain heartbeat, возраст последнего progress event, deadline и проверка результата. Эта граница продолжает troubleshooting-модель главы 29.</p>
+<h3>Policy только в prompt</h3>
+<p>Фраза «никогда не удаляй production» помогает модели выбрать план, но не является control. Запрет должен жить в tool schema, authorization layer и downstream precondition. Prompt объясняет намерение; policy enforcement не зависит от послушания модели.</p>
+<h3>Approval без конкретного diff</h3>
+<p>Кнопка «разрешить агенту продолжить» не даёт осмысленного контроля. Approval должен связывать immutable action digest, target, параметры, срок и approver. Изменился payload - требуется новое решение.</p>
+<h3>Наблюдаемость после первого инцидента</h3>
+<p>Добавлять telemetry, когда evidence уже потеряно, поздно. До production нужны correlation IDs от root request до tool/action, attempt/retry reason, authority scope и outcome. OpenTelemetry semantic conventions полезны как общий словарь, но содержание и privacy policy команда определяет явно.</p>
+
+<h2>Порядок исправления: сначала ограничить ущерб</h2>
+<p>Не пытайтесь переписать весь agent stack одним проектом. Исправляйте в порядке максимального снижения риска:</p>
+<ol>
+<li><strong>Уберите глобальные credentials и необязательные write tools.</strong> Это немедленно уменьшает blast radius.</li>
+<li><strong>Закройте egress и debug paths.</strong> Добавьте временные исключения только для измеренных зависимостей.</li>
+<li><strong>Вынесите authoritative state и action journal из prompt.</strong> Без этого безопасные retries невозможны.</li>
+<li><strong>Классифицируйте errors и введите общий retry budget.</strong> Отдельно обработайте ambiguous outcome.</li>
+<li><strong>Поставьте deterministic validation перед effect.</strong> Approval и policy связываются с конкретным request.</li>
+<li><strong>Пересмотрите Task boundaries.</strong> Разделите слишком мощные Tasks и объедините бессмысленные Task-per-thought.</li>
+<li><strong>Проведите recovery и load drills.</strong> Докажите restore, cancellation и поведение за saturation point.</li>
+</ol>
+
+<h2>Definition of done перед практикумом</h2>
+<p>Следующая глава переводит книгу в лабораторные работы. До неё полезно зафиксировать минимальную планку, с которой эксперимент считается инженерным, а не демонстрационным:</p>
+<ul>
+<li>каждая Task имеет owner, purpose, timeout, budget и terminal outcome;</li>
+<li>каждый high-impact tool ограничен schema, identity, scope и approval policy;</li>
+<li>authoritative progress переживает удаление prompt и process restart;</li>
+<li>повтор action с тем же idempotency key не создаёт второй effect;</li>
+<li>default deny egress подтверждён положительными и отрицательными probes;</li>
+<li>debug выдаётся временно и оставляет audit trail;</li>
+<li>snapshot можно потерять без потери business truth;</li>
+<li>backup реально восстановлен хотя бы один раз;</li>
+<li>benchmark использует production-like distribution и измеряет tail/correctness;</li>
+<li>incident trace связывает root request, delegation, tool calls, retries, approval и post-state.</li>
+</ul>
+<p>Антипаттерны не устраняются словами «мы будем осторожны». Они исчезают, когда неправильное действие становится технически невозможным, обнаруживаемым или ограниченным по ущербу. Именно это предстоит проверять руками в практикуме: не только поднять AX/Substrate, но и намеренно ломать boundaries, наблюдать failure modes и доказывать recovery.</p>
+
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
+<li><a href="https://genai.owasp.org/llmrisk/llm062025-excessive-agency/">OWASP LLM06:2025 Excessive Agency</a></li>
+<li><a href="https://cheatsheetseries.owasp.org/cheatsheets/AI_Agent_Security_Cheat_Sheet.html">OWASP AI Agent Security Cheat Sheet</a></li>
+<li><a href="https://csrc.nist.gov/glossary/term/least_privilege">NIST: принцип least privilege</a></li>
+<li><a href="https://www.nist.gov/publications/zero-trust-architecture">NIST SP 800-207: Zero Trust Architecture</a></li>
+<li><a href="https://docs.aws.amazon.com/wellarchitected/2024-06-27/framework/rel_mitigate_interaction_failure_limit_retries.html">AWS Well-Architected: control and limit retry calls</a></li>
+<li><a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">Kubernetes NetworkPolicy: egress isolation и default deny</a></li>
+<li><a href="https://www.postgresql.org/docs/17/continuous-archiving.html">PostgreSQL: base backup, WAL и point-in-time recovery</a></li>
+<li><a href="https://sre.google/sre-book/addressing-cascading-failures/">Google SRE: load testing и cascading failures</a></li>
+<li><a href="https://opentelemetry.io/docs/specs/semconv/">OpenTelemetry Semantic Conventions</a></li>
+<li><a href="https://github.com/google/ax/blob/ac233282/docs/concepts.md">AX concepts на закреплённом снимке ac233282</a></li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture на закреплённом снимке df78882</a></li>
+</ul></div>
 </section><section class="chapter" id="ch-32"><div class="chapter-num">Глава 32</div><h1>Практикум: 14 последовательных лабораторных работ</h1><figure><figcaption>Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX</figcaption><svg class="diagram" viewBox="0 0 900 290" role="img" aria-label="Базовый учебный стенд: один VM, воспроизводимый путь до работающего AX"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130.0" y1="85" x2="130.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="130.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">VM</text><line x1="130.0" y1="185" x2="360.0" y2="20" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="245.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">runtime</text><line x1="360.0" y1="85" x2="360.0" y2="120" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="360.0" y="96.5" text-anchor="middle" font-size="10" fill="#5c6875">nodes</text><line x1="360.0" y1="185" x2="590.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="475.0" y="116.5" text-anchor="middle" font-size="10" fill="#5c6875">deploy</text><line x1="670" y1="92.5" x2="720" y2="92.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="695.0" y="86.5" text-anchor="middle" font-size="10" fill="#5c6875">runtime</text><line x1="590.0" y1="245" x2="795.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="692.5" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">model API</text><line x1="795.0" y1="245" x2="795.0" y2="60" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="795.0" y="146.5" text-anchor="middle" font-size="10" fill="#5c6875">workspace/tools</text><rect x="40" y="20" rx="12" ry="12" width="180" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="130.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Proxmox/KVM</text><text x="130.0" y="65" text-anchor="middle" font-size="11" fill="#465569">host</text><rect x="40" y="120" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Debian/Ubuntu VM</text><text x="130.0" y="165" text-anchor="middle" font-size="11" fill="#465569">lab node</text><rect x="280" y="20" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="360.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Docker</text><text x="360.0" y="65" text-anchor="middle" font-size="11" fill="#465569">Kind nodes</text><rect x="280" y="120" rx="12" ry="12" width="160" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="360.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Kind cluster</text><text x="360.0" y="165" text-anchor="middle" font-size="11" fill="#465569">Kubernetes</text><rect x="510" y="60" rx="12" ry="12" width="160" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="590.0" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Substrate</text><text x="590.0" y="105" text-anchor="middle" font-size="11" fill="#465569">PostgreSQL + RustFS</text><rect x="720" y="60" rx="12" ry="12" width="150" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="795.0" y="84" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX</text><text x="795.0" y="105" text-anchor="middle" font-size="11" fill="#465569">Redis + control plane</text><rect x="510" y="180" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="590.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Local inference</text><text x="590.0" y="225" text-anchor="middle" font-size="11" fill="#465569">vLLM/llama.cpp</text><rect x="720" y="180" rx="12" ry="12" width="150" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="795.0" y="204" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">MCP services</text><text x="795.0" y="225" text-anchor="middle" font-size="11" fill="#465569">tools</text></svg></figure><p>Ниже - маршрут от чистой VM до двух multi-agent systems. Команды намеренно ориентированы на понимание процесса; exact flags текущего релиза необходимо сверить с pinned README/release notes перед запуском.</p>
 <h3>Lab 1. Подготовка VM</h3>
 <p>Создайте Debian 13 или Ubuntu LTS VM в Proxmox. Включите достаточные CPU/RAM/disk, NTP и nested virtualization, если хотите microVM. Проверьте <code>virt-host-validate</code>/<code>/dev/kvm</code> по необходимости. Установите Docker, Git, Go версии, требуемой pinned AX/Substrate, <code>kubectl</code>, <code>ko</code>.</p>
