@@ -73,7 +73,7 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 <section class="toc">
 <h1>Содержание</h1>
 <p>Книга построена от фундаментальных mental models к AX/Substrate и затем к эксплуатации. Ссылки кликабельны в PDF.</p>
-<ol><li><a href="#ch-0">0. Как читать эту книгу и что именно зафиксировано</a></li><li><a href="#ch-1">1. Карта современной агентной системы: от модели до кластера</a></li><li><a href="#ch-2">2. LLM как вычислительный компонент агентной системы</a></li><li><a href="#ch-3">3. Что такое агент: цикл, границы и критерии остановки</a></li><li><a href="#ch-4">4. Agent harness: система вокруг LLM</a></li><li><a href="#ch-5">5. Context, state, memory и snapshot: не смешивать</a></li><li><a href="#ch-6">6. Tools, MCP и Skills</a></li><li><a href="#ch-7">7. Multi-agent архитектуры без лишней магии</a></li><li><a href="#ch-8">8. От Linux process к gVisor и microVM</a></li><li><a href="#ch-9">9. Kubernetes: необходимый минимум для понимания AX/Substrate</a></li><li><a href="#ch-10">10. Control plane и distributed systems: база без академической перегрузки</a></li><li><a href="#ch-11">11. Actor model применительно к агентным workload</a></li><li><a href="#ch-12">12. Agent Substrate: назначение и operational architecture</a></li><li><a href="#ch-13">13. Substrate resources: Atespace, WorkerPool, ActorTemplate, Actor, Tag</a></li><li><a href="#ch-14">14. Suspend, snapshot, resume и golden snapshot</a></li><li><a href="#ch-15">15. Substrate networking: routing, wake-up и egress</a></li><li><a href="#ch-16">16. AX: архитектура control plane и реальная граница с Substrate</a></li><li><a href="#ch-17">17. AX primitives: Task, Workspace и Model без магии</a></li><li><a href="#ch-18">18. Runner: PID 1 как платформенный контракт, а не просто entrypoint</a></li><li><a href="#ch-19">19. Task lifecycle в AX: synchronous reconciliation, состояния и recovery</a></li><li><a href="#ch-20">20. Local inference: CPU, GPU, vLLM и llama.cpp</a></li><li><a href="#ch-21">21. Производительность inference: что измерять для 10-15+ агентов</a></li><li><a href="#ch-22">22. Multi-agent на AX: как делегировать без task explosion</a></li><li><a href="#ch-23">23. Security architecture: threat model agent platform</a></li><li><a href="#ch-24">24. Identity, authorization и Human-in-the-loop</a></li><li><a href="#ch-25">25. Observability: четыре слоя и единая correlation identity</a></li><li><a href="#ch-26">26. Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal</a></li><li><a href="#ch-27">27. Production engineering: как доказать HA, persistence, upgrades и DR</a></li><li><a href="#ch-28">28. Performance и scaling: как найти bottleneck и доказать capacity</a></li><li><a href="#ch-29">29. Failure modes и troubleshooting handbook</a></li><li><a href="#ch-30">30. Когда AX нужен, а когда проще другой инструмент</a></li><li><a href="#ch-31">31. Антипаттерны</a></li><li><a href="#ch-32">32. Практикум: 14 последовательных лабораторных работ</a></li><li><a href="#ch-33">33. Две референсные multi-agent архитектуры</a></li><li><a href="#ch-34">34. Mental models, glossary и cheatsheets</a></li><li><a href="#ch-35">35. Context engineering: управление контекстом и durable state</a></li><li><a href="#ch-36">36. MCP 2026: протокол, discovery, transport и trust boundaries</a></li><li><a href="#ch-37">37. Безопасное выполнение tools: idempotency, approvals и attenuation полномочий</a></li><li><a href="#ch-38">38. AX control plane: state, event flow и operational truth</a></li><li><a href="#ch-39">39. Substrate snapshots: ownership, storage и совместимость</a></li><li><a href="#ch-40">40. Gateway и egress: DNS, TLS и проверка реальной доступности</a></li><li><a href="#ch-41">41. Local inference sizing: память GPU, parallelism и эксплуатационные SLO</a></li><li><a href="#ch-42">42. Production security, secrets и disaster recovery</a></li><li><a href="#ch-43">43. Operations runbook: диагностика по слоям и release acceptance</a></li><li><a href="#appendix">Приложения: аудит, checklist, источники</a></li></ol>
+<ol><li><a href="#ch-0">0. Как читать эту книгу и что именно зафиксировано</a></li><li><a href="#ch-1">1. Карта современной агентной системы: от модели до кластера</a></li><li><a href="#ch-2">2. LLM как вычислительный компонент агентной системы</a></li><li><a href="#ch-3">3. Что такое агент: цикл, границы и критерии остановки</a></li><li><a href="#ch-4">4. Agent harness: система вокруг LLM</a></li><li><a href="#ch-5">5. Context, state, memory и snapshot: не смешивать</a></li><li><a href="#ch-6">6. Tools, MCP и Skills</a></li><li><a href="#ch-7">7. Multi-agent архитектуры без лишней магии</a></li><li><a href="#ch-8">8. От Linux process к gVisor и microVM</a></li><li><a href="#ch-9">9. Kubernetes: необходимый минимум для понимания AX/Substrate</a></li><li><a href="#ch-10">10. Control plane и distributed systems: база без академической перегрузки</a></li><li><a href="#ch-11">11. Actor model применительно к агентным workload</a></li><li><a href="#ch-12">12. Agent Substrate: назначение и operational architecture</a></li><li><a href="#ch-13">13. Substrate resources: Atespace, WorkerPool, ActorTemplate, Actor, Tag</a></li><li><a href="#ch-14">14. Suspend, snapshot, resume и golden snapshot</a></li><li><a href="#ch-15">15. Substrate networking: routing, wake-up и egress</a></li><li><a href="#ch-16">16. AX: архитектура control plane и реальная граница с Substrate</a></li><li><a href="#ch-17">17. AX primitives: Task, Workspace и Model без магии</a></li><li><a href="#ch-18">18. Runner: PID 1 как платформенный контракт, а не просто entrypoint</a></li><li><a href="#ch-19">19. Task lifecycle в AX: synchronous reconciliation, состояния и recovery</a></li><li><a href="#ch-20">20. Local inference: CPU, GPU, vLLM и llama.cpp</a></li><li><a href="#ch-21">21. Производительность inference: что измерять для 10-15+ агентов</a></li><li><a href="#ch-22">22. Multi-agent на AX: как делегировать без task explosion</a></li><li><a href="#ch-23">23. Security architecture: threat model agent platform</a></li><li><a href="#ch-24">24. Identity, authorization и Human-in-the-loop</a></li><li><a href="#ch-25">25. Observability: четыре слоя и единая correlation identity</a></li><li><a href="#ch-26">26. Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal</a></li><li><a href="#ch-27">27. Production engineering: как доказать HA, persistence, upgrades и DR</a></li><li><a href="#ch-28">28. Performance и scaling: как найти bottleneck и доказать capacity</a></li><li><a href="#ch-29">29. Failure modes и troubleshooting: как локализовать нарушенный контракт</a></li><li><a href="#ch-30">30. Когда AX нужен, а когда проще другой инструмент</a></li><li><a href="#ch-31">31. Антипаттерны</a></li><li><a href="#ch-32">32. Практикум: 14 последовательных лабораторных работ</a></li><li><a href="#ch-33">33. Две референсные multi-agent архитектуры</a></li><li><a href="#ch-34">34. Mental models, glossary и cheatsheets</a></li><li><a href="#ch-35">35. Context engineering: управление контекстом и durable state</a></li><li><a href="#ch-36">36. MCP 2026: протокол, discovery, transport и trust boundaries</a></li><li><a href="#ch-37">37. Безопасное выполнение tools: idempotency, approvals и attenuation полномочий</a></li><li><a href="#ch-38">38. AX control plane: state, event flow и operational truth</a></li><li><a href="#ch-39">39. Substrate snapshots: ownership, storage и совместимость</a></li><li><a href="#ch-40">40. Gateway и egress: DNS, TLS и проверка реальной доступности</a></li><li><a href="#ch-41">41. Local inference sizing: память GPU, parallelism и эксплуатационные SLO</a></li><li><a href="#ch-42">42. Production security, secrets и disaster recovery</a></li><li><a href="#ch-43">43. Operations runbook: диагностика по слоям и release acceptance</a></li><li><a href="#appendix">Приложения: аудит, checklist, источники</a></li></ol>
 </section>
 <section class="chapter" id="ch-0"><div class="chapter-num">Глава 0</div><h1>Как читать эту книгу и что именно зафиксировано</h1><div class="badges"><span class="badge">IMPLEMENTED / VERIFIED</span><span class="badge">MAIN DELTA where noted</span><span class="badge">ROADMAP kept separate</span></div><p>Эта книга построена не как пересказ README, а как инженерный учебник: сначала даётся mental model, затем ровно та фундаментальная база, без которой конкретный механизм AX или Agent Substrate превращается в «магический чёрный ящик», после чего идут эксплуатационные выводы и практика. Целевая аудитория - системные и сетевые инженеры, архитекторы инфраструктуры и разработчики платформ, которым важнее <strong>развернуть, наблюдать, ограничивать и диагностировать агентные workload'ы</strong>, чем изменять внутренний Go-код проекта.</p>
 <h3>Версионная база</h3>
@@ -9894,118 +9894,215 @@ kubectl get workerpools -A</code></pre>
 <p>Performance AX/Substrate - это задача о цепочке очередей, stateful transitions и внешних dependencies. Начните с workload model и goodput, разложите critical path, измерьте каждый service station, найдите saturation knee и только потом выбирайте scaling knob. Oversubscription приносит пользу только при низком и некоррелированном duty cycle; autoscaling требует signal, связанный с добавляемой capacity; storage и model/tool endpoints остаются частью end-to-end SLO.</p>
 <p>Следующая глава превращает эти измерения в troubleshooting handbook. Когда Task медленный или застрял, мы будем искать не «медленный компонент вообще», а конкретный слой, queue и переход состояния, на котором перестал выполняться проверенный contract.</p>
 
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">Substrate README: project claims, multiplexing и demos на снимке df78882</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture и aspirational warning на снимке df78882</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: WorkerPool resource budget и placement</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/benchmarking/README.md">Substrate benchmarking suite: DurDir, SWE-Perf, Agent-Session и Spawn</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/autoscaled-workerpool/README.md">Substrate autoscaled WorkerPool demo и ограничения scaling signal</a></li><li><a href="https://github.com/google/ax/issues/384">AX issue #384: serial reconcile и prototype benchmark с caveats</a></li><li><a href="https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/">Kubernetes Horizontal Pod Autoscaling: algorithm, metrics и behavior</a></li></ul></div></section><section class="chapter" id="ch-29"><div class="chapter-num">Глава 29</div><h1>Failure modes и troubleshooting handbook</h1><p>Диагностика идёт снизу вверх: infrastructure → runtime → AX control plane → runner/workspace → tools/model → agent logic. Ниже - рабочая матрица, которую стоит адаптировать под конкретный deployment.</p>
-<table>
-<thead>
-<tr>
-  <th>Симптом</th>
-  <th>Слой</th>
-  <th>Что проверить первым</th>
-  <th>Типичные причины</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-  <td>Task не создаётся</td>
-  <td>AX API</td>
-  <td><code>ax apply</code>, server logs, schema</td>
-  <td>invalid name/spec, missing ref</td>
-</tr>
-<tr>
-  <td>Task долго Pending</td>
-  <td>AX/Substrate</td>
-  <td>controller events, Actor status</td>
-  <td>no eligible Worker, reconcile backlog</td>
-</tr>
-<tr>
-  <td>Actor не resume</td>
-  <td>Substrate</td>
-  <td>WorkerPool, snapshot, atelet</td>
-  <td>no capacity, incompatible/broken snapshot</td>
-</tr>
-<tr>
-  <td>WorkspaceReady=False</td>
-  <td>Runner</td>
-  <td>runner logs, <code>/readyz</code></td>
-  <td>Git/MCP/goal bootstrap failed</td>
-</tr>
-<tr>
-  <td>WorkspaceReady=True, файлов нет</td>
-  <td>Runner</td>
-  <td>filesystem + Git exit</td>
-  <td>silent bootstrap error/version bug</td>
-</tr>
-<tr>
-  <td>Task Running, агент умер</td>
-  <td>Runner/app</td>
-  <td><code>ps</code>, custom app metric</td>
-  <td>child exited, PID1 runner жив</td>
-</tr>
-<tr>
-  <td><code>ax ssh</code> не работает</td>
-  <td>debug/network</td>
-  <td><code>spec.debug</code>, routing</td>
-  <td>debug off, CLI bug, guest service unreachable</td>
-</tr>
-<tr>
-  <td>TLS egress ломается</td>
-  <td>Gateway/atenet</td>
-  <td>DNS/TCP/TLS probes</td>
-  <td>policy translation/SNI/hostname issue</td>
-</tr>
-<tr>
-  <td>Model timeout</td>
-  <td>inference/network</td>
-  <td>server queue, TTFT, GPU</td>
-  <td>saturation, oversized context, egress</td>
-</tr>
-<tr>
-  <td>GPU OOM</td>
-  <td>inference</td>
-  <td>KV/weights/batch</td>
-  <td>context/concurrency too high</td>
-</tr>
-<tr>
-  <td>Suspend медленный</td>
-  <td>Substrate/storage</td>
-  <td>snapshot size/bandwidth</td>
-  <td>dirty memory/files, object store</td>
-</tr>
-<tr>
-  <td>Resume cold</td>
-  <td>Substrate/storage</td>
-  <td>cache/locality</td>
-  <td>remote snapshot/image pull</td>
-</tr>
-<tr>
-  <td>Child Tasks множатся</td>
-  <td>harness</td>
-  <td>spawn events/budget</td>
-  <td>retry without idempotency, no depth limit</td>
-</tr>
-<tr>
-  <td>Write action повторён</td>
-  <td>tool layer</td>
-  <td>action journal/idempotency</td>
-  <td>timeout after side effect</td>
-</tr>
-</tbody>
-</table>
-<h3>Командный порядок</h3>
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">Substrate README: project claims, multiplexing и demos на снимке df78882</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture и aspirational warning на снимке df78882</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: WorkerPool resource budget и placement</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/benchmarking/README.md">Substrate benchmarking suite: DurDir, SWE-Perf, Agent-Session и Spawn</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/autoscaled-workerpool/README.md">Substrate autoscaled WorkerPool demo и ограничения scaling signal</a></li><li><a href="https://github.com/google/ax/issues/384">AX issue #384: serial reconcile и prototype benchmark с caveats</a></li><li><a href="https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/">Kubernetes Horizontal Pod Autoscaling: algorithm, metrics и behavior</a></li></ul></div></section><section class="chapter" id="ch-29"><div class="chapter-num">Глава 29</div><h1>Failure modes и troubleshooting: как локализовать нарушенный контракт</h1>
+
+<p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df78882</code> · проверено 2026-10-10</strong>. Команды и поля status относятся к этим снимкам и должны сверяться с закреплённой версией deployment. Issues ниже - наблюдения из конкретных окружений, а не доказательство, что любой похожий симптом имеет ту же причину.</p>
+
+<p>Когда агент «не работает», перед инженером находится не одна программа, а цепочка контрактов: Kubernetes должен дать здоровый node и Pod; Substrate - выбрать Worker, восстановить Actor и провести трафик; AX - reconcile'ить декларацию; runner - подготовить workspace и запустить процесс; model и tools - ответить в пределах deadline; harness - правильно обработать результат. Один пользовательский симптом может возникнуть на любом из этих слоёв.</p>
+
+<p>Troubleshooting - это не перебор команд и не искусство угадывать знакомую ошибку. Его цель - найти <strong>последнюю подтверждённо исправную границу</strong>, сформулировать одну проверяемую гипотезу о следующей границе и получить evidence, которое эту гипотезу подтверждает или опровергает. Такой подход одновременно сокращает MTTR и не даёт случайным рестартам уничтожить причину.</p>
+
+<h2>Сначала отделите симптом, состояние и причину</h2>
+<table><thead><tr><th>Термин</th><th>Пример</th><th>Что он доказывает</th></tr></thead><tbody>
+<tr><td>Пользовательский симптом</td><td>«Task не дал первый ответ за 60 секунд»</td><td>Нарушен outcome/SLO, но слой ещё неизвестен</td></tr>
+<tr><td>Наблюдаемое состояние</td><td><code>Task Ready=True</code>, Actor <code>RUNNING</code>, model queue растёт</td><td>Компоненты сообщили свои локальные claims</td></tr>
+<tr><td>Механизм отказа</td><td>Child process завершился, runner остался PID 1</td><td>Как именно перестал выполняться контракт</td></tr>
+<tr><td>Root cause</td><td>Необработанное исключение после несовместимого MCP response</td><td>Почему механизм возник и что нужно изменить системно</td></tr>
+<tr><td>Contributing factor</td><td>Нет liveness signal приложения и terminal Task phase</td><td>Почему отказ долго не обнаруживался или усилился</td></tr>
+</tbody></table>
+
+<p>Не каждое расследование обязано сразу найти организационную «первопричину». Во время incident достаточно локализовать механизм, безопасно восстановить сервис и сохранить evidence. Root-cause analysis выполняется после стабилизации. И наоборот, фраза «Pod был перезапущен» описывает событие, а не причину: нужны termination reason, exit code, node pressure и предшествующий таймлайн.</p>
+
+<h2>Метод последней подтверждённой границы</h2>
+<p>Идите не механически «снизу вверх», а от пользовательского запроса по его реальному пути. На каждой границе задавайте один и тот же вопрос: <em>какое наблюдение докажет, что вход был принят, работа действительно выполнена, а результат передан дальше?</em></p>
 <ol>
-<li>Зафиксировать exact versions и timestamps.</li>
-<li><code>kubectl get pods -A</code> / events / node pressure.</li>
-<li>Проверить AX server/controller health/logs и Redis reachability.</li>
-<li>Проверить Actor/WorkerPool status и Substrate components.</li>
-<li>Проверить runner health/readiness и actual child process.</li>
-<li>Positive/negative egress probes из sandbox.</li>
-<li>Model endpoint latency independently.</li>
-<li>MCP endpoint independently с той же identity/policy.</li>
-<li>Только после этого анализировать agent prompt/loop.</li>
+<li><strong>Определите outcome.</strong> Не «Task сломан», а «запрос <code>request_id=...</code> не вернул первый token до deadline» или «после resume отсутствует файл X».</li>
+<li><strong>Зафиксируйте окно времени.</strong> Переведите timestamps в UTC, отметьте последнюю успешную операцию, первую неуспешную и изменения deployment в этом окне.</li>
+<li><strong>Постройте короткий timeline.</strong> Client send → AX accepted → reconcile → Actor assignment → restore → runner ready → model/tool call → response.</li>
+<li><strong>Найдите последний доказанный переход.</strong> HTTP 200 от AX доказывает приём запроса, но не готовность workspace; <code>WorkspaceReady=True</code> может не доказать наличие ожидаемого checkout.</li>
+<li><strong>Разделите путь независимыми probes.</strong> Проверьте model endpoint без агента, MCP с той же identity, TLS из sandbox, readiness приложения внутри Actor.</li>
+<li><strong>Изменяйте одну переменную.</strong> Другой pool, clean Actor, cold snapshot или прямой endpoint - по одному, иначе результат не объясняет причину.</li>
+<li><strong>Перед recovery сохраните evidence.</strong> Перезапуск, delete/recreate и revert могут стереть logs, failed state и локальный filesystem.</li>
 </ol>
-<h3>Не доверять одному status</h3>
-<p>Current AX issues показывают полезный принцип: control-plane condition может отражать «шаг reconciliation завершён», а не end-to-end truth. <code>Ready=True</code> не доказывает живой child command; <code>GatewayReady=True</code> не доказывает успешный TLS к allowlisted host. Верификация должна соответствовать пользовательскому outcome.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax/issues/346">AX issue #346</a></li><li><a href="https://github.com/google/ax/issues/345">AX issue #345</a></li><li><a href="https://github.com/google/ax/issues/347">AX issue #347</a></li><li><a href="https://github.com/google/ax/issues">AX issues</a></li></ul></div></section><section class="chapter" id="ch-30"><div class="chapter-num">Глава 30</div><h1>Когда AX нужен, а когда проще другой инструмент</h1><figure><figcaption>Когда AX является разумным кандидатом, а когда это избыточный слой</figcaption><svg class="diagram" viewBox="0 0 850 340" role="img" aria-label="Когда AX является разумным кандидатом, а когда это избыточный слой"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="420.0" y1="85" x2="130.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="275.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="85" x2="420.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="510" y1="160.0" x2="620" y2="160.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="154.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="195" x2="420.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="209.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="330" y1="270.0" x2="230" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="280.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="510" y1="270.0" x2="620" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><rect x="330" y="20" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужна изоляция + state?</text><text x="420.0" y="65" text-anchor="middle" font-size="11" fill="#465569">decision</text><rect x="40" y="125" rx="12" ry="12" width="180" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="130.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="130.0" y="170" text-anchor="middle" font-size="11" fill="#465569">queue / workflow / Job</text><rect x="330" y="125" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Много idle agents?</text><text x="420.0" y="170" text-anchor="middle" font-size="11" fill="#465569">logical &gt; physical</text><rect x="620" y="125" rx="12" ry="12" width="190" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="715.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="715.0" y="170" text-anchor="middle" font-size="11" fill="#465569">K8s/Temporal may suffice</text><rect x="330" y="235" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужен suspend/resume?</text><text x="420.0" y="280" text-anchor="middle" font-size="11" fill="#465569">fast rehydrate</text><rect x="620" y="235" rx="12" ry="12" width="190" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="715.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Да</text><text x="715.0" y="280" text-anchor="middle" font-size="11" fill="#465569">AX/Substrate candidate</text><rect x="40" y="235" rx="12" ry="12" width="190" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="135.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="135.0" y="280" text-anchor="middle" font-size="11" fill="#465569">simpler runtime first</text></svg></figure><p>AX разумно оценивать по workload properties, а не по моде на agents.</p>
+<p>Полезная запись гипотезы выглядит так: «Task ждёт не model, а Worker assignment, потому что возраст reconcile event растёт, Actor остаётся <code>SUSPENDED</code>, а scheduler возвращает <code>ResourceExhausted</code>; добавление свободного Worker в тот же selector должно завершить assignment». Она указывает слой, evidence и предсказание. «Наверное Kubernetes» не проверяется.</p>
+
+<h2>Первые десять минут: сохранить факты, не чинить вслепую</h2>
+<p>До рестартов и удаления ресурсов соберите минимальный incident bundle. Конкретные команды зависят от версии и способа установки, но состав данных стабилен.</p>
+<ul>
+<li>точное время, timezone, request/task/actor/workspace identity и пользовательский deadline;</li>
+<li>commit, release, image digest и манифесты AX, Substrate, runner, sandbox runtime и model server;</li>
+<li>AX Task/Workspace/Gateway spec и полный status с conditions, reasons и timestamps;</li>
+<li>Substrate Actor, ActorTemplate, WorkerPool, Worker assignment, operation state и snapshot reference;</li>
+<li>Kubernetes Pod/Deployment/DaemonSet/Node state, recent Events, restarts, termination reason и resource pressure;</li>
+<li>логи control plane, controller, runner, <code>ateapi</code>, <code>atelet</code>, <code>ateom</code>, <code>atenet</code> и зависимостей в одном окне;</li>
+<li>trace/correlation IDs, latency milestones, queue age и relevant metric snapshots;</li>
+<li>результаты positive и negative probes без секретов: DNS, TCP, TLS, model, MCP и filesystem;</li>
+<li>последние изменения: rollout, policy, image, snapshot, secret, DNS, node drain, autoscaling.</li>
+</ul>
+<p>Используйте <code>kubectl describe</code> и Events как дополнение, а не как единственный источник: Events имеют ограниченное retention, могут агрегироваться и не являются журналом всех переходов. Логи без version/digest тоже недостаточны - одинаковое имя image tag может скрывать разные binaries.</p>
+
+<h2>Status - это утверждение компонента, а не end-to-end truth</h2>
+<p>Condition отвечает только на вопрос, который реализовал её producer. AX issue #346 показывает Task с <code>phase=Running</code> и <code>Ready=True</code> после завершения command и даже при <code>ACTOR_STATE_CRASHED</code> на нижнем слое. Issue #347 показывает <code>WorkspaceReady=True</code> при созданном, но пустом Git repository. Issue #345 описывает <code>GatewayReady=True</code>, когда hostname allowlist не пропускал ожидаемый TLS-трафик в исследованной версии.</p>
+<p>Из этого не следует, что conditions бесполезны. Они полезны как локальные checkpoints. Для каждого operational claim нужен отдельный outcome probe:</p>
+<table><thead><tr><th>Claim</th><th>Что он обычно подтверждает</th><th>Как проверить пользовательский outcome</th></tr></thead><tbody>
+<tr><td><code>Ready=True</code></td><td>Controller завершил предусмотренные reconcile steps</td><td>Проверить child process, application heartbeat и полезный response</td></tr>
+<tr><td><code>WorkspaceReady=True</code></td><td>Runner считает bootstrap завершённым</td><td>Проверить expected ref/commit, файлы и доступность repo для процесса</td></tr>
+<tr><td><code>GatewayReady=True</code></td><td>Policy resources применены</td><td>Positive probe разрешённого и negative probe запрещённого destination</td></tr>
+<tr><td>Actor <code>RUNNING</code></td><td>Actor получил Worker и lifecycle достиг running state</td><td>Проверить listener/readiness и первый state access после restore</td></tr>
+<tr><td>Model HTTP 200</td><td>Endpoint вернул transport-level success</td><td>Проверить schema, finish reason, token usage, quality и latency budget</td></tr>
+</tbody></table>
+
+<h2>Быстрая карта симптомов</h2>
+<table><thead><tr><th>Симптом</th><th>Вероятная граница</th><th>Первое различающее evidence</th><th>Не делать первым</th></tr></thead><tbody>
+<tr><td><code>ax apply</code> отклонён</td><td>Client/API/schema</td><td>HTTP/gRPC code, field path, server validation log</td><td>Перезапускать Workers</td></tr>
+<tr><td>Task долго без Actor</td><td>AX reconcile</td><td>Возраст event, controller log, создан ли Actor</td><td>Увеличивать model replicas</td></tr>
+<tr><td>Actor не получает Worker</td><td>Selector/capacity/scheduler</td><td>Pool labels, free slots, assignment outcome</td><td>Удалять snapshot</td></tr>
+<tr><td>Actor застрял в resume</td><td>Snapshot/runtime/readiness</td><td>Restore phase timings, runtime log, probe result</td><td>Считать это только storage latency</td></tr>
+<tr><td>Workspace «готов», но неверен</td><td>Runner/bootstrap</td><td>Expected commit против фактического HEAD/files</td><td>Анализировать prompt</td></tr>
+<tr><td>Task Running, ответа нет</td><td>Child/model/tool</td><td>Process tree, heartbeat, active request trace</td><td>Доверять одному Task status</td></tr>
+<tr><td>Только TLS egress не работает</td><td>DNS/SNI/policy/router</td><td>Раздельные DNS, TCP и TLS probes + atenet flags</td><td>Расширять allowlist до <code>*</code> в production</td></tr>
+<tr><td>Model timeout</td><td>Queue/prefill/route</td><td>Server receive time, queue time, TTFT, GPU memory</td><td>Повторять без retry budget</td></tr>
+<tr><td>Resume быстрый, первая команда медленная</td><td>Lazy restore/cache</td><td>Первый RAM/filesystem touch и restore breakdown</td><td>Смотреть только Resume RPC</td></tr>
+<tr><td>Действие выполнено дважды</td><td>Tool retry/idempotency</td><td>Action key, attempt journal, remote audit log</td><td>Повторять вручную «для проверки»</td></tr>
+</tbody></table>
+
+<h2>Playbook 1: Task не создаётся или застрял до Running</h2>
+<p>Сначала разделите четыре разных случая: API не принял spec; API принял, но controller не увидел event; controller увидел, но не создал Actor; Actor создан, но не активирован. У них одинаковый внешний симптом «Task не стартовал», но разные owners и действия.</p>
+<ol>
+<li>Сохраните client response целиком: transport code, validation field, Task identity и server request ID.</li>
+<li>Прочитайте сохранённый spec с сервера и сравните с отправленным. Так отделяется client-side rendering/defaulting от server state.</li>
+<li>Проверьте references: Workspace, Model, Gateway, image и имена/atespace. «Объект существует» недостаточно, если reference указывает другую область или версию.</li>
+<li>Сопоставьте generation/spec revision с observed status и временем последнего reconcile. Старый status может относиться к предыдущей spec.</li>
+<li>Проверьте возраст очереди controller и конкретный reconcile trace. Наличие здорового controller Pod не доказывает, что нужное событие обработано.</li>
+<li>Если Actor создан, перенесите расследование на Substrate и больше не называйте проблему «AX API».</li>
+</ol>
+<p>Для повторного reconcile сначала убедитесь, что операция идемпотентна и исходный attempt завершён или fencing исключает старого owner. Два одновременно работающих recovery path опаснее медленного одного.</p>
+
+<h2>Playbook 2: Actor не resume или долго ждёт Worker</h2>
+<p>Resume состоит из нескольких стадий: выбрать подходящий WorkerPool, получить slot, назначить Worker, найти snapshot, восстановить runtime, дождаться readiness и сделать Actor routable. <code>no free workers</code>, несовместимый sandbox и повреждённый snapshot требуют разных решений.</p>
+<ol>
+<li><strong>Eligibility:</strong> совпадают ли ActorTemplate selector, labels pool, sandbox class, version pin и node placement?</li>
+<li><strong>Capacity:</strong> есть ли реально свободный Worker с достаточным CPU/RAM/actor budget, а не просто Running Pod?</li>
+<li><strong>Assignment:</strong> какой outcome и error type вернул scheduler; сколько времени заняла стадия?</li>
+<li><strong>Snapshot lookup:</strong> существует ли reference, принадлежит ли snapshot Actor/Tag, доступен ли object store и совместим ли формат с runtime?</li>
+<li><strong>Restore:</strong> разделите download, unpack/restore, sandbox start, first page/file touch и readiness.</li>
+<li><strong>Application compatibility:</strong> повторяется ли проблема на cold boot или только после checkpoint/restore? Работает ли другой минимальный runtime в том же pool?</li>
+</ol>
+<p>Substrate request parking может удерживать входящий запрос при временном исчерпании pool до bounded deadline. Поэтому пользователь видит длинный request, а не мгновенный <code>503</code>. Смотрите одновременно parking duration, assignment failures и освобождение Workers. Увеличение client timeout не создаёт capacity и способно накопить ещё больше ожидающих запросов.</p>
+<p>Если Actor в <code>CRASHED</code>, сначала определите, потеряна ли работа после последнего external snapshot. Revert возвращает к сохранённой точке и потому является data-loss decision, а не безобидным restart. Зафиксируйте snapshot version и получите согласие owner-а данных до отката.</p>
+
+<h2>Playbook 3: workspace объявлен готовым, но содержимое неверно</h2>
+<p>Проверка «каталог существует» слишком слаба. Для Git-workspace contract должен включать как минимум ожидаемый remote, ref/commit, ненулевой checkout и доступ процесса к файлам. Для generated workspace нужны manifest или контрольные файлы, а не только readiness runner-а.</p>
+<ul>
+<li>сравните запрошенный branch/tag/SHA с <code>HEAD</code> и refs внутри workspace;</li>
+<li>проверьте exit status fetch/checkout, stderr и размер <code>FETCH_HEAD</code>, не публикуя credentials;</li>
+<li>выполните <code>git ls-remote</code> из той же sandbox identity и через тот же Gateway;</li>
+<li>проверьте mount path, ownership, permissions и то, что agent process видит тот же namespace;</li>
+<li>отделите пустой корректный repository от неуспешного checkout явным acceptance invariant;</li>
+<li>после resume сравните durable path и ephemeral path: данные могли быть записаны не в snapshot-managed filesystem.</li>
+</ul>
+<p>AX issue #347 полезен не как универсальный диагноз, а как пример <strong>ложноположительной readiness</strong>: bootstrap step объявлен завершённым при неполном результате. Исправление класса проблемы - сделать postcondition проверяемой и failure loud, а не добавить sleep перед запуском агента.</p>
+
+<h2>Playbook 4: Task Running, но полезный процесс умер или завис</h2>
+<p>Runner как PID 1 и child agent - разные процессы и разные health contracts. Живой runner может обслуживать debug/readiness, пока command давно завершился. И наоборот, долгий model call может выглядеть как hang, хотя процесс жив и ждёт внешний dependency.</p>
+<ol>
+<li>Проверьте process tree, PID child, start time, state, exit code или zombie; не ограничивайтесь PID 1.</li>
+<li>Проверьте application heartbeat/progress marker: последний завершённый agent step, model/tool request и budget.</li>
+<li>Получите stack/thread dump безопасным для runtime способом; перед kill сохраните stderr и core/diagnostic data, если policy разрешает.</li>
+<li>Сопоставьте cgroup OOM/throttling и node eviction с application logs. Exit без traceback может быть внешним kill.</li>
+<li>Для hang проверьте deadline и cancellation propagation: client мог уйти, а tool/model request продолжает занимать ресурс.</li>
+<li>Определите terminal semantics. Если процесс должен завершаться, успешный exit не является failure; если это service, exit 0 всё равно нарушает availability contract.</li>
+</ol>
+<p>Issue AX #346 показывает gap конкретной версии: Task status не позволял отличить выполняющийся command от завершившегося. Пока platform status не несёт этот сигнал, добавьте собственную метрику/heartbeat, alert на отсутствие progress и контролируемый supervisor policy. Бесконечный auto-restart без ограничения может скрыть crash loop и повторить side effects.</p>
+
+<h2>Playbook 5: сеть и egress - проверять по уровням</h2>
+<p>«Интернет не работает» объединяет минимум DNS, route, TCP, TLS, HTTP, proxy policy и authorization приложения. Один <code>curl</code> не всегда показывает, где отказ.</p>
+<ol>
+<li><strong>DNS:</strong> какое имя запросил процесс, какой resolver ответил, какие A/AAAA/CNAME получены, совпадает ли namespace/search domain?</li>
+<li><strong>TCP:</strong> устанавливается ли соединение к конкретному IP:port; нет ли IPv6/IPv4 расхождения?</li>
+<li><strong>TLS:</strong> какой SNI отправлен, какой certificate chain получен, доверяет ли ему sandbox CA store, где возник alert?</li>
+<li><strong>Policy/router:</strong> какое правило выбрано, какой destination увидел <code>atenet</code>, почему соединение разрешено или отклонено?</li>
+<li><strong>HTTP/application:</strong> status, redirect target, proxy/auth headers и server-side request ID.</li>
+</ol>
+<p>Всегда делайте пару probes: разрешённый destination должен пройти, запрещённый - предсказуемо не пройти. Только positive probe не доказывает enforcement; только negative не отличает строгую policy от полностью сломанной сети. Issue AX #345 показал случай, где <code>GatewayReady=True</code> означал применение resources, но не успешный TLS outcome для hostname rule в исследованной версии.</p>
+<p>Не оставляйте wildcard egress как «временное» production-исправление. Для диагностики его можно использовать только в изолированном test Task с коротким временем жизни и зафиксированным сравнением. Иначе вы одновременно меняете network path и снимаете security boundary.</p>
+
+<h2>Playbook 6: model или MCP медленные и ошибочно выглядят как проблема AX</h2>
+<p>Если Actor и приложение живы, вынесите dependency из agent loop. Выполните минимальный запрос из того же network namespace, с той же identity, route и timeout. Запрос с ноутбука инженера проверяет другой путь.</p>
+<table><thead><tr><th>Dependency</th><th>Разделить latency</th><th>Проверить correctness</th></tr></thead><tbody>
+<tr><td>Model</td><td>DNS/TLS, server queue, prefill/TTFT, decode/ITL</td><td>Model ID, context limit, schema, finish reason, token count</td></tr>
+<tr><td>MCP</td><td>Connect/initialize, discovery, tool execution, downstream API</td><td>Protocol/version, tool schema, identity, authorization, result shape</td></tr>
+<tr><td>Direct tool/API</td><td>Client queue, transport, server processing, async completion</td><td>Idempotency key, resource version, remote audit record</td></tr>
+</tbody></table>
+<p>Timeout означает «клиент не дождался», а не «операция не выполнилась». Перед retry write-action проверьте remote system по idempotency key или operation ID. Retry без этого превращает сетевую неопределённость в duplicate side effect.</p>
+
+<h2>Playbook 7: suspend/resume и snapshot path</h2>
+<p>Разделите control-plane duration и пользовательский recovery. Быстрый <code>ResumeActor</code> может вернуть assignment раньше, чем lazy pages или filesystem blocks понадобятся приложению; реальная задержка проявится на первом полезном доступе.</p>
+<ul>
+<li>запишите snapshot kind, owner, version, размер, время создания и runtime/build compatibility;</li>
+<li>сравните cold boot, golden restore и Actor-owned restore на одном image/runtime;</li>
+<li>снимите phase timings: lookup, download, restore, readiness и first touch;</li>
+<li>проверьте object-store latency/errors, bandwidth, node cache и concurrent restores;</li>
+<li>проверьте, что приложение tolerates checkpoint/restore: sockets, threads, clocks и external leases могут устареть;</li>
+<li>после resume проверяйте semantic state - не только PID, но и ожидаемый файл, memory counter или способность обслужить запрос.</li>
+</ul>
+<p>Если golden snapshot строится, а Actor-owned restore ломается, сравните изменения state после первого запуска. Если cold boot работает, а любой restore нет, подозревайте runtime/checkpoint compatibility. Если все варианты медленны только одновременно, возвращайтесь к capacity chapter: вероятен shared storage/network bottleneck, а не повреждение отдельного snapshot.</p>
+
+<h2>Playbook 8: runaway child Tasks и повторные действия</h2>
+<p>Здесь инфраструктура часто здорова: failure находится в harness policy. Coordinator не видит ACK, считает child потерянным и создаёт новый; tool выполнил действие, но response потерялся; retry снова вызывает write. Симптомом становится рост Tasks, затрат или внешних объектов.</p>
+<ol>
+<li>Остановите дальнейший fan-out через admission/circuit breaker, сохранив уже созданные Tasks для evidence.</li>
+<li>Соберите parent/root Task ID, spawn reason, attempt number, idempotency key, depth и budget для каждого child.</li>
+<li>Отделите дубликат вычисления от дубликата внешнего эффекта; второй требует проверки remote audit log.</li>
+<li>Проверьте, различает ли harness timeout, explicit failure, cancellation и unknown outcome.</li>
+<li>Восстанавливайте работу от durable journal/checkpoint, а не из памяти coordinator-а.</li>
+<li>Добавьте bounded depth/fan-out, global budget, deduplication и propagation cancellation до повторного включения.</li>
+</ol>
+
+<h2>Recovery: минимальное обратимое действие</h2>
+<p>Правильное recovery устраняет активный механизм отказа и сохраняет возможность понять его позже. Выбирайте наименьшее действие, которое проверяет гипотезу:</p>
+<ul>
+<li>отменить один зависший request раньше, чем рестартовать весь control plane;</li>
+<li>дать один совместимый Worker нужному pool раньше, чем масштабировать все pools;</li>
+<li>создать clean test Actor раньше, чем удалять проблемный Actor и его snapshot;</li>
+<li>переключить canary на известный digest раньше, чем массово откатывать deployment;</li>
+<li>изолировать background class раньше, чем отключать admission для всех;</li>
+<li>revert snapshot только после явной оценки потерянного интервала.</li>
+</ul>
+<p>После действия проверьте не только исчезновение alert, но и первоначальный user outcome, отсутствие backlog, прекращение retries, восстановление error budget и сохранение security policy. «Pods зелёные» не закрывает incident, если Tasks по-прежнему не дают полезный результат.</p>
+
+<h2>Как оформить escalation без пересказа на час</h2>
+<p>Хороший handoff позволяет следующему инженеру продолжить с текущей границы, а не повторять всё расследование.</p>
+<ul>
+<li><strong>Impact:</strong> какие workload classes, сколько Tasks, с какого времени, какой SLO нарушен.</li>
+<li><strong>Known good / first bad:</strong> версии, timestamps и последняя успешная операция.</li>
+<li><strong>Timeline:</strong> 5-10 ключевых событий с correlation IDs.</li>
+<li><strong>Last proven boundary:</strong> что точно работает и каким probe доказано.</li>
+<li><strong>Current hypothesis:</strong> evidence за/против и предсказание следующей проверки.</li>
+<li><strong>Actions:</strong> что уже меняли, exact result и что нельзя делать из-за риска state/side effects.</li>
+<li><strong>Artifacts:</strong> sanitized logs, specs/status, metrics, traces, digests и reproduction.</li>
+</ul>
+
+<h2>Антипаттерны troubleshooting</h2>
+<ul>
+<li><strong>Restart first.</strong> Симптом исчезает вместе с volatile evidence, причина остаётся.</li>
+<li><strong>Grepping только слово error.</strong> Полезный signal может быть timeout, cancellation, queue age или отсутствие события.</li>
+<li><strong>Один огромный log bundle без timeline.</strong> Данные есть, но причинный порядок потерян.</li>
+<li><strong>Проверка из ноутбука инженера.</strong> Она обходит identity, DNS, Gateway и sandbox path workload-а.</li>
+<li><strong>Доверие одному Ready.</strong> Локальный claim выдаётся за пользовательский outcome.</li>
+<li><strong>Одновременная смена image, pool и policy.</strong> Успех невозможно связать с причиной.</li>
+<li><strong>Retry write после timeout.</strong> Unknown outcome превращается в duplicate effect.</li>
+<li><strong>Delete/recreate stateful Actor.</strong> Recovery уничтожает snapshot и точку расследования.</li>
+<li><strong>Увеличение timeout вместо устранения queue.</strong> Система дольше удерживает бесполезную работу.</li>
+<li><strong>Объявить root cause по совпадению.</strong> Корреляция с rollout полезна, но механизм нужно подтвердить.</li>
+</ul>
+
+<h2>Итог</h2>
+<p>Диагностика AX/Substrate начинается с точного пользовательского outcome и проходит по цепочке контрактов. Сохраняйте evidence до recovery, стройте timeline, ищите последнюю подтверждённую границу и проверяйте следующую независимым probe. Status, лог и metric по отдельности редко дают end-to-end truth; сильный вывод появляется, когда control-plane state, runtime evidence и пользовательская проверка согласованы.</p>
+<p>Следующая глава использует накопившееся operational понимание для решения более раннего вопроса: нужен ли конкретному workload сам дополнительный control plane AX/Substrate. Чем дороже система в диагностике, upgrades и on-call expertise, тем убедительнее должна быть польза от isolation, durable Actors и oversubscription.</p>
+
+<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/google/ax/issues/346">AX issue #346: Task остаётся Running/Ready после завершения command</a></li><li><a href="https://github.com/google/ax/issues/347">AX issue #347: пустой Git checkout при WorkspaceReady</a></li><li><a href="https://github.com/google/ax/issues/345">AX issue #345: hostname egress allowlist и TLS outcome</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture: assignment, hydration и snapshot lifecycle</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: WorkerPool, ActorTemplate и recovery semantics</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md">Substrate observability: lifecycle, scheduler, restore и WorkerPool signals</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md">Substrate request parking: bounded wait при pool saturation</a></li><li><a href="https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/">Kubernetes: debugging running Pods</a></li></ul></div></section>
+<section class="chapter" id="ch-30"><div class="chapter-num">Глава 30</div><h1>Когда AX нужен, а когда проще другой инструмент</h1><figure><figcaption>Когда AX является разумным кандидатом, а когда это избыточный слой</figcaption><svg class="diagram" viewBox="0 0 850 340" role="img" aria-label="Когда AX является разумным кандидатом, а когда это избыточный слой"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="420.0" y1="85" x2="130.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="275.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="85" x2="420.0" y2="125" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="99.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="510" y1="160.0" x2="620" y2="160.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="154.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="420.0" y1="195" x2="420.0" y2="235" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="420.0" y="209.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><line x1="330" y1="270.0" x2="230" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="280.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">нет</text><line x1="510" y1="270.0" x2="620" y2="270.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="565.0" y="264.0" text-anchor="middle" font-size="10" fill="#5c6875">да</text><rect x="330" y="20" rx="12" ry="12" width="180" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужна изоляция + state?</text><text x="420.0" y="65" text-anchor="middle" font-size="11" fill="#465569">decision</text><rect x="40" y="125" rx="12" ry="12" width="180" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="130.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="130.0" y="170" text-anchor="middle" font-size="11" fill="#465569">queue / workflow / Job</text><rect x="330" y="125" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Много idle agents?</text><text x="420.0" y="170" text-anchor="middle" font-size="11" fill="#465569">logical &gt; physical</text><rect x="620" y="125" rx="12" ry="12" width="190" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="715.0" y="149" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="715.0" y="170" text-anchor="middle" font-size="11" fill="#465569">K8s/Temporal may suffice</text><rect x="330" y="235" rx="12" ry="12" width="180" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="420.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нужен suspend/resume?</text><text x="420.0" y="280" text-anchor="middle" font-size="11" fill="#465569">fast rehydrate</text><rect x="620" y="235" rx="12" ry="12" width="190" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="715.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Да</text><text x="715.0" y="280" text-anchor="middle" font-size="11" fill="#465569">AX/Substrate candidate</text><rect x="40" y="235" rx="12" ry="12" width="190" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="135.0" y="259" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Нет</text><text x="135.0" y="280" text-anchor="middle" font-size="11" fill="#465569">simpler runtime first</text></svg></figure><p>AX разумно оценивать по workload properties, а не по моде на agents.</p>
 <h3>Сильные сигналы в пользу AX/Substrate</h3>
 <ul>
 <li>Много логических agents, значительная часть времени idle.</li>
