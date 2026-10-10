@@ -46,7 +46,7 @@
 * [Identity, authorization и human-in-the-loop: как безопасно делегировать authority агенту](24-identity-authorization-hitl.md)
 * [Observability: от user goal до подтверждённого результата](25-observability.md)
 * [Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal](26-proxmox-kvm-lab.md)
-* [Production engineering: HA, persistence, upgrades и DR](27-production-engineering.md)
+* [Production engineering: как доказать HA, persistence, upgrades и DR](27-production-engineering.md)
 * [Performance и scaling: что реально ограничивает систему](28-performance-scaling.md)
 * [Failure modes и troubleshooting handbook](29-failure-modes-troubleshooting.md)
 * [Когда AX нужен, а когда проще другой инструмент](30-when-to-use-ax.md)
