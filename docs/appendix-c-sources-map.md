@@ -9,7 +9,7 @@
 5. AX manifests: <https://github.com/google/ax/blob/main/docs/manifests.md>
 6. AX runner: <https://github.com/google/ax/blob/main/docs/runner.md>
 7. AX roadmap: <https://github.com/google/ax/blob/main/docs/roadmap.md>
-8. AX current controller source: <https://github.com/google/ax/blob/main/cmd/ax-controller/main.go>
+8. AX server и direct reconciliation, срез ac233282: <https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go>
 9. AX issues: <https://github.com/google/ax/issues>
 10. Agent Substrate repository: <https://github.com/agent-substrate/substrate>
 11. Substrate architecture: <https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md>
