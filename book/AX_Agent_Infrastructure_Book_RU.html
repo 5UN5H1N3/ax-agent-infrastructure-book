@@ -12262,33 +12262,195 @@ admission:
 </div>
 </div>
 </section>
-<section class="chapter" id="ch-43"><div class="chapter-num">Глава 43</div><h1>Operations runbook: диагностика по слоям и release acceptance</h1><figure><figcaption>Troubleshooting ladder: идите от физического слоя к agent logic</figcaption><svg class="diagram" viewBox="0 0 760 320" role="img" aria-label="Troubleshooting ladder: идите от физического слоя к agent logic"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="110.0" y1="75" x2="110.0" y2="90" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="110.0" y1="145" x2="110.0" y2="160" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="110.0" y1="215" x2="110.0" y2="230" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="110.0" y1="285" x2="345.0" y2="90" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="345.0" y1="145" x2="345.0" y2="200" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><line x1="430" y1="227.5" x2="520" y2="180.0" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><rect x="30" y="20" rx="12" ry="12" width="160" height="55" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="110.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">1 Infrastructure</text><text x="110.0" y="65" text-anchor="middle" font-size="11" fill="#465569">nodes/storage/network</text><rect x="30" y="90" rx="12" ry="12" width="160" height="55" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="110.0" y="114" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">2 Substrate</text><text x="110.0" y="135" text-anchor="middle" font-size="11" fill="#465569">Actor/Worker/snapshot</text><rect x="30" y="160" rx="12" ry="12" width="160" height="55" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="110.0" y="184" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">3 AX control</text><text x="110.0" y="205" text-anchor="middle" font-size="11" fill="#465569">server/controller/store</text><rect x="30" y="230" rx="12" ry="12" width="160" height="55" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="110.0" y="254" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">4 Runner</text><text x="110.0" y="275" text-anchor="middle" font-size="11" fill="#465569">health/workspace/process</text><rect x="260" y="90" rx="12" ry="12" width="170" height="55" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="345.0" y="114" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">5 Dependencies</text><text x="345.0" y="135" text-anchor="middle" font-size="11" fill="#465569">Gateway/MCP/model</text><rect x="260" y="200" rx="12" ry="12" width="170" height="55" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="345.0" y="224" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">6 Agent logic</text><text x="345.0" y="245" text-anchor="middle" font-size="11" fill="#465569">loop/state/budget</text><rect x="520" y="145" rx="12" ry="12" width="200" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="620.0" y="169" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Observed outcome</text><text x="620.0" y="190" text-anchor="middle" font-size="11" fill="#465569">verify end-to-end</text></svg></figure><h3>Не начинайте инцидент с restart всего кластера</h3>
-<p>Сначала сохраните evidence: Task manifest/status, generation/conditions, controller lag/logs, Actor/Worker assignment, runner health, child process state, Gateway/DNS test, model request ID, MCP call ID и последние внешние side effects. Restart может удалить самую полезную информацию.</p>
-<h3>Слой 1 - Kubernetes/infrastructure</h3>
-<pre><code class="language-bash">kubectl get nodes -o wide
-kubectl get pods -A -o wide
-kubectl get events -A --sort-by=.lastTimestamp
-kubectl top nodes
-kubectl top pods -A
+<section class="chapter" id="ch-43">
+<div class="chapter-num">Глава 43</div>
+<h1>Operations runbook: диагностика по слоям и release acceptance</h1>
+<p>Дежурному пишут: «После обновления агент завис». На dashboard Task имеет phase <code>Running</code>, health endpoint отвечает, ошибок за последнюю минуту нет. Можно перезапустить всё и надеяться на улучшение. Но сначала стоит спросить: какой результат ожидался, когда пропал прогресс и какой именно процесс сейчас отвечает на health check? Без этих вопросов зелёный индикатор легко принять за работающего агента.</p>
+<p><strong>Operations runbook</strong> - проверяемая инструкция для конкретной операционной ситуации. Она связывает симптом, безопасные проверки, решение и подтверждение результата. <strong>Release acceptance</strong> - приёмка релиза: набор испытаний, доказывающий, что выбранная сборка сохраняет необходимые контракты. Хороший runbook помогает локализовать сбой, а хороший acceptance suite не даёт уже разобранному сбою незаметно вернуться.</p>
+<p>Глава 29 дала общий метод troubleshooting, главы 38-40 - фактические границы AX и Substrate, глава 41 - измерение inference, глава 42 - безопасное восстановление. Здесь соберём их в рабочую процедуру дежурного и инженера релиза. Проверки относятся к AX <code>ac233282</code> и Substrate <code>ccecc788</code>; команды и доступные signals нужно сверять с реально установленной версией.</p>
+
+<h2>Runbook задаёт условия и решения</h2>
+<p>Список команд ещё не является runbook. Команда может выполниться успешно и не ответить на нужный вопрос. Например, чтение Pod показывает инфраструктурный процесс, но не обязательно child process конкретного Actor: Substrate размещает Actors на Workers, а не создаёт отдельный Kubernetes Pod для каждого агента.</p>
+<p>Для каждой процедуры запишите область применения, необходимые права, исходную проверку и ожидаемые развилки. Укажите, что делать при подтверждении гипотезы, что делать при её опровержении и когда остановиться. Добавьте предел времени или объёма диагностики, допустимые изменения, критерий восстановления и владельца escalation. Тогда следующий инженер сможет продолжить расследование, а не повторять догадки автора.</p>
+<p>Runbook зависит от deployment. Имена namespaces, logging backend, sandbox class, endpoints и способ выдачи credentials должны быть известны заранее. Процедура «найдите нужный secret и включите debug» без границ доступа слишком опасна для ночного инцидента. Диагностическое действие может быть привилегированным, даже если формально ничего не меняет.</p>
+<p>Версионируйте runbook рядом с release inventory и проверяйте его другим оператором на стенде. После смены API, routing или схемы логов обновление image без обновления инструкции оставляет команду с картой другой системы.</p>
+
+<h2>Начните с ущерба и ограничения риска</h2>
+<p><strong>Triage</strong> - первичная оценка: кого затронул сбой, что перестало работать, насколько быстро растёт ущерб и какая безопасная мера нужна сейчас. Разделите один медленный Task, потерю всей группы Workers и повторные изменения во внешней системе. Эти ситуации требуют разного масштаба реакции.</p>
+<p>Если система продолжает повреждать данные или делать неразрешённые writes, containment важнее полного расследования. По утверждённой процедуре ограничьте новые действия или изолируйте опасный путь; сохраните доступное evidence, но не ждите идеального log bundle. Если риска новых effects нет, сначала зафиксируйте volatile state до restart. Этот порядок соответствует <a href="https://sre.google/sre-book/effective-troubleshooting/">методу troubleshooting Google SRE</a>: восстановление полезной работы и поиск причины связаны, но не обязаны завершаться одновременно.</p>
+<p>В значимом инциденте назначьте человека, который принимает операционные решения, и человека, который ведёт timeline. При небольшой команде это может быть один инженер, но запись решений всё равно нужна. Параллельные «быстрые исправления» без общего журнала создают новые причины и мешают понять, какая мера помогла.</p>
+<p>Сформулируйте impact через пользовательский контракт: «новые Tasks не получают runtime с 12:10 UTC» или «high-risk writes остановлены до сверки outcome». «Красный Pod» - наблюдение, а не описание ущерба. Нормальное ожидание approval также нельзя автоматически считать отказом платформы.</p>
+
+<h2>Сохраните evidence без раскрытия secrets</h2>
+<p>Начните с identity и времени. Свяжите atespace/name Task, incarnation прикладного run, Actor UID, текущий Worker и Pod, model request и logical operation инструмента. После delete/recreate то же имя может означать другой объект. AX в данном срезе не предоставляет resource UID для Task; прикладной correlation record должен различать её incarnations.</p>
+<p>Сохраняйте время возникновения события, время наблюдения и источник. Ответ API сейчас и log десятиминутной давности не образуют атомарный snapshot. При рассинхронизации часов укажите неопределённость, а для продолжительности используйте измерение на одном надёжном clock path. Отсутствие span при sampling или отсутствие старого log не доказывает, что операция не произошла.</p>
+<p>Минимальный комплект содержит принятый spec с защищёнными значениями, status и conditions, runtime assignment, последние lifecycle responses, setup и command exit logs, progress checkpoint, версии artifacts и последние tool outcomes. Сохраняйте также наблюдения «это работает»: успешный запрос до инцидента и исправная контрольная Task часто полезнее ещё одного стека error.</p>
+<p>Не прикладывайте полный <code>env</code>, kubeconfig, authorization headers, request bodies с пользовательскими данными или snapshot RAM в общий incident ticket. Metadata AX runner может содержать literal Task env. Ограничьте readers, примените redaction и храните чувствительные материалы отдельно. Redaction не должна удалять безопасные correlation IDs и timestamps, без которых невозможно восстановить последовательность.</p>
+<p>По <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md">observability guide Substrate</a>, Actor logs несут runtime attribution, но trace context прикладных строк зависит от самого workload. Запрос текущего Worker не заменяет историю после relocation. Централизованный backend должен удерживать нужный интервал и позволять искать Actor по UID и atespace, а не только по имени Pod.</p>
+
+<h2>Выберите гипотезу и различающую проверку</h2>
+<p>Полезная гипотеза предсказывает наблюдение. «Модель сломалась» слишком широко. «Запрос ещё не дошёл до model server, потому что sandbox не разрешает нужный hostname» позволяет сравнить DNS, egress decision и server receive log. Если server уже получил запрос и поставил его в очередь, эта гипотеза перестаёт объяснять текущую задержку.</p>
+<p>Ищите последнюю подтверждённую границу и первый неизвестный участок. Общая карта ниже показывает границы проверки, а не реальный порядок RPC или обязательную последовательность диагностики. Если есть доказательство отказа конкретного tool, не нужно каждый раз начинать с nodes. Если весь pool потерял Worker, разбор prompt пока не поможет.</p>
+<figure>
+<figcaption>Troubleshooting ladder: infrastructure, Actor, AX, runner, dependencies, harness, outcome</figcaption>
+<svg class="diagram" viewBox="0 0 900 470" role="img" aria-label="Troubleshooting ladder: infrastructure, Actor, AX, runner, dependencies, harness, outcome">
+<defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs>
+<line x1="135" y1="90" x2="135" y2="155" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="135" y1="225" x2="135" y2="290" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="135" y1="360" x2="375" y2="360" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="460" y1="360" x2="460" y2="225" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="460" y1="155" x2="460" y2="90" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/>
+<line x1="545" y1="55" x2="680" y2="55" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/>
+<rect x="35" y="20" width="200" height="70" rx="12" fill="#f3f4f6" stroke="#53657a"/>
+<text x="135" y="45" font-size="14" font-weight="700" text-anchor="middle">1 Infrastructure</text><text x="135" y="68" font-size="11" text-anchor="middle">node, storage, network</text>
+<rect x="35" y="155" width="200" height="70" rx="12" fill="#fff7e8" stroke="#9a6410"/>
+<text x="135" y="180" font-size="14" font-weight="700" text-anchor="middle">2 Actor runtime</text><text x="135" y="203" font-size="11" text-anchor="middle">placement and restore</text>
+<rect x="35" y="290" width="200" height="70" rx="12" fill="#eefaf3" stroke="#287a4b"/>
+<text x="135" y="315" font-size="14" font-weight="700" text-anchor="middle">3 AX lifecycle</text><text x="135" y="338" font-size="11" text-anchor="middle">record and RPC path</text>
+<rect x="375" y="325" width="170" height="70" rx="12" fill="#f8efff" stroke="#70459b"/>
+<text x="460" y="350" font-size="14" font-weight="700" text-anchor="middle">4 Runner</text><text x="460" y="373" font-size="11" text-anchor="middle">setup and child process</text>
+<rect x="375" y="155" width="170" height="70" rx="12" fill="#fff0f0" stroke="#a23d3d"/>
+<text x="460" y="180" font-size="14" font-weight="700" text-anchor="middle">5 Dependencies</text><text x="460" y="203" font-size="11" text-anchor="middle">MCP, model, egress</text>
+<rect x="375" y="20" width="170" height="70" rx="12" fill="#edf4ff" stroke="#2d5d9f"/>
+<text x="460" y="45" font-size="14" font-weight="700" text-anchor="middle">6 Harness</text><text x="460" y="68" font-size="11" text-anchor="middle">progress and decisions</text>
+<rect x="680" y="20" width="190" height="70" rx="12" fill="#f3f4f6" stroke="#53657a"/>
+<text x="775" y="45" font-size="14" font-weight="700" text-anchor="middle">Verified outcome</text><text x="775" y="68" font-size="11" text-anchor="middle">result and external truth</text>
+</svg>
+</figure>
+<p>Выбирайте проверку, которая различает причины, и заранее определяйте её риск. Read-only probe тоже способен создать нагрузку, вызвать auto-resume или раскрыть данные. Для внешних операций используйте безопасный lookup, а не повтор исходного write. При неизвестном outcome действует gate из глав 37 и 42.</p>
+<p>Меняйте один значимый фактор за раз на ограниченной группе. Одновременно сменить model, prompt, image и WorkerPool значит получить новый результат без объяснения причины. Отрицательный результат проверки тоже полезен: он исключает ветвь и должен остаться в timeline.</p>
+
+<h2>Диагностика по слоям проверяет разные контракты</h2>
+<h3>Инфраструктура и Kubernetes</h3>
+<p>Проверьте node conditions, placement Pod, requests и limits, storage mounts, image pulls и container termination reason. Свободный суммарный CPU не гарантирует подходящее размещение: selectors, taints, topology и доступность нужного sandbox могут ограничивать выбор. <code>CrashLoopBackOff</code> описывает повторные неудачные запуски и задержку retry, а не первопричину.</p>
+<p>Изучайте конкретный container и его previous logs. Exit code без reason и context недостаточен; например, сам по себе код 137 не доказывает OOM. Состояния container разбираются в <a href="https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/">Pod lifecycle</a>. Ошибку probes отличайте от ошибки приложения. Kubernetes <a href="https://kubernetes.io/docs/concepts/workloads/pods/probes/">разделяет startup, liveness и readiness</a>; неудачная readiness снимает Pod с подходящего Service traffic, а liveness может вызвать restart. Probe, зависящая от перегруженного внешнего сервиса, способна усилить отказ.</p>
+<h3>Substrate и runtime Actor</h3>
+<p>Если Actor ещё не получил Worker, runner пока не участвует в сбое. Проверьте выбранный pool, допустимый sandbox class, assignment и доступность Worker. Если назначение есть, разделите поиск snapshot, получение payload, restore, container startup и готовность маршрута. Длинный общий resume не сообщает, какая из стадий заняла время.</p>
+<p>Сверяйте snapshot scope, dependencies и compatibility по главе 39. URI в metadata не доказывает наличие полного payload. После lazy restore быстрый ответ resume не исключает задержку первого обращения к страницам памяти или файлам. Сопоставьте lifecycle timing с первым полезным действием workload.</p>
+<p>Не приписывайте всю необъяснённую задержку scheduler. <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/metrics/substrate.yaml">Registry blind spots этого среза</a> отдельно отмечают отсутствие store metrics и неполное наблюдение worker cache. Неизмеренный участок остаётся кандидатом, а не становится исправным по умолчанию.</p>
+<h3>AX и lifecycle path</h3>
+<p>Сначала определите архитектуру своей сборки. В <a href="https://github.com/google/ax/commit/ac2332829f22360ff97b0ba34d94dd0dd782f17e">AX <code>ac233282</code></a> отдельные <code>ax-controller</code> и Redis Streams queue удалены: reconciliation выполняется внутри <code>ax-server</code>. Поэтому ищите конкретный lifecycle RPC, Redis access, resource lock и Substrate call, а не consumer lag несуществующей очереди.</p>
+<p><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go">Server может стартовать без reconciler</a>, если Substrate client не инициализирован. Его health handler при этом не проверяет Redis и runtime. Сопоставляйте startup warning, принятый resource record и фактический Actor. Timeout клиента не доказывает, что lifecycle action не выполнился; новый create с другим именем может добавить лишний runtime.</p>
+<p>В <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto">AX schema этого среза</a> нет <code>generation</code>, <code>resourceVersion</code> и <code>observedGeneration</code>. Сравнивайте утверждённый manifest digest, принятую immutable Task spec и прикладной release journal. Не добавляйте во время инцидента неизвестные поля в YAML. Conditions также могут быть устаревшими: <code>lastTransitionTime</code> не является непрерывным heartbeat.</p>
+<h3>Runner и child process</h3>
+<p>Уточняйте владельца каждого endpoint. <code>ax-server /healthz</code> и runner <code>/healthz</code> отвечают за разные процессы. У default runner <code>/readyz</code> отражает успешное завершение Workspace setup, а не наличие живой command. После выхода child runner намеренно остаётся доступным для inspection; AX не получает из этого автоматический application completion.</p>
+<p>Проверьте setup logs, фактическую Git revision и prerequisites Workspace, запуск command и её exit result. Затем смотрите прикладной checkpoint и meaningful progress. Регулярный heartbeat может сопровождать бесконечный retry одного и того же шага. Не выдавайте сохранённое <code>WorkspaceReady=True</code> за свежую проверку после каждого resume. Эти границы следуют из <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go">runner lifecycle</a> и главы 18.</p>
+<h3>Сеть и зависимости</h3>
+<p>Разделите DNS resolution, TCP connect, TLS с нужными SNI и trust roots, HTTP или gRPC, authentication и прикладной protocol. Успешный TCP не доказывает корректный MCP response. Проверка с ноутбука может обходить sandbox DNS, identity и egress path; воспроизводите нужный путь через разрешённый canary, а не расширяйте production allowlist до wildcard.</p>
+<p>Для MCP различайте transport failure, tool error и неизвестный внешний outcome. Lookup у конечной системы важнее догадки по timeout. Для model call выясните, получил ли server request, сколько заняли queue и prefill, был ли первый token, чем закончился stream. TTFT, KV pressure и decode относятся к разным стадиям главы 41; один средний tokens/s скрывает задержку пользователя.</p>
+<h3>Harness и прикладное решение</h3>
+<p>Когда нижние границы подтверждены, проверьте текущий шаг, budget, tool schema, контекст, checkpoint и ожидаемое внешнее событие. Harness может правильно ждать approval, rate-limit window или разбора <code>OUTCOME_UNKNOWN</code>. В этих случаях restart не создаёт права продолжить действие.</p>
+<p>Если это действительно reasoning failure, сравните сохранённый input и tool responses с ожидаемыми postconditions. Проблема в извлечении данных, неправильной схеме tool и неверном плане требует разных исправлений. Успех HTTP и завершение процесса не доказывают качество ответа или нужный внешний эффект.</p>
+
+<h2>Разберите зелёную Task без результата</h2>
+<p>Учебный случай: <code>lab/network-017</code> после resume остаётся <code>Running</code>. Сначала прочитали Actor и подтвердили текущий Worker, затем проверили runner readiness. Оба наблюдения нормальны. Но в command log есть exit с ошибкой, а прикладной checkpoint не продвинулся. Это уже достаточно, чтобы перестать объяснять симптом нехваткой model replicas.</p>
+<table style="break-inside:avoid">
+<thead><tr><th>Наблюдение</th><th>Подтверждено</th><th>Ещё не подтверждено</th></tr></thead>
+<tbody>
+<tr><td>Actor назначен Worker</td><td>Текущее размещение runtime</td><td>Жизнь child и полезный прогресс</td></tr>
+<tr><td>Runner ready сейчас</td><td>Setup contract runner</td><td>Результат command и доступ к tools</td></tr>
+<tr><td>Child exit с ошибкой</td><td>Команда завершилась неуспешно</td><td>Почему она упала и был ли внешний эффект</td></tr>
+</tbody></table>
+<p>Сопоставьте exit с последним прикладным шагом. Если команда только читала данные, repair может свестись к исправлению prerequisites и безопасному новому запуску. Если перед exit она отправила write, сначала установите outcome по operation ID. Исправный runner в обоих случаях полезен для наблюдения, но сам ничего не доказывает о безопасности повторного запуска.</p>
+<p>При другом наборе evidence вывод меняется. Если command жива и checkpoint говорит «ожидает approval», зависания может не быть. Если свежий probe готов, а сохранённая condition отрицательна, это расхождение observation. Runbook должен сохранять такие развилки, а не назначать restart любому отсутствию ответа.</p>
+
+<h2>Минимальный сбор данных ограничьте контекстом</h2>
+<p>Ниже read-only команды для отдельного Kubernetes-стенда. Имена <code>ax-ops-lab</code>, <code>ax</code>, Pod и container иллюстративны: замените их на проверенные значения своей установки. Нужны разрешения на чтение выбранных ресурсов и logs. Команды не выполняют restore, restart или debug exec.</p>
+<pre><code class="language-bash">kubectl --context ax-ops-lab -n ax get pods -o wide
+kubectl --context ax-ops-lab -n ax get events \
+  --sort-by=.metadata.creationTimestamp
+kubectl --context ax-ops-lab -n ax describe pod ax-server-lab
+kubectl --context ax-ops-lab -n ax logs ax-server-lab \
+  -c ax-server --since=20m --tail=200 --timestamps=true
+kubectl --context ax-ops-lab -n ax logs ax-server-lab \
+  -c ax-server --previous --tail=200 --timestamps=true
 </code></pre>
-<p>Проверяем pressure, scheduling, image pulls, storage/network и crash loops.</p>
-<h3>Слой 2 - Substrate</h3>
-<p>Проверяем WorkerPool capacity, Actor phase/assignment, snapshot URI/compatibility, resume errors, object-store reachability и atelet/atecontroller logs. Если Actor не получил Worker, AX runner ещё вообще не участвует в проблеме.</p>
-<h3>Слой 3 - AX</h3>
-<p>Сверяем desired Task generation, controller reconcile/error/backlog, referenced Workspace/Model/Gateway, conditions и suspend/resume transition. Current-main split <code>ax-server</code>/<code>ax-controller</code> означает, что API может быть доступен при сломанном reconciliation.</p>
-<h3>Слой 4 - runner/workload</h3>
-<p><code>/healthz</code> отвечает на вопрос о runner, <code>/readyz</code> - о readiness contract, но отдельно проверяется child process и task-specific progress heartbeat. Из debug Task полезны <code>ps</code>, environment metadata, <code>/workspace</code> contents и DNS/network probes.</p>
-<h3>Слой 5 - MCP/network/model</h3>
-<p>Проверяем DNS -&gt; TCP -&gt; TLS -&gt; HTTP/protocol; затем auth, rate limit и server-side operation status. Для inference сравниваем queue time, TTFT, decode throughput, KV/VRAM pressure и OOM/eviction events.</p>
-<h3>Слой 6 - agent logic</h3>
-<p>Только после инфраструктурных проверок анализируем prompt/context, tool schema, retry loop, planning и memory. Это предотвращает типичную ошибку: «тюнинговать prompt», когда MCP endpoint просто не резолвится.</p>
-<h3>Failure taxonomy</h3>
-<p>Используйте категории: desired-state admission, reconciliation, placement/capacity, restore/snapshot, runner/bootstrap, dependency/network, inference, tool authorization, external side effect, agent reasoning. Incident tag по слою облегчает статистику повторяемости.</p>
-<h3>Release acceptance suite</h3>
-<p>Перед обновлением AX/Substrate прогоните pinned набор: create simple Task; Workspace Git bootstrap; MCP read; denied write; approved idempotent write + verification; suspend/resume with durable file; worker loss; forbidden egress; model call; child-process exit; snapshot restore; backup/restore control state. Результаты сохраняйте вместе с exact versions/commits.</p>
-<h3>Post-incident</h3>
-<p>Фиксируйте timeline, root layer, detection gap, unsafe retry/approval opportunities, lost observability и конкретный regression test. Для быстро меняющегося pre-1.0 stack regression suite важнее предположения «minor update ничего не сломает».</p>
-</section><section class="chapter" id="appendix"><h1>Приложение A. Аудит проектов и выявленные расхождения</h1>
+<p><code>--previous</code> запрашивает предыдущий экземпляр container, если он есть, а не всю историю удалённых Pods. <code>--tail</code> и <code>--since</code> ограничивают материал; при обрезке сохраните ссылку на центральную историю. Возможности описаны в <a href="https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/">справочнике kubectl logs</a>. Describe и logs тоже могут раскрывать чувствительные данные, поэтому их вывод требует review перед пересылкой.</p>
+<p>Для текущего активного Actor документация Substrate даёт отдельный путь. В этой иллюстрации kubeconfig уже указывает проверенный lab context, совместимый <code>kubectl-ate</code> установлен, Actor <code>network-017</code> находится в atespace <code>lab</code>, и разрешён диагностический доступ:</p>
+<pre><code class="language-bash">kubectl ate logs actors network-017 --atespace lab
+</code></pre>
+<p>Ошибка «Actor не выполняется на Worker» не означает потерю исторических logs. Ищите прошлую assignment и центральный backend. Actor log также не обязан содержать весь control-plane trace; иногда нужен отдельный log соответствующего ate-api или atelet request.</p>
+<p><code>kubectl top</code> зависит от работающего <a href="https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/">Metrics API</a>. Его отсутствие - отдельная неисправность наблюдения, а не доказательство нулевого потребления. Текущая CPU/memory выборка не заменяет timeline, GPU metrics, storage latency и длительности lifecycle. Kubernetes resources полезно разбирать по <a href="https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/">руководству Debug Pods</a>, но Actor-specific state всё равно читается через Substrate.</p>
+
+<h2>Разделите смягчение восстановление и исправление причины</h2>
+<p><strong>Mitigation</strong> уменьшает текущий impact: ограничивает admission, переводит безопасные reads на исправный путь или останавливает рискованные writes. <strong>Recovery</strong> возвращает сервис к согласованной полезной работе. <strong>Permanent fix</strong> устраняет причину и добавляет защиту от повторения. Это могут быть три разных изменения.</p>
+<p>Любое state-changing действие в runbook должно иметь owner, prerequisites, предел воздействия, критерий успеха и stop condition. Перед retry lifecycle проверьте текущий Actor и завершённость прежнего attempt. Перед restart убедитесь, что есть durable application state и понятен outcome tools. Перед rollback snapshot оцените потерю состояния и выполните gates главы 42.</p>
+<p>Не называйте временное ослабление policy восстановлением. Если canary заработала только с отключённой TLS verification или wildcard egress, исходный production contract ещё не выполнен. Такая диагностика допустима лишь в отдельном разрешённом стенде и не становится готовым repair для реального tenant.</p>
+<p>После меры проверьте именно исходный пользовательский результат, прекращение ошибочных retries, отсутствие новых duplicates и сохранность границ доступа. Падение alert после удаления проблемной Task может означать исчезновение наблюдаемого объекта, а не решение задачи.</p>
+
+<h2>Приёмка релиза проверяет контракты</h2>
+<p>Успешные build и unit tests необходимы, но не подтверждают интеграцию конкретных images, schemas, sandbox, gateway и внешних tools. Acceptance suite работает на выбранной матрице окружения и фиксирует expected outcome вместе с доказательствами. Smoke test быстро выявляет грубый отказ; regression suite удерживает ранее разобранные случаи; нагрузочные и recovery испытания проверяют другие риски.</p>
+<table style="break-inside:avoid">
+<thead><tr><th>Группа</th><th>Сценарий</th><th>Критерий приёмки</th></tr></thead>
+<tbody>
+<tr><td>Lifecycle и setup</td><td>Create/resume, pinned Git Workspace, child exit</td><td>Правильный Actor, фактические files и отдельный application outcome</td></tr>
+<tr><td>Tools</td><td>MCP read, denied write, approved write</td><td>Schema и result верны; запрет не создаёт effect; write сверяется по operation ID</td></tr>
+<tr><td>Границы доступа</td><td>Чужой tenant, forbidden egress, stale credential</td><td>Отказ на нужной границе с понятным reason и без policy bypass</td></tr>
+<tr><td>State и отказ</td><td>Suspend/resume, Worker loss, выбранный restore</td><td>Checkpoint и dependencies сохранны; нет двух writers и повторного effect</td></tr>
+<tr><td>Model contract</td><td>Короткий и длинный запрос, перегрузка</td><td>Quality и latency budget выполнены; очередь и retry ограничены</td></tr>
+<tr><td>Recovery</td><td>Restore control state и application payload</td><td>Mappings, свежие права и reconciliation проходят gates главы 42</td></tr>
+</tbody></table>
+<p>Negative tests должны доказывать конкретный запрет. Timeout запрещённого tool не подтверждает authorization: endpoint мог быть недоступен всем. Нужны expected deny reason, безопасная разрешённая контрольная операция и проверка отсутствия внешнего изменения. Неожиданно разрешённое действие останавливает rollout, даже если остальные тесты зелёные.</p>
+<p>Для теста repeated write воспроизведите потерю receipt на synthetic tool и проверьте lookup, прежний idempotency key и отсутствие второго logical effect. Это испытание вашего harness и adapter, а не встроенное обещание exactly once от AX. Для child exit сравните exit log с application result; green Task phase не является oracle успеха.</p>
+
+<h2>Задайте условия и результат каждого прогона</h2>
+<p>Фиксируйте control-plane и runner digests, API schemas, sandbox/runtime versions, model ID и параметры, MCP adapter и server version, набор fixtures и policy revision. Для performance сохраните workload classes, concurrency, tokens и hardware profile. Входы должны быть воспроизводимыми, но model seed сам по себе не обещает byte-identical результат на любой сборке.</p>
+<p>Различайте <code>PASS</code>, <code>FAIL</code>, <code>BLOCKED</code> и <code>SKIPPED</code>. Отсутствующий cluster, credential или backup не превращает обязательный DR test в успех. В release gate обязательные prerequisites и evidence проверяются явно; нулевой exit code оболочки не заменяет отчёт по test cases. Отключённый обязательный сценарий оставляет gate закрытым.</p>
+<p>Следующий YAML - учебный контракт внутреннего test runner, не AX manifest и не готовая конфигурация существующей CI-системы. Fixture IDs и пределы иллюстративны; evidence становится результатом реального прогона, а не исходным разрешением:</p>
+<pre><code class="language-yaml">format: acceptance-contract/v1
+environment: ax-ops-lab
+release_inventory: pinned-release-01
+fixture_set: synthetic-network-v1
+policy_revision: reviewed-policy-01
+required_cases:
+  - lifecycle-and-child-exit
+  - denied-and-approved-tool-write
+  - resume-after-worker-loss
+  - restore-with-action-reconciliation
+limits:
+  case_timeout_profile: measured-lab-timeouts
+  max_tool_attempts: 2
+gates:
+  unexpected_write_count: 0
+  required_case_status: PASS
+  missing_evidence: reject
+result:
+  report_reference: pending
+  decision: not-evaluated
+</code></pre>
+<p>Пригодный report связывает каждый case с versions, input, timestamps, expected result, actual result и проверкой external truth. Ручное исключение требует отдельного решения владельца риска, срока и ограничения rollout; его нельзя спрятать под общим «all tests passed». Credentials и реальные персональные данные в fixtures не входят.</p>
+
+<h2>Canary и rollback учитывают состояние</h2>
+<p><strong>Canary</strong> допускает новую сборку к ограниченной репрезентативной группе и сравнивает её с контрольной. Заранее задайте stop conditions, владельца решения и окно наблюдения. Для агентов окно должно охватывать meaningful work, ожидание tools и нужный suspend/resume цикл, а не только старт Pod. Принципы контрольной группы и достаточного наблюдения разобраны в <a href="https://sre.google/workbook/canarying-releases/">Google SRE Workbook</a>.</p>
+<p>Сравнивайте metrics canary отдельно от control и применяйте абсолютные SLO. Один общий p95 может скрыть отказ малой группы. Учтите shared failure domains: две версии могут использовать один store или tool account, и новая схема или write canary затронет старую группу. Сопоставляйте одинаковые workload classes и не выдавайте различие input lengths за regression binary.</p>
+<p>Для stateful agents нельзя бездумно зеркалировать production запросы обеим версиям: два исполнителя могут сделать два внешних действия. Shadow evaluation использует записанные read-only fixtures или tool simulator; production mutation path остаётся у одного подтверждённого owner. Перевод существующего run требует отдельной совместимости checkpoint, schemas и unfinished operations.</p>
+<p>Rollback image не равен rollback данных. Старая версия должна читать новую schema и snapshots либо иметь поддерживаемую migration procedure. Отмена deployment не отменяет уже созданный тикет. Перед update проверьте rollback на стенде; если обратного пути после migration нет, подготовьте explicit forward recovery и отдельное согласование риска. Удалить Task и создать заново - не универсальная миграция.</p>
+
+<h2>Post incident превращает наблюдения в защиту</h2>
+<p>В post-incident record разделяйте trigger, механизм отказа, contributing factors и detection gap. «После релиза» описывает соседство во времени. Доказанная причина объясняет, почему изменение нарушило контракт и каким наблюдением это подтверждено. «Оператор ошибся» не заменяет вопрос, почему интерфейс, policy или тесты позволили опасное действие.</p>
+<p>Handoff следующему дежурному должен содержать impact, последнюю исправную границу, текущую гипотезу и её evidence, timeline принятых мер, незавершённые operations и разрешённый следующий шаг. Укажите также запрещённый шаг, если он способен повторить write или потерять checkpoint. Это экономит время и предотвращает попытку «начать всё заново».</p>
+<p>Для каждого corrective action назначьте владельца, критерий проверки и срок. Полезный regression test сначала воспроизводит defect или нарушение guard, а после исправления проходит. Runbook считается доработанным, когда другой оператор может по нему локализовать такой же сбой и подтвердить восстановление.</p>
+
+<div style="font-size:9.5pt;line-height:1.38">
+<h2 style="margin-top:4mm">Практикум диагностики и приёмки релиза</h2>
+<p>Работайте в отдельном стенде с synthetic tenant и проверяемым test tool. Нет production mutation credentials; fault injection, debug access и restore допускаются только в заранее утверждённой области. Цель - получить решение с evidence, а не запустить как можно больше команд.</p>
+<ol style="margin-top:1mm;margin-bottom:2mm">
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Зафиксируйте baseline.</strong> Сохраните inventory, fixtures и успешный application outcome. Проверьте, что report не раскрывает secrets.</li>
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Воспроизведите симптом.</strong> Пусть test command завершится с ошибкой после setup, оставив runner живым. Сравните Task phase, свежие probes, child exit и progress.</li>
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Проверьте развилку.</strong> На отдельном run задайте штатное ожидание approval. Runbook должен отличить его от child failure и не предложить бессмысленный restart.</li>
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Соберите историю.</strong> После lab relocation найдите Actor по UID и предыдущим assignments в центральных logs. Отметьте, что текущий Pod не содержит полной истории.</li>
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Испытайте security gate.</strong> Denied write должен дать ожидаемый отказ и не изменить test object. Разрешённый контрольный read подтверждает, что test endpoint доступен.</li>
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Испытайте uncertain outcome.</strong> Потеряйте receipt synthetic write и восстановите более ранний checkpoint. Lookup должен вернуть прежний outcome без второго effect.</li>
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Прогоните candidate.</strong> Выполните required cases и совместимость rollback. Отсутствующий prerequisite или неожиданная mutation должны закрыть release gate.</li>
+<li style="break-inside:avoid;margin:0.7mm 0"><strong>Передайте процедуру.</strong> Другой оператор повторяет triage и объясняет каждое решение по report. Добавьте найденные пробелы в runbook и regression suite.</li>
+</ol>
+<p>На этом основной маршрут книги завершён. Инженер должен уметь выбрать границу исполнения, определить источники истины, измерить полезную работу, безопасно восстановить состояние и доказать пригодность изменения. Приложения помогают сверять детали, но checklist и исторический аудит не заменяют испытание конкретной сборки.</p>
+<div class="sources" style="margin-top:3mm"><strong>Источники и дальнейшее чтение</strong>
+<p><a href="https://sre.google/sre-book/effective-troubleshooting/">Google SRE troubleshooting</a> и <a href="https://sre.google/workbook/canarying-releases/">canary releases</a>. Kubernetes: <a href="https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/">Debug Pods</a>, <a href="https://kubernetes.io/docs/concepts/workloads/pods/probes/">probes</a>, <a href="https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/">logs</a>, <a href="https://kubernetes.io/docs/tasks/debug/debug-cluster/resource-metrics-pipeline/">Metrics API</a>. AX <code>ac233282</code>; Substrate <code>ccecc788</code>. В книге: главы 18, 25, 29, 37-42 и приложения.</p>
+</div>
+</div>
+</section>
+<section class="chapter" id="appendix"><h1>Приложение A. Аудит проектов и выявленные расхождения</h1>
 <h2>A.1 AX</h2>
 <p><strong>Release baseline:</strong> <code>v0.3.1</code>, commit <code>e70162a</code>, release 25.09.2026.<br />
 <strong>Current API family:</strong> <code>ax.io/v1alpha1</code>.<br />
