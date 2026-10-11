@@ -1,68 +1,68 @@
-<svg aria-label="Readiness hierarchy: each green light proves only its own layer" class="diagram diagram-redrawn" height="271.92" role="img" viewBox="0 0 359.42 271.92" width="359.42" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg aria-label="Readiness hierarchy: each green light proves only its own layer" class="diagram diagram-redrawn" height="271.92" role="img" viewBox="0 0 351.92 271.92" width="351.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g class="graph" transform="scale(1 1) rotate(0) translate(12.96 258.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
 <g class="edge">
 <title>n0-&gt;n1</title>
-<path d="M83,-203.76C83,-188.72 83,-168.02 83,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="85.52,-151.41 83,-144.21 80.48,-151.41 85.52,-151.41" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="117.5" y="-171.56">not equivalent</text>
+<path d="M74.5,-203.76C74.5,-188.72 74.5,-168.02 74.5,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="77.02,-151.41 74.5,-144.21 71.98,-151.41 77.02,-151.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="109" y="-171.56">not equivalent</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M83,-101.76C83,-86.72 83,-66.02 83,-49.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="85.52,-49.41 83,-42.21 80.48,-49.41 85.52,-49.41" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="117.5" y="-69.56">not equivalent</text>
+<path d="M74.5,-101.76C74.5,-86.72 74.5,-66.02 74.5,-49.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="77.02,-49.41 74.5,-42.21 71.98,-49.41 77.02,-49.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="109" y="-69.56">not equivalent</text>
 </g>
 <!-- n2&#45;&gt;n4 -->
 <g class="edge">
 <title>n2-&gt;n4</title>
-<path d="M118.86,-42.04C147.85,-58.23 188.74,-81.07 219.4,-98.2" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
-<polygon fill="#7a6a8e" points="218.26,-100.45 225.78,-101.76 220.72,-96.05 218.26,-100.45" stroke="#7a6a8e" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="189.5" y="-69.56">work</text>
+<path d="M110.56,-42.04C139.72,-58.23 180.83,-81.07 211.66,-98.2" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
+<polygon fill="#7a6a8e" points="210.56,-100.47 218.07,-101.76 213,-96.06 210.56,-100.47" stroke="#7a6a8e" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="182" y="-69.56">work</text>
 </g>
 <!-- n3&#45;&gt;n4 -->
 <g class="edge">
 <title>n3-&gt;n4</title>
-<path d="M262,-203.76C262,-188.72 262,-168.02 262,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="264.52,-151.41 262,-144.21 259.48,-151.41 264.52,-151.41" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="282" y="-171.56">required</text>
+<path d="M254.5,-203.76C254.5,-188.72 254.5,-168.02 254.5,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="257.02,-151.41 254.5,-144.21 251.98,-151.41 257.02,-151.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="274.5" y="-171.56">required</text>
 </g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M154,-246C154,-246 12,-246 12,-246 6,-246 0,-240 0,-234 0,-234 0,-216 0,-216 0,-210 6,-204 12,-204 12,-204 154,-204 154,-204 160,-204 166,-210 166,-216 166,-216 166,-234 166,-234 166,-240 160,-246 154,-246" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-227.4">Control-plane Ready</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="33" y="-217">reconcile succeeded</text>
+<path d="M137,-246C137,-246 12,-246 12,-246 6,-246 0,-240 0,-234 0,-234 0,-216 0,-216 0,-210 6,-204 12,-204 12,-204 137,-204 137,-204 143,-204 149,-210 149,-216 149,-216 149,-234 149,-234 149,-240 143,-246 137,-246" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="42.5" y="-227.4">AX Ready</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-217">last runtime observation</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M135,-144C135,-144 31,-144 31,-144 25,-144 19,-138 19,-132 19,-132 19,-114 19,-114 19,-108 25,-102 31,-102 31,-102 135,-102 135,-102 141,-102 147,-108 147,-114 147,-114 147,-132 147,-132 147,-138 141,-144 135,-144" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="36" y="-125.4">Runner Ready</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="33" y="-115">workspace prepared</text>
+<path d="M135.5,-144C135.5,-144 13.5,-144 13.5,-144 7.5,-144 1.5,-138 1.5,-132 1.5,-132 1.5,-114 1.5,-114 1.5,-108 7.5,-102 13.5,-102 13.5,-102 135.5,-102 135.5,-102 141.5,-102 147.5,-108 147.5,-114 147.5,-114 147.5,-132 147.5,-132 147.5,-138 141.5,-144 135.5,-144" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="15.5" y="-125.4">Workspace probe</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="25" y="-115">setup observed now</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M133.5,-42C133.5,-42 32.5,-42 32.5,-42 26.5,-42 20.5,-36 20.5,-30 20.5,-30 20.5,-12 20.5,-12 20.5,-6 26.5,0 32.5,0 32.5,0 133.5,0 133.5,0 139.5,0 145.5,-6 145.5,-12 145.5,-12 145.5,-30 145.5,-30 145.5,-36 139.5,-42 133.5,-42" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="34.5" y="-23.4">Agent process</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="57.5" y="-13">child alive</text>
+<path d="M125,-42C125,-42 24,-42 24,-42 18,-42 12,-36 12,-30 12,-30 12,-12 12,-12 12,-6 18,0 24,0 24,0 125,0 125,0 131,0 137,-6 137,-12 137,-12 137,-30 137,-30 137,-36 131,-42 125,-42" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="26" y="-23.4">Agent process</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="49" y="-13">child alive</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M311,-246C311,-246 213,-246 213,-246 207,-246 201,-240 201,-234 201,-234 201,-216 201,-216 201,-210 207,-204 213,-204 213,-204 311,-204 311,-204 317,-204 323,-210 323,-216 323,-216 323,-234 323,-234 323,-240 317,-246 311,-246" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="215" y="-227.4">Dependencies</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="216.5" y="-217">MCP/model/egress</text>
+<path d="M303.5,-246C303.5,-246 205.5,-246 205.5,-246 199.5,-246 193.5,-240 193.5,-234 193.5,-234 193.5,-216 193.5,-216 193.5,-210 199.5,-204 205.5,-204 205.5,-204 303.5,-204 303.5,-204 309.5,-204 315.5,-210 315.5,-216 315.5,-216 315.5,-234 315.5,-234 315.5,-240 309.5,-246 303.5,-246" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="207.5" y="-227.4">Dependencies</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="209" y="-217">MCP/model/egress</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M321.5,-144C321.5,-144 202.5,-144 202.5,-144 196.5,-144 190.5,-138 190.5,-132 190.5,-132 190.5,-114 190.5,-114 190.5,-108 196.5,-102 202.5,-102 202.5,-102 321.5,-102 321.5,-102 327.5,-102 333.5,-108 333.5,-114 333.5,-114 333.5,-132 333.5,-132 333.5,-138 327.5,-144 321.5,-144" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="231.5" y="-125.4">Outcome</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="204.5" y="-115">goal/side effect verified</text>
+<path d="M314,-144C314,-144 195,-144 195,-144 189,-144 183,-138 183,-132 183,-132 183,-114 183,-114 183,-108 189,-102 195,-102 195,-102 314,-102 314,-102 320,-102 326,-108 326,-114 326,-114 326,-132 326,-132 326,-138 320,-144 314,-144" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="224" y="-125.4">Outcome</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="197" y="-115">goal/side effect verified</text>
 </g>
 </g>
 </svg>
