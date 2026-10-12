@@ -1,6 +1,6 @@
 # Identity, authorization и human-in-the-loop: как безопасно делегировать authority агенту
 
-**Статус:** `AX MAIN ac233282` · `SUBSTRATE MAIN 36d6d22` · `VERIFIED 2026-10-08` · `EXPERIMENTAL AUTHZ marked explicitly`
+**Статус:** `AX · ac233282` · `SUBSTRATE · 36d6d222` · `SOURCE REVIEW · 08.10.2026` · `EXPERIMENTAL AUTHZ marked explicitly`
 
 ![Authority path: identity, policy и approval превращают proposal в ограниченный execution grant](.gitbook/assets/diagrams/24-22.png)  
 *Authority path: identity, policy и approval превращают proposal в ограниченный execution grant*
@@ -191,7 +191,7 @@ PDP не должен выполнять action. Executor не должен са
 
 ### Substrate: authentication реализована, authorization экспериментальна
 
-В snapshot `36d6d22` `ate-api` требует authentication и принимает:
+В snapshot `36d6d222` `ate-api` требует authentication и принимает:
 
 - mTLS client certificate, используя первый URI SAN как principal;
 - bearer JWT от настроенного OIDC issuer с проверяемой audience.
@@ -427,7 +427,7 @@ Human-in-the-loop полезен только там, где человек ви
 
 ### Источники и дальнейшее чтение
 
-- [Substrate authentication на снимке 36d6d22](https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/authentication.md)
+- [Substrate authentication на снимке 36d6d222](https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/authentication.md)
 - [Substrate experimental OpenFGA authorization model](https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/model.fga)
 - [Substrate ate-api wiring: authentication и experimental authz flag](https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/main.go)
 - [Substrate egress credential injection](https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/egress-credential-injection.md)

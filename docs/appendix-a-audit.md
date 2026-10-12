@@ -10,7 +10,7 @@
 
 | Компонент | Опорный срез | Что следует учитывать |
 | --- | --- | --- |
-| AX release | `v0.3.1`, `e70162a`; опубликован 25.09.2026 | Историческая release point, не срез реализации поздних глав |
+| AX release | `v0.3.1`, `e70162a3`; опубликован 25.09.2026 | Историческая release point, не срез реализации поздних глав |
 | AX в главах 38-43 | `ac233282`, изменение от 27.09.2026 | После v0.3.1; direct execution вместо отдельного controller и queue |
 | Substrate в главах 39-43 | `v0.3.0`, `ccecc788`; опубликован 30.09.2026 | Контракты snapshot, routing и наблюдения относятся к этому срезу |
 | MCP в главе 36 | Спецификация `2026-07-28` | Revision протокола не является версией SDK или tool schema |
@@ -105,7 +105,7 @@ Object prefix с UID различает владельцев, но не заме
 git -C /path/to/ax rev-parse --verify HEAD
 git -C /path/to/ax ls-tree -r --name-only ac233282 -- \
   cmd/ax-controller cmd/ax-server pkg/apis/v1alpha1
-git -C /path/to/ax diff --stat e70162a ac233282 -- \
+git -C /path/to/ax diff --stat e70162a3 ac233282 -- \
   cmd internal deploy docs DESIGN.md
 ```
 

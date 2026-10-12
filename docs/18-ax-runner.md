@@ -1,6 +1,6 @@
 # Runner: PID 1 как платформенный контракт, а не просто entrypoint
 
-**Статус:** `CURRENT MAIN VERIFIED` · `PROCESS LIFECYCLE` · `READINESS SEMANTICS`
+**Статус:** `AX · ac233282` · `PROCESS LIFECYCLE` · `READINESS SEMANTICS`
 
 В главе 17 мы разделили Task, Workspace и Model и увидели, что декларация сама по себе ничего не исполняет. Между manifest и пользовательским агентом нужен компонент, который превратит данные control plane в работающий процесс внутри sandbox. В AX эту роль выполняет runner.
 
@@ -37,7 +37,7 @@ Agent harness отвечает за model loop, tools, memory, budgets и при
 
 ## Launch envelope: что AX передаёт в container
 
-В current main reconciler строит ActorTemplate так, чтобы container всегда стартовал с командой `/usr/local/bin/ax-task-runner`. Пользовательский `spec.command` не становится OCI command. Он сериализуется внутри `AX_TASK_YAML`, а runner позднее запускает его через `os/exec`.
+В срезе `ac233282` reconciler строит ActorTemplate так, чтобы container всегда стартовал с командой `/usr/local/bin/ax-task-runner`. Пользовательский `spec.command` не становится OCI command. Он сериализуется внутри `AX_TASK_YAML`, а runner позднее запускает его через `os/exec`.
 
 | Вход | Значение | Практическое следствие |
 | --- | --- | --- |
@@ -46,7 +46,7 @@ Agent harness отвечает за model loop, tools, memory, budgets и при
 | `AX_TASK_YAML` | Task без status | Runner получает launch spec, но не authoritative control-plane state |
 | `AX_WORKSPACES_YAML` | Найденные Workspace resources в binding order | Отсутствующий resource может не попасть в stream |
 | Task env | Literal `spec.env` плюс platform-provided values | Переменные доступны и runner, и child process |
-| Volume | Durable directory at `/workspace` | Files переживают suspend/resume; process tree не переживает |
+| Volume | Durable directory at `/workspace` | Предусмотренные файлы восстанавливаются из пригодной точки. Data не сохраняет индивидуальную RAM; boot source может быть общим golden, а не новым PID 1 из image |
 | Ready probe | `GET /readyz` on port 80 | Custom runner обязан занять этот port и реализовать protocol |
 
 > **Главный compatibility test.** Custom image считается AX-compatible не потому, что внутри есть ваш agent binary. Она совместима, если platform entrypoint существует и соблюдает runner contract.
@@ -162,18 +162,20 @@ Process group лучше сигнала одному PID: shell, tool process и
 
 ## Что переживает suspend/resume
 
-С точки зрения runner resume является новым boot. Substrate восстанавливает durable Workspace files, затем запускает новый container и новый PID 1. Старые goroutines, sockets, in-memory model context и child processes не продолжаются.
+Ответ зависит от состава snapshot и политики resume, а не от одного имени команды. `Full` может продолжить захваченное исполнение при совместимом runtime. `Data` сохраняет snapshot-capable volumes без индивидуальной памяти процесса; при `COLD_BOOT` containers запускаются из OCI image, при `GOLDEN` восстановленные данные объединяются с общим подготовленным guest state.
 
-| State | После resume | Кто отвечает |
+В [BuildActorTemplate AX ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) выбраны Data для pause/commit и `RESUME_SOURCE_GOLDEN` для Data resume. Значит, нельзя ни обещать продолжение индивидуального heap агента, ни утверждать, что каждый resume всегда создаёт новый PID 1 из image. Если Task использует другой базовый ActorTemplate, прочитайте его фактическую policy.
+
+| Состояние | После resume | Кто отвечает |
 | --- | --- | --- |
-| Files под durable Workspace | Должны быть восстановлены | Substrate snapshot/storage |
-| Workspace initialization marker | Позволяет пропустить повторный setup | Runner/setup logic |
-| Process memory и goroutines | Создаются заново | Harness rehydration |
-| Open sockets и sessions | Потеряны | Client reconnect logic |
-| Tool operation in progress | Неизвестен без operation ledger | Application protocol |
-| AX `WorkspaceReady` condition | Может остаться True | Control-plane stored status |
+| Файлы в durable Workspace | Восстанавливаются из пригодного snapshot; расположение вне включённых volumes меняет гарантию | Substrate snapshot/storage |
+| Workspace initialization marker | Может позволить пропустить повторный setup, но не доказывает актуальность среды | Runner/setup logic |
+| Индивидуальная память и goroutines | Не входят в Data; golden хранит общий baseline, не историю этого агента. Full требует отдельной проверки совместимости | Harness checkpoint и выбранный runtime |
+| Sockets, sessions и credentials | Не считать пригодными без перепроверки; нужен reconnect и проверка текущих прав | Client и identity logic |
+| Tool operation in progress | Исход не устанавливается по одному snapshot | Operation ledger и внешняя система |
+| AX WorkspaceReady condition | Может остаться True; это сохранённый результат bootstrap, не свежий acceptance test | Control-plane stored status |
 
-Marker защищает agent-modified checkout от повторной materialization, но не восстанавливает semantic progress. Надёжный harness при boot читает checkpoint, сверяет незавершённые operation IDs с внешними системами и только потом продолжает loop.
+Marker защищает изменённый checkout от повторной подготовки, но не возвращает прикладной прогресс. После запуска или восстановления harness читает logical checkpoint, сверяет незавершённые operation IDs с внешними системами и только затем продолжает loop. Состав snapshot и зависимость от golden подробно разбирает [39. Substrate snapshots: ownership, storage и совместимость](39-substrate-snapshot-ownership.md).
 
 ## Как выбирать уровень customization
 

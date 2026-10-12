@@ -1,12 +1,12 @@
 # AX control plane: от декларации к Actor и граница с Substrate
 
-**Статус:** `CURRENT MAIN VERIFIED` · `DIRECT RECONCILIATION` · `ROADMAP SEPARATED`
+**Статус:** `AX · ac233282` · `DIRECT RECONCILIATION` · `ROADMAP SEPARATED`
 
 В главах 12-15 мы смотрели на Agent Substrate снизу: как Actor получает Worker, как сохраняется его состояние и как трафик находит Actor после suspend/resume. Теперь поднимемся на продуктовый уровень. Инженеру редко хочется вручную создавать ActorTemplate, передавать в него описание workspace, управлять Actor и переводить его runtime states. Ему нужна более понятная декларация: вот задача, вот рабочая среда, вот модель, запусти это безопасно и покажи состояние.
 
 Именно эту роль выполняет AX. Он не заменяет Substrate и не является ещё одним sandbox runtime. AX принимает продуктовый intent в виде `Task`, `Workspace` и `Model`, а затем переводит его в lifecycle operations Substrate. Полезная аналогия: AX отвечает за язык платформы и orchestration конкретной agent workload, Substrate - за надёжное выполнение stateful Actor на кластере.
 
-Но аналогия с Kubernetes легко вводит в заблуждение. AX использует Kubernetes-подобные manifests и команды `apply`, `get`, `watch`, `delete`, однако его ресурсы не являются Kubernetes CRD. Они обслуживаются собственным gRPC API и хранятся в Redis. Более того, на проверенной версии current main reconciliation выполняется прямо внутри запроса `ax-server`. Отдельного работающего `ax-controller` в этой версии нет.
+Но аналогия с Kubernetes легко вводит в заблуждение. AX использует Kubernetes-подобные manifests и команды `apply`, `get`, `watch`, `delete`, однако его ресурсы не являются Kubernetes CRD. Они обслуживаются собственным gRPC API и хранятся в Redis. Более того, на закреплённом срезе `ac233282` reconciliation выполняется прямо внутри запроса `ax-server`. Отдельного работающего `ax-controller` в этой версии нет.
 
 ## Что читатель должен унести из главы
 
@@ -19,8 +19,8 @@
 - почему текущая direct-execution схема удобна для ранней версии, но ограничивает масштабирование;
 - что уже реализовано, а что пока существует только в roadmap.
 
-![AX Task: фактический путь current main](.gitbook/assets/diagrams/16-15.png)  
-*AX Task: фактический путь current main*
+![AX Task: фактический путь в срезе ac233282](.gitbook/assets/diagrams/16-15.png)  
+*AX Task: фактический путь в срезе ac233282*
 
 ## Сначала разделим три контракта
 
@@ -28,7 +28,7 @@
 
 | Контракт | Что он описывает | Кто владеет |
 | --- | --- | --- |
-| AX resource contract | `Task`, ссылки на `Workspace`, image, command, env, compute requests, debug и status | AX API и Redis |
+| AX resource contract | `Task`, ссылки на `Workspace`, image, command, env, поле resources, debug и status; наличие resources не доказывает runtime enforcement | AX API и Redis |
 | Translation contract | Как Task превращается в Atespace, ActorTemplate, Actor и lifecycle calls | `TaskReconciler` внутри AX |
 | Runtime contract | Placement, Worker assignment, sandbox, durable volume, snapshot, suspend/resume и network path | Agent Substrate |
 
@@ -36,7 +36,7 @@ AX может сказать: «эта Task должна использоват�
 
 > **Практическое правило.** Если решение связано с продуктовым intent агента, его API и статусом - это AX. Если решение связано с безопасным размещением, остановкой, восстановлением и адресацией sandbox - это Substrate.
 
-## Компоненты current main
+## Компоненты среза ac233282
 
 | Компонент | Фактическая роль | Чего он не делает |
 | --- | --- | --- |
@@ -152,7 +152,7 @@ Substrate client поддерживает TLS, отдельный authority, CA 
 
 ## Что реализовано, а что пока обещано
 
-| Возможность | Статус в проверенном current main |
+| Возможность | Статус в закреплённом срезе `ac233282` |
 | --- | --- |
 | Typed gRPC API, Redis store, Redis locks | Реализовано |
 | Direct Task reconciliation с Substrate | Реализовано внутри `ax-server` |
@@ -210,7 +210,7 @@ Substrate client поддерживает TLS, отдельный authority, CA 
 
 ## Итог
 
-AX превращает удобный для инженера agent intent в конкретный runtime lifecycle. Его ценность не в том, что он скрывает Substrate, а в том, что он добавляет продуктовый API и переводит Task, Workspace и Model в Atespace, ActorTemplate и Actor. На проверенной версии этот перевод выполняется синхронно внутри `ax-server`; Redis хранит AX records и live notifications, а Substrate остаётся владельцем placement, sandbox, suspend/resume и snapshot lifecycle.
+AX превращает удобный для инженера agent intent в конкретный runtime lifecycle. Его ценность не в том, что он скрывает Substrate, а в том, что он добавляет продуктовый API и переводит Task и связанные Workspace specs в Atespace, ActorTemplate и Actor. Model хранится отдельно для платформенного client и не выбирается ссылкой из Task. На проверенной версии этот перевод выполняется синхронно внутри `ax-server`; Redis хранит AX records и live notifications, а Substrate остаётся владельцем placement, sandbox, suspend/resume и snapshot lifecycle.
 
 Эта граница позволяет правильно выбирать инструмент. Если нужна изоляция и stateful runtime - смотрим на Substrate. Если нужен декларативный интерфейс для agent workloads и их product semantics - добавляем AX. Если нужны durable retries, автоматическая convergence и большая независимая controller capacity - проверяем, реализованы ли они в выбранной версии, либо проектируем этот слой отдельно.
 

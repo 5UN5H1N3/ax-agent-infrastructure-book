@@ -1,5 +1,7 @@
 # Substrate networking: routing, request parking и безопасный egress
 
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+
 **Статус:** `ACTOR-AWARE ROUTING` · `BOUNDED PARKING` · `DEFAULT-DENY EGRESS`
 
 В главе 14 Actor исчезал с Worker и появлялся снова, сохраняя logical identity. Теперь проследим сетевой путь. Клиент не может обращаться к Pod IP: Actor может быть suspended, переехать на другую node или получить новый Worker. Router должен разрешить logical Actor в текущее назначение, при необходимости дождаться resume и только затем открыть защищённый tunnel.
@@ -13,7 +15,7 @@
 - что request parking сглаживает краткий дефицит capacity, но не создаёт capacity;
 - как per-Actor flight registry предотвращает resume storm;
 - почему egress policy должна быть default-deny и как различаются HTTP, HTTPS и TLS passthrough;
-- как credential injection не допускает secret внутрь Actor и snapshot;
+- как credential injection исключает прямую выдачу secret Actor и что проверить против отражения credential разрешённым origin;
 - какие positive/negative probes нужны после каждого изменения policy.
 
 ```
@@ -168,7 +170,7 @@ Policy должна перечислять также telemetry endpoints. OpenT
 
 ## Credential injection: secret не входит в Actor
 
-Для HTTPS API policy может заменить placeholder header реальным credential. Actor отправляет, например, `Authorization: placeholder`. Gateway спрашивает credential provider, provider проверяет actor identity/atespace и читает secret store, затем gateway подставляет значение перед отправкой upstream. Actor никогда не получает secret, поэтому не может прочитать, записать в snapshot или exfiltrate его.
+Для HTTPS API policy может заменить placeholder header реальным credential. Actor отправляет, например, `Authorization: placeholder`. Gateway спрашивает credential provider, provider проверяет actor identity/atespace и читает secret store, затем gateway подставляет значение перед отправкой upstream. Этот механизм не передаёт upstream secret непосредственно Actor и не записывает его в Actor snapshot. Но это не абсолютная защита от раскрытия: разрешённый origin может отразить header в response или логе. Проверьте поведение целевого API, ограничьте credential scope и исключите echo/debug endpoints; credential injection не заменяет проверку возможности утечки по разрешённому пути.
 
 ```
 - https:
@@ -260,9 +262,9 @@ Substrate networking связывает стабильную Actor identity с �
 
 ### Источники и дальнейшее чтение
 
-- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md)
-- [Request parking design](https://github.com/agent-substrate/substrate/blob/main/docs/request-parking.md)
-- [Network egress contract](https://github.com/agent-substrate/substrate/blob/main/docs/network-egress.md)
-- [Supported egress traffic](https://github.com/agent-substrate/substrate/blob/main/docs/egress-traffic.md)
-- [Egress credential injection](https://github.com/agent-substrate/substrate/blob/main/docs/egress-credential-injection.md)
-- [EgressPolicy API definitions](https://github.com/agent-substrate/substrate/blob/main/pkg/proto/ateapipb/ateapi.proto)
+- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md)
+- [Request parking design](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md)
+- [Network egress contract](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/network-egress.md)
+- [Supported egress traffic](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-traffic.md)
+- [Egress credential injection](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-credential-injection.md)
+- [EgressPolicy API definitions](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto)

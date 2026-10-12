@@ -90,7 +90,7 @@
 <title>n5</title>
 <path d="M783,-49C783,-49 676,-49 676,-49 670,-49 664,-43 664,-37 664,-37 664,-19 664,-19 664,-13 670,-7 676,-7 676,-7 783,-7 783,-7 789,-7 795,-13 795,-19 795,-19 795,-37 795,-37 795,-43 789,-49 783,-49" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="678" y="-30.4">Actor snapshot</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="700" y="-20">RAM + data</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="680.5" y="-20">Full / Data по policy</text>
 </g>
 <!-- n6 -->
 <g class="node">

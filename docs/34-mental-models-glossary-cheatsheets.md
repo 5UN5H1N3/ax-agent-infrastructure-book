@@ -4,7 +4,23 @@
 
 Эта глава нужна как рабочая опора: вернуться к границам ответственности, быстро найти значение термина и выбрать следующий диагностический шаг. Mental model - это упрощённая модель системы, которая помогает предсказывать её поведение. Хорошая модель не объясняет всё, зато показывает, где ожидать ограничения и какое доказательство искать. Мы сначала разберём десять таких границ, затем соберём глоссарий и памятки.
 
-Для конкретных команд и устройства AX здесь используется тот же зафиксированный срез `ac23328`, что в главах 16-19; термины Substrate сверены со срезом `df78882` из главы 32. Это не обещание совместимости с любой версией `main` и не подмена release baseline книги. Перед применением памятки сопоставьте commit, image digest и CLI вашего deployment. Общие инженерные принципы ниже не зависят от названий ресурсов.
+Для конкретных команд и устройства AX здесь используется тот же зафиксированный срез `ac233282`, что в главах 16-19; термины Substrate сверены со срезом `df788825` из главы 32. Это не обещание совместимости с любой версией `main` и не подмена release baseline книги. Перед применением памятки сопоставьте commit, image digest и CLI вашего deployment. Общие инженерные принципы ниже не зависят от названий ресурсов.
+
+## От обзорной главы к углублённому разбору
+
+Основной маршрут уже дал общую картину. Дальше можно выбрать нужный вопрос, не перечитывая весь стек. Поздние главы уточняют ранние определения и связывают их с эксплуатационными решениями.
+
+| Основа | Углубление | Новый вопрос |
+| --- | --- | --- |
+| 5: context/state/memory | [35. Context engineering: управление контекстом и durable state](35-context-engineering.md) | Как выбрать данные для следующего решения, проверить их свежесть и сохранить важное при compaction? |
+| 6: tools и MCP | [36. MCP 2026: протокол, discovery, transport и trust boundaries](36-mcp-2026.md) | Как согласовать discovery, transport и capabilities конкретных client/server? |
+| 24: identity и approval | [37. Безопасное выполнение tools: idempotency, approvals и attenuation полномочий](37-safe-tool-execution.md) | Что делать, когда действие применилось, а ответ потерялся? |
+| 16–19: AX lifecycle | [38. AX control plane: state, event flow и operational truth](38-ax-state-event-flow.md) | Как отличить stored status от фактического исполнения и восстановить частичную операцию? |
+| 14: suspend/resume | [39. Substrate snapshots: ownership, storage и совместимость](39-substrate-snapshot-ownership.md) | Какие зависимости нужны для restore и когда Tag можно удалить? |
+| 15: networking | [40. Gateway и egress: DNS, TLS и проверка реальной доступности](40-gateway-egress.md) | Где оборвался DNS/TLS путь и сохранился ли запрет лишнего доступа? |
+| 20–21: inference | [41. Local inference sizing: память GPU, parallelism и эксплуатационные SLO](41-local-inference-sizing.md) | Какая память, topology и admission policy обеспечат измеренный SLO? |
+| 27: production | [42. Production security, secrets и disaster recovery](42-production-security-dr.md) | Как вернуть данные, актуальные права и историю внешних действий? |
+| 29: troubleshooting | [43. Operations runbook: диагностика по слоям и release acceptance](43-operations-runbook.md) | Как превратить расследование в воспроизводимую инструкцию и regression test? |
 
 ## Десять границ для инженерного решения
 
@@ -24,7 +40,7 @@
 
 **AX не равен Substrate.** Task описывает запуск и связанную рабочую среду; Substrate предоставляет Actor, assignment, snapshot и routing. Внутри sandbox runner готовит среду и запускает command, а harness уже выполняет прикладную задачу. Поэтому прохождение одного слоя не доказывает прохождение остальных.
 
-Для среза `ac23328` lifecycle reconciliation выполняется синхронно в обработчиках `ax-server`. Не ищите отдельный `ax-controller` или durable очередь Redis Streams по старой схеме. Redis Pub/Sub сообщает об обновлениях, но не заменяет журнал незавершённых операций. При timeout сопоставьте AX resource, фактический Actor и runner: между этими системами нет общей транзакции.
+Для среза `ac233282` lifecycle reconciliation выполняется синхронно в обработчиках `ax-server`. Не ищите отдельный `ax-controller` или durable очередь Redis Streams по старой схеме. Redis Pub/Sub сообщает об обновлениях, но не заменяет журнал незавершённых операций. При timeout сопоставьте AX resource, фактический Actor и runner: между этими системами нет общей транзакции.
 
 ### Логическая identity не равна физическому месту исполнения
 
@@ -40,7 +56,7 @@
 
 ### Snapshot сохраняет определённое состояние, backup обеспечивает восстановление системы
 
-**Snapshot не равен backup и не равен откату внешнего мира.** В Substrate scope `Full` включает memory state и предусмотренные runtime данные, а `Data` предназначен для восстановления данных с новым запуском процессов. Node-local pause checkpoint и durable suspend snapshot имеют разные гарантии при потере node. В AX из разобранного среза используется Data-путь: рассчитывать на сохранение stack агента нельзя.
+**Snapshot не равен backup и не равен откату внешнего мира.** В Substrate scope `Full` включает memory state и предусмотренные runtime данные, а `Data` восстанавливает предусмотренные volumes без индивидуальной памяти процесса. Политика `onResume.fromData` выбирает cold boot или общий golden baseline; это разные пути. Node-local pause checkpoint и durable suspend snapshot имеют разные гарантии при потере node. В AX из разобранного среза используется Data-путь: рассчитывать на сохранение stack агента нельзя.
 
 Backup policy дополнительно задаёт retention, независимый failure domain, доступ к ключам и проверенный restore. Snapshot Actor не восстанавливает всю платформу и не отменяет отправленное письмо, merge или конфигурацию маршрутизатора. После любого resume перепроверьте внешние receipts, свежесть credentials и действительность leases. Golden snapshot ускоряет общий старт, но не является индивидуальной историей задачи.
 
@@ -98,7 +114,7 @@ Backup policy дополнительно задаёт retention, независ�
 | WorkerPool и Worker | Pool описывает физическую capacity и eligibility; Worker является конкретным target assignment. | 13, 28 |
 | Tag и golden snapshot | Tag удерживает отдельную snapshot copy; golden state служит общей подготовленной точкой старта. | 13-14 |
 | Runner | Process contract внутри sandbox: setup среды, child command и probes. Не workflow engine по умолчанию. | 18 |
-| Gateway | Общее название boundary/proxy. Не AX API kind на `ac23328`; networking смотрите в Substrate. | 15, 17 |
+| Gateway | Общее название boundary/proxy. Не AX API kind на `ac233282`; networking смотрите в Substrate. | 15, 17 |
 
 ### Надёжность и производительность
 
@@ -107,7 +123,7 @@ Backup policy дополнительно задаёт retention, независ�
 | Reconciliation | Сведение наблюдаемого состояния к желаемому. Не общая транзакция всех участвующих сервисов. | 10, 19 |
 | Lease и fencing | Lease ограничивает время владения; fencing позволяет backend отвергать действия устаревшего владельца. Это разные механизмы. | 10, 19 |
 | Idempotency | Повтор операции с тем же ключом не создаёт лишний эффект в пределах contract и retention исполнителя. | 10, 33 |
-| RPO и RTO | Допустимая потеря данных и срок восстановления. Требуют restore test, а не только наличия backup. | 27 |
+| RPO и RTO | Целевое допустимое временное окно потери данных и предельно допустимое время восстановления. Требуют restore test, а не только наличия backup. | 27 |
 | Prefill и decode | Обработка input и генерация output. По-разному конкурируют за compute и memory capacity. | 20-21 |
 | TTFT и ITL | Время до первого token и интервал между tokens. Указывайте client/server boundary измерения. | 21 |
 | KV cache | Attention state активных sequences; занимает memory. Не durable memory агента и не cache готовых ответов. | 2, 21 |
@@ -132,7 +148,7 @@ Backup policy дополнительно задаёт retention, независ�
 
 ### Сначала проверьте адрес и scope
 
-CLI ниже соответствует `ac23328`. Имена `lab-cluster`, `team-a` и `investigate-142` учебные: замените их на свои и проверьте deployment record. `ax version` в этом срезе выводит общую строку версии, а не точный commit бинарника; для сверки нужны provenance сборки и digest control-plane image.
+CLI ниже соответствует `ac233282`. Имена `lab-cluster`, `team-a` и `investigate-142` учебные: замените их на свои и проверьте deployment record. `ax version` в этом срезе выводит общую строку версии, а не точный commit бинарника; для сверки нужны provenance сборки и digest control-plane image.
 
 ```
 ax help
@@ -237,9 +253,9 @@ next_check: one hypothesis, one safe test, success criterion
 
 ### Источники и дальнейшее чтение
 
-- [AX CLI на ac23328: syntax, flags и последовательное apply](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax/main.go)
-- [AX schema на ac23328: Task, Workspace и Model](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto)
-- [AX reconciliation и Workspace readiness на ac23328](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go)
-- [Substrate API guide на df78882: resources и lifecycle](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md) и [глоссарий этого среза](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/glossary.md)
+- [AX CLI на ac233282: syntax, flags и последовательное apply](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax/main.go)
+- [AX schema на ac233282: Task, Workspace и Model](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto)
+- [AX reconciliation и Workspace readiness на ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go)
+- [Substrate API guide на df788825: resources и lifecycle](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md) и [глоссарий этого среза](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/glossary.md)
 - [MCP authorization 2026-07-28: protocol-level authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization)
 - [Kubernetes: Debug Pods](https://kubernetes.io/docs/tasks/debug/debug-application/debug-pods/) и [kubectl logs](https://kubernetes.io/docs/reference/kubectl/generated/kubectl_logs/)

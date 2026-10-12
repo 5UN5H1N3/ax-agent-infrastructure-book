@@ -1,8 +1,8 @@
 # AX primitives: Task, Workspace и Model без магии
 
-**Статус:** `CURRENT MAIN VERIFIED` · `THREE API KINDS` · `CONTRACTS VS WIRING`
+**Статус:** `AX · ac233282` · `THREE API KINDS` · `CONTRACTS VS WIRING`
 
-В главе 16 мы проследили путь запроса через `ax-server`, Redis и Substrate. Теперь пора разобрать язык, на котором пользователь объясняет AX, что именно нужно запустить. Этот язык намеренно мал: в проверенном current main есть три API kind - `Task`, `Workspace` и `Model`.
+В главе 16 мы проследили путь запроса через `ax-server`, Redis и Substrate. Теперь пора разобрать язык, на котором пользователь объясняет AX, что именно нужно запустить. Этот язык намеренно мал: в закреплённом срезе `ac233282` есть три API kind - `Task`, `Workspace` и `Model`.
 
 Маленький API полезен только тогда, когда границы объектов понятны. Если положить image, Git repositories, credentials, model parameters, network policy и весь lifecycle в один универсальный manifest, его легко создать, но почти невозможно безопасно переиспользовать. AX разделяет описание выполняемой единицы, подготовку рабочей среды и model configuration. При этом текущая реализация ещё не соединяет все три объекта так полно, как подсказывают их названия.
 
@@ -13,7 +13,7 @@
 - почему Task не равен Pod, Job или «агенту целиком»;
 - почему Workspace является blueprint среды, а не общей сетевой файловой системой;
 - что Model настраивает для платформы и почему Task пока не может ссылаться на него;
-- почему Gateway больше не является AX kind в current main;
+- почему Gateway больше не является AX kind в срезе `ac233282`;
 - какие поля уже влияют на runtime, а какие пока существуют только в schema;
 - почему порядок документов в multi-document YAML имеет значение;
 - что на самом деле доказывает `WorkspaceReady`;
@@ -40,7 +40,7 @@ Primitive полезно выделять не потому, что ему на�
 | `Task` | Да | Create/get/list/delete/suspend/resume/watch |
 | `Workspace` | Да | Update/get/list/delete |
 | `Model` | Да | Update/get/list/delete |
-| `Gateway` | Нет | Нет kind, message или CLI branch в current main |
+| `Gateway` | Нет | Нет kind, message или CLI branch в срезе `ac233282` |
 
 `docs/manifests.md` всё ещё начинается словами «all four kinds», хотя дальше показывает только Task, Workspace и Model. Это обычный пример documentation drift. Gateway нельзя объявить «на всякий случай»: CLI вернёт unsupported kind. Сетевые ingress/egress contracts принадлежат Agent Substrate и были разобраны в главе 15.
 
@@ -113,7 +113,7 @@ Manifests показывают `requests.cpu`, `requests.memory`, limits и по
 
 Повторный CreateTask с тем же именем запрещён. Это защищает связь Task name, Actor и durable state от неявной подмены image или command. Изменение executable contract должно создавать новую Task identity либо проходить явную migration procedure.
 
-Suspend/resume меняют lifecycle, а не spec. Delete сначала удаляет Actor и task-specific ActorTemplates, затем Redis record. Если нужна история завершённых задач, её следует экспортировать до delete: Task store не является архивом.
+В AX `ac233282` suspend/resume меняют lifecycle, а не spec. Delete ждёт удаления Actor, затем пытается очистить per-task ActorTemplates и удаляет Redis record. Ошибка очистки templates обрабатывается как warning, поэтому отсутствие Task не доказывает отсутствие templates или их golden snapshots; проверьте inventory Substrate отдельно. Если нужна история завершённых задач, экспортируйте её до delete: Task store не является архивом.
 
 ## Workspace: blueprint materialized environment
 

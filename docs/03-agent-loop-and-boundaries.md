@@ -478,7 +478,7 @@ Counterfactual test задаёт вопрос: «Если бы observation от�
 
 ## Где проходит граница AX
 
-В AX `Task` предоставляет внешний lifecycle работы: создание, запуск, наблюдение, завершение, отмену и связь с execution metadata. `Workspace` задаёт изолированный контекст файлов и процессов. `Model` выполняет inference. Но эти абстракции сами по себе не определяют внутреннюю семантику agent loop.
+В AX `Task` предоставляет инфраструктурный lifecycle: создание, наблюдение, suspend/resume и delete связанного исполнения. `Workspace` задаёт blueprint файлов, Git sources и конфигурации среды, который материализует runner; это не отдельный контейнер или общее хранилище процессов. `Model` хранит конфигурацию платформенного client, а inference выполняет выбранный внешний provider/runtime. Завершение пользовательской цели, отмена прикладных операций и подключение модели внутри Task требуют собственного протокола harness: default runner не устанавливает `Completed` по выходу дочерней команды.
 
 Runner или agent runtime поверх AX должен определить:
 
@@ -631,4 +631,4 @@ Created
 - [Idempotent Receiver](https://martinfowler.com/articles/patterns-of-distributed-systems/idempotent-receiver.html) - классический паттерн защиты от повторной обработки запросов.
 - [Temporal: Tasks](https://docs.temporal.io/tasks) и [Standalone Activity](https://docs.temporal.io/nexus/standalone-activity) - durability, retry и idempotency для внешних операций.
 - [Infinite Agentic Loops in Production](https://arxiv.org/abs/2607.01641) - taxonomy и detection бесконечных loop в agentic systems.
-- [AX Core concepts, baseline e70162a](https://github.com/5UN5H1N3/ax-core/blob/e70162a024fc4bb55015341c761fe0b8d7c56ac3/docs/CORE_CONCEPTS.md) - границы базовых примитивов AX.
+- [AX concepts, release v0.3.1 e70162a3](https://github.com/google/ax/blob/e70162a34037c221fe6fadefd98308c05a4ad8f3/docs/concepts.md) - границы базовых примитивов AX.

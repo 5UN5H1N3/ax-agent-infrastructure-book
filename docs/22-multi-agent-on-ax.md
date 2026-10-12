@@ -1,6 +1,6 @@
 # Multi-agent на AX: как проектировать делегирование без task explosion
 
-**Статус:** AX MAIN ac233282 · VERIFIED 2026-10-08 · APPLICATION PROTOCOL where noted
+**Статус:** AX · ac233282 · SOURCE REVIEW · 08.10.2026 · APPLICATION PROTOCOL where noted
 
 ![Multi-agent workflow на AX: платформа исполняет Tasks, приложение управляет деревом работы](.gitbook/assets/diagrams/22-20.png)  
 *Multi-agent workflow на AX: платформа исполняет Tasks, приложение управляет деревом работы*
@@ -9,7 +9,7 @@
 
 Глава 7 уже разобрала manager, handoff, fan-out/fan-in, pipeline и generator/evaluator. Здесь вопрос практический: **как положить такую систему на AX, не приписав платформе функций, которых у неё нет?**
 
-AX предоставляет изолированное место исполнения и lifecycle для Task. Он умеет создать Task, связать её с Workspace и Model, запустить через Substrate, suspend/resume/delete и показать инфраструктурный status. Но current AX не является multi-agent scheduler, durable workflow engine или coordinator. Декомпозиция цели, child IDs, budgets, join policy, прикладной результат и восстановление дерева — обязанности вашего orchestration layer.
+AX предоставляет изолированное место исполнения и lifecycle для Task. Он умеет создать Task, связать её с Workspace, запустить через Substrate, suspend/resume/delete и показать инфраструктурный status. Но current AX не является multi-agent scheduler, durable workflow engine или coordinator. Декомпозиция цели, child IDs, budgets, join policy, прикладной результат и восстановление дерева — обязанности вашего orchestration layer.
 
 Это разделение полезно. AX не должен угадывать, что означает «исследование закончено» или «review пройден». Приложение не должно вручную реализовывать sandbox, Worker assignment и восстановление Workspace. Надёжная система соединяет оба слоя явным контрактом.
 
@@ -18,7 +18,7 @@ AX предоставляет изолированное место исполн
 | Уровень | Что это | Кто управляет | Что сохраняется |
 | --- | --- | --- | --- |
 | Логическая роль | Goal, instructions, tools, policy и decision loop | Harness/coordinator | Application state, messages, checkpoints |
-| AX Task | Immutable launch specification и lifecycle resource | AX control plane | Spec, infrastructure status, связь с Workspace/Model |
+| AX Task | Immutable launch specification и lifecycle resource | AX control plane | Spec, infrastructure status, Workspace bindings; model adapter задаётся приложением |
 | Substrate Actor/Worker | Изолированная runtime-сущность и место исполнения | Agent Substrate | Runtime state и snapshot в пределах его гарантий |
 
 Связь между уровнями не обязана быть один к одному. Несколько коротких specialist calls могут выполняться внутри одной AX Task. И наоборот, один долгоживущий логический agent после suspend/resume продолжит работу в новом process из checkpoint на том же durable Workspace.
@@ -107,7 +107,7 @@ budget:
 state: dispatched
 ```
 
-Это application protocol, а не новый AX manifest. В AX Task попадает только то, что нужно runtime: image, command, env, Workspace bindings, Model и platform resources. Goal, budgets и result contract можно передать harness через versioned artifact/config, но authoritative запись должна остаться снаружи Task.
+Это application protocol, а не новый AX manifest. В AX Task попадает только то, что нужно runtime: image, command, env, Workspace bindings и поле resources. Model не является полем TaskSpec; endpoint и авторизация задаются harness отдельно. В `ac233282` поле Task resources не переносится reconciler в runtime limits. Goal, budgets и result contract можно передать harness через versioned artifact/config, но authoritative запись должна остаться снаружи Task.
 
 ## Две машины состояний вместо одной
 
@@ -304,7 +304,7 @@ Tester получает не текст «implementer всё сделал», а 
 
 Coordinator проверяет coverage, актуальность commit, tests, reviewer verdict и root budget. Merge/release выполняет человек или отдельный policy gate. Reviewer не получает скрытую capability на публикацию.
 
-AX здесь создаёт и изолирует Tasks, материализует Workspaces, связывает Model и обеспечивает lifecycle. Application layer решает, кто кому делегировал, какой commit является входом, сколько осталось budget, прошёл ли review и можно ли завершать root objective.
+AX здесь создаёт и изолирует Tasks, материализует Workspaces через runner и обеспечивает lifecycle; подключение модели к agent loop остаётся контрактом harness. Application layer решает, кто кому делегировал, какой commit является входом, сколько осталось budget, прошёл ли review и можно ли завершать root objective.
 
 ## Что наблюдать
 
@@ -356,7 +356,7 @@ AX здесь создаёт и изолирует Tasks, материализу
 
 ## Итог
 
-Multi-agent на AX строится не формулой «один агент — один Task», а согласованием двух архитектур. AX отвечает за declarative launch, isolation, Workspace/Model bindings и lifecycle исполнителей. Прикладной orchestration layer отвечает за дерево делегирования, budgets, authority, business state, result contract, join и recovery.
+Multi-agent на AX строится не формулой «один агент — один Task», а согласованием двух архитектур. AX отвечает за declarative launch, isolation, Workspace bindings и lifecycle исполнителей. Прикладной orchestration layer отвечает за дерево делегирования, budgets, authority, business state, result contract, join и recovery.
 
 Главный выбор делается до spawn: действительно ли child нужна отдельная execution boundary? Если да, AX Task даёт собственный sandbox, state и lifecycle. Если нет, оставьте работу внутри одного harness или deterministic workflow. Так сохраняется полезный параллелизм без превращения каждого решения модели в инфраструктурный объект.
 
@@ -367,6 +367,6 @@ Multi-agent на AX строится не формулой «один агент
 - [AX Design: архитектура, компоненты и API на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/DESIGN.md)
 - [AX server: lifecycle RPC, per-resource locks и WatchTask](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go)
 - [AX Task API types и validation](https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1)
-- [AX runner: process supervision и application completion boundary](https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/runner)
+- [AX runner: process supervision и application completion boundary](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go)
 - [W3C Trace Context](https://www.w3.org/TR/trace-context/)
 - [NIST SP 800-53 Rev. 5: AC-6 Least Privilege](https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final)

@@ -1,4 +1,4 @@
-<svg aria-label="Состояние агента: семь разных сущностей, которые часто ошибочно называют «памятью»" class="diagram diagram-redrawn" height="291.92" role="img" viewBox="0 0 604.92 291.92" width="604.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<svg aria-label="Слои состояния агента: контекст, рабочие данные, память процесса и snapshot" class="diagram diagram-redrawn" height="291.92" role="img" viewBox="0 0 622.92 291.92" width="622.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
 <g class="graph" transform="scale(1 1) rotate(0) translate(12.96 278.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
@@ -10,37 +10,37 @@
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M125.1,-96.11C150.58,-102.36 180.24,-109.63 206.45,-116.06" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="206.15,-118.58 213.74,-117.85 207.35,-113.69 206.15,-118.58" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169.5" y="-114.56">artifacts</text>
+<path d="M125.06,-95.48C153.2,-102.11 186.65,-109.98 215.62,-116.79" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="215.3,-119.31 222.89,-118.5 216.46,-114.4 215.3,-119.31" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169.5" y="-113.56">artifacts</text>
 </g>
 <!-- n1&#45;&gt;n3 -->
 <g class="edge">
 <title>n1-&gt;n3</title>
-<path d="M125.44,-70.26C139.31,-67.85 150,-66 150,-66 150,-66 182.91,-63.38 215.02,-60.82" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="215.3,-63.32 222.28,-60.24 214.9,-58.3 215.3,-63.32" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M125.44,-70.26C139.31,-67.85 150,-66 150,-66 150,-66 176.83,-64.01 206.52,-61.8" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="206.71,-64.31 213.71,-61.26 206.34,-59.28 206.71,-64.31" stroke="#60748a" stroke-width="1.55"></polygon>
 <text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="169.5" y="-68.56">persist</text>
 </g>
 <!-- n2&#45;&gt;n5 -->
 <g class="edge">
 <title>n2-&gt;n5</title>
-<path d="M339.2,-133C372.84,-133 414.47,-133 448.6,-133" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="449.01,-135.52 456.21,-133 449.01,-130.48 449.01,-135.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="394.5" y="-135.56">durable data</text>
+<path d="M348.01,-133C384.29,-133 430.15,-133 466.94,-133" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="466.98,-135.52 474.18,-133 466.97,-130.48 466.98,-135.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="412.5" y="-135.56">durable data</text>
 </g>
 <!-- n4&#45;&gt;n5 -->
 <g class="edge">
 <title>n4-&gt;n5</title>
-<path d="M514.5,-223.65C514.5,-206 514.5,-180.79 514.5,-161.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="517.02,-161.27 514.5,-154.07 511.98,-161.27 517.02,-161.27" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="506.5" y="-186.56">checkpoint</text>
+<path d="M532.5,-223.65C532.5,-206 532.5,-180.79 532.5,-161.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="535.02,-161.27 532.5,-154.07 529.98,-161.27 535.02,-161.27" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="524.5" y="-186.56">checkpoint</text>
 </g>
 <!-- n5&#45;&gt;n6 -->
 <g class="edge">
 <title>n5-&gt;n6</title>
-<path d="M514.5,-111.65C514.5,-94 514.5,-68.79 514.5,-49.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="517.02,-49.27 514.5,-42.07 511.98,-49.27 517.02,-49.27" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="506.5" y="-74.56">store</text>
+<path d="M532.5,-111.65C532.5,-94 532.5,-68.79 532.5,-49.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="535.02,-49.27 532.5,-42.07 529.98,-49.27 535.02,-49.27" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="524.5" y="-74.56">store</text>
 </g>
 <!-- n0 -->
 <g class="node">
@@ -59,37 +59,37 @@
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M327,-154C327,-154 226,-154 226,-154 220,-154 214,-148 214,-142 214,-142 214,-124 214,-124 214,-118 220,-112 226,-112 226,-112 327,-112 327,-112 333,-112 339,-118 339,-124 339,-124 339,-142 339,-142 339,-148 333,-154 327,-154" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="239.5" y="-135.4">Filesystem</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="228" y="-125">workspace/artifacts</text>
+<path d="M336,-154C336,-154 235,-154 235,-154 229,-154 223,-148 223,-142 223,-142 223,-124 223,-124 223,-118 229,-112 235,-112 235,-112 336,-112 336,-112 342,-112 348,-118 348,-124 348,-124 348,-142 348,-142 348,-148 342,-154 336,-154" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="248.5" y="-135.4">Filesystem</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="237" y="-125">workspace/artifacts</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M318.5,-77C318.5,-77 234.5,-77 234.5,-77 228.5,-77 222.5,-71 222.5,-65 222.5,-65 222.5,-47 222.5,-47 222.5,-41 228.5,-35 234.5,-35 234.5,-35 318.5,-35 318.5,-35 324.5,-35 330.5,-41 330.5,-47 330.5,-47 330.5,-65 330.5,-65 330.5,-71 324.5,-77 318.5,-77" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="236.5" y="-58.4">External DB</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="237.5" y="-48">memory/events</text>
+<path d="M345,-77C345,-77 226,-77 226,-77 220,-77 214,-71 214,-65 214,-65 214,-47 214,-47 214,-41 220,-35 226,-35 226,-35 345,-35 345,-35 351,-35 357,-41 357,-47 357,-47 357,-65 357,-65 357,-71 351,-77 345,-77" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="245.5" y="-58.4">External DB</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="228" y="-48">history/memory/events</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M560.5,-266C560.5,-266 468.5,-266 468.5,-266 462.5,-266 456.5,-260 456.5,-254 456.5,-254 456.5,-236 456.5,-236 456.5,-230 462.5,-224 468.5,-224 468.5,-224 560.5,-224 560.5,-224 566.5,-224 572.5,-230 572.5,-236 572.5,-236 572.5,-254 572.5,-254 572.5,-260 566.5,-266 560.5,-266" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="470.5" y="-247.4">Process RAM</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="481" y="-237">runtime state</text>
+<path d="M578.5,-266C578.5,-266 486.5,-266 486.5,-266 480.5,-266 474.5,-260 474.5,-254 474.5,-254 474.5,-236 474.5,-236 474.5,-230 480.5,-224 486.5,-224 486.5,-224 578.5,-224 578.5,-224 584.5,-224 590.5,-230 590.5,-236 590.5,-236 590.5,-254 590.5,-254 590.5,-260 584.5,-266 578.5,-266" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="488.5" y="-247.4">Process RAM</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="499" y="-237">runtime state</text>
 </g>
 <!-- n5 -->
 <g class="node">
 <title>n5</title>
-<path d="M560.5,-154C560.5,-154 468.5,-154 468.5,-154 462.5,-154 456.5,-148 456.5,-142 456.5,-142 456.5,-124 456.5,-124 456.5,-118 462.5,-112 468.5,-112 468.5,-112 560.5,-112 560.5,-112 566.5,-112 572.5,-118 572.5,-124 572.5,-124 572.5,-142 572.5,-142 572.5,-148 566.5,-154 560.5,-154" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="482.5" y="-135.4">Snapshot</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="470.5" y="-125">RAM/durable data</text>
+<path d="M578.5,-154C578.5,-154 486.5,-154 486.5,-154 480.5,-154 474.5,-148 474.5,-142 474.5,-142 474.5,-124 474.5,-124 474.5,-118 480.5,-112 486.5,-112 486.5,-112 578.5,-112 578.5,-112 584.5,-112 590.5,-118 590.5,-124 590.5,-124 590.5,-142 590.5,-142 590.5,-148 584.5,-154 578.5,-154" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="500.5" y="-135.4">Snapshot</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="488.5" y="-125">RAM/durable data</text>
 </g>
 <!-- n6 -->
 <g class="node">
 <title>n6</title>
-<path d="M567,-42C567,-42 462,-42 462,-42 456,-42 450,-36 450,-30 450,-30 450,-12 450,-12 450,-6 456,0 462,0 462,0 567,0 567,0 573,0 579,-6 579,-12 579,-12 579,-30 579,-30 579,-36 573,-42 567,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="464" y="-23.4">Object storage</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="477.5" y="-13">snapshot blobs</text>
+<path d="M585,-42C585,-42 480,-42 480,-42 474,-42 468,-36 468,-30 468,-30 468,-12 468,-12 468,-6 474,0 480,0 480,0 585,0 585,0 591,0 597,-6 597,-12 597,-12 597,-30 597,-30 597,-36 591,-42 585,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="482" y="-23.4">Object storage</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="495.5" y="-13">snapshot blobs</text>
 </g>
 </g>
 </svg>

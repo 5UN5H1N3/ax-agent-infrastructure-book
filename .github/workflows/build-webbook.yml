@@ -9,6 +9,9 @@ on:
       - "scripts/build_webbook.py"
       - "scripts/rebuild_diagrams.py"
       - "scripts/publish_generated_artifacts.py"
+      - "scripts/check_book_consistency.py"
+      - "scripts/book_structure.py"
+      - "scripts/test_book_consistency.py"
       - ".github/workflows/build-webbook.yml"
 
 permissions:
@@ -53,6 +56,8 @@ jobs:
 
       - name: Validate web edition
         run: |
+          python scripts/check_book_consistency.py --html book/AX_Agent_Infrastructure_Book_RU.html --docs docs
+          python scripts/test_book_consistency.py
           test -f docs/README.md
           test -f docs/SUMMARY.md
           test -f docs/gitbook-docs.yaml

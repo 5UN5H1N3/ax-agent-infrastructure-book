@@ -1,5 +1,7 @@
 # Ресурсная модель Substrate: от capacity до долговечного Actor
 
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+
 **Статус:** `TWO API DOMAINS` · `VERSIONED RESOURCES` · `OWNERSHIP MATTERS`
 
 В предыдущей главе мы прошли по operational path: запрос приходит в router, control plane находит или возобновляет Actor, а Worker предоставляет sandbox capacity. Теперь нужно понять, какими объектами инженер описывает эту систему. Без этого архитектура остаётся набором процессов, а любое изменение превращается в угадывание: куда положить label, что можно обновить, кто владеет snapshot и почему объект с тем же именем после пересоздания уже не тот же объект.
@@ -192,7 +194,7 @@ Actor-level limits - часть immutable template и snapshot compatibility. Д
 - `onPause` - scope node-local checkpoint;
 - `onCommit` - scope durable snapshot при suspend;
 - `Full` - process memory, writable rootfs delta и поддерживаемые durable volumes;
-- `Data` - durable data без memory/rootfs, после resume containers стартуют заново.
+- `Data` - durable data без индивидуальной memory/rootfs; `onResume.fromData` выбирает cold boot либо guest state общего golden snapshot.
 
 `onCommit` должен быть subset `onPause`. Если pause захватил только Data, поздний suspend не может волшебно получить уже отброшенную process memory. Подробнее стоимость и failure semantics этих scopes разобраны в следующей главе.
 
@@ -341,7 +343,15 @@ UID в path не даёт новому объекту с повторно исп
 | Tag | CreateTag копирует snapshot suspended Actor | При DeleteTag | Actors в пределах scope |
 | Golden Tag | Template preparation workflow | При удалении template | Новые Actors этого template |
 
-Database row и object bytes должны удаляться в правильном порядке. Сначала control plane удаляет owned objects, затем ссылку. Retry использует deterministic destination и должен продолжать частично выполненную операцию. Если process упал между шагами, возможен orphaned object, но не ссылка на уже удалённые bytes.
+Запись в БД и snapshot bytes не образуют одну транзакцию. Поэтому создание, удаление и suspend имеют разные точки фиксации и разные последствия сбоя. В таблице разобран release [Substrate v0.3.0](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go); для другого среза проверьте его workflow.
+
+| Операция | Порядок и окно сбоя | Безопасное восстановление |
+| --- | --- | --- |
+| CreateTag | Reservation → copy → status.snapshot. После reservation может остаться pending Tag; повтор с тем же именем возвращает AlreadyExists, а не продолжает copy | Перечитать Tag. Для pending исключить продолжающуюся операцию, удалить именно эту запись с UID/version guards и создать заново. Ready Tag автоматически не удалять |
+| DeleteTag | Owned bytes удаляются до строки. Между шагами запись ещё существует, но содержимое уже частично или полностью исчезло; borrowers могут потерять restore source | До удаления проверить зависимости. Повтор delete завершает уборку, но не возвращает уничтоженные bytes |
+| Suspend | Новый snapshot и status фиксируются до best-effort уборки прежнего owned snapshot; неубранные bytes могут остаться | Сверить сохранённый status и provenance, затем убирать только действительно неиспользуемые объекты по правилам выбранного workflow |
+
+Подробные окна сбоя и borrowed/golden dependencies разобраны в [39. Substrate snapshots: ownership, storage и совместимость](39-substrate-snapshot-ownership.md). Здесь важно запомнить границу: успешное разрешение имени Tag ещё не доказывает, что его bytes пригодны для восстановления. Возраст объекта также не доказывает, что его можно удалить.
 
 ## Практический порядок развёртывания
 
@@ -419,9 +429,9 @@ Database row и object bytes должны удаляться в правильн
 
 ### Источники и дальнейшее чтение
 
-- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/main/docs/api-guide.md)
-- [Agent Substrate glossary](https://github.com/agent-substrate/substrate/blob/main/docs/glossary.md)
-- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md)
-- [ate API resource definitions](https://github.com/agent-substrate/substrate/blob/main/pkg/proto/ateapipb/ateapi.proto)
-- [Substrate API style guide](https://github.com/agent-substrate/substrate/blob/main/docs/api-style-guide.md)
-- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/main/docs/upgrade.md)
+- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md)
+- [Agent Substrate glossary](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/glossary.md)
+- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md)
+- [ate API resource definitions](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto)
+- [Substrate API style guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-style-guide.md)
+- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md)

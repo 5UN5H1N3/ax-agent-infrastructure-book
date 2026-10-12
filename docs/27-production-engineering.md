@@ -1,6 +1,6 @@
 # Production engineering: как доказать HA, persistence, upgrades и DR
 
-**Снимок главы:** **AX main `ac233282` · Substrate main `df78882` · проверено 2026-10-10**. Оба проекта pre-1.0. Реализованные механизмы, development manifests и рекомендуемая production architecture ниже разделены явно.
+**Снимок главы:** **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-10**. Оба проекта pre-1.0. Реализованные механизмы, development manifests и рекомендуемая production architecture ниже разделены явно.
 
 В лаборатории достаточно увидеть, что Task создался, Actor проснулся и состояние пережило suspend/resume. Production задаёт более неприятные вопросы. Что произойдёт, если node исчезнет во время snapshot? Можно ли обновить dataplane, не потеряв активных Actors? Сколько последних минут состояния допустимо потерять? Как отличить восстановленный Task от повторного выполнения внешнего платежа или публикации?
 
@@ -24,7 +24,7 @@ Replica отвечает только на часть availability. Она не 
 
 ## RPO, RTO и failure domain
 
-**RPO** - сколько подтверждённого состояния допустимо потерять. **RTO** - сколько времени допустимо восстанавливать service. Эти цели задаются отдельно для каждого plane. Требование «RPO 0 и RTO 30 секунд для всего» обычно означает синхронную replication, горячий standby и высокую стоимость, но всё равно не решает duplicate external effects.
+**RPO** — допустимое временное окно потери подтверждённых изменений перед отказом. **RTO** — предельно допустимое время до оговорённого восстановления сервиса. Эти цели задаются отдельно для каждого plane. Требование «RPO 0 и RTO 30 секунд для всего» обычно означает синхронную replication, горячий standby и высокую стоимость, но всё равно не решает duplicate external effects.
 
 **Failure domain** - набор компонентов, которые могут исчезнуть одной причиной: process, Pod, node, rack/zone, cluster, region, cloud account или credentials domain. Две replicas на одном node защищают от падения process, но не node. PostgreSQL replica в той же zone не защищает от zone outage. Backup в том же account может быть удалён теми же скомпрометированными credentials.
 
@@ -132,7 +132,7 @@ Compatibility matrix должна быть release artifact. Для каждой
 7. **Проверить state compatibility:** old и new Actors/snapshots в обе стороны только там, где это обещано.
 8. **Закрыть mixed-version window:** удалить old capacity после подтверждённой устойчивости, сохранить rollback assets.
 
-### Конкретика Substrate на снимке df78882
+### Конкретика Substrate на снимке df788825
 
 Зафиксированный rolling-upgrade runbook задаёт порядок: новый `ate-controller`, затем versioned dataplane node за node, затем остальной control plane. Nodes и WorkerPools привязаны label `ate.dev/substrate-version`. Serving WorkerPool не редактируют на месте: его клонируют под новую worker image/version, потому что обычное изменение Deployment может прокатиться через живых Actors.
 
@@ -193,10 +193,10 @@ DR plan должен различать сценарии: потеря node, zon
 3. создайте согласованный backup и уничтожьте isolated test environment;
 4. восстановите environment только по runbook и сохранённым artifacts;
 5. проверьте Task ↔ Actor mapping, snapshot state и отсутствие duplicate side effect;
-6. измерьте фактические RPO/RTO, ручные шаги и missing credentials;
+6. измерьте фактическое окно потери данных и время восстановления, сравните их с RPO/RTO; запишите ручные шаги и missing credentials;
 7. исправьте runbook и повторите drill, пока результат не станет воспроизводимым.
 
-Backup success metric - не число загруженных bytes. Это доля успешных restore drills, фактический RPO/RTO и количество необъяснимых расхождений после reconciliation.
+Backup success metric - не число загруженных bytes. Это доля успешных restore drills, измеренные потери/время восстановления относительно целей RPO/RTO и количество необъяснимых расхождений после reconciliation.
 
 ## Production readiness gate
 
@@ -223,9 +223,9 @@ Production engineering AX/Substrate начинается не с replica count. 
 
 ### Источники и дальнейшее чтение
 
-- [Substrate rolling upgrade runbook на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/upgrade.md)
-- [Substrate architecture на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md)
-- [Substrate threat model на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/threat-model.md)
+- [Substrate rolling upgrade runbook на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/upgrade.md)
+- [Substrate architecture на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md)
+- [Substrate threat model на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/threat-model.md)
 - [AX development Redis manifest на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/redis.yaml)
 - [AX server deployment на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/ax-server.yaml)
 - [Kubernetes: highly available clusters with kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/)

@@ -50,9 +50,9 @@
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M245,-345C245,-345 62,-345 62,-345 56,-345 50,-339 50,-333 50,-333 50,-305 50,-305 50,-299 56,-293 62,-293 62,-293 245,-293 245,-293 251,-293 257,-299 257,-305 257,-305 257,-333 257,-333 257,-339 251,-345 245,-345" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<path d="M219,-345C219,-345 88,-345 88,-345 82,-345 76,-339 76,-333 76,-333 76,-305 76,-305 76,-299 82,-293 88,-293 88,-293 219,-293 219,-293 225,-293 231,-299 231,-305 231,-305 231,-333 231,-333 231,-339 225,-345 219,-345" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="144" y="-326.4">AX</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="64" y="-316">Task / Workspace / Gateway / Model,</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="90" y="-316">Task / Workspace / Model,</text>
 <text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="96.5" y="-306">lifecycle, reconciliation</text>
 </g>
 <!-- n3 -->

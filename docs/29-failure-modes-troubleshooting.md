@@ -1,6 +1,6 @@
 # Failure modes и troubleshooting: как локализовать нарушенный контракт
 
-**Снимок главы:** **AX main `ac233282` · Substrate main `df78882` · проверено 2026-10-10**. Команды и поля status относятся к этим снимкам и должны сверяться с закреплённой версией deployment. Issues ниже - наблюдения из конкретных окружений, а не доказательство, что любой похожий симптом имеет ту же причину.
+**Снимок главы:** **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-10**. Команды и поля status относятся к этим снимкам и должны сверяться с закреплённой версией deployment. Issues ниже - наблюдения из конкретных окружений, а не доказательство, что любой похожий симптом имеет ту же причину.
 
 Когда агент «не работает», перед инженером находится не одна программа, а цепочка контрактов: Kubernetes должен дать здоровый node и Pod; Substrate - выбрать Worker, восстановить Actor и провести трафик; AX - reconcile'ить декларацию; runner - подготовить workspace и запустить процесс; model и tools - ответить в пределах deadline; harness - правильно обработать результат. Один пользовательский симптом может возникнуть на любом из этих слоёв.
 
@@ -30,7 +30,7 @@ Troubleshooting - это не перебор команд и не искусст
 6. **Изменяйте одну переменную.** Другой pool, clean Actor, cold snapshot или прямой endpoint - по одному, иначе результат не объясняет причину.
 7. **Перед recovery сохраните evidence.** Перезапуск, delete/recreate и revert могут стереть logs, failed state и локальный filesystem.
 
-Полезная запись гипотезы выглядит так: «Task ждёт не model, а Worker assignment, потому что возраст reconcile event растёт, Actor остаётся `SUSPENDED`, а scheduler возвращает `ResourceExhausted`; добавление свободного Worker в тот же selector должно завершить assignment». Она указывает слой, evidence и предсказание. «Наверное Kubernetes» не проверяется.
+Полезная запись гипотезы выглядит так: «ResumeTask ждёт не model, а Worker assignment: lifecycle RPC задерживается, Actor остаётся `SUSPENDED`, а Substrate возвращает `ResourceExhausted`; свободная capacity с подходящим selector должна устранить этот отказ». Для AX `ac233282` ищут RPC и runtime evidence, а не возраст события удалённой controller queue. Если RPC уже завершился ошибкой, появление Worker не повторит операцию автоматически: сначала перечитайте Task и Actor, затем решите, допустим ли новый resume. Гипотеза указывает слой, наблюдение и проверяемое предсказание; «наверное Kubernetes» этого не делает.
 
 ## Первые десять минут: сохранить факты, не чинить вслепую
 
@@ -38,10 +38,10 @@ Troubleshooting - это не перебор команд и не искусст
 
 - точное время, timezone, request/task/actor/workspace identity и пользовательский deadline;
 - commit, release, image digest и манифесты AX, Substrate, runner, sandbox runtime и model server;
-- AX Task/Workspace/Gateway spec и полный status с conditions, reasons и timestamps;
+- AX Task/Workspace/Model spec и полный status с conditions, reasons и timestamps; отдельно Substrate EgressPolicy и фактический путь доступа;
 - Substrate Actor, ActorTemplate, WorkerPool, Worker assignment, operation state и snapshot reference;
 - Kubernetes Pod/Deployment/DaemonSet/Node state, recent Events, restarts, termination reason и resource pressure;
-- логи control plane, controller, runner, `ateapi`, `atelet`, `ateom`, `atenet` и зависимостей в одном окне;
+- логи `ax-server`, runner и компонентов Substrate, включая его controllers, `ateapi`, `atelet`, `ateom`, `atenet` и зависимостей в одном окне;
 - trace/correlation IDs, latency milestones, queue age и relevant metric snapshots;
 - результаты positive и negative probes без секретов: DNS, TCP, TLS, model, MCP и filesystem;
 - последние изменения: rollout, policy, image, snapshot, secret, DNS, node drain, autoscaling.
@@ -50,15 +50,15 @@ Troubleshooting - это не перебор команд и не искусст
 
 ## Status - это утверждение компонента, а не end-to-end truth
 
-Condition отвечает только на вопрос, который реализовал её producer. AX issue #346 показывает Task с `phase=Running` и `Ready=True` после завершения command и даже при `ACTOR_STATE_CRASHED` на нижнем слое. Issue #347 показывает `WorkspaceReady=True` при созданном, но пустом Git repository. Issue #345 описывает `GatewayReady=True`, когда hostname allowlist не пропускал ожидаемый TLS-трафик в исследованной версии.
+Condition отвечает только на вопрос, который реализовал её producer. AX issue #346 показывает Task с `phase=Running` и `Ready=True` после завершения command и даже при `ACTOR_STATE_CRASHED` на нижнем слое. Issue #347 показывает `WorkspaceReady=True` при созданном, но пустом Git repository. Эти issues дают гипотезы для проверки, но не заменяют чтение handler выбранного commit. В AX `ac233282` нет Gateway resource или `GatewayReady`: сетевой путь проверяется по Substrate policy и отдельным probes.
 
 Из этого не следует, что conditions бесполезны. Они полезны как локальные checkpoints. Для каждого operational claim нужен отдельный outcome probe:
 
 | Claim | Что он обычно подтверждает | Как проверить пользовательский outcome |
 | --- | --- | --- |
-| `Ready=True` | Controller завершил предусмотренные reconcile steps | Проверить child process, application heartbeat и полезный response |
+| `Ready=True` | AX сохранил результат предусмотренных reconcile steps | Проверить child process, application heartbeat и полезный response |
 | `WorkspaceReady=True` | Runner считает bootstrap завершённым | Проверить expected ref/commit, файлы и доступность repo для процесса |
-| `GatewayReady=True` | Policy resources применены | Positive probe разрешённого и negative probe запрещённого destination |
+| Substrate EgressPolicy существует | Сохранена policy, но это ещё не доказательство разрешённого пути | Положительный probe разрешённого и отрицательный probe запрещённого destination |
 | Actor `RUNNING` | Actor получил Worker и lifecycle достиг running state | Проверить listener/readiness и первый state access после restore |
 | Model HTTP 200 | Endpoint вернул transport-level success | Проверить schema, finish reason, token usage, quality и latency budget |
 
@@ -67,7 +67,7 @@ Condition отвечает только на вопрос, который реа
 | Симптом | Вероятная граница | Первое различающее evidence | Не делать первым |
 | --- | --- | --- | --- |
 | `ax apply` отклонён | Client/API/schema | HTTP/gRPC code, field path, server validation log | Перезапускать Workers |
-| Task долго без Actor | AX reconcile | Возраст event, controller log, создан ли Actor | Увеличивать model replicas |
+| Task долго без Actor | AX reconcile | Ответ lifecycle RPC, ax-server trace, resource lock и фактическое наличие Actor | Увеличивать model replicas |
 | Actor не получает Worker | Selector/capacity/scheduler | Pool labels, free slots, assignment outcome | Удалять snapshot |
 | Actor застрял в resume | Snapshot/runtime/readiness | Restore phase timings, runtime log, probe result | Считать это только storage latency |
 | Workspace «готов», но неверен | Runner/bootstrap | Expected commit против фактического HEAD/files | Анализировать prompt |
@@ -79,16 +79,16 @@ Condition отвечает только на вопрос, который реа
 
 ## Playbook 1: Task не создаётся или застрял до Running
 
-Сначала разделите четыре разных случая: API не принял spec; API принял, но controller не увидел event; controller увидел, но не создал Actor; Actor создан, но не активирован. У них одинаковый внешний симптом «Task не стартовал», но разные owners и действия.
+Для AX `ac233282` разделите четыре случая: запрос отклонён до записи; AX record сохранён, но direct reconciliation завершился ошибкой; Actor создан или активирован, но итоговый status не записан; runtime работает, а прикладная готовность не достигнута. Один симптом «Task не стартовал» требует разных проверок. Отдельного controller Pod и возраста lifecycle очереди в этом срезе нет.
 
-1. Сохраните client response целиком: transport code, validation field, Task identity и server request ID.
-2. Прочитайте сохранённый spec с сервера и сравните с отправленным. Так отделяется client-side rendering/defaulting от server state.
-3. Проверьте references: Workspace, Model, Gateway, image и имена/atespace. «Объект существует» недостаточно, если reference указывает другую область или версию.
-4. Сопоставьте generation/spec revision с observed status и временем последнего reconcile. Старый status может относиться к предыдущей spec.
-5. Проверьте возраст очереди controller и конкретный reconcile trace. Наличие здорового controller Pod не доказывает, что нужное событие обработано.
-6. Если Actor создан, перенесите расследование на Substrate и больше не называйте проблему «AX API».
+1. Сохраните ответ клиента, transport code, validation field, request ID и deadline. Timeout не говорит, остановилась ли серверная операция.
+2. Прочитайте AX record и сравните spec с отправленной. Если запись отсутствует, исследуйте validation, lock и store; если существует, не создавайте новый logical run автоматически.
+3. Проверьте Workspace references, image, atespace и ActorTemplate. Model не подключается к Task автоматической ссылкой; credentials и endpoint harness проверяются отдельно. Gateway не является AX kind.
+4. Свяжите сохранённый status с временем RPC и фактическим Actor. В AX ObjectMeta этого среза нет Kubernetes-подобных generation/resourceVersion: используйте spec snapshot, Task identity и timestamps, а не несуществующий observedGeneration.
+5. В ax-server trace найдите ожидание resource lock, Substrate RPC, readiness и запись итогового status. Сопоставьте каждую ошибку с текущим состоянием нижнего слоя.
+6. Если Actor создан, проверьте его assignment, snapshot и готовность через Substrate. Работоспособность runner и завершение agent command проверяйте раздельно.
 
-Для повторного reconcile сначала убедитесь, что операция идемпотентна и исходный attempt завершён или fencing исключает старого owner. Два одновременно работающих recovery path опаснее медленного одного.
+Перед recovery исключите продолжающийся исходный attempt. Повтор Create для существующей immutable Task не является replay всех пропущенных шагов. Выберите штатную операцию для установленного состояния и сначала убедитесь, что она не создаст второй Actor или повторный внешний effect; подробные окна частичной записи разобраны в главе 38.
 
 ## Playbook 2: Actor не resume или долго ждёт Worker
 
@@ -141,7 +141,7 @@ Issue AX #346 показывает gap конкретной версии: Task s
 4. **Policy/router:** какое правило выбрано, какой destination увидел `atenet`, почему соединение разрешено или отклонено?
 5. **HTTP/application:** status, redirect target, proxy/auth headers и server-side request ID.
 
-Всегда делайте пару probes: разрешённый destination должен пройти, запрещённый - предсказуемо не пройти. Только positive probe не доказывает enforcement; только negative не отличает строгую policy от полностью сломанной сети. Issue AX #345 показал случай, где `GatewayReady=True` означал применение resources, но не успешный TLS outcome для hostname rule в исследованной версии.
+Всегда делайте пару probes: разрешённый destination должен пройти, запрещённый - предсказуемо не пройти. Только positive probe не доказывает enforcement; только negative не отличает строгую policy от полностью сломанной сети. Наличие сохранённой EgressPolicy не доказывает успешный TLS outcome: проверяйте выбранное правило, destination, сертификаты и фактический ответ origin.
 
 Не оставляйте wildcard egress как «временное» production-исправление. Для диагностики его можно использовать только в изолированном test Task с коротким временем жизни и зафиксированным сравнением. Иначе вы одновременно меняете network path и снимаете security boundary.
 
@@ -152,7 +152,8 @@ Issue AX #346 показывает gap конкретной версии: Task s
 | Dependency | Разделить latency | Проверить correctness |
 | --- | --- | --- |
 | Model | DNS/TLS, server queue, prefill/TTFT, decode/ITL | Model ID, context limit, schema, finish reason, token count |
-| MCP | Connect/initialize, discovery, tool execution, downstream API | Protocol/version, tool schema, identity, authorization, result shape |
+| MCP modern 2026-07-28 | Transport/auth, per-request metadata, discovery/catalog, tool execution и downstream API | Совместимость revision/capabilities; server/discover обязателен для server, но предварительный вызов необязателен для client |
+| MCP legacy 2025-11-25 | Connect, initialize/initialized, discovery, tool execution и downstream API | Согласованные revision/capabilities и transport-specific lifecycle; не переносить handshake на modern |
 | Direct tool/API | Client queue, transport, server processing, async completion | Idempotency key, resource version, remote audit record |
 
 Timeout означает «клиент не дождался», а не «операция не выполнилась». Перед retry write-action проверьте remote system по idempotency key или operation ID. Retry без этого превращает сетевую неопределённость в duplicate side effect.

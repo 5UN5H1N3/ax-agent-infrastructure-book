@@ -1,6 +1,6 @@
 # Security architecture агентной платформы: как построить threat model и defense in depth
 
-**Статус:** `AX MAIN ac233282` · `SUBSTRATE MAIN 296e329` · `VERIFIED 2026-10-08` · `ROADMAP separated from implementation`
+**Статус:** `AX · ac233282` · `SUBSTRATE · 296e329a` · `SOURCE REVIEW · 08.10.2026` · `ROADMAP separated from implementation`
 
 ![Security architecture: trust boundaries ограничивают путь от недоверенного ввода к реальному действию](.gitbook/assets/diagrams/23-21.png)  
 *Security architecture: trust boundaries ограничивают путь от недоверенного ввода к реальному действию*
@@ -432,7 +432,7 @@ Threat model связывает assets, attackers, boundaries, invariants и evi
 
 ### Источники и дальнейшее чтение
 
-- [Substrate Threat Model на проверенном снимке 296e329](https://github.com/agent-substrate/substrate/blob/296e329a5bb7d95304438bead1c5391ad3693631/docs/threat-model.md)
+- [Substrate Threat Model на проверенном снимке 296e329a](https://github.com/agent-substrate/substrate/blob/296e329a5bb7d95304438bead1c5391ad3693631/docs/threat-model.md)
 - [Substrate architecture and security-sensitive components](https://github.com/agent-substrate/substrate/tree/296e329a5bb7d95304438bead1c5391ad3693631)
 - [AX server на снимке ac233282: gRPC construction и lifecycle API](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go)
 - [AX issue #376: отсутствие authentication/authorization control plane](https://github.com/google/ax/issues/376)

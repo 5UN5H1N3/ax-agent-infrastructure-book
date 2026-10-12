@@ -35,6 +35,18 @@ Prefer primary sources: upstream repositories, release notes, specifications
 and official documentation. Distinguish implemented behavior from roadmap or
 design proposals.
 
+## Edition metadata and navigation
+
+Edit the passport (`edition-passport`), version map (`version-profiles`) and
+chapter titles in the canonical book HTML. Do not maintain a second version
+table or page count in a landing page. The repository README links to the
+passport; the web converter copies it from HTML without modifying that README.
+The first release in CHANGELOG is historical, not the current revision.
+
+Print and web navigation share `scripts/book_structure.py`. If chapters or
+appendices change, update its order and groups, the HTML contents and the
+consistency tests. Rebuild both editions and review the affected PDF pages.
+
 ## Language
 
 The main edition is currently Russian. Technical identifiers and API names are

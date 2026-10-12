@@ -9,6 +9,9 @@ on:
       - "scripts/inject_cover.py"
       - "scripts/rebuild_diagrams.py"
       - "scripts/publish_generated_artifacts.py"
+      - "scripts/check_book_consistency.py"
+      - "scripts/book_structure.py"
+      - "scripts/test_book_consistency.py"
       - ".github/workflows/build-pdf.yml"
 
 permissions:
@@ -43,6 +46,8 @@ jobs:
 
       - name: Rebuild diagrams
         run: |
+          python scripts/check_book_consistency.py --html book/AX_Agent_Infrastructure_Book_RU.html
+          python scripts/test_book_consistency.py
           python scripts/rebuild_diagrams.py \
             book/AX_Agent_Infrastructure_Book_RU.html \
             book/.diagram-source.html

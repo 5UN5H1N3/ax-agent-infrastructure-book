@@ -9,6 +9,8 @@
 
 Большая языковая модель решает лишь часть этой задачи. Она способна проанализировать переданный ей контекст, сформулировать следующий шаг или предложить вызов инструмента. Всё остальное создаётся вокруг неё. Поэтому первая полезная привычка при проектировании агентных систем — не называть словом «агент» весь стек целиком.
 
+Сетевой инцидент станет сквозным учебным примером. В позднем разборе Task обозначена как `lab/network-017`: мы отделим её состояние от состояния Actor, восстановим workspace и проверим путь до model endpoint. Это учебное имя, не специальный режим AX. Важно проследить одну задачу через несколько слоёв и каждый раз понимать, кто отвечает за следующий шаг.
+
 ## Одно слово скрывает несколько разных систем
 
 В повседневной речи агентом могут назвать и prompt с циклом, и Python-программу, и контейнер, и Task в AX, и всю multi-agent платформу. Пока система работает, такая неточность кажется безобидной. Во время проектирования или инцидента она мешает определить владельца проблемы.
@@ -325,11 +327,11 @@ Agent Substrate находится ниже AX. Его основная моде
 
 ## Источники и дальнейшее чтение
 
-- [AX README, baseline e70162a](https://github.com/google/ax/blob/e70162a/README.md)
-- [AX Design, baseline e70162a](https://github.com/google/ax/blob/e70162a/DESIGN.md)
-- [AX Core concepts, baseline e70162a](https://github.com/google/ax/blob/e70162a/docs/concepts.md)
-- [Agent Substrate README, baseline ccecc78](https://github.com/agent-substrate/substrate/blob/ccecc78/README.md)
-- [Agent Substrate architecture, baseline ccecc78](https://github.com/agent-substrate/substrate/blob/ccecc78/docs/architecture.md)
+- [AX README, baseline e70162a3](https://github.com/google/ax/blob/e70162a3/README.md)
+- [AX Design, baseline e70162a3](https://github.com/google/ax/blob/e70162a3/DESIGN.md)
+- [AX concepts, release v0.3.1 e70162a3](https://github.com/google/ax/blob/e70162a3/docs/concepts.md)
+- [Agent Substrate README, baseline ccecc788](https://github.com/agent-substrate/substrate/blob/ccecc788/README.md)
+- [Agent Substrate architecture, baseline ccecc788](https://github.com/agent-substrate/substrate/blob/ccecc788/docs/architecture.md)
 - [Kubernetes Concepts](https://kubernetes.io/docs/concepts/)
 - [Model Context Protocol specification](https://modelcontextprotocol.io/specification/2026-07-28)
 - [gVisor documentation](https://gvisor.dev/docs/)

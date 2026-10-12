@@ -1,6 +1,8 @@
 # Agent Substrate: как устроен runtime для stateful Actors
 
-**Статус:** `CURRENT ARCHITECTURE` · `OPERATIONS FIRST` · `LIMITS MADE EXPLICIT`
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+
+**Статус:** `SUBSTRATE v0.3.0 · ccecc788` · `OPERATIONS FIRST` · `LIMITS MADE EXPLICIT`
 
 В предыдущей главе мы отделили классическую Actor model от конкретной реализации Agent Substrate. Теперь можно пройти по системе изнутри. Представим, что HTTP-запрос адресован Actor, который сейчас не занимает CPU, не привязан к Worker и существует только как запись в control plane плюс snapshot в object storage. Что должно произойти, чтобы запрос получил ответ? Какие компоненты участвуют в этом пути? Где находится истина о состоянии? Что случится, если свободного Worker нет, PostgreSQL недоступен или snapshot повреждён?
 
@@ -368,11 +370,11 @@ Agent Substrate превращает Actor в логическую сущнос�
 
 ### Источники и дальнейшее чтение
 
-- [Agent Substrate README](https://github.com/agent-substrate/substrate/blob/main/README.md)
-- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md)
-- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/main/docs/api-guide.md)
-- [ate-api authentication](https://github.com/agent-substrate/substrate/blob/main/docs/authentication.md)
-- [Request parking](https://github.com/agent-substrate/substrate/blob/main/docs/request-parking.md)
-- [Actor observability](https://github.com/agent-substrate/substrate/blob/main/docs/observability.md)
-- [Substrate threat model](https://github.com/agent-substrate/substrate/blob/main/docs/threat-model.md)
-- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/main/docs/upgrade.md)
+- [Agent Substrate README](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/README.md)
+- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md)
+- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md)
+- [ate-api authentication](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/authentication.md)
+- [Request parking](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md)
+- [Actor observability](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md)
+- [Substrate threat model](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/threat-model.md)
+- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md)

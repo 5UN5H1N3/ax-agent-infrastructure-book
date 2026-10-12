@@ -1,6 +1,6 @@
 # Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal
 
-**Снимок главы:** **AX main `ac233282` · Substrate main `df78882` · проверено 2026-10-08**. Команды и API относятся к этим снимкам; оба проекта pre-1.0, поэтому перед повторением сверяйте актуальные README и release notes.
+**Снимок главы:** **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-08**. Команды и API относятся к этим снимкам; оба проекта pre-1.0, поэтому перед повторением сверяйте актуальные README и release notes.
 
 Лабораторный стенд нужен не для того, чтобы один раз увидеть зелёные Pods. Его задача — дать инженеру среду, в которой можно воспроизводимо ответить на вопросы: где проходит граница между AX, Substrate и Kubernetes; что переживает перезапуск; как Actor просыпается; где действует network policy; что происходит при нехватке Worker capacity; и какой слой сломался, когда Task перестал продвигаться.
 
@@ -8,6 +8,8 @@
 
 ![Три лабораторные топологии: растёт не «мощность Kubernetes», а реалистичность отказов и операционная цена](.gitbook/assets/diagrams/26-24.png)  
 *Три лабораторные топологии: растёт не «мощность Kubernetes», а реалистичность отказов и операционная цена*
+
+Этот стенд использует direct reconciliation AX `ac233282`. Последовательный практикум главы 32 намеренно закреплён на AX `v0.3.1` с отдельным controller. Выберите один профиль для текущего опыта; при переходе сохраните новый паспорт версий и повторите интеграционные проверки. Такой переход не является обновлением только локального CLI.
 
 ## Что именно мы строим
 
@@ -134,7 +136,7 @@ Cloud-init template, declarative VM provisioning и install scripts уменьш
 
 ## Lab A: путь от чистой VM до Substrate
 
-Ниже — маршрут, а не вечный install script. Команды Substrate привязаны к снимку `df78882`; перед запуском прочитайте соответствующий README.
+Ниже — маршрут, а не вечный install script. Команды Substrate привязаны к снимку `df788825`; перед запуском прочитайте соответствующий README.
 
 ### Gate 0. Guest готов
 
@@ -204,12 +206,17 @@ kubectl get pods -n ax-system
 ax ctx
 ```
 
-После установки примените минимальный Workspace/Model/Task manifest и пройдите цикл:
+После установки сначала примените и проверьте Workspace, затем создайте Task из отдельного `lab-task.yaml` с `spec.debug: true` и проверенным runner image. Не копируйте `examples/task.yaml` вслепую: в upstream example Task стоит перед Workspace, а apply не является общей транзакцией. Model нужен только при намеренной проверке платформенного client; пользовательский harness настраивается отдельно. Для `ac233282` созданная Task изначально Suspended: перед первым ssh требуется resume. Пройдите цикл:
 
 ```
-ax apply -f examples/task.yaml
+ax apply -f lab-workspace.yaml
+ax get workspace <workspace-name>
+ax apply -f lab-task.yaml
 ax get tasks
+ax resume task <task-name>
+# Watch в отдельном терминале; он не завершается по exit пользовательской команды.
 ax watch task <task-name>
+# После Ready/WorkspaceReady и проверки фактического runner:
 ax ssh <task-name> -- ls -la /workspace
 ax suspend task <task-name>
 ax resume task <task-name>
@@ -237,8 +244,8 @@ ax delete task <task-name>
 | --- | --- | --- |
 | Удалить AX control-plane Pod | Reconciliation и separation control/data state | Task не дублируется; control plane восстанавливает view |
 | Заполнить WorkerPool | Parking/backpressure и capacity signals | Запрос ждёт/отклоняется по документированной semantics |
-| Suspend/resume Actor | Snapshot, routing и state continuity | Состояние сохраняется, новая activation связана с прежним Actor |
-| Остановить model endpoint | Timeout/retry budget и видимость ошибки | Нет бесконечного retry; Task condition объясняет причину |
+| Suspend/resume Actor | Snapshot, routing и state continuity | Предусмотренные volumes/checkpoint восстановлены; Full и Data/GOLDEN проверяются раздельно. Actor UID сохранён, placement может измениться |
+| Остановить model endpoint | Timeout/retry budget и видимость ошибки | Harness фиксирует bounded retry, model error и причину остановки; AX Ready может оставаться True |
 | Сломать DNS только в Pod | Разделение host/guest/cluster network | Host может резолвить, Pod — нет; fault локализован до CoreDNS/CNI/policy |
 | Перезагрузить VM | Что реально durable в одноузловом стенде | Составлен список восстановившихся и потерянных состояний |
 
@@ -281,7 +288,7 @@ ax delete task <task-name>
 
 ### Источники и дальнейшее чтение
 
-- [Substrate development quickstart на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md)
+- [Substrate development quickstart на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md)
 - [AX quick start на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md)
 - [Kind Quick Start](https://kind.sigs.k8s.io/docs/user/quick-start/)
 - [Kind configuration: nodes, mounts, ports и networking](https://kind.sigs.k8s.io/docs/user/configuration/)

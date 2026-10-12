@@ -412,7 +412,7 @@ Production design должен заранее определить:
 
 ## AX и Agent Substrate
 
-В AX `Task` является минимальной единицей isolated execution. Task описывает image, command, resources и Workspace bindings, но application не должна считать любой Task автоматически достаточной boundary для любого threat model.
+В AX `Task` является единицей isolated execution. В schema есть image, command, resources и Workspace bindings, но декларация поля не доказывает его применение. В срезе `ac233282` reconciler не переносит `TaskSpec.resources` в ActorTemplate: CPU/RAM ограничения нужно подтвердить на фактическом Substrate template и runtime. Сам Task также не выбирает произвольный sandbox class; допустимый base template и WorkerPool задаёт платформа. Поэтому наличие manifest нельзя принимать за доказанную boundary для любого threat model.
 
 Agent Substrate предоставляет runtime layer и в текущей архитектуре поддерживает несколько sandbox backends, включая gVisor и microVM path. Его Actor/Worker model позволяет отделить logical actor от физической capacity, а suspend/resume - освобождать Worker, когда agent простаивает.
 
@@ -565,5 +565,5 @@ Hardened container может быть baseline для внутреннего tr
 - [Kata Containers Architecture](https://katacontainers.io/software/) - OCI/CRI runtime поверх lightweight VMs.
 - [Kubernetes RuntimeClass](https://kubernetes.io/docs/concepts/containers/runtime-class/) - runtime handlers, scheduling и Pod overhead.
 - [Kubernetes: Linux kernel security constraints](https://kubernetes.io/docs/concepts/security/linux-kernel-security-constraints/) - seccomp, AppArmor, SELinux и privileged containers.
-- [AX Core concepts](https://github.com/google/ax/blob/main/docs/concepts.md) - Task как smallest unit of isolated execution.
+- [AX Core concepts](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/concepts.md) - Task как smallest unit of isolated execution.
 - [Agent Substrate](https://github.com/agent-substrate/substrate) - gVisor/microVM backends, Actor/Worker и suspend/resume.

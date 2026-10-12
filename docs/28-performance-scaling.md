@@ -1,6 +1,6 @@
 # Performance и scaling: как найти bottleneck и доказать capacity
 
-**Снимок главы:** **AX main `ac233282` · Substrate main `df78882` · проверено 2026-10-10**. Числа из README, demo и issues ниже отделены от измерений вашей системы. Оба проекта pre-1.0, поэтому performance contract нужно перепроверять для каждой закреплённой версии.
+**Снимок главы:** **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-10**. Числа из README, demo и issues ниже отделены от измерений вашей системы. Оба проекта pre-1.0, поэтому performance contract нужно перепроверять для каждой закреплённой версии.
 
 После главы о HA возникает естественный соблазн: добавить replicas, включить autoscaling и считать задачу закрытой. Но производительность распределённой agent platform определяется не количеством Pods, а самой медленной стадией полезного пути. AX может быстро принять Task и медленно reconcile'ить его. WorkerPool может иметь свободные Pods, пока object store ограничивает одновременный restore. Model endpoint может отвечать быстро, но агент делает вдвое больше шагов из-за неудачного routing.
 
@@ -38,7 +38,7 @@
 
 `λoperation = λtask × E[operations per task]`
 
-Operations здесь нужно считать раздельно: AX reconcile events, Actor wakeups, snapshot bytes, model calls и tool calls имеют разные service stations.
+Operations здесь нужно считать раздельно: AX lifecycle RPC, Actor wakeups, snapshot bytes, model calls и tool calls имеют разные service stations.
 
 В устойчивом режиме закон Литтла даёт:
 
@@ -66,15 +66,16 @@ Task latency - не сумма времени всех компонентов. �
 
 Для первого запуска полезно измерять timestamps как отдельные milestones:
 
-1. client send → AX accepted;
-2. accepted → event visible controller-у;
-3. reconcile start → Substrate Actor created/selected;
+1. client send → вход в lifecycle handler AX;
+2. ожидание resource lock и чтение/запись control record;
+3. direct reconcile → Substrate Actor created/selected;
 4. resume requested → Worker assigned;
 5. snapshot lookup/download/restore;
-6. runner process started → `/readyz` подтверждён;
-7. первый tool/model call → первый полезный результат.
+6. runner доступен → `/readyz` подтверждён;
+7. запись итогового status → ответ lifecycle RPC;
+8. первый tool/model call → первый полезный результат.
 
-Так становится видно, что «Task создаётся 18 секунд» может означать 20 ms API, 15 s readiness polling и 3 s restore. Увеличение replicas API не изменит результат.
+Так становится видно, что «Task создаётся 18 секунд» может включать 20 ms проверки запроса, 15 s readiness polling и 3 s restore внутри синхронного пути. Сначала выясните, какая стадия занимает время; дополнительные replicas API сами по себе не сокращают restore одного Actor.
 
 Не ограничивайтесь average. Coordinator, который ждёт завершения десяти children, чувствителен к самому медленному child. Даже умеренная вероятность tail event усиливается fan-out: чем больше параллельных ветвей требуется дождаться, тем чаще одна из них попадёт в p99.
 
@@ -83,22 +84,22 @@ Task latency - не сумма времени всех компонентов. �
 | Plane | Признак насыщения | Что измерять | Что масштабировать после доказательства |
 | --- | --- | --- | --- |
 | Ingress / atenet | parking wait и 503 растут, Workers освобождаются слишком медленно | parked requests, retry budget, route latency, deadline | warm capacity, admission, routing; не бесконечный parking |
-| AX API/store | API latency, Redis lag/QPS или lock wait растут | request latency, stream backlog, store RTT, errors | API replicas и production store - только с проверенной concurrency semantics |
-| AX controller | Task events ждут при свободных Workers | event age, reconcile duration, readiness wait, ack rate | controller concurrency/replicas, sharding и coalescing |
+| AX API/store | API latency, Redis lag/QPS или lock wait растут | RPC latency, resource lock wait, store RTT, errors | API replicas и production store - только с проверенной concurrency semantics |
+| AX direct reconciliation | Lifecycle RPC медленные при свободных Workers | Время handler, lock contention, Substrate RPC и readiness wait | Admission и RPC concurrency; replicas только после проверки resource locking и recovery |
 | Substrate control plane | lifecycle RPC и placement замедляются | RPC phase latency, DB latency, operation state, workqueue | API/controller/store capacity с сохранением ordering |
 | WorkerPool | at-capacity workers, pending placement, CPU/RAM pressure | assigned/full/idle workers, resource headroom, OOM/throttle | replicas, nodes, pool segmentation, Actor right-sizing |
 | Snapshot store | suspend/resume tail растёт при concurrency | bytes, IOPS, RTT, cache state, concurrent transfers, errors | bandwidth/IOPS, locality, snapshot policy; не только Workers |
 | Tools/model | sandboxes idle, но Tasks не завершаются | queue, TTFT, tool latency, retries, rate limits | endpoint capacity, routing, caching, workload reduction |
 
-Эффективная capacity цепочки приблизительно равна минимуму capacity её обязательных стадий. Scale-out одного plane может даже ухудшить систему: больше Workers одновременно начнут restore и перегрузят object store; больше controllers создадут давление на Redis/Substrate и увеличат lock contention.
+Эффективная capacity цепочки приблизительно равна минимуму capacity её обязательных стадий. Scale-out одного plane может даже ухудшить систему: больше Workers одновременно начнут restore и перегрузят object store; больше параллельных lifecycle RPC создадут давление на Redis/Substrate и увеличат конкуренцию за блокировки.
 
-## Текущая AX-граница: controller throughput нужно измерять отдельно
+## AX direct path и пределы параллелизма
 
-На снимке AX `ac233282` controller создаёт один `Worker` loop в process и выполняет цепочку Substrate RPC плюс readiness verification. Поэтому свободный WorkerPool не доказывает, что массовое создание Tasks будет быстрым.
+В AX `ac233282` нет отдельного `ax-controller` и Redis Streams очереди lifecycle. [Handler ax-server](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go) берёт resource lock, сохраняет запись, вызывает reconciliation с Substrate и обновляет status. Поэтому свободный WorkerPool ещё не доказывает, что создание Tasks быстро: задержка может возникнуть в lock, store, Substrate RPC или readiness.
 
-Issue AX #384 описывает serial processing и приводит prototype benchmark concurrency 1/4/16/64. Автор честно отмечает, что Substrate был mock с искусственными задержками и что branch отличался размером read-ahead. Эти числа показывают возможное направление, но не являются измерением release или real cluster. Issue закрыт как duplicate #433, а не как доказательство конкретной production capacity.
+Сравните независимые Tasks и конкурирующие операции над одним Task. В первом опыте измеряется полезный параллелизм; во втором — сериализация ресурса и корректность отказов. В каждом прогоне сохраняйте число принятых и завершённых операций, ошибки, p95/p99 RPC, lock wait и фазовые задержки Substrate. Истории о serial controller throughput в issues относятся к прежней архитектуре и не являются benchmark этого direct path.
 
-Если увеличивать controller concurrency, нужно сохранить порядок событий одного Task, idempotency reconcile, bounded queues, корректный ACK и shutdown in-flight work. Иначе tasks/s вырастет ценой гонок и потерянных событий. Поэтому проверяйте одновременно throughput, correctness и recovery после kill controller-а.
+Увеличивайте concurrency только вместе с ограничением допуска, общим deadline и проверкой cancellation. После остановки `ax-server` посреди RPC перечитайте AX record и Actor: внешний шаг мог завершиться до записи status. Отсутствие очереди не даёт автоматического replay после restart. Проверяйте безопасное восстановление частичной операции, а не ACK или возраст несуществующего lifecycle event.
 
 ## WorkerPool capacity: replicas недостаточно
 
@@ -158,7 +159,7 @@ CPU HPA отвечает на вопрос «насколько заняты у�
 
 ## Используйте готовые Substrate scenarios, но не путайте их с вашим acceptance test
 
-На снимке `df78882` repository уже содержит nascent Locust-based suite. Она полезна как строительный блок:
+На снимке `df788825` repository уже содержит nascent Locust-based suite. Она полезна как строительный блок:
 
 - **DurDir** измеряет запись, suspend/resume и первый read после restore с разными durable/full profiles;
 - **SWE-Perf replay** добавляет реалистичные execution cycles и разделяет RPC, RTT и wall clock;
@@ -206,8 +207,8 @@ Performance AX/Substrate - это задача о цепочке очереде�
 
 ### Источники и дальнейшее чтение
 
-- [Substrate README: project claims, multiplexing и demos на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md)
-- [Substrate architecture и aspirational warning на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md)
+- [Substrate README: project claims, multiplexing и demos на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md)
+- [Substrate architecture и aspirational warning на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md)
 - [Substrate API guide: WorkerPool resource budget и placement](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md)
 - [Substrate benchmarking suite: DurDir, SWE-Perf, Agent-Session и Spawn](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/benchmarking/README.md)
 - [Substrate autoscaled WorkerPool demo и ограничения scaling signal](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/autoscaled-workerpool/README.md)

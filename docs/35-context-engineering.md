@@ -165,7 +165,7 @@ Scope, units и operation arguments должны быть представлен
 
 ## Resume в AX и повторная сверка внешнего мира
 
-В AX-срезе `ac23328`, разобранном в главах 18-19, Data snapshots не сохраняют память agent process. Durable `/workspace` помогает восстановить файлы, но не реализует application checkpoint protocol. Схема state, её migrations и порядок recovery остаются обязанностью harness. [Snapshot configuration этого среза](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) не следует переносить на другой deployment без проверки.
+В AX-срезе `ac233282`, разобранном в главах 18-19, Data snapshots не сохраняют память agent process. Durable `/workspace` помогает восстановить файлы, но не реализует application checkpoint protocol. Схема state, её migrations и порядок recovery остаются обязанностью harness. [Snapshot configuration этого среза](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) не следует переносить на другой deployment без проверки.
 
 После restart сначала восстановите ownership run, прочитайте последнюю подтверждённую версию state и сверяйте незавершённые операции. Lease без fencing либо эквивалентной защиты на backend не исключает поздний write старого исполнителя. Не начинайте recovery с запроса модели «вспомни, что мы делали» и не отправляйте write повторно, пока исход предыдущей попытки неизвестен.
 
@@ -203,7 +203,7 @@ Context manifest должен связывать request ID, state version, inst
 - Убейте процесс после отправки write, но до receipt. Resume сверяет `OUTCOME_UNKNOWN` и не повторяет операцию вслепую.
 - Обновите state во время compaction. Старый candidate не перезаписывает новые facts и ledger.
 
-Для первого implementation достаточно явного state, versioned instructions, узкого tool catalog, targeted чтения и проверенного summary contract. Vector index, reranker и дополнительные роли добавляйте при конкретной нехватке coverage или capacity. Context engineering становится полезной инженерной дисциплиной тогда, когда можно объяснить, какие данные модель увидела, почему они были выбраны и что система сделала при их недостаточности.
+Для первого варианта достаточно явно сохранённого состояния, версионированных инструкций, небольшого набора инструментов и чтения только нужных фрагментов. Проверьте, какие сведения обязано сохранять summary. Vector index, reranker и дополнительные роли добавляйте, когда измерения показывают, что система не находит нужные данные или не справляется с нагрузкой. Context engineering становится полезной инженерной дисциплиной тогда, когда можно объяснить, какие данные модель увидела, почему они были выбраны и что система сделала при их недостаточности.
 
 Следующая глава переносит эти требования к MCP boundary: как обнаружить capability, получить данные с корректным scope и вызвать инструмент, не перепутав metadata, транспорт, identity и разрешение на действие.
 
@@ -213,5 +213,5 @@ Context manifest должен связывать request ID, state version, inst
 - [Liu et al.: Lost in the Middle](https://arxiv.org/abs/2307.03172) - влияние позиции evidence в исследованных long-context задачах.
 - [Lewis et al.: Retrieval-Augmented Generation](https://arxiv.org/abs/2005.11401) - исходная RAG архитектура, не стандарт всех retrieval pipelines.
 - [vLLM: Automatic Prefix Caching](https://docs.vllm.ai/en/latest/features/automatic_prefix_caching/) - переиспользование KV prefix и пределы ускорения.
-- [AX на ac23328: Data snapshot configuration](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) и [runner lifecycle](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go).
+- [AX на ac233282: Data snapshot configuration](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) и [runner lifecycle](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go).
 - Главы 4-5, 18-19, 24-25 и 33 этой книги - harness, state, recovery, authorization и reference workflows.

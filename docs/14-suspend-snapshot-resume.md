@@ -1,5 +1,7 @@
 # Lifecycle stateful Actor: pause, suspend, resume и восстановление
 
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+
 **Статус:** `STATE MACHINE` · `DURABILITY BOUNDARY` · `FAILURE SEMANTICS`
 
 В главе 13 мы собрали ресурсную модель Substrate: Actor получает identity, ActorTemplate задаёт исполняемую среду, WorkerPool предоставляет capacity, а snapshot всегда имеет конкретного владельца. Теперь разберём главное следствие этой модели: что происходит с Actor между запросами и где проходит граница долговечности.
@@ -50,14 +52,14 @@ Scope отвечает за состав checkpoint, а операция - за 
 | Scope | Что сохраняется | Resume | Когда выбирать |
 | --- | --- | --- | --- |
 | `Full` | Process memory, writable rootfs delta и `DurableDir` | Продолжение memory state | Дорогая инициализация, in-memory progress |
-| `Data` | Snapshot-capable volumes, прежде всего `DurableDir` | Fresh containers + восстановленные данные | Restartable process и меньший snapshot |
+| `Data` | Snapshot-capable volumes, прежде всего `DurableDir` | Восстановленные данные + cold boot либо общий golden guest state; индивидуальная RAM не сохранена | Restartable process и меньший snapshot |
 
 `snapshotConfig.onPause` задаёт scope локального checkpoint, `onCommit` - durable snapshot. `onCommit` обязан быть подмножеством `onPause`:
 
 ```
 onPause=Full, onCommit=Full  -> hot local и hot durable resume
 onPause=Full, onCommit=Data  -> hot pause, дешёвый durable suspend
-onPause=Data, onCommit=Data  -> process стартует заново после lifecycle
+onPause=Data, onCommit=Data  -> Data restore; boot source выбирает onResume.fromData
 ```
 
 `onPause=Data, onCommit=Full` невозможен: после Data pause память уже не сохранена. Если Actor paused с Data checkpoint, Full commit отклоняется до изменения состояния, чтобы Actor оставался resumable.
@@ -65,6 +67,8 @@ onPause=Data, onCommit=Data  -> process стартует заново после
 ### Full или Data
 
 Full оправдан, если память содержит дорогое состояние: загруженную модель, compiled graph, interpreter session или agent loop. Но он больше, сильнее связан с runtime и template UID и создаёт I/O burst. Data лучше, когда entrypoint умеет реконструировать execution из файлов и durable records. Такой контракт проще тестировать.
+
+`Full` не обещает перенос GPU memory, открытых соединений или любого device state. Возможность capture/restore зависит от sandbox backend, аппаратуры и snapshot compatibility; память общего inference-сервиса находится вне Actor. Для Data отдельно проверьте `onResume.fromData`: общий golden baseline не возвращает индивидуальный heap на момент suspend.
 
 > **Правило.** Начинайте с Data, если есть хороший restart protocol. Выбирайте Full, когда измеренная цена повторной инициализации или потери in-memory progress оправдывает более тяжёлый snapshot.
 
@@ -92,7 +96,7 @@ Actor, созданный до готовности golden tag, может по�
 | Источник | Когда | Фактический запуск |
 | --- | --- | --- |
 | Node-local snapshot | `PAUSED`, local checkpoint имеет приоритет | Restore на node snapshot |
-| Actor external snapshot | Есть собственный suspend | Full restore или Data + fresh boot |
+| Actor external snapshot | Есть собственный suspend | Full restore либо Data с источником COLD\_BOOT/GOLDEN по policy |
 | Borrowed Tag/golden | Actor создан из Tag или template golden | Restore общей immutable точки |
 | Snapshot отсутствует | Golden не был готов или source не задан | Cold boot из image |
 
@@ -199,7 +203,7 @@ Crash между внешним действием и checkpoint создаёт 
 
 При удалении Worker Pod текущий graceful path посылает Actor `SIGTERM` и оставляет до 30 минут для suspend. Если commit не завершён, Actor становится `CRASHED`, а всё после предыдущего external snapshot теряется. Это grace period, не гарантия: node может исчезнуть сразу.
 
-RPO определяется максимальным временем между успешными durable snapshots. Actor, running несколько часов, имеет несколько часов потенциальной потери, даже если обычно suspend'ится в конце задачи.
+RPO — допустимое временное окно потери изменений перед отказом; его задают как цель восстановления. Частота durable snapshots и возраст последней пригодной точки определяют, удаётся ли эту цель выдержать. Если Actor работает несколько часов без нового commit, потеря node может отбросить состояние на несколько часов, даже если штатно Actor suspend'ится в конце задачи. Проверяйте согласованность всей recovery point, а не только свежесть одного файла.
 
 | Workload | Подход | Почему |
 | --- | --- | --- |
@@ -241,7 +245,7 @@ Golden решает цену первого boot, pause - короткий idle,
 | Resume latency по source/scope | Local, Full, Data и cold boot |
 | Snapshot bytes/upload duration | I/O cost и storage pressure |
 | Probe timeout | Startup failure или плохой readiness contract |
-| Revert count/rollback age | Recovery frequency и реальный RPO |
+| Revert count/rollback age | Частота восстановления и фактическое окно потери |
 | Cold boot despite golden | Проблемы Ready gate или IAM |
 
 ```
@@ -278,7 +282,7 @@ wake_latency = parking + lease_wait + assignment + volume_attach
 - Probe проверяет локальную готовность.
 - Приложение переподключает clients и обновляет credentials.
 - External side effects имеют idempotency/reconciliation.
-- RPO задаётся частотой durable checkpoints.
+- RPO задаётся требованиями к потере данных; частота durable checkpoints и проверенный restore должны обеспечивать эту цель.
 - Dashboards разделяют local, Full, Data, golden и cold boot.
 - Fault injection покрывает restart, потерю node и partial upload.
 
@@ -290,9 +294,9 @@ Pause быстро освобождает Worker, но привязывает Ac
 
 ### Источники и дальнейшее чтение
 
-- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/main/docs/api-guide.md)
-- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md)
-- [Agent Substrate glossary](https://github.com/agent-substrate/substrate/blob/main/docs/glossary.md)
-- [Request parking design](https://github.com/agent-substrate/substrate/blob/main/docs/request-parking.md)
-- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/main/docs/upgrade.md)
-- [ate API lifecycle definitions](https://github.com/agent-substrate/substrate/blob/main/pkg/proto/ateapipb/ateapi.proto)
+- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md)
+- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md)
+- [Agent Substrate glossary](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/glossary.md)
+- [Request parking design](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md)
+- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md)
+- [ate API lifecycle definitions](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto)

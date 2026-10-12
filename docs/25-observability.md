@@ -1,6 +1,6 @@
 # Observability: от user goal до подтверждённого результата
 
-> Снимок главы: **AX main `ac233282` · Substrate main `df78882` · проверено 2026-10-08**. Реализованные возможности и целевая архитектура ниже разделены явно.
+> Снимок главы: **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-08**. Реализованные возможности и целевая архитектура ниже разделены явно.
 
 Пользователь пишет: «агент завис». На одном dashboard CPU свободен. В логах модели последний запрос завершился успешно. Actor числится `RUNNING`. Инструмент вернул HTTP 200. Каждая подсистема по отдельности выглядит здоровой, но результата нет.
 
@@ -41,7 +41,7 @@ Profiles полезны для CPU и memory hotspots, но не заменяю�
 
 Нужно также разделить **diagnostic telemetry** и **audit evidence**. Диагностические логи могут сэмплироваться, теряться при backpressure и удаляться по короткому retention. Audit trail должен доказывать, кто инициировал действие, какая policy сработала, что именно было разрешено, какой executor применил side effect и чем закончилась verification. Он требует другой целостности, доступа и срока хранения. Копия обычных application logs не становится аудитом только из-за долгого retention.
 
-## Correlation identity: карта, а не один ID
+## Как связать события одной задачи
 
 Фраза «добавим `trace_id`» недостаточна. В agent workflow несколько временных масштабов: пользовательская цель живёт часы, Task — дни, Actor переживает много activations, RPC — миллисекунды, а external operation может продолжаться после timeout клиента. Один identifier не выражает все эти отношения.
 
@@ -153,7 +153,7 @@ Metric backend создаёт отдельную time series для каждой
 
 ## Что уже даёт Substrate
 
-На снимке `df78882` Substrate реализует существенно больше, чем было видно из краткой версии этой главы:
+На снимке `df788825` Substrate реализует существенно больше, чем было видно из краткой версии этой главы:
 
 - оборачивает stdout/stderr контейнеров в structured JSON и добавляет `ate.actor.*`, atespace, template и container metadata;
 - позволяет смотреть текущий Actor через `kubectl ate logs actors ... --atespace ...`; для истории через migration/resume нужен central log backend;
@@ -352,9 +352,9 @@ Substrate уже предоставляет прочную runtime-базу, н�
 
 ### Источники и дальнейшее чтение
 
-- [Substrate observability на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md)
-- [Substrate request parking на снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md)
-- [Substrate metric registry на снимке df78882](https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/metrics/registry)
+- [Substrate observability на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md)
+- [Substrate request parking на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md)
+- [Substrate metric registry на снимке df788825](https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/metrics/registry)
 - [AX server на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go)
 - [AX runner на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go)
 - [AX roadmap: Telemetry and Trajectory Collection](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md)

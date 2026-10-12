@@ -4,6 +4,7 @@ from markdownify import markdownify as md
 from pathlib import Path
 import re, shutil, sys
 import cairosvg
+from book_structure import SLUGS, GROUPS, ANCHORS, navigation_title, passport_markdown
 
 root = Path(__file__).resolve().parents[1]
 html_path = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / "book/AX_Agent_Infrastructure_Book_RU.html"
@@ -34,58 +35,17 @@ svg_to_png(root / "assets/favicon.svg", assets / "favicon.png", 512)
 
 soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
 
-slugs = [
-"00-reading-guide",
-"01-agent-stack-map",
-"02-llm-as-compute",
-"03-agent-loop-and-boundaries",
-"04-agent-harness",
-"05-context-state-memory-snapshot",
-"06-tools-mcp-skills",
-"07-multi-agent-architectures",
-"08-process-container-gvisor-microvm",
-"09-kubernetes-minimum",
-"10-control-plane-distributed-systems",
-"11-actor-model",
-"12-agent-substrate-architecture",
-"13-substrate-resources",
-"14-suspend-snapshot-resume",
-"15-substrate-networking",
-"16-ax-control-plane",
-"17-ax-primitives",
-"18-ax-runner",
-"19-ax-task-lifecycle",
-"20-local-inference",
-"21-inference-performance",
-"22-multi-agent-on-ax",
-"23-security-architecture",
-"24-identity-authorization-hitl",
-"25-observability",
-"26-proxmox-kvm-lab",
-"27-production-engineering",
-"28-performance-scaling",
-"29-failure-modes-troubleshooting",
-"30-when-to-use-ax",
-"31-antipatterns",
-"32-labs",
-"33-reference-multi-agent-architectures",
-"34-mental-models-glossary-cheatsheets",
-"35-context-engineering",
-"36-mcp-2026",
-"37-safe-tool-execution",
-"38-ax-state-event-flow",
-"39-substrate-snapshot-ownership",
-"40-gateway-egress",
-"41-local-inference-sizing",
-"42-production-security-dr",
-"43-operations-runbook",
-"appendix-a-audit",
-"appendix-b-production-readiness",
-"appendix-c-sources-map",
-]
+slugs = SLUGS
 
 def norm(s: str) -> str:
     return " ".join(s.split())
+
+def rewrite_internal_links(container, targets):
+    """Map print chapter anchors to files that GitBook can resolve."""
+    for link in container.find_all("a", href=True):
+        href = link["href"]
+        if href.startswith("#") and href[1:] in targets:
+            link["href"] = targets[href[1:]]
 
 def split_section(section):
     groups, current = [], []
@@ -113,8 +73,17 @@ for sec in soup.find_all("section", class_="chapter"):
 if len(chapters) != len(slugs):
     raise SystemExit(f"Unexpected page count: {len(chapters)} != {len(slugs)}")
 
+chapter_targets = {f"ch-{i}": f"{slug}.md" for i, slug in enumerate(slugs[:44])}
+chapter_targets.update({
+    "appendix": "appendix-a-audit.md",
+    "appendix-b": "appendix-b-production-readiness.md",
+    "appendix-c": "appendix-c-sources-map.md",
+    "version-profiles": "00-reading-guide.md",
+})
+
 titles, fig_no = [], 0
 for idx, (container, slug) in enumerate(zip(chapters, slugs)):
+    rewrite_internal_links(container, chapter_targets)
     for x in container.select(".chapter-num"):
         x.decompose()
 
@@ -212,15 +181,7 @@ landing = """# AX & Agent Infrastructure
 
 Книга рассчитана на системных и сетевых инженеров, SRE/DevOps, архитекторов инфраструктуры, разработчиков agentic-платформ и технических руководителей. Основная перспектива - **как систему развернуть, ограничить, наблюдать, масштабировать и диагностировать**, а не как переписывать внутренний Go-код AX.
 
-## Базовые версии
-
-| Компонент | Baseline |
-| --- | --- |
-| Google AX | `v0.3.1` / `e70162a` |
-| Agent Substrate | `v0.3.0` / `ccecc78` |
-| MCP | `2026-07-28` |
-
-В тексте отдельно различаются release baseline, изменения в `main` и roadmap, чтобы планируемые возможности не выдавались за уже реализованные.
+{edition_passport}
 
 ## Как читать
 
@@ -228,9 +189,9 @@ landing = """# AX & Agent Infrastructure
 
 ## Публичная веб-версия
 
-- [Читать книгу в GitBook](https://seriousbusiness-1.gitbook.io/ax-agent-infrastructure/)
+- [Читать книгу в GitBook](https://romandocs.gitbook.io/ax-agent-infrastructure/)
 
-GitBook синхронизирован с каталогом `docs/` ветки `main`. Репозиторий остаётся source of truth для исходных материалов.
+GitBook Git Sync настроен на каталог `docs/` ветки `main`. Публичная версия отражает опубликованную ветку, а не неопубликованные рабочие изменения. Репозиторий остаётся источником материалов.
 
 ## Печатная версия
 
@@ -240,25 +201,19 @@ GitBook синхронизирован с каталогом `docs/` ветки 
 
 > Это независимое учебно-техническое издание. Оно не является официальной документацией Google, Google AX, Agent Substrate или других упомянутых проектов.
 """
+passport = make_container([soup.find(id="edition-passport")])
+rewrite_internal_links(passport, chapter_targets)
+passport_text = passport_markdown(passport, md)
+landing = landing.replace("{edition_passport}", passport_text)
 (docs / "README.md").write_text(landing, encoding="utf-8")
 
-groups = [
-("Начало", [0]),
-("I. Фундамент агентных систем", list(range(1, 8))),
-("II. Runtime, isolation и Agent Substrate", list(range(8, 16))),
-("III. Google AX", list(range(16, 20))),
-("IV. Local inference и multi-agent execution", list(range(20, 23))),
-("V. Security, observability и эксплуатация", list(range(23, 32))),
-("VI. Практика и reference architectures", list(range(32, 35))),
-("VII. Deep dives", list(range(35, 44))),
-("Приложения", list(range(44, 47))),
-]
+groups = GROUPS
 
 summary = ["# Summary", "", "* [Главная](README.md)", ""]
 for group, indices in groups:
     summary += [f"## {group}", ""]
     for i in indices:
-        summary.append(f"* [{titles[i]}]({slugs[i]}.md)")
+        summary.append(f"* [{navigation_title(i, titles[i])}]({slugs[i]}.md)")
     summary.append("")
 (docs / "SUMMARY.md").write_text("\n".join(summary).rstrip() + "\n", encoding="utf-8")
 

@@ -54,26 +54,28 @@ Labels предназначены для выбора и группировки 
 
 ### Минимальный manifest, который стоит уметь читать
 
+**Учебный manifest.** Этот `platform-api` показывает устройство Deployment, а не рабочую конфигурацию AX. Namespace и ServiceAccount нужно создать отдельно, placeholder digest заменить реальным image, а пути probes реализовать в приложении. Для AX `ac233282` проверяйте его собственные manifests и `/healthz`; отдельного ax-controller у него нет.
+
 ```
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: ax-controller
+  name: platform-api
   namespace: ax-system
 spec:
   replicas: 2
   selector:
     matchLabels:
-      app: ax-controller
+      app: platform-api
   template:
     metadata:
       labels:
-        app: ax-controller
+        app: platform-api
     spec:
-      serviceAccountName: ax-controller
+      serviceAccountName: platform-api
       containers:
       - name: controller
-        image: registry.example/ax-controller@sha256:...
+        image: registry.example/platform-api@sha256:...
         resources:
           requests: {cpu: "500m", memory: "512Mi"}
           limits: {memory: "1Gi"}
@@ -137,7 +139,7 @@ Pod phase `Running` означает, что Pod назначен node и хот
 
 ## Service, DNS и реальный путь traffic
 
-Pod IP нестабилен, поэтому клиент обычно обращается к Service. Selector Service выбирает Pods, EndpointSlice хранит актуальные backends, а service proxy или network dataplane направляет traffic. DNS создаёт удобное имя вроде `ax-controller.ax-system.svc`. Service не запускает health check сам: готовность endpoints обычно следует из Pod readiness.
+Pod IP нестабилен, поэтому клиент обычно обращается к Service. Selector Service выбирает Pods, EndpointSlice хранит актуальные backends, а service proxy или network dataplane направляет traffic. DNS создаёт удобное имя вроде `platform-api.ax-system.svc`. Service не запускает health check сам: готовность endpoints обычно следует из Pod readiness.
 
 Если DNS name разрешается, это доказывает только discovery. Если TCP connection устанавливается, это ещё не доказывает корректность application protocol, TLS identity или authorization. Диагностика должна идти слоями: DNS - endpoint membership - route - port - TLS - application response.
 
@@ -182,7 +184,7 @@ CRD не стоит использовать как удобную беспла�
 | --- | --- | --- |
 | Kubernetes | nodes, Pods, placement, restart, cluster networking/storage integration, workload identity и cluster policy | agent semantics, tool authorization, conversation state и task event store |
 | Substrate | Actor/Worker lifecycle, runtime backend, sandbox placement, suspend/resume и snapshot contract | общий Kubernetes scheduler или application goal |
-| AX | Task intent, orchestration, agent execution policy, task state/events и связь с tools | container runtime internals и node lifecycle |
+| AX | Task/Workspace/Model records, инфраструктурный lifecycle и наблюдаемый status; прикладные policy, tools и журнал run принадлежат harness | container runtime internals и node lifecycle |
 | Harness/application | agent loop, prompts, context, domain state и решение о следующем действии | physical isolation и cluster-wide capacity management |
 
 Пример цепочки: пользователь создаёт AX Task. AX сохраняет intent и просит Substrate предоставить isolated Actor. Substrate выбирает подходящий WorkerPool и physical runtime. Kubernetes обеспечивает, чтобы нужная worker capacity существовала на nodes с требуемым RuntimeClass и ресурсами. Kubelet запускает Pod, runtime создаёт sandbox. При этом task progress не обязан записываться как новый Kubernetes object на каждый model/tool step.

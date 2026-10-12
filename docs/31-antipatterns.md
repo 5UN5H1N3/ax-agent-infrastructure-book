@@ -4,7 +4,7 @@
 
 В агентной системе цена таких ошибок выше, чем в обычном service. LLM выбирает следующий шаг вероятностно, читает недоверенный контент и может вызывать tools с внешними эффектами. AX/Substrate добавляет isolation и lifecycle primitives, но платформа не исправит неверную границу полномочий, плохую retry policy или отсутствие authoritative state. Sandbox ограничивает место выполнения; безопасность результата всё равно определяется всей цепочкой от prompt до downstream API.
 
-**Снимок главы:** AX main `ac233282`, Substrate main `df78882`, внешние рекомендации проверены 2026-10-10. Конкретные поля API нужно сверять с закреплённой версией, а инженерные проверки ниже должны оставаться частью собственного threat model и production readiness review.
+**Снимок главы:** AX main `ac233282`, Substrate main `df788825`, внешние рекомендации проверены 2026-10-10. Конкретные поля API нужно сверять с закреплённой версией, а инженерные проверки ниже должны оставаться частью собственного threat model и production readiness review.
 
 ## Как распознать антишаблон до инцидента
 
@@ -266,4 +266,4 @@ Lifecycle status сообщает, что controller видит объект в 
 - [Google SRE: load testing и cascading failures](https://sre.google/sre-book/addressing-cascading-failures/)
 - [OpenTelemetry Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/)
 - [AX concepts на закреплённом снимке ac233282](https://github.com/google/ax/blob/ac233282/docs/concepts.md)
-- [Substrate architecture на закреплённом снимке df78882](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md)
+- [Substrate architecture на закреплённом снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md)

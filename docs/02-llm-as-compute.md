@@ -293,7 +293,7 @@ Retry способен исправить временную перегрузк�
 
 ## Где проходит граница AX
 
-В AX ресурс `Model` связывает Task с model endpoint и его конфигурацией. Это полезная platform abstraction: Task не обязан знать физический GPU host или детали внешнего provider.
+В проверенных AX schema [v0.3.1](https://github.com/google/ax/blob/e70162a34037c221fe6fadefd98308c05a4ad8f3/pkg/apis/v1alpha1/ax.proto) и [ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto) ресурс `Model` хранит конфигурацию платформенного model client. Он не связывает Task с endpoint автоматически: в `TaskSpec` нет `modelRef`. Endpoint, логическое имя модели и способ авторизации пользовательского агента настраивает разработчик harness. Физический GPU host можно скрыть за стабильным inference endpoint, но это контракт приложения и сервиса, а не встроенная связь ресурсов AX.
 
 Но Model resource не выбирает reasoning strategy и не доказывает пригодность модели для workload. AX не валидирует за приложение tool semantics, context composition, eval quality или postconditions. Эти обязанности остаются в harness и model adapter.
 
@@ -340,7 +340,7 @@ Retry способен исправить временную перегрузк�
 - Модель выбирают по собственным cases и нескольким метрикам, а не по одному публичному рейтингу.
 - Cloud, local и hybrid serving имеют разные эксплуатационные и security trade-offs.
 - Model adapter обязан нормализовать API, не скрывая capability differences и finish reasons.
-- AX управляет ссылкой Task на Model, но качество model step остаётся ответственностью приложения.
+- AX хранит ресурс Model для платформенного client; подключение модели к harness внутри Task и качество model step остаются ответственностью приложения.
 
 **Дальше.** Один model call выбирает продолжение, но ещё не образует агента. В следующей главе мы соединим такие вызовы с observation, state, actions и stop conditions в управляемый loop.
 
@@ -355,4 +355,4 @@ Retry способен исправить временную перегрузк�
 - [Lost in the Middle: How Language Models Use Long Contexts](https://arxiv.org/abs/2307.03172)
 - [Holistic Evaluation of Language Models](https://arxiv.org/abs/2211.09110)
 - [Generating Structured Outputs from Language Models](https://arxiv.org/abs/2501.10868)
-- [AX Core concepts, baseline e70162a](https://github.com/google/ax/blob/e70162a/docs/concepts.md)
+- [AX concepts, release v0.3.1 e70162a3](https://github.com/google/ax/blob/e70162a3/docs/concepts.md)

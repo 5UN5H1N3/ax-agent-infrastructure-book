@@ -1,6 +1,8 @@
 # Actor model для агентных workload: identity, state и lifecycle
 
-В конце предыдущей главы мы пришли к устойчивой identity, operation ID и reconciliation. Actor model отвечает на следующий вопрос: **вокруг какой сущности собрать состояние и последовательность решений, если физический процесс может исчезать и появляться снова?**
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+
+В предыдущей главе мы увидели, зачем нужны устойчивая идентичность, operation ID и согласование состояния. Actor model отвечает на следующий вопрос: **вокруг какой сущности собрать состояние и последовательность решений, если физический процесс может исчезать и появляться снова?**
 
 Для агента такой сущностью часто становится разговор, рабочая сессия, пользовательский помощник или автономный исполнитель. Он живёт логически дольше одного HTTP-запроса и дольше одного Pod. Но слово *Actor* перегружено: в классической модели это вычислительная сущность с mailbox; в virtual actor runtime - логическая identity с управляемой activation; в Agent Substrate - stateful workload, который можно suspend и resume на разных Workers. Эти идеи родственны, но не взаимозаменяемы.
 
@@ -371,5 +373,5 @@ Identity внутри восстановленного snapshot требует �
 - [Orleans Request Scheduling](https://learn.microsoft.com/en-us/dotnet/orleans/grains/request-scheduling) - single-threaded turns, interleaving и reentrancy.
 - [Orleans Grain Directory](https://learn.microsoft.com/en-us/dotnet/orleans/host/grain-directory) - mapping logical identity на activation location.
 - [Erlang/OTP Supervisor Behaviour](https://www.erlang.org/doc/system/sup_princ.html) - supervision trees и restart strategies.
-- [Agent Substrate Architecture](https://github.com/agent-substrate/substrate/blob/main/docs/architecture.md) - Actor/Worker lifecycle, routing и snapshot state.
+- [Agent Substrate Architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md) - Actor/Worker lifecycle, routing и snapshot state.
 - [Agent Substrate Security](https://github.com/agent-substrate/substrate/security) - cross-Actor isolation, routing, identity и snapshot risks.

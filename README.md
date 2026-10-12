@@ -7,12 +7,13 @@
 
 > Практическое инженерное руководство по архитектуре, оркестрации и эксплуатации AI-агентов: от LLM и agent harness до MCP, Agent Substrate, Google AX, sandboxing, локального inference и production-эксплуатации.
 
-**Язык книги:** русский  
-**Формат:** PDF / исходный HTML / опубликованная GitBook web edition  
-**Объём:** 99 страниц A4, 44 главы, 40+ технических схем, 14 лабораторных работ  
+## Паспорт издания
+
+[Единый паспорт издания](docs/README.md#паспорт-издания) содержит дату и статус рабочей редакции, состав книги, форматы и границы проверки. Он хранится в исходном HTML и автоматически переносится в PDF и веб-версию. Версии проектов перечислены в [карте главы 0](docs/00-reading-guide.md), а история опубликованных выпусков — в [CHANGELOG](CHANGELOG.md). Этот README не вводит отдельную версионную базу.
+
 **Целевая аудитория:** системные и сетевые инженеры, SRE/DevOps, архитекторы инфраструктуры, разработчики agentic-платформ и технические руководители.
 
-[Читать онлайн](https://seriousbusiness-1.gitbook.io/ax-agent-infrastructure/) · [Скачать PDF](book/AX_Agent_Infrastructure_Book_RU.pdf) · [Исходный HTML](book/AX_Agent_Infrastructure_Book_RU.html) · [Web-book source](docs/README.md) · [Google AX](https://github.com/google/ax) · [Agent Substrate](https://github.com/agent-substrate/substrate)
+[Читать онлайн](https://romandocs.gitbook.io/ax-agent-infrastructure/) · [Скачать PDF](book/AX_Agent_Infrastructure_Book_RU.pdf) · [Исходный HTML](book/AX_Agent_Infrastructure_Book_RU.html) · [Web-book source](docs/README.md) · [Google AX](https://github.com/google/ax) · [Agent Substrate](https://github.com/agent-substrate/substrate)
 
 ---
 
@@ -77,18 +78,16 @@ Kubernetes / Compute / Storage / Network
 
 ## Версионная база исследования
 
-Проекты AX и Agent Substrate находятся в активной разработке, поэтому книга использует фиксированные baseline-ревизии.
+Проекты AX и Agent Substrate находятся в активной разработке. У книги несколько фиксированных профилей; таблица ниже задаёт релизный контекст, а не одну сборку для всех глав.
 
-| Проект | Baseline | Commit |
-|---|---:|---|
-| Google AX | `v0.3.1` | `e70162a` |
-| Agent Substrate | `v0.3.0` | `ccecc78` |
+[Общая карта версий](docs/00-reading-guide.md) задаёт AX `v0.3.1` / `e70162a3` с отдельным controller и `ac233282` с direct reconciliation, Substrate `v0.3.0` / `ccecc788` и три отдельно подписанных development-среза, MCP modern/legacy и два vLLM-профиля. llama.cpp обозначен как релизный ориентир, а не единая закреплённая лабораторная сборка. Совместимость пары не выводится из доступности двух релизов.
 
-При анализе различаются три категории:
+Метки утверждений определены в главе 0 и не заменяют версионный профиль:
 
-- **Release baseline** — поведение, относящееся к зафиксированной версии;
-- **Current main** — изменения, которые уже находятся в основной ветке после baseline;
-- **Roadmap / planned** — заявленные направления, которые нельзя считать реализованной production-функциональностью.
+- **IMPLEMENTED** — механизм найден в коде или документации выбранного профиля; это не результат испытания стенда;
+- **MAIN DELTA** — изменения после релизной базы на указанном фиксированном commit, не обещание актуального состояния движущегося `main`;
+- **ROADMAP** — заявленные направления, которые нельзя считать реализованной production-функциональностью;
+- **BACKGROUND** — общая инженерная база или рекомендуемый pattern, а не обещание AX.
 
 Это важно: архитектура и документация проектов меняются быстро, а некоторые design-документы описывают целевую модель раньше, чем она полностью появляется в коде.
 
@@ -186,12 +185,12 @@ Linux process
 - Task;
 - Workspace;
 - Model;
-- Gateway в более новых ревизиях;
+- Task/Model boundary без автоматического modelRef; сетевой gateway и EgressPolicy принадлежат Substrate, не AX kind;
 - Task lifecycle;
 - Workspace bootstrap;
 - runner/PID 1;
 - suspend/resume semantics;
-- расхождения между release, current main и roadmap.
+- расхождения между релизной базой, закреплёнными development-срезами и roadmap.
 
 ### Local inference
 
@@ -335,7 +334,7 @@ structure:
 
 ## Статус
 
-**Initial public release / living document.**
+**Рабочая редакция / living document.** Первый публичный выпуск: `v1.0.0` от 03.10.2026. Дата текущей редакции указана в паспорте; она не объявляет новый опубликованный релиз.
 
 AX и Agent Substrate активно развиваются. Ошибки, расхождения с новой upstream-версией и предложения по улучшению лучше оформлять через GitHub Issues.
 

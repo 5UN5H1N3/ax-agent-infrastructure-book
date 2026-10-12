@@ -1,11 +1,11 @@
 # Task lifecycle в AX: synchronous reconciliation, состояния и recovery
 
-![AX Task current main: synchronous lifecycle под per-resource lock](.gitbook/assets/diagrams/19-17.png)  
-*AX Task current main: synchronous lifecycle под per-resource lock*
+![AX Task в срезе ac233282: synchronous lifecycle под per-resource lock](.gitbook/assets/diagrams/19-17.png)  
+*AX Task в срезе ac233282: synchronous lifecycle под per-resource lock*
 
 В предыдущей главе мы разобрали жизнь процесса внутри sandbox. Теперь поднимемся на уровень выше и проследим, что происходит с самим `Task`: от первого RPC до Actor, suspend, повторного запуска и удаления.
 
-Здесь особенно опасна устаревшая mental model. В старых версиях и ранних материалах AX фигурировали Redis Streams и отдельный `ax-controller`. В current main на commit `ac23328` эта очередь и отдельный controller удалены. `ax-server` сам выполняет reconciliation синхронно в обработчиках `CreateTask`, `ResumeTask`, `SuspendTask` и `DeleteTask`, а Redis используется как resource store, канал watch-уведомлений и backend распределённых блокировок.
+Здесь особенно опасна устаревшая mental model. В старых версиях и ранних материалах AX фигурировали Redis Streams и отдельный `ax-controller`. В срезе `ac233282` эта очередь и отдельный controller удалены. `ax-server` сам выполняет reconciliation синхронно в обработчиках `CreateTask`, `ResumeTask`, `SuspendTask` и `DeleteTask`, а Redis используется как resource store, канал watch-уведомлений и backend распределённых блокировок.
 
 Это не косметическая перестановка компонентов. Она меняет latency API, failure windows, способ повторять операции и то, что инженер должен считать доказательством успеха.
 
@@ -36,7 +36,7 @@ Reconciliation пытается сблизить эти представлени
 
 Отдельной durable queue между пунктами 3 и 4 нет. Отдельный worker не подберёт незавершённое событие после рестарта `ax-server`. Плюс такого дизайна - простой request path и немедленная обратная связь об ошибке. Цена - более длинные RPC, сильная зависимость от client deadline и необходимость явно проектировать recovery после частично выполненной операции.
 
-> **Важно:** Redis Pub/Sub в current main обслуживает `WatchTask` и ожидание освобождения lock. Это не прежняя очередь reconciliation и не журнал событий с повторной доставкой.
+> **Важно:** Redis Pub/Sub в срезе `ac233282` обслуживает `WatchTask` и ожидание освобождения lock. Это не прежняя очередь reconciliation и не журнал событий с повторной доставкой.
 
 ## Create: создать означает подготовить suspended Task
 
@@ -132,6 +132,8 @@ Reconciler снова проходит ensure-шаги, затем просит 
 
 ## Delete: сначала Terminating, затем Actor, потом Redis
 
+**Граница cleanup.** `ReconcileDelete` возвращает ошибку удаления Actor, но ошибку `deleteTaskTemplates` только пишет в warning и затем возвращает успех. Поэтому Task может исчезнуть из Redis при оставшихся per-task templates/golden snapshots. Сохраните inventory до delete и после него; очищайте остатки только после проверки UID, ownership и зависимых Actors/Tags, а не по одному совпавшему префиксу имени.
+
 Удаление построено осторожнее, чем suspend:
 
 1. Task lock захвачен.
@@ -139,7 +141,7 @@ Reconciler снова проходит ensure-шаги, затем просит 
 3. `ReconcileDelete` удаляет Actor в Substrate.
 4. Client опрашивает Actor до ответа `NotFound`.
 5. Reconciler пытается удалить все per-task ActorTemplates.
-6. Только после этого AX удаляет Task record и индексы из Redis.
+6. После попытки очистки templates AX удаляет Task record и индексы из Redis; успешная очистка каждого template не является обязательным условием этого шага.
 
 Если удаление Actor завершается ошибкой или deadline истекает, Task остаётся в Redis как `Terminating`. Это полезный recovery marker: оператор видит незавершённую очистку и может повторить delete. Если Actor уже исчез, повторная очистка трактует `NotFound` как успех.
 
@@ -163,7 +165,7 @@ Production server использует Redis lock с ключом `lock:<kind>:<
 
 Если обработчик работает дольше TTL, другой запрос способен получить тот же lock, пока первый ещё выполняется. Инженеру нужно либо держать RPC и dependencies заметно быстрее lease, либо добавить renewal/fencing token, либо вынести долгие операции в durable state machine.
 
-Отдельно тестируйте race между resume Task и обновлением Workspace/Model. Reconciler собирает launch envelope из snapshot-а прочитанных объектов, но не захватывает их locks вместе с Task.
+Отдельно тестируйте race между resume Task и обновлением Workspace. Reconciler читает связанные Workspace specs для launch envelope, но не захватывает их locks вместе с Task. Model record в этот envelope не входит и не выбирается через TaskSpec: обновление Model не переключает модель пользовательского harness.
 
 ## Failure windows и осмысленный retry
 
@@ -237,10 +239,10 @@ Phase `Completed` распознаётся watch API, но current Task reconcil
 | Сценарий | Что должно быть доказано |
 | --- | --- |
 | Два одновременных resume одного Task | Операции сериализуются до истечения lock lease |
-| Reconcile дольше 30 секунд | Нет overlap или внедрены renewal/fencing |
+| Reconcile дольше 30 секунд | Проверить overlap после истечения lease: в этом коде нет renewal/fencing. Для строгой сериализации требуется отдельное исправление или доказанное ограничение длительности |
 | `ax-server` падает после SaveTask | Recovery находит persisted Task и состояние Actor |
 | Client timeout после ResumeActor | Повтор не создаёт второй Actor и не теряет первый |
-| Workspace готов после 15 секунд | Observer обнаруживает readiness и исправляет stale status |
+| Workspace готов после 15 секунд | Внешний observer или контролируемый повтор lifecycle RPC перечитывает readiness; встроенного continuous observer здесь нет |
 | SuspendActor возвращает ошибку | Monitoring не принимает `Suspended` за доказательство остановки |
 | Delete прерывается после удаления Actor | Повтор завершает Redis cleanup |
 | Redis Pub/Sub сообщение потеряно | Reconnect watch возвращает актуальный `INITIAL` snapshot |
@@ -248,7 +250,7 @@ Phase `Completed` распознаётся watch API, но current Task reconcil
 
 ## Антипаттерны
 
-- **Искать отдельный `ax-controller` в current main.** Lifecycle выполняет `ax-server`.
+- **Искать отдельный `ax-controller` в срезе `ac233282`.** Lifecycle выполняет `ax-server`.
 - **Называть Redis Pub/Sub очередью reconciliation.** Это transient notification, а не durable work log.
 - **Повторять create после timeout без Get.** Task мог уже занять immutable имя.
 - **Считать synchronous RPC транзакцией Redis + Substrate.** Между side effects остаются failure windows.

@@ -1,9 +1,11 @@
 # Когда AX нужен, а когда проще другой инструмент
 
+**Граница сравнения.** Здесь AX `ac233282` работает поверх Substrate; это не обещание одинаковых возможностей обоих слоёв. Full snapshots, выбор sandbox class и Actor limits требуют проверенного template/runtime. Поле `TaskSpec.resources` в этом AX-срезе не доказывает применение CPU/RAM limits; automatic Task→Model binding и ресурс Gateway отсутствуют.
+
 ![Когда AX является разумным кандидатом, а когда это избыточный слой](.gitbook/assets/diagrams/30-26.png)  
 *Когда AX является разумным кандидатом, а когда это избыточный слой*
 
-**Снимок главы:** **AX main `ac233282` · Substrate main `df78882` · проверено 2026-10-10**. AX и Substrate остаются pre-1.0 проектами; их собственные README предупреждают о возможных breaking changes. Решение о внедрении нужно принимать по закреплённой версии и результатам собственного pilot, а не по roadmap или headline claims.
+**Снимок главы:** **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-10**. AX и Substrate остаются pre-1.0 проектами; их собственные README предупреждают о возможных breaking changes. Решение о внедрении нужно принимать по закреплённой версии и результатам собственного pilot, а не по roadmap или headline claims.
 
 После глав о production, capacity и troubleshooting выбор AX выглядит не как вопрос «нравится ли нам технология», а как обмен. Платформа добавляет изоляцию, декларативный lifecycle, stateful Actors и возможность отделить число логических агентов от числа физических Workers. Одновременно она добавляет control plane, state store, snapshot storage, networking, version compatibility, новые failure modes и on-call нагрузку.
 
@@ -19,7 +21,7 @@
 | Task distribution | Как доставить короткую работу свободному worker-у? | Celery, RQ, RabbitMQ/SQS consumers | Process snapshot и sandbox на задачу |
 | Durable workflow | Как пережить crash, timer, approval и многошаговый business process? | Temporal и другие workflow engines | Безопасное выполнение произвольного кода внутри шага |
 | Batch/container execution | Как запустить container до завершения? | Kubernetes Job/CronJob | Живой stateful process после остановки Pod |
-| Distributed compute | Как распределить функции, actors и данные по cluster resources? | Ray, Spark, Dask | Agent-specific Workspace/Gateway и security boundary |
+| Distributed compute | Как распределить функции, actors и данные по cluster resources? | Ray, Spark, Dask | Workspace blueprint и отдельную security boundary для недоверенного исполнения |
 | Sandboxed agent runtime | Как изолировать, приостановить и восстановить stateful execution? | AX поверх Agent Substrate | Сам agent loop и durable business workflow верхнего уровня |
 
 Поэтому «AX или LangGraph» обычно неверная постановка. LangGraph может реализовать agent orchestration внутри AX Task. Temporal может владеть business process, а опасный coding step выполнять через AX. Kubernetes продолжает управлять Pods самой платформы. Решение начинается с границы ответственности, а не со списка features.
@@ -32,8 +34,8 @@
 | --- | --- | --- |
 | Trust | Кто создаёт код, prompt, skills и repository? | Код tenant-а не должен читать state другого tenant-а |
 | Isolation | Достаточен process/container или нужен gVisor/microVM class? | Escape одного Task не даёт host credentials |
-| State | Что должно пережить pause, node loss и upgrade? | Workspace и process state восстанавливаются с определённым RPO |
-| Lifecycle | Нужен ли именно живой process suspend/resume? | Idle Task освобождает Worker и возобновляется за p95 SLO |
+| State | Что должно пережить pause, node loss и upgrade? | Durable workspace и checkpoint приложения восстанавливаются в пределах целевого RPO; индивидуальная RAM требует отдельной Full-policy |
+| Lifecycle | Достаточно ли durable данных + restart protocol или нужна индивидуальная RAM через Full? | Idle Task освобождает Worker и возобновляется за p95 SLO |
 | Population | Сколько logical executions существует и сколько активно? | 100 000 Actors при не более 2 000 одновременно активных |
 | Churn | Какова скорость create/resume/suspend/delete? | Burst в 500 wakeups не нарушает interactive SLO |
 | Image diversity | Нужны ли разные ОС/runtime/toolchains? | Версионированные templates для Python, Go и coding images |
@@ -45,10 +47,10 @@
 ## Сигналы, что AX/Substrate действительно решает доминирующую проблему
 
 - **Недоверенный или сгенерированный код является нормой.** Каждый Task требует самостоятельной sandbox, network boundary и scoped identity, а не общего trusted worker.
-- **Workspace и process state дороги для повторного построения.** Агент должен продолжать с локальными файлами и runtime state, а cold restart регулярно нарушает latency или стоимость.
+- **Рабочая среда и durable данные дороги для повторного построения.** В проверенном шаблоне AX используется Data snapshot с Data-on-golden: сохраняются предусмотренные volumes, но не индивидуальные stack/heap агента. Harness продолжает логическую работу из checkpoint. Если требование состоит именно в сохранении памяти процесса, отдельно испытайте подходящий Full-scope template Substrate; нельзя приписывать это автоматически стандартному AX.
 - **Логических агентов намного больше, чем одновременно активных.** Низкий duty cycle позволяет reclaim Workers через suspend/resume; без этого oversubscription не даёт экономии.
 - **Task является естественной isolation/resource/lifecycle boundary.** Делегирование создаёт независимую работу, которой нужны отдельные limits, policy и audit.
-- **Нужны heterogeneous images и повторяемые environments.** Workspace, Model, Gateway и Task удобно описывать декларативно и версионировать.
+- **Нужны разные images и повторяемые environments.** Task и Workspace описывают запуск и подготовку среды. Model хранит конфигурацию платформенного client, но не привязан к Task; сетевые правила задаёт EgressPolicy Substrate или другой явно выбранный enforcement layer. Ресурса AX Gateway в проверенных schema нет.
 - **Population и churn неудобны для «Pod на каждый логический agent».** Важны быстрые state transitions и тёплый физический pool, а не только создание Jobs.
 - **Команда готова эксплуатировать платформу.** Есть owners для AX, Substrate, Kubernetes, store, snapshot path, networking и security response.
 
@@ -190,7 +192,7 @@ AX может уменьшить idle compute благодаря multiplexing, �
 3. Добавьте workflow engine, если retries/timers/approvals образовали самодельную state machine.
 4. Вынесите только untrusted execution в sandboxed runtime.
 5. Добавьте suspend/resume, когда measurements докажут дорогой rebuild и низкий duty cycle.
-6. Стандартизируйте AX Tasks/Workspaces/Gateways, когда несколько команд повторяют один и тот же verified pattern.
+6. Стандартизируйте AX Tasks и Workspaces, отдельную конфигурацию harness/model endpoint и Substrate EgressPolicy, когда несколько команд повторяют один и тот же verified pattern.
 
 Такой путь не означает, что AX всегда последний этап. Если threat model с первого дня требует строгой sandbox для пользовательского кода, runtime boundary нужна сразу. Принцип в другом: добавлять только тот слой, для которого уже существует проверяемая обязанность.
 

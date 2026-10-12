@@ -2,7 +2,7 @@
 
 Продолжим инцидент из главы 38. Task `lab/network-017` существует в AX, Actor найден в Substrate, но после потери node работа не продолжается. В object storage есть несколько каталогов с похожими именами. Какой из них можно восстановить? Не удалит ли следующий suspend нужную точку? И не выполнит ли агент повторно изменение, которое внешний сервис уже принял?
 
-На эти вопросы не отвечает фраза «у нас включены snapshots». Snapshot - сохранённая часть исполняемой среды с конкретным владельцем, составом и требованиями к восстановлению. Для инженера важна вся цепочка: кто создал bytes, какая запись на них указывает, какие другие Actors их используют и какой runtime способен их прочитать. Потеря любого звена способна оставить исправные файлы без пригодного пути восстановления.
+На эти вопросы не отвечает фраза «у нас включены snapshots». Snapshot - сохранённая часть исполняемой среды с конкретным владельцем, составом и требованиями к восстановлению. Глава 14 объяснила состав снимка и lifecycle. Здесь разберём владение и зависимости: кто создал данные, какая запись на них указывает, какие Actors их заимствуют и какой runtime способен их восстановить. Потеря любого звена способна оставить исправные файлы без пригодного пути восстановления.
 
 Здесь используем контракт Substrate [v0.3.0, commit ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97): `Full`/`Data`, `externalSnapshot`, `localSnapshot` и `snapshotConfig`. Эти имена соответствуют зафиксированной версии, а не любой будущей ветке `main`. Глава 14 объяснила lifecycle; теперь разберём долговечность, заимствование, совместимость и эксплуатационную цену сохранённых точек.
 
@@ -174,7 +174,7 @@ Garbage collector должен работать с lifecycle ownership, а не 
 
 В recovery inventory сопоставьте Substrate Actor/Tag metadata, полные prefixes referenced snapshots, golden Tags, template и image identities, SandboxConfig assets, key versions и внешние данные приложения. Для AX добавьте Redis resource records и mapping Task к Actor. Не выдавайте backup этих систем в произвольные моменты за один согласованный срез.
 
-RPO - допустимая потеря изменений между recovery point и отказом; RTO - допустимое время возвращения к полезной работе. Последний успешный external suspend задаёт возможную точку отката Actor, но внешний ledger может быть новее. Recovery выбирает completed snapshot, восстанавливает progression и согласует его с authoritative operations. Нельзя добиться business consistency простым выравниванием часов файлов.
+RPO - целевое допустимое временное окно потери изменений перед отказом; RTO - допустимое время возвращения к полезной работе. Последний успешный external suspend задаёт возможную точку отката Actor, но внешний ledger может быть новее. Recovery выбирает completed snapshot, восстанавливает progression и согласует его с authoritative operations. Нельзя добиться business consistency простым выравниванием часов файлов.
 
 Практический restore начинается в изолированной среде с отключёнными mutation credentials и ограниченным egress. Сначала доказывают целостность и совместимость, затем проверяют application state и незавершённые операции. Только после reconciliation разрешают реальные writes. Так тест backup не превращается в повторное выполнение production tool calls.
 
@@ -205,7 +205,7 @@ Storage error, runtime incompatibility и application inconsistency требую
 7. Обновите Actor на допустимый другой template и проверьте Data fallback, state schema recovery и сохранность provenance. Отдельно испытайте старую точку с планируемым runtime upgrade.
 8. Потеряйте node после успешного external suspend и после только local pause. Сравните recovery point, потерянные изменения и время до полезного шага.
 9. Оборвите ответ внешней операции `op-17`, восстановите более старую точку и докажите, что harness сверяет effect, а не дублирует mutation.
-10. Проверьте cross-Atespace allow и deny, затем восстановите backup в изолированную среду без production writes. Сохраните dependency inventory и измеренный RPO/RTO.
+10. Проверьте cross-Atespace allow и deny, затем восстановите backup в изолированную среду без production writes. Сохраните dependency inventory и измеренные потери и время восстановления, сопоставленные с целями RPO/RTO.
 
 Результат практикума - таблица конкретных recovery paths: источник, owner, scope, совместимый runtime, возможная потеря и первое разрешённое действие приложения. Пока такую таблицу нельзя заполнить по evidence, фраза «snapshot работает» означает только один удачный happy path.
 

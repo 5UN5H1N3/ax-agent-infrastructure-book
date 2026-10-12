@@ -2,7 +2,7 @@
 
 Actor `lab/network-017` из предыдущей главы восстановлен. Workspace на месте, runner отвечает, но агент не может продолжить работу: вызов model API заканчивается timeout. Оператор открывает сетевой доступ шире, запрос проходит, и инцидент кажется закрытым. На деле исправление могло одновременно разрешить доступ к чужим внутренним сервисам. Мы ещё не знаем, что сломалось и какую границу только что убрали.
 
-Сетевую доступность нужно доказывать в двух направлениях: разрешённая операция работает, а запрещённая не достигает назначения. Эта глава учит строить такую проверку и выбирать шлюз под задачу. Мы разберём путь запроса из sandbox, DNS на обеих сторонах proxy, несколько TLS-соединений внутри одного обращения, выдачу credentials и проверку прикладного протокола. Инженерный результат - минимальный доступ с понятным местом отказа, а не просто зелёный health check.
+Сетевую доступность нужно доказывать в двух направлениях: разрешённая операция работает, а запрещённая не достигает назначения. Глава 15 дала общую схему routing и egress. Здесь проследим один запрос по конкретным DNS/TLS этапам и научимся выбирать шлюз под задачу. Мы разберём путь запроса из sandbox, DNS на обеих сторонах proxy, несколько TLS-соединений внутри одного обращения, выдачу credentials и проверку прикладного протокола. Инженерный результат - минимальный доступ с понятным местом отказа, а не просто зелёный health check.
 
 ## Какую задачу решает Gateway
 
@@ -129,7 +129,7 @@ curl --noproxy '*' --cacert /run/ate/trust-bundle.pem \
 
 ## HTTP response ещё не означает работоспособность агента
 
-`/health` может вернуть 200 без model availability, нужных permissions или поддерживаемого API. Следующий test должен воспроизвести минимальную безопасную операцию тем же SDK: правильный URL path, method, content type и authentication. Для inference это короткая ограниченная generation с нужной моделью; для MCP over HTTP - initialize и разрешённый read-only вызов с требуемыми session/version semantics. Local stdio MCP server имеет другой сетевой путь: outbound connections создаёт его процесс, а не «MCP» как абстракция.
+`/health` может вернуть 200 без model availability, нужных permissions или поддерживаемого API. Следующий test должен воспроизвести минимальную безопасную операцию тем же SDK: правильный URL path, method, content type и authentication. Для inference это короткая ограниченная generation с нужной моделью; для MCP over HTTP - разрешённый read-only вызов по выбранной revision. В modern `2026-07-28` используется per-request `_meta`, а discovery клиента не является обязательным предварительным вызовом; legacy `2025-11-25` использует initialize и свои session/version semantics. Не смешивайте эти профили. Local stdio MCP server имеет другой сетевой путь: outbound connections создаёт его процесс, а не «MCP» как абстракция.
 
 Streaming проверяют отдельно: появился ли первый полезный chunk, дошёл ли завершающий message, корректно ли работает cancellation. Gateway может буферизовать response, оборвать idle stream или не поддерживать нужный upgrade. Успех короткого GET не доказывает HTTP/2, gRPC или долгую generation. Согласуйте connect, request, idle и end-to-end deadlines с реальной длительностью работы, а не увеличивайте все timeouts до бесконечности.
 
@@ -180,7 +180,7 @@ Private ranges, loopback и link-local проверяют только согл�
 
 ## Как разбирать инцидент и измерять задержку
 
-Сначала запишите Task/Actor name и UID, execution identity, URL без secrets, timestamp, SDK и image versions, gateway mode, policy version и вид ошибки. Затем двигайтесь от первого неподтверждённого слоя. Если даже DNS Actor не работает, не начинайте с расширения destination allowlist. Если gateway отказал по имени, не меняйте CA. Если TLS прошёл и origin вернул 401, ищите authentication boundary, а не WorkerPool capacity.
+Сначала запишите `atespace/name` Task и её прикладную incarnation, отдельно Actor name и UID, execution identity, URL без secrets, timestamp, SDK/image versions, gateway mode и policy version. В AX `ac233282` нет Task metadata UID; Actor UID принадлежит API Substrate. Затем двигайтесь от первого неподтверждённого слоя. Если даже DNS Actor не работает, не начинайте с расширения destination allowlist. Если gateway отказал по имени, не меняйте CA. Если TLS прошёл и origin вернул 401, ищите authentication boundary, а не WorkerPool capacity.
 
 | Симптом | Следующая проверка | Опасный поспешный вывод |
 | --- | --- | --- |
