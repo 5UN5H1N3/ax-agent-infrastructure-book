@@ -2822,682 +2822,297 @@ metadata:
 <li><a href="https://www.anthropic.com/engineering/writing-tools-for-agents">Writing effective tools for agents</a> - проектирование интерфейсов для выбора моделью.</li>
 <li>Главы 24 и 37 - полномочия, согласие, внешние эффекты и проверка исхода; глава 5 - хранение состояния и восстановление.</li>
 </ul>
-</div></section><section class="chapter" id="ch-7"><div class="chapter-num">Глава 7</div><h1>Multi-agent архитектуры без лишней магии</h1>
-<p>Главы 3-6 построили один bounded agent: loop, harness, state и capabilities. Теперь решим, когда нескольких таких loops действительно требуют dependency graph, isolation или независимая проверка, а когда multi-agent только увеличивает стоимость.</p>
-<p>Команда создаёт четырёх агентов: architect, developer, tester и reviewer. На демонстрации это выглядит как автономная инженерная организация. В реальной задаче architect пишет общий план, developer меняет файлы до завершения плана, tester запускает тесты на старом commit, а reviewer читает summary вместо diff. Все четыре используют один repository, один token и одну модель. Работа стала дороже, но не быстрее и не надёжнее.</p>
-<p>Проблема не в количестве агентов. В системе не было настоящих границ: независимых subtasks, разных capabilities, изолированного state и проверяемого protocol передачи результата. Названия ролей создали театральную организацию, но не архитектуру.</p>
-<p>Главный принцип главы:</p>
-<p><strong>Multi-agent система оправдана, когда разделение создаёт измеримую пользу: параллелизм, изоляцию context, специализацию capabilities или независимую проверку. Если такой пользы нет, один хорошо спроектированный agent почти всегда проще, дешевле и надёжнее.</strong></p>
-<h2>Что именно считается отдельным агентом</h2>
-<p>Не каждый LLM call является агентом, и не каждый параллельный worker делает систему multi-agent.</p>
-<table>
-<thead>
-<tr>
-<th>Сущность</th>
-<th>Что сохраняется между шагами</th>
-<th>Самостоятельно выбирает действия</th>
-<th>Пример</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Function/model call</td>
-<td>ничего, кроме входа и ответа</td>
-<td>нет</td>
-<td>классификация issue</td>
-</tr>
-<tr>
-<td>Workflow node</td>
-<td>state задаёт workflow engine</td>
-<td>обычно нет</td>
-<td>generate -&gt; validate -&gt; publish</td>
-</tr>
-<tr>
-<td>Worker</td>
-<td>process и служебный state</td>
-<td>не обязательно</td>
-<td>executor test jobs</td>
-</tr>
-<tr>
-<td>Agent</td>
-<td>objective, context, tools, loop и termination</td>
-<td>да, в заданных пределах</td>
-<td>исследователь repository</td>
-</tr>
-<tr>
-<td>Multi-agent system</td>
-<td>несколько автономных loops плюс coordination layer</td>
-<td>да</td>
-<td>coordinator и независимые specialists</td>
-</tr>
-</tbody>
-</table>
-<p>Роль - это configuration, а не identity. Два prompts <code>researcher</code> и <code>reviewer</code>, вызванные последовательно одним controller, могут быть обычным workflow. Это хорошо: не нужно называть multi-agent то, что проще выразить pipeline.</p>
-<p>Отдельный agent появляется там, где есть собственный decision loop:</p>
-<pre><code class="language-text">objective -&gt; observe -&gt; decide -&gt; act -&gt; update state -&gt; stop/escalate
-</code></pre>
-<p>Если несколько таких loops взаимодействуют, архитектура должна определить ownership, protocol и failure semantics. Иначе автономность умножает неопределённость.</p>
-<h2>Начинайте с single-agent baseline</h2>
-<p>Перед добавлением второго агента соберите однопоточную версию и измерьте:</p>
-<ul>
-<li>качество результата;</li>
-<li>end-to-end latency;</li>
-<li>model tokens и tool calls;</li>
-<li>долю успешных Tasks;</li>
-<li>число human interventions;</li>
-<li>ошибки verification;</li>
-<li>стоимость одного verified outcome.</li>
-</ul>
-<p>Без baseline нельзя понять, принесло ли разделение пользу. Multi-agent система может дать лучший ответ просто потому, что потратила в пятнадцать раз больше tokens. Это допустимо для дорогой research-задачи, но не доказывает эффективность архитектуры.</p>
-<h3>Четыре причины разделять работу</h3>
-<p><strong>Независимый параллелизм.</strong> Несколько направлений можно исследовать одновременно: регионы, источники, модули repository, hypothesis.</p>
-<p><strong>Context isolation.</strong> Каждому specialist нужен свой большой корпус данных, а coordinator получает только сжатые findings и evidence refs.</p>
-<p><strong>Capability isolation.</strong> Researcher читает, implementer пишет только branch, tester исполняет untrusted code в sandbox, approver не имеет execution tool.</p>
-<p><strong>Независимая проверка.</strong> Другой agent оценивает artifact по rubric или пытается опровергнуть hypothesis.</p>
-<p>Пятая возможная причина - модельная специализация: дешёвая модель делает широкую фильтрацию, сильная решает сложные cases. Но смена модели сама по себе не требует multi-agent runtime; это может быть routing в обычном workflow.</p>
-<h3>Когда разделение не помогает</h3>
-<p>Оставляйте один agent, если:</p>
-<ul>
-<li>каждый следующий шаг зависит от полного результата предыдущего;</li>
-<li>всем участникам нужен один и тот же большой context;</li>
-<li>несколько writers должны постоянно менять одни файлы;</li>
-<li>задачу быстрее решить одним дополнительным tool call;</li>
-<li>проверяющий не имеет независимого evidence или rubric;</li>
-<li>стоимость coordination сравнима с самой работой;</li>
-<li>outcome нельзя разложить на проверяемые части.</li>
-</ul>
-<p>Особенно плохо параллелизуются короткие задачи с высокой связностью. Пять агентов, обсуждающих имя одной function, создают latency, а не производительность.</p>
-<h2>Сначала нарисуйте граф зависимостей</h2>
-<p>Multi-agent architecture начинается не со списка персонажей, а с directed acyclic graph работы.</p>
-<pre><code class="language-text">                 +-&gt; dependency audit -+
-issue -&gt; scope --+-&gt; code inspection ---+-&gt; synthesis -&gt; implementation
-                 +-&gt; test discovery ----+                  |
-                                                            v
-                                                     tests -&gt; review
-</code></pre>
-<p>Ветки audit, inspection и test discovery независимы и могут идти параллельно. Implementation зависит от synthesis. Tests зависят от конкретного commit. Review зависит от diff и test results.</p>
-<p>Если параллельная доля работы равна <code>P</code>, а число workers равно <code>N</code>, идеальное ускорение ограничено:</p>
-<pre><code class="language-text">speedup &lt;= 1 / ((1 - P) + P / N)
-</code></pre>
-<p>В agent system добавляется coordination overhead <code>C</code>:</p>
-<pre><code class="language-text">wall_time ~= serial_path + max(parallel_branches) + C
-</code></pre>
-<p>Если decomposing, context packaging, queueing и merging занимают больше, чем сэкономлено на ветках, система стала медленнее. Закон не требует точного математического прогнозирования; он заставляет увидеть critical path.</p>
-<h3>Независимость бывает трёх видов</h3>
-<table>
-<thead>
-<tr>
-<th>Вид</th>
-<th>Вопрос</th>
-<th>Пример</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Data independence</td>
-<td>могут ли agents читать разные данные без обмена каждым шагом?</td>
-<td>поиск по разным регионам</td>
-</tr>
-<tr>
-<td>Write independence</td>
-<td>могут ли они менять разные targets без конфликтов?</td>
-<td>разные branches или modules</td>
-</tr>
-<tr>
-<td>Decision independence</td>
-<td>можно ли принять локальное решение без глобального context?</td>
-<td>проверить license dependency</td>
-</tr>
-</tbody>
-</table>
-<p>Параллелизм чтения обычно проще параллелизма записи. Поэтому production multi-agent workflow часто делает широкий fan-out для исследования, а write оставляет одному owner.</p>
-<h2>Основные топологии</h2>
-<p>В этой главе <strong>coordinator</strong> - прикладная роль: она декомпозирует цель, делегирует работу и собирает результат. Это не infrastructure orchestrator из глав 1 и 4, который размещает workloads и обеспечивает их lifecycle.</p>
-<p>Topology отвечает на вопросы: кто выбирает следующего участника, кто владеет разговором, где сходятся результаты и кто имеет право завершить Task.</p>
-<h3>Manager и agents-as-tools</h3>
-<p>Manager сохраняет objective и user-facing ownership. Specialists вызываются как tools для bounded subtasks и возвращают результат manager.</p>
-<pre><code class="language-text">user -&gt; manager -&gt; specialist A
-                -&gt; specialist B
-                -&gt; specialist C
-             &lt;- structured results
-user &lt;- final synthesis
-</code></pre>
-<p>Подходит, когда нужен единый final answer, общая policy и централизованная агрегация. Specialist получает сформированный input, а не обязательно всю conversation history.</p>
-<p>Риск - manager становится bottleneck: плохо decomposes, теряет minority finding или пересказывает evidence с ошибкой. Manager не должен вручную копировать большие результаты; лучше принимать schemas и artifact refs.</p>
-<h3>Handoff</h3>
-<p>Текущий agent передаёт ownership specialist, который продолжает interaction.</p>
-<pre><code class="language-text">user -&gt; triage -&gt; billing specialist -&gt; user
-</code></pre>
-<p>Handoff полезен для routing между distinct domains: support, legal intake, incident type. Он уменьшает manager narration и позволяет specialist работать со своими instructions.</p>
-<p>Нужно точно определить:</p>
-<ul>
-<li>какой history получает новый agent;</li>
-<li>какие pending approvals переходят вместе с Task;</li>
-<li>кто отвечает за возврат или следующий handoff;</li>
-<li>сохраняются ли guardrails;</li>
-<li>как предотвращается цикл A -&gt; B -&gt; A.</li>
-</ul>
-<p>Handoff не равен вызову function. Меняется owner текущего диалога, поэтому trace и UX должны это отражать.</p>
-<h3>Fan-out/fan-in</h3>
-<p>Coordinator создаёт несколько независимых subtasks, затем агрегирует результаты.</p>
-<pre><code class="language-text">             +-&gt; region A -+
-objective ---+-&gt; region B --+-&gt; merge -&gt; verify
-             +-&gt; region C -+
-</code></pre>
-<p>Это сильная topology для research, vulnerability discovery и независимых checks. Она требует overlap policy: ветки должны либо сознательно искать разные области, либо сознательно дублировать поиск для оценки recall.</p>
-<p>Fan-in - не простая конкатенация. Aggregator валидирует schema, удаляет duplicates, сохраняет provenance, разрешает contradictions и отмечает gaps.</p>
-<h3>Pipeline</h3>
-<p>Каждая стадия преобразует artifact и передаёт его следующей:</p>
-<pre><code class="language-text">research -&gt; plan -&gt; implementation -&gt; test -&gt; review
-</code></pre>
-<p>Pipeline проще наблюдать, но часто это workflow, а не несколько автономных agents. Он оправдан, когда стадии используют разные tools или authority. Если все стадии детерминированы, реализуйте их code, а не LLM loops.</p>
-<h3>Generator/evaluator</h3>
-<p>Generator создаёт artifact, evaluator проверяет по rubric и возвращает defects. Controller решает, повторять ли цикл.</p>
-<pre><code class="language-text">generator -&gt; candidate -&gt; evaluator -&gt; pass
-     ^                       |
-     +------- defects -------+
-</code></pre>
-<p>Evaluator не должен бесконечно говорить «можно улучшить». Нужны pass criteria, maximum iterations и terminal outcome <code>needs_human</code>.</p>
-<p>Независимость evaluator не возникает от другого имени. Та же модель, тот же context и те же assumptions дают correlated errors. Усилить проверку можно отдельным evidence, adversarial prompt, deterministic tests, другой model family или human review.</p>
-<h3>Blackboard и peer swarm</h3>
-<p>Agents публикуют findings в общее пространство и сами выбирают следующую работу. Такая схема полезна для open-ended exploration, где заранее неизвестна decomposition.</p>
-<p>Но coordination становится сложнее: duplicate claims, stale records, race conditions, popularity bias и отсутствие owner. Blackboard должен иметь typed records, versioning, leases и moderator/arbiter. Общий чат без protocol - не blackboard architecture.</p>
-<p>Для большинства production systems начинайте с manager или fan-out/fan-in. Peer swarm нужен только после доказательства, что централизованная decomposition действительно ограничивает outcome.</p>
-<h2>Delegation contract: что получает child</h2>
-<p>Фраза «изучи security» создаёт дублирование и gaps. Child должен получить ограниченный task envelope.</p>
-<pre><code class="language-yaml">task_id: sec-audit-42/dependency-review
-parent_id: sec-audit-42
-objective: Identify exploitable dependency risks in the current lockfile
-non_goals:
-  - do not modify files
-  - do not review application authorization logic
-inputs:
-  repository_ref: 31f27ab
-  files:
-    - package.json
-    - package-lock.json
-required_output:
-  schema: vulnerability-findings@2
-  artifact: artifact://sec-audit-42/dependencies.json
-authority:
-  tools: [repository.read, advisory.lookup]
-  network: advisories-only
-budget:
-  model_steps: 12
-  tool_calls: 30
-  wall_time_seconds: 300
-termination:
-  success: all direct and transitive packages assessed
-  escalate: lockfile missing or advisory source unavailable
-</code></pre>
-<p>Contract отвечает минимум на девять вопросов:</p>
-<ol>
-<li>Какую часть общей цели решает child?</li>
-<li>Что явно не входит в scope?</li>
-<li>Какая version входных artifacts?</li>
-<li>Какие tools и authority разрешены?</li>
-<li>Какой budget?</li>
-<li>В каком schema вернуть результат?</li>
-<li>Как доказать claims?</li>
-<li>Когда остановиться?</li>
-<li>Когда вернуть вопрос parent, а не импровизировать?</li>
-</ol>
-<h3>Делегирование уменьшает authority</h3>
-<p>Child не должен получать больше полномочий, чем parent:</p>
-<pre><code class="language-text">child_authority &lt;= parent_authority AND task_scope
-</code></pre>
-<p>Coordinator с read/write repository scope может выдать researcher только read. Implementer получает write в отдельный branch, но не merge. Tester запускает code в sandbox без production secrets. Reviewer читает diff и test artifacts.</p>
-<p>Если child способен повторно делегировать, attenuation применяется рекурсивно. Глубокая иерархия не должна случайно восстановить привилегии через другого worker.</p>
-<h3>Делегирование передаёт objective, а не чужой transcript</h3>
-<p>Полная history parent часто содержит нерелевантные instructions, untrusted text и большой token cost. Child обычно нужны:</p>
-<ul>
-<li>objective и constraints;</li>
-<li>selected evidence;</li>
-<li>versioned artifact refs;</li>
-<li>известные uncertainties;</li>
-<li>expected output schema.</li>
-</ul>
-<p>Это projection state, а не копия разговора. Handoff может требовать conversation history для UX, но даже тогда input filter должен удалять secrets и не относящиеся к domain данные.</p>
-<h2>Coordination state: сообщения не заменяют базу данных</h2>
-<p>Agents могут обмениваться natural language, но application state должен оставаться structured.</p>
-<pre><code class="language-yaml">parent_task: migration-81
-state_version: 17
-children:
-  - id: inventory
-    status: succeeded
-    output_ref: artifact://migration-81/inventory.json
-  - id: compatibility
-    status: running
-    lease_expires_at: 2026-10-05T09:10:00Z
-  - id: rollback
-    status: blocked
-    reason_code: MISSING_BACKUP_POLICY
-join:
-  policy: all_required
-  required: [inventory, compatibility, rollback]
-</code></pre>
-<p>Natural-language summary полезна модели, но controller не должен извлекать из неё status, budget или operation ID.</p>
-<h3>Разделяйте control messages и evidence</h3>
-<table>
-<thead>
-<tr>
-<th>Тип</th>
-<th>Назначение</th>
-<th>Пример</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Command</td>
-<td>назначить bounded work</td>
-<td><code>analyze module payments at commit X</code></td>
-</tr>
-<tr>
-<td>Progress</td>
-<td>сообщить состояние без изменения conclusion</td>
-<td><code>12/18 files checked</code></td>
-</tr>
-<tr>
-<td>Finding</td>
-<td>передать claim и evidence</td>
-<td>vulnerability + file/line + reproduction</td>
-</tr>
-<tr>
-<td>Question</td>
-<td>запросить missing decision</td>
-<td>target environment unknown</td>
-</tr>
-<tr>
-<td>Cancellation</td>
-<td>прекратить новые действия</td>
-<td>parent no longer needs branch</td>
-</tr>
-<tr>
-<td>Completion</td>
-<td>зафиксировать terminal result</td>
-<td>succeeded/failed/partial</td>
-</tr>
-</tbody>
-</table>
-<p>Finding не должен скрываться в progress text. Completion не доказывает correctness. Каждый тип имеет schema, correlation ID и timestamp.</p>
-<h3>Shared workspace требует ownership</h3>
-<p>Несколько agents в одном filesystem без правил создают lost updates. Выберите один из patterns:</p>
-<ul>
-<li>один writer, остальные read-only;</li>
-<li>отдельный branch/worktree на child;</li>
-<li>file/module ownership;</li>
-<li>append-only artifacts;</li>
-<li>transactional store с optimistic concurrency;</li>
-<li>proposal вместо прямой записи.</li>
-</ul>
-<p>Lock на весь repository безопасен, но уничтожает параллелизм. Лучше уменьшать write overlap архитектурой.</p>
-<h2>Budgets, backpressure и защита от task explosion</h2>
-<p>Если каждый agent создаёт пять children на глубине четыре, получится до 625 leaf tasks. Даже если каждый дешёвый, система быстро исчерпает concurrency, rate limit и context budget.</p>
-<p>Root задаёт envelope для всего дерева:</p>
-<pre><code class="language-yaml">subtree_budget:
-  model_tokens: 2_000_000
-  tool_calls: 800
-  wall_time_seconds: 1800
-  max_concurrency: 8
-  max_depth: 2
-  max_children_total: 24
-</code></pre>
-<p>Parent резервирует budget до spawn. Неиспользованный остаток возвращается после terminal state. Формально:</p>
-<pre><code class="language-text">sum(reserved_child_budget) &lt;= parent_remaining_budget
-</code></pre>
-<p>Дополнительно нужны:</p>
-<ul>
-<li>queue capacity;</li>
-<li>per-tool rate limits;</li>
-<li>admission control;</li>
-<li>priority и fairness между Tasks;</li>
-<li>backoff вместо aggressive polling;</li>
-<li>circuit breaker при повторяющейся системной ошибке.</li>
-</ul>
-<p>Agent не должен создавать нового child только потому, что не знает следующий шаг. Spawn является дорогим действием и требует причины: independent scope, expected gain и available budget.</p>
-<h3>Dynamic effort scaling</h3>
-<p>Coordinator оценивает complexity до fan-out:</p>
-<table>
-<thead>
-<tr>
-<th>Класс</th>
-<th>Типичная стратегия</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Simple fact</td>
-<td>один agent, без delegation</td>
-</tr>
-<tr>
-<td>Bounded comparison</td>
-<td>2-3 независимые ветки</td>
-</tr>
-<tr>
-<td>Broad research</td>
-<td>несколько domain/region specialists</td>
-</tr>
-<tr>
-<td>Coupled implementation</td>
-<td>один writer плюс параллельные read-only checks</td>
-</tr>
-<tr>
-<td>High-risk change</td>
-<td>planner, policy/approval, executor, independent verifier</td>
-</tr>
-</tbody>
-</table>
-<p>Числа не универсальны. Их калибруют evals и production telemetry, а не интуиция модели.</p>
-<h2>Failure semantics дерева Tasks</h2>
-<p>Multi-agent система добавляет распределённые failure modes поверх ошибок каждого agent.</p>
-<h3>Дублирование и gaps</h3>
-<p>Два children выполняют один и тот же поиск, а третий scope остаётся пустым. Причина обычно в расплывчатом contract или отсутствии global coverage map.</p>
-<p>Исправление: явные non-goals, partition key и проверка overlap до spawn.</p>
-<h3>Role drift и reasoning-action mismatch</h3>
-<p>Reviewer начинает исправлять code, researcher объявляет release, implementer делает вывод без tests. Название роли не ограничивает capability.</p>
-<p>Исправление: tool catalog и authority соответствуют роли; output schema не допускает скрытый side effect.</p>
-<h3>Потеря важного finding</h3>
-<p>Child нашёл исключение, но aggregator выбрал majority summary. Consensus не является truth. Несколько agents одной model family могут повторять одинаковую ошибку, а один dissenter держать решающее evidence.</p>
-<p>Исправление: merge claims по evidence, сохранять contradictions и отдельно поднимать high-severity minority findings.</p>
-<h3>Premature termination</h3>
-<p>Coordinator завершает Task после первых успешных branches или evaluator выдаёт pass без проверки required criteria.</p>
-<p>Исправление: join policy и completion predicate проверяются code. Только определённый controller переводит root в terminal state.</p>
-<h3>Livelock и conversation loops</h3>
-<p>Agents бесконечно передают Task друг другу, критикуют и переписывают один artifact без measurable progress.</p>
-<p>Исправление: max handoffs, max iterations, progress metric и outcome <code>needs_human</code>.</p>
-<h3>Stale result</h3>
-<p>Child работал с commit X, а parent уже перешёл к X+3. Формально успешный result больше не применим.</p>
-<p>Исправление: каждый output связывается с input versions. Fan-in отклоняет stale artifacts или запускает targeted revalidation.</p>
-<h3>Неизвестный side effect</h3>
-<p>Child применил изменение, но умер до completion message. Parent считает его failed и повторяет операцию.</p>
-<p>Исправление: operation ledger, idempotency key и reconciliation с external source of truth. Cancellation не откатывает уже выполненный write.</p>
-<h3>Коррелированная ошибка</h3>
-<p>Десять одинаковых agents с одинаковым prompt и sources могут быть уверены в одной неверной hypothesis. Голосование создаёт иллюзию независимости.</p>
-<p>Исправление: разнообразить evidence и method, а не только random seed. Один agent ищет подтверждение, другой - counterexample, третий выполняет deterministic test.</p>
-<p>Исследование MAST группирует наблюдаемые multi-agent failures в три большие категории: specification/system design, inter-agent misalignment и verification/termination. Практический вывод не в конкретных процентах, а в том, что большинство проблем находятся в orchestration layer и не исчезают от более длинного role prompt.</p>
-<h2>Fan-in: как собирать результат без потери смысла</h2>
-<p>Aggregator получает не «мнения агентов», а набор claims.</p>
+</div></section><section class="chapter" id="ch-7"><div class="chapter-num">Глава 7</div>
+<h1>Multi-agent архитектуры без лишней магии</h1>
+<p>В главе 6 ревьюер получил два узких инструмента: прочитать файл заданной ревизии и получить готовый отчёт проверки. Он умеет сопоставить код, тест и результат, объяснить ошибку и подготовить комментарий без публикации. Возникает соблазн добавить исследователя, тестировщика и ещё одного ревьюера. Кажется, что команда должна справиться лучше одного участника. Но что именно станет лучше и за счёт чего?</p>
+<p>Для нашей функции <code>total(items)</code> ответ пока неочевиден. В исходнике есть обращение к <code>items[0]</code>, тест ожидает <code>total([]) == 0</code>, а отчёт <code>job-42</code> сообщает об <code>IndexError</code>. Один агент с подходящими инструментами способен разобрать такой случай. Три агента, пересказывающие те же два файла, могут только увеличить время и стоимость. Это не запрет на команду, а важная исходная точка: усложнение должно решать обнаруженную проблему.</p>
+<p>Теперь представим, что ревью распространяется на несколько модулей, каждый со своими требованиями и отчётами. Один участник теряет важные детали или слишком долго читает независимые материалы. Здесь разделение уже может помочь. Но вместе с ним появляются новые вопросы: кто раздаёт работу, какую ревизию читают участники, можно ли доверять их выводам и что делать, если один ответ не пришёл?</p>
+<p>В этой главе мы построим решение от этих вопросов, а не от списка ролей. Разберём границы агентного цикла, выбор схемы координации, контракт делегирования и сборку результатов. На небольшом локальном опыте увидим, почему два завершённых участника ещё не означают завершённое ревью. К концу главы вы сможете объяснить, где нужен второй агент, где достаточно обычного workflow и какие обязанности всё равно остаются у приложения.</p>
+<h2>Что делает систему многоагентной</h2>
+<p>Агент из главы 4 не просто выдаёт текст. Он получает цель, наблюдает среду через инструменты, выбирает следующий шаг, обновляет рабочее состояние и останавливается по заданным условиям. Если в системе несколько таких циклов со своими задачами и контекстом, а их действия координируются ради общего результата, будем называть её многоагентной, или multi-agent системой.</p>
+<p>Терминология продуктов различается. В одном SDK «агентом» может называться даже набор инструкций для одного вызова. Для инженерного решения полезнее смотреть на поведение: кто действительно выбирает действия и кто удерживает состояние между ними. Две строки prompt <code>researcher</code> и <code>reviewer</code> не создают ни изоляцию, ни самостоятельный жизненный цикл.</p>
+<p>Сравним три способа прочитать два файла. Обычная программа вызывает две функции и получает данные. Workflow заранее задаёт шаги «прочитать исходник, прочитать тест, сопоставить ревизии». Агент может сам решить, что после чтения теста ему нужен ещё один документ с требованиями. Несколько агентов добавляют несколько таких мест выбора. Вы получаете гибкость, но должны договориться, как их решения соединяются.</p>
+<p>Не каждый параллельный исполнитель обязан быть агентом. Если один worker скачивает отчёт, а другой вычисляет хеш, их проще оставить обычными задачами программы. И наоборот, два самостоятельных цикла могут идти последовательно: параллельность не является обязательным признаком многоагентной системы. Это один из возможных источников её пользы.</p>
+<h3>Координатор и инфраструктурный orchestrator</h3>
+<p>Координатором будем называть прикладного владельца общей цели: он делит задачу, назначает исполнителей и собирает итог. Решения о содержании работы могут предлагаться моделью. Учёт запусков, лимиты, проверку ответов и обязательные переходы лучше закреплять в коде. Поэтому координатор не обязан быть ещё одним полностью автономным агентом.</p>
+<p>Инфраструктурный orchestrator решает другие вопросы: где запустить workload, как выделить среду и как управлять её жизненным циклом. Он может знать, что процесс работает, но не понимать, достаточно ли доказательств для ревью. Это то же разделение, которое мы использовали для harness и AX: запуск не равен содержательному успеху.</p>
+<p>Далее <code>child</code>, или дочерняя задача, означает часть работы, которую координатор делегировал участнику. Это прикладная запись, не обязательно отдельный процесс и не обязательно AX Task. Для одного короткого вызова достаточно локального исполнения; отдельная среда нужна по другим основаниям, к которым мы вернёмся ниже.</p>
+<h2>Когда второй агент действительно помогает</h2>
+<p>Начните с рабочей версии с одним агентом и запишите, что в ней мешает. «Хотим multi-agent» не описывает проблему. «Ревью теряет требования одного из модулей» или «независимые поиски занимают слишком много времени» уже дают проверяемую цель. Без исходной версии, baseline, сравнение легко превращается в впечатление от более длинного ответа.</p>
+<p>Разделение обычно обсуждают ради четырёх свойств. Первое - независимый поиск: участники читают разные области и не ждут каждого шага друг друга. Второе - разделение контекста: одному нужен большой корпус требований, другому - трассы тестов, а координатору достаточно проверяемых выводов и ссылок. Третье - разные разрешённые возможности: исследователь только читает, исполнитель работает с кодом в ограниченной среде. Четвёртое - отдельная проверка, которая ищет не подтверждение красивого ответа, а возможную ошибку.</p>
+<p>Каждое свойство имеет цену. При разделении контекста можно потерять важную связь между документами. Разные prompts не ограничивают реальные credentials. Проверяющий той же модели, которому показали только уверенный summary автора, способен повторить его ошибку. Отдельное имя роли не создаёт независимость. Её усиливают собственные исходные данные, явные критерии и проверка среды; другая модель также может помочь, но не даёт автоматической гарантии.</p>
+<p>Для короткого ревью <code>total(items)</code> разумная исходная версия - один агент и детерминированные проверки ревизии. Для нескольких крупных независимых модулей имеет смысл испытать отдельных читателей. Если единственная потребность - ещё раз прочитать тот же вывод, начните с дополнительного шага проверки или теста. Возможно, самостоятельный цикл вообще не понадобится.</p>
+<p>Модельная специализация тоже не требует команды. Программа может направлять простую классификацию дешёвой модели, а сложное объяснение - более сильной. Это routing, выбор обработчика. Он становится агентным взаимодействием только там, где участники получают самостоятельную работу и координируют её, а не просто возвращают один ответ.</p>
+<h2>Разделяем работу по зависимостям</h2>
+<p>Перед назначением ролей выпишите, какие результаты нужны для следующего решения. В нашем ревью можно независимо разобрать исходник и прочитать тест с готовым отчётом. Но предложение исправления зависит от обоих: код показывает путь ошибки, тест - ожидаемое поведение. Проверять изменённую ревизию до появления самого изменения нельзя.</p>
+<p>Если позже пользователь разрешит исправление, граф будет таким: анализ исходника и анализ тестового контракта сходятся в объяснение; затем один исполнитель готовит изменение; после этого проверяется конкретная новая ревизия. Несогласие аналитиков возвращает нас к уточнению требования, а не разрешает исполнителю наугад выбрать одну версию.</p>
+<p>Такой граф для одного прохода удобно представить как DAG, directed acyclic graph, направленный граф без циклов. Он показывает зависимости, а не всю жизнь агента: повторное уточнение или исправление может создавать управляемый цикл между проходами. Наличие цикла не делает систему неправильной; отсутствие условия выхода делает её бесконечной.</p>
+<h3>Что означает ускорение на практике</h3>
+<p>Возьмём условный расчёт, не измерение нашей программы. Подготовка входов занимает 3 секунды, две независимые ветви - 12 и 9 секунд, сборка вывода - 4 секунды. Последовательный проход занимает <code>3 + 12 + 9 + 4 = 28</code> секунд. При двух свободных слотах исполнения идеальная параллельная часть занимает 12 секунд; добавим 2 секунды на раздачу и сбор ответов и получим 21 секунду.</p>
+<p>Здесь выигрывает только перекрытие ветвей, а не «интеллект команды». Если оба участника стоят в очереди одного перегруженного inference endpoint, их времена могут вырасти и выигрыш исчезнет. Если ветвь на 12 секунд ждёт результат другой, максимум уже не описывает расписание. Полезно смотреть на critical path, критический путь: цепочку зависимостей, которая определяет самое раннее завершение всей задачи.</p>
+<p>Закон Амдала выражает похожее ограничение для идеализированной работы. Если доля, которую можно распараллелить, равна <code>P</code>, а одинаковых исполнителей <code>N</code>, ускорение при фиксированном объёме работы ограничено <code>1 / ((1 - P) + P / N)</code>. В агентной системе объём часто меняется: добавляются обсуждение, повторные чтения и новые вызовы модели. Поэтому формула помогает увидеть последовательную часть, но не предсказывает реальную стоимость команды.</p>
+<p>Проверьте независимость отдельно по чтению, записи и решению. Два участника могут безопасно читать разные модули, но менять общий файл конфигурации. Их локальные правки независимы по времени, но не по смыслу. Два разных worktrees предотвращают случайную перезапись, однако не устраняют конфликт требований при объединении.</p>
+<h2>Как выбрать схему взаимодействия</h2>
+<p>Топология описывает, кто передаёт работу, куда возвращается результат и кто отвечает пользователю. Названия схем не исключают друг друга: manager может запускать fan-out, а один этап pipeline - содержать цикл проверки. Выбирайте по владению и зависимостям, а не по желанию поместить все известные patterns на одну схему.</p>
+<h3>Manager сохраняет ответственность за итог</h3>
+<p>В схеме manager участники решают ограниченные задачи и возвращают результаты одному владельцу. Пользователь общается с ним, а не собирает ответы самостоятельно. Если специалист представлен как вызываемый инструмент, такую форму часто называют agents-as-tools. За интерфейсом инструмента может скрываться целый цикл поиска; снаружи у него всё равно должны быть ясные вход, результат и пределы.</p>
+<p>Для ревью это естественный выбор: специалист по исходнику возвращает объяснение пути ошибки, специалист по тестам - ожидаемое поведение и ограничения отчёта. Manager отвечает за единый черновик. Он не получает право молча отбросить неудобное замечание. Недостаток схемы - центральный узел может неверно разделить цель или исказить результат при пересказе. Структурированные ответы и доступные первичные артефакты уменьшают этот риск, но не отменяют содержательной проверки.</p>
+<p>В официальном описании <a href="https://developers.openai.com/api/docs/guides/agents/orchestration">OpenAI Agents SDK</a> agents-as-tools и handoffs различаются прежде всего владением ответом: в первом случае manager остаётся ответственным за итог, во втором управление переходит специалисту. Это полезное различие независимо от выбранного SDK.</p>
+<h3>Fan-out и fan-in разделяют работу и собирают основания</h3>
+<p>Fan-out означает раздачу независимых ветвей, fan-in - точку их сборки. Manager отвечает на вопрос «кто владеет итогом», а fan-out/fan-in - «как несколько результатов сходятся в следующий шаг». В нашем случае используются обе схемы.</p>
+<p>До запуска нужно решить, что считать достаточным набором. Для объяснения пустого ввода обязательны исходник и тестовый контракт. Нельзя заменить второй результат двумя копиями первого. Для широкого исследовательского обзора, напротив, можно допустить неполную выборку, явно назвав отсутствующие области. Это правило сборки будем называть join policy. Оно относится к покрытию задачи, а не к количеству уверенных ответов.</p>
+<p>Fan-in не является конкатенацией текстов. Он проверяет привязку к входам, сохраняет источники, выявляет пробелы и передаёт противоречия на разбор. Содержательная сборка может требовать модели, но решение «получены ли все обязательные области» можно проверить обычным кодом.</p>
+<h3>Handoff передаёт ведение работы</h3>
+<p>Handoff полезен, когда специалист должен сам продолжить диалог: например, первичный обработчик обращения передаёт его специалисту по конкретной теме. В отличие от вызова помощника, прежний владелец не обязан собирать каждый ответ и пересказывать его пользователю. Для нашего ревью это обычно лишнее: пользователь ждёт один связный вывод о конкретном коде.</p>
+<p>При передаче нужны правила истории, незавершённых действий, возврата и остановки циклов. Не переносите согласие пользователя как универсальное «можно всё»: его область и актуальность проверяются у конкретного действия, как в главе 6. Новый prompt не наследует чужие полномочия сам по себе. Возврат A → B → A без нового факта должен расходовать ограниченный счётчик переходов и приводить к уточнению, а не к бесконечному диалогу.</p>
+<h3>Pipeline и evaluator решают разные задачи</h3>
+<p>Pipeline задаёт стадии: прочитать материалы, подготовить вывод, проверить, передать человеку. Если шаги заранее известны, это часто обычный workflow с несколькими вызовами модели. Нет необходимости добавлять каждому шагу самостоятельное планирование. Отдельный агент нужен, когда стадия должна сама выбирать существенные действия, например искать неизвестные связанные требования.</p>
+<p>Generator/evaluator добавляет обратную связь: автор создаёт вариант, проверяющий возвращает конкретные дефекты, controller решает о повторе. Для ревью проверяющий должен видеть исходник, тест и отчёт, а не только авторский вывод. Его критерии: не перепутаны ли ревизии, объяснена ли причина, не выдано ли предложение за проверенное исправление. Фраза «можно улучшить» без дефекта не является основанием для бесконечного повторения. Задайте предел итераций и исход <code>needs_human</code>, если спор не разрешён.</p>
+<p>Blackboard, общая доска записей, позволяет участникам публиковать находки и брать следующую работу из общего пространства. Peer swarm уменьшает роль централизованного раздатчика. Это может быть полезно при заранее неизвестном поиске, но требует правил присвоения работы, версий, модерации и завершения. Общий чат такими правилами не является. Для нашего ограниченного ревью дополнительные механизмы не дают ясной пользы; начнём с двух ветвей и одного владельца.</p>
+<h2>Контракт делегирования связывает цель с результатом</h2>
+<p>«Посмотри тесты» не говорит участнику, какую ревизию смотреть, надо ли их запускать и когда остановиться. В главе 6 мы уже различили чтение готового отчёта и запуск проверки. Делегирование должно сохранить это различие. Если координатор передал неточную задачу, аккуратно написанный tool не исправит её смысл.</p>
+<p style="break-inside: avoid-page; break-after: avoid-page">Для ветви тестов зададим учебную запись. Это наш прикладной формат, не manifest AX, не пакет skill и не сообщение A2A:</p>
 <pre><code class="language-json">{
-  "claim_id": "finding-17",
-  "statement": "dependency X is reachable from the public endpoint",
-  "confidence": "supported",
-  "evidence": [
-    "artifact://audit/callgraph.json#path-81",
-    "repo://payments@31f27ab/src/api.ts:44"
-  ],
-  "input_versions": {
-    "repository": "31f27ab",
-    "advisory_db": "2026-10-05T08:00Z"
-  },
-  "limitations": ["runtime feature flag not observed"]
+  "task_id": "review-demo/tests",
+  "parent_id": "review-demo",
+  "revision": "demo-fixture-v1",
+  "attempt": 1,
+  "objective": "Объяснить ожидание для пустого ввода и итог job-42",
+  "inputs": ["tests/test_stats.py", "job-42"],
+  "non_goals": ["Не запускать код", "Не изменять и не публиковать"],
+  "allowed_tools": ["review.read_file", "review.get_check"],
+  "budget": {"model_steps": 4, "tool_calls": 4},
+  "output_schema": "review-finding-v1",
+  "stop_when": "Тест и отчёт сопоставлены либо нужный вход недоступен"
 }
 </code></pre>
-<p>Правильный merge:</p>
-<ol>
-<li>валидирует output schema;</li>
-<li>проверяет input versions;</li>
-<li>группирует claims, но не удаляет provenance;</li>
-<li>различает duplicate evidence и независимое подтверждение;</li>
-<li>сохраняет conflicts;</li>
-<li>проверяет coverage required scopes;</li>
-<li>вызывает verifier для high-impact claims;</li>
-<li>создаёт compact synthesis для следующего decision point.</li>
-</ol>
-<p>Если два children ссылаются на одну web page, это не два независимых подтверждения. Если conclusions расходятся, aggregator не обязан выбирать среднее: он может вернуть <code>unresolved</code> и назначить discriminating test.</p>
-<h2>Cancellation, retry и recovery</h2>
-<p>Parent restart не должен повторно создавать всех children. Используйте deterministic child ID:</p>
-<pre><code class="language-text">child_id = hash(parent_id, decomposition_version, partition_key)
+<p>Метка <code>demo-fixture-v1</code> продолжает локальный пример главы 6 и не является Git SHA. В реальной интеграции фиксируйте неизменяемую ревизию репозитория и версии других значимых входов. Идентификатор задачи отвечает на вопрос «какую часть работы назначили», <code>attempt</code> - «какую попытку сейчас принимаем». Повтор не должен маскироваться под новую независимую задачу.</p>
+<p>Цель должна описывать результат, а не личность участника. Non-goals ограничивают трактовку: читать отчёт не означает заново исполнять чужой код. Условия остановки позволяют вернуть неполный результат, если входа нет. Иначе модель может продолжать поиск, пока не найдёт удобную, но нерелевантную замену.</p>
+<p>Передавайте отобранные материалы и ограничения, а не автоматически весь transcript координатора. Полная история может содержать секреты, чужие инструкции и неподходящие предположения. Но чрезмерное сжатие тоже опасно: нельзя удалить требование <code>total([]) == 0</code> ради экономии и ждать правильного выбора поведения. Пакет входов должен оставлять участнику всё необходимое для его вопроса и способ запросить недостающее.</p>
+<h3>Полномочия не выдаются текстом контракта</h3>
+<p>Поле <code>allowed_tools</code> полезно для конфигурации, но само по себе ничего не запрещает. Harness и реальный executor должны предоставить только указанные операции и проверить разрешённые объекты. Ветви исходника можно дать чтение <code>src/stats.py</code>; ветви тестов - чтение <code>tests/test_stats.py</code> и отчёта <code>job-42</code>. Обеим не нужен инструмент публикации.</p>
+<p>Обычно child получает пересечение доступных координатору полномочий, области задачи и решения policy. Делегирование не должно незаметно расширять доступ. Если нужна операция, которой parent не обладает, её выполняет отдельно уполномоченный сервис по своей policy, а не ребёнок, которому передали более широкий token.</p>
+<p>Это различие особенно важно при рекурсивном делегировании. Простой способ начать - запретить child создавать новых участников. Если такое создание требуется, лимиты и сужение доступа применяются на каждом уровне. Роль «проверяющий» с admin credential остаётся привилегированным исполнителем, сколько бы раз prompt ни повторял «только проверь».</p>
+<h2>Собираем результаты на одном ревью</h2>
+<figure><figcaption>Multi-agent workflow ревью: одна ревизия, две ветви и проверяемая сборка</figcaption><svg aria-label="Multi-agent workflow ревью: одна ревизия, две ветви и проверяемая сборка" class="diagram" role="img" viewbox="0 0 920 460">
+<defs><marker id="ch7-arrow" markerheight="10" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs>
+<line marker-end="url(#ch7-arrow)" stroke="#53657a" x1="390" x2="220" y1="85" y2="140"></line>
+<line marker-end="url(#ch7-arrow)" stroke="#53657a" x1="530" x2="700" y1="85" y2="140"></line>
+<line marker-end="url(#ch7-arrow)" stroke="#53657a" x1="220" x2="390" y1="205" y2="255"></line>
+<line marker-end="url(#ch7-arrow)" stroke="#53657a" x1="700" x2="530" y1="205" y2="255"></line>
+<line marker-end="url(#ch7-arrow)" stroke="#53657a" x1="460" x2="460" y1="335" y2="385"></line>
+<rect fill="#edf4ff" height="65" stroke="#2d5d9f" width="360" x="280" y="20"></rect><text font-size="14" font-weight="700" x="460" y="45">Coordinator</text><text font-size="11" x="460" y="65">цель · входная ревизия · два контракта</text>
+<rect fill="#eefaf3" height="65" stroke="#287a4b" width="360" x="40" y="140"></rect><text font-size="14" font-weight="700" x="220" y="165">Ветвь исходника</text><text font-size="11" x="220" y="185">путь ошибки · ссылки на исходник</text>
+<rect fill="#fff7e8" height="65" stroke="#9a6410" width="360" x="520" y="140"></rect><text font-size="14" font-weight="700" x="700" y="165">Ветвь тестов</text><text font-size="11" x="700" y="185">ожидание · готовый отчёт · ограничения</text>
+<rect fill="#f8efff" height="80" stroke="#70459b" width="360" x="280" y="255"></rect><text font-size="14" font-weight="700" x="460" y="280">Fan-in в коде</text><text font-size="11" x="460" y="300">revision · attempt · покрытие</text><text font-size="11" x="460" y="319">основания и противоречия сохраняются</text>
+<rect fill="#edf4ff" height="65" stroke="#2d5d9f" width="360" x="280" y="385"></rect><text font-size="14" font-weight="700" x="460" y="410">Содержательная сборка</text><text font-size="11" x="460" y="430">единый черновик · без публикации</text>
+</svg></figure>
+<p>Обе ветви читают одну ревизию. Ветвь исходника объясняет: пустой список не имеет элемента с индексом ноль, поэтому вычисление останавливается до <code>sum(items[1:])</code>. Ветвь тестов показывает: тест ожидает ноль, а готовый отчёт сообщает об <code>IndexError</code>. Эти результаты дополняют друг друга, но выполняют разные обязанности. Отчёт подтверждает наблюдавшийся сбой; он не доказывает корректность будущего изменения.</p>
+<p>После сборки координатор может подготовить черновик: «Ошибка возникает на первом индексировании пустого списка. Тест этой ревизии ожидает ноль, и job-42 подтверждает падение. Предлагаю обработать пустой ввод и проверить изменённую ревизию». Он не должен писать «исправление прошло тесты»: ни изменения, ни новой проверки пока нет. Отсутствие публикации тоже входит в результат задачи, а не является случайной настройкой интерфейса.</p>
+<h3>Структурированный ответ сохраняет основания</h3>
+<p style="break-inside: avoid-page; break-after: avoid-page">Ответ ветви исходника в локальном опыте выглядит так:</p>
+<pre><code class="language-json">{
+  "task_id": "review-demo/code",
+  "revision": "demo-fixture-v1",
+  "attempt": 1,
+  "status": "complete",
+  "findings": [{
+    "key": "empty_input",
+    "value": "raises_IndexError",
+    "evidence_refs": ["fixture://files/src/stats.py"]
+  }]
+}
 </code></pre>
-<p>После recovery coordinator читает journal и для каждого child выбирает:</p>
-<ul>
-<li>attach к running Task;</li>
-<li>принять terminal output;</li>
-<li>reclaim после expired lease;</li>
-<li>retry с тем же logical ID;</li>
-<li>cancel, если result больше не нужен;</li>
-<li>reconcile, если outcome write неизвестен.</li>
-</ul>
-<p>Cancellation является request, а не мгновенным фактом. Child может находиться внутри external call. Controller ждёт acknowledged stop или помечает Task <code>cancel_requested</code> и отслеживает поздний result.</p>
-<p>При fan-out fail-fast подходит не всегда. Если одна region query упала, остальные findings всё ещё полезны. Join policy должна различать:</p>
-<pre><code class="language-yaml">join:
-  mode: quorum
-  minimum_success: 3
-  required_partitions: [production]
-  allow_partial: true
-  partial_label: incomplete_coverage
+<p><code>complete</code> означает, что участник прислал предусмотренный результат своей ветви, а не что код корректен. <code>key</code> обозначает один заранее выбранный вопрос: фактическое поведение для пустого ввода. <code>value</code> содержит ответ, <code>evidence_refs</code> - ссылки на материалы. Ожидание теста «должен вернуть ноль» - другой вопрос, а не противоречие наблюдению «сейчас падает». В полном ревью отдельно храните наблюдение, требование, вывод и предложение. Здесь формат намеренно сужен до одного фактического утверждения, чтобы ясно увидеть работу сборщика.</p>
+<p>Ссылка на источник ещё не доказывает истинность утверждения. Реальный сборщик должен проверить доступность, версию и относимость материалов, а при необходимости повторить наблюдение. Даже действующая ссылка может вести на файл, который не поддерживает написанный вывод. Структура сохраняет возможность проверки; она не заменяет её.</p>
+<h3>Локальный опыт проверяет fan-in</h3>
+<p>В репозитории есть <code>examples/ch07_coordination_demo.py</code> и тесты к нему. Программа использует фиксированные данные главы 6, создаёт два заданных ответа и проверяет их сборку. Она не вызывает LLM, не запускает дочерние процессы и не является работающим multi-agent runtime. Такой опыт нужен, чтобы отдельно проверить обязательный код координации, не смешивая его с качеством рассуждений модели.</p>
+<p style="break-inside: avoid-page; break-after: avoid-page">Сначала <code>validate_output</code> сравнивает ответ с доверенной записью задачи. Он отклоняет неверную форму, другого участника, ревизию или попытку, неизвестное значение и ссылку вне разрешённого набора. Успешная проверка формы означает только, что ответ допустим для дальнейшей сборки:</p>
+<pre><code class="language-python">def validate_output(contract, output):
+    fields = {"task_id", "revision", "attempt", "status", "findings"}
+    if not isinstance(output, dict) or set(output) != fields:
+        raise ValueError("exact output fields required")
+    for key in ("task_id", "revision", "attempt"):
+        if type(output[key]) is not type(contract[key]):
+            raise ValueError("identity field type mismatch")
+        if output[key] != contract[key]:
+            raise ValueError("task, revision or attempt mismatch")
+    if output["status"] not in ("complete", "partial"):
+        raise ValueError("invalid completion status")
+    findings = output["findings"]
+    if not isinstance(findings, list) or not 1 &lt;= len(findings) &lt;= 8:
+        raise ValueError("bounded nonempty findings required")
+    for finding in findings:
+        if not isinstance(finding, dict) or set(finding) != {
+            "key", "value", "evidence_refs"
+        }:
+            raise ValueError("invalid finding fields")
+        if finding["key"] != "empty_input":
+            raise ValueError("unknown question")
+        if finding["value"] not in ("raises_IndexError", "returns_zero"):
+            raise ValueError("unknown observation")
+        refs = finding["evidence_refs"]
+        if not isinstance(refs, list) or not 1 &lt;= len(refs) &lt;= 8:
+            raise ValueError("bounded evidence list required")
+        if any(not isinstance(ref, str) or
+               ref not in contract["evidence_refs"] for ref in refs):
+            raise ValueError("evidence outside contract")
+    return findings
 </code></pre>
-<h2>Observability: видеть дерево, а не набор чатов</h2>
-<p>Trace должен связывать root, children, tool calls и artifacts.</p>
-<p>Минимальные identifiers:</p>
-<ul>
-<li><code>trace_id</code> общей цели;</li>
-<li><code>task_id</code> и <code>parent_task_id</code>;</li>
-<li><code>agent_config_version</code>;</li>
-<li><code>delegation_contract_version</code>;</li>
-<li><code>input_state_version</code>;</li>
-<li><code>tool_catalog_version</code>;</li>
-<li><code>operation_id</code> для side effects;</li>
-<li><code>artifact_ref</code> результата.</li>
-</ul>
-<p>Полезные метрики:</p>
-<table>
+<p>Контракт здесь создаёт программа, а не принимает из ответа участника. Поэтому нельзя переписать разрешённую ревизию, прислав удобный <code>contract</code> вместе с выводом. В распределённой системе также требуется связать сообщение с аутентифицированным отправителем: знание <code>task_id</code> не удостоверяет личность.</p>
+<p style="break-inside: avoid-page; break-after: avoid-page">Второй шаг считает покрытие по обязательным идентификаторам и группирует наблюдения. Он не подсчитывает голоса:</p>
+<pre><code class="language-python">def collect(contracts, outputs):
+    by_id, claims = {}, {}
+    for output in outputs:
+        if not isinstance(output, dict):
+            raise ValueError("output must be an object")
+        task_id = output.get("task_id")
+        if not isinstance(task_id, str) or task_id not in contracts:
+            raise ValueError("unknown task")
+        if task_id in by_id:
+            raise ValueError("duplicate output")
+        findings = validate_output(contracts[task_id], output)
+        by_id[task_id] = output["status"]
+        for finding in findings:
+            values = claims.setdefault(finding["key"], {})
+            refs = values.setdefault(finding["value"], set())
+            refs.update(finding["evidence_refs"])
+    missing = sorted(set(contracts) - set(by_id))
+    partial = sorted(key for key, value in by_id.items()
+                     if value == "partial")
+    conflicts = sorted(key for key, values in claims.items()
+                       if len(values) &gt; 1)
+    status = "ready_for_synthesis"
+    if missing or partial:
+        status = "incomplete"
+    elif conflicts:
+        status = "unresolved"
+    merged = {key: {value: sorted(refs) for value, refs in values.items()}
+              for key, values in claims.items()}
+    return {"status": status, "missing": missing, "partial": partial,
+            "conflicts": conflicts, "claims": merged}
+</code></pre>
+<p><code>ready_for_synthesis</code> означает, что обязательные ветви присланы полностью и по нашему одному вопросу нет разных значений. Это не <code>review_passed</code>. Программа не определяет, правильно ли выведен <code>IndexError</code>, не формирует объяснение и не выбирает исправление. Она лишь не даёт следующему шагу незаметно проигнорировать определённые проблемы координации.</p>
+<p>Если одна ветвь неполная и одновременно есть противоречие, итоговый <code>status</code> будет <code>incomplete</code>, но поле <code>conflicts</code> сохранится. Статус - удобная метка для управления, не замена всей записи. В более широкой задаче понадобятся правила семантического объединения, проверка покрытия внутри ветвей и ссылки на неизменяемые артефакты. Общего решения этих вопросов в нескольких десятках строк нет.</p>
+<p style="break-inside: avoid-page; break-after: avoid-page">Запустите из корня репозитория на Python 3.10 или новее:</p>
+<pre><code class="language-sh">python3 examples/ch07_coordination_demo.py
+python3 -m unittest discover -s examples -p 'test_ch07*.py' -v
+</code></pre>
+<p>Первый проход даёт <code>ready_for_synthesis</code>. Далее программа показывает <code>incomplete</code> при отсутствующей ветви, отказ при чужой ревизии и <code>unresolved</code> при разных утверждениях. Все эти сценарии используют заданные ответы. Время работы не измеряет скорость агентов, а число успешных тестов не доказывает качество ревью.</p>
+<h2>Разбираем пробелы и противоречия</h2>
+<h3>Завершение участника и покрытие задачи</h3>
+<p>Предположим, ветвь тестов не смогла получить отчёт. Она может вернуть <code>partial</code>: файл теста прочитан, ожидание известно, результат исполнения не подтверждён. Coordinator не должен подставлять прошлый зелёный job или объявлять полное ревью. Для нашей join policy следующий допустимый шаг - получить нужный отчёт, объяснить ограничение либо спросить пользователя, достаточно ли частичного вывода.</p>
+<p>Для исследования по десяти регионам правило может быть другим: показать результаты девяти и назвать отсутствующий регион. Но три успешных ответа не образуют quorum, достаточное число участников, для произвольного вопроса. Кворум реплик с заданными свойствами согласования и большинство текстовых мнений решают разные задачи. Если одна обязательная область отсутствует, количество ответов о соседних областях её не восстанавливает.</p>
+<p>Полезно хранить карту покрытия: какая ветвь отвечает за какой вопрос и какие входы обязана рассмотреть. В больших задачах <code>complete</code> от самого участника недостаточно; проверяйте его собственные критерии полноты. Наш локальный формат не знает перечня всех функций модуля, поэтому не способен подтвердить полноту большого code review.</p>
+<h3>Противоречие нельзя усреднить</h3>
+<p>Пусть один ответ говорит «для пустого ввода получается <code>IndexError</code>», другой - «для пустого ввода возвращается ноль». Оба обозначены как фактическое поведение той же ревизии. Это противоречие. Возможно, участник перепутал исходник с предлагаемым исправлением, либо прочитал другой файл. Нужен различающий шаг: сверить материал по зафиксированной ревизии или выполнить ограниченную воспроизводящую проверку в подходящей среде.</p>
+<p>Теперь другой случай: оба участника согласны, что код падает, но спорят, надо ли вернуть ноль или отклонить ввод. Это вопрос требования, а не наблюдения. Наш тест ожидает ноль; если документ с требованиями говорит обратное, тест также может нуждаться в исправлении. Дополнительный запуск того же теста не разрешит противоречие требований. Здесь нужен владелец контракта или уточнение пользователя.</p>
+<p>Не заставляйте сборщик всегда выдавать один ответ. <code>unresolved</code> бывает правильным результатом. Сохраните разные утверждения, их источники и вопрос, который позволит различить версии. В автоматизации высокого риска честное отсутствие решения полезнее уверенного компромисса без основания.</p>
+<h3>Повторённый источник не становится независимым подтверждением</h3>
+<p>Два аналитика могут прочитать один отчёт <code>job-42</code>. Это два прочтения одного наблюдения, не две независимые проверки кода. Сборщик сохраняет источник и может убрать повторяющуюся ссылку, но не должен на основании числа участников повышать достоверность произвольно.</p>
+<p>Коррелированная ошибка возникает, когда участники опираются на одинаковую ошибочную предпосылку. Другой prompt или seed не устраняет общий дефект источника. Для ревью полезнее отдельный тест с понятным ожиданием, проверка первичного diff и явный поиск случая, который опровергает вывод. Эти методы также имеют ограничения; независимость - характеристика данных и способа проверки, а не декоративная черта архитектуры.</p>
+<p>Исследование <a href="https://arxiv.org/abs/2503.13657v3">MAST</a> группирует наблюдаемые сбои в проблемы проектирования, рассогласование участников и проверку задачи. Это основание искать дефекты координации, а не приписывать все ошибки слабой модели. Таксономия получена на изученных системах и задачах; она не устанавливает универсальную долю ошибок для вашего приложения.</p>
+<h2>Кто владеет изменениями и средой исполнения</h2>
+<p>Наш текущий режим остаётся read-only. Если позже потребуется исправление, безопаснее начать с одного владельца записи. Аналитики возвращают предложения и основания, исполнитель меняет ограниченный набор файлов, проверяющий читает готовый diff. Публикация остаётся отдельным действием с собственной проверкой согласия и полномочий.</p>
+<p>Один общий writable checkout делает даже аккуратных участников зависимыми от времени. Пока tester проверяет файлы, implementer может их изменить; полученный зелёный результат уже относится к неизвестной смеси состояний. Передавайте проверяющему неизменяемый commit или artifact и записывайте, что именно исполнялось. «Проверены последние файлы» не является воспроизводимой привязкой.</p>
+<p>Отдельные branches или worktrees полезны для нескольких writers, но не являются полноценной границей безопасности. Они могут оставаться под одним OS user, видеть одни credentials и общий host. Даже без текстового конфликта две правки способны вместе нарушить API. После объединения проверяйте именно объединённую ревизию; тест каждого исходного branch её не удостоверяет.</p>
+<p>Sandbox нужен по риску исполняемого кода, а не по названию роли. Запуск package manager или теста чужого PR может исполнить произвольный script. Такому участнику нельзя передавать production secrets или управляющий socket. Следующая глава разберёт process, container, gVisor и microVM; здесь важно увидеть, где логическое разделение должно поддерживаться физическим.</p>
+<p>AX может предоставить отдельную Task, Workspace и управление жизненным циклом среды. Но прикладные child IDs, budgets, join policy и итог ревью не появляются от этого автоматически. Не предполагайте также, что любое записанное поле ресурсов уже превратилось в runtime limit: это зависит от зафиксированного профиля реализации. В главе 22 подробно разобраны эти границы. Новую AX Task создают ради нужной границы исполнения или жизненного цикла, а не ради каждого model call.</p>
+<h2>Ограничиваем всю работу до запуска ветвей</h2>
+<p>Лимит каждого участника не является лимитом дерева. Если все пять детей могут создать ещё по пять, количество задач растёт быстрее полезного результата. К этому добавляются повторные попытки после timeout. Поэтому координатор ограничивает одновременно сумму расходов, число созданных задач, глубину делегирования, число активных ветвей и общий срок.</p>
+<p>Деньги или tokens и wall-clock deadline учитываются по-разному. Расходы ветвей складываются, а параллельное время перекрывается. Ограничение <code>max_concurrency=2</code> означает не «система потратит мало», а «не больше двух ветвей исполняются одновременно». Если модельный сервис допускает только один запрос, полезен отдельный лимит model calls, даже когда живых процессов больше.</p>
+<h3>Резерв оставляет место для сборки и проверки</h3>
+<p>Предположим, осталось 20 000 tokens, а 4 000 нужны для сборки, объяснения и проверки. На все дочерние задачи вместе можно зарезервировать не больше 16 000. Две ветви с резервом по 6 000 оставляют ещё 4 000 для непредвиденного уточнения. Это пример учёта, не рекомендуемый размер контекста или обещание качества.</p>
+<p style="break-inside: avoid-page; break-after: avoid-page">Для каждого аддитивного ресурса действует правило:</p>
+<pre><code class="language-text">сумма активных резервов children
+    &lt;= остаток общего бюджета - резерв координатора
+</code></pre>
+<p>Резервирование должно быть атомарным относительно конкурирующих запусков. Проверка «денег ещё хватает» перед двумя одновременными spawn без общей записи может пропустить оба, хотя вместе они превышают лимит. Лимиты в prompt не заменяют admission control, проверку допуска в коде перед запуском.</p>
+<p>После подтверждённого завершения неиспользованный резерв можно освободить, учтя фактический расход. При потерянной связи расход может оставаться неизвестным. Нельзя автоматически вернуть весь резерв и запустить замену, пока старый участник потенциально продолжает работу. Уточните его состояние или сохраняйте консервативный учёт. Финальный <code>failed</code> не означает, что модельные вызовы были бесплатны.</p>
+<h3>Очередь должна ограничивать давление на сервисы</h3>
+<p>Backpressure, обратное давление, означает, что медленный downstream ограничивает поступление новой работы. Ограниченная очередь и семафор model calls часто полезнее бесконечного создания процессов. Если inference endpoint недоступен, новые агенты не создают новых оснований; они создают retry storm.</p>
+<p>Задайте повтор с задержкой и пределом, а при общей повторяющейся причине временно прекращайте новые обращения. Такой выключатель называют circuit breaker. Не путайте ошибку одной гипотезы с системной недоступностью инструмента: в первом случае может помочь другая ветвь исследования, во втором она попадёт в ту же неисправную зависимость.</p>
+<h2>Повторы отмена и восстановление</h2>
+<p>Состояние координации храните отдельно от человеческого пересказа: какая работа назначена, какой вход ей выдан, какой резерв занят, какая попытка активна и где находится результат. Progress «почти закончил» помогает оператору, но не должно переводить root в успех. Completion «готово» тоже сначала требует проверки артефакта.</p>
+<p>Для восстановления нужен стабильный logical child ID, связанный с общей задачей, версией её разбиения и областью работы. Номер попытки изменяется при повторе; связь с той же логической частью сохраняется. Одного детерминированного имени недостаточно: хранилище и dispatcher должны обеспечивать уникальное создание или поиск существующей записи.</p>
+<h3>Поздний ответ не должен переписать новую попытку</h3>
+<p>Первый участник перестал отвечать. Координатор запустил вторую попытку, а затем получил запоздавший успех первой. Если принимать только по <code>task_id</code>, старый ответ может заменить свежий. Наш локальный validator поэтому сравнивает <code>attempt</code> с доверенным контрактом. Реальный journal также должен атомарно проверить активную попытку и версию записи при сохранении результата.</p>
+<p>Lease, временное право владения работой, помогает обнаружить потерянного исполнителя, но истечение срока не доказывает его остановку. Старый процесс может проснуться после паузы. Fencing token, монотонный номер владения, позволяет принимающей стороне отклонять действия прежнего владельца. Если внешний API такой проверки не поддерживает, право на запись нельзя безопасно восстановить только локальным lease; нужны сверка и иной контракт исполнения.</p>
+<h3>Отмена не является откатом</h3>
+<p>Cancellation сначала выражает намерение: больше не нужно продолжать работу. Состояние <code>cancel_requested</code> полезно держать отдельно от подтверждённого <code>cancelled</code>. Участник может ещё находиться внутри запроса или успеть записать результат. Остановка процесса не удалит уже опубликованный комментарий и не вернёт деньги за выполненные model calls.</p>
+<p>Для чтения повтор часто допустим, если закреплены версия и пределы. Для внешней записи после timeout сначала нужно выяснить исход: operation ledger и сверка целевой системы, как в главах 5 и 37. Повторный child с прежним ID не делает его git push или API write идемпотентным. Ключ дедупликации должен поддерживаться там, где происходит эффект, либо повтор остаётся потенциально опасным.</p>
+<p>После restart координатор не запускает дерево с нуля. Он читает journal, принимает проверенные результаты, присоединяется к ещё работающим задачам, разруливает неизвестные исходы и только затем повторяет действительно недостающую работу. Правила объединения и резервов также должны переживать restart. Наш опыт хранит данные лишь в памяти и этой гарантии не даёт.</p>
+<h2>Как выбрать средства реализации</h2>
+<p style="break-after: avoid-page">Начните не с рейтинга frameworks, а с вопроса, какое поведение вам нужно закрепить. Для двух фиксированных чтений достаточно обычных функций, проверки результатов и, при необходимости, ограниченного параллельного исполнения. SDK нужен, когда вы действительно управляете агентными циклами. Durable workflow engine, движок устойчивого выполнения, нужен по требованиям к долгому ожиданию и восстановлению, а не по числу персонажей.</p>
+<table style="break-inside: avoid-page">
 <thead>
 <tr>
-<th>Метрика</th>
-<th>Что показывает</th>
+<th>Требование</th>
+<th>Возможная отправная точка</th>
+<th>Что остаётся вашей обязанностью</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Spawn count/depth</td>
-<td>task explosion и качество decomposition</td>
+<td>Несколько заранее известных шагов</td>
+<td>Обычный код или небольшой workflow</td>
+<td>Версии входов, ошибки, допустимость действий</td>
 </tr>
 <tr>
-<td>Useful parallelism</td>
-<td>сколько branches реально перекрылись по времени</td>
+<td>Вызов специалистов или передача диалога</td>
+<td>Agents SDK с tools и handoffs</td>
+<td>Область доступа, общий budget, проверка результата</td>
 </tr>
 <tr>
-<td>Duplicate work rate</td>
-<td>стоимость плохого partitioning</td>
+<td>Явный граф с состоянием и паузами</td>
+<td>LangGraph с настроенным persistence</td>
+<td>Семантика состояния, хранилище, безопасные повторы</td>
 </tr>
 <tr>
-<td>Handoff count</td>
-<td>routing loops и UX complexity</td>
+<td>Долгое выполнение с устойчивой историей</td>
+<td>Temporal и внешние Activities</td>
+<td>Идемпотентность эффектов, границы retries, модельные вызовы</td>
 </tr>
 <tr>
-<td>Join wait time</td>
-<td>bottleneck fan-in</td>
-</tr>
-<tr>
-<td>Stale output rate</td>
-<td>слишком долгие subtasks или слабое versioning</td>
-</tr>
-<tr>
-<td>Verified outcome rate</td>
-<td>конечное качество, а не число завершённых agents</td>
-</tr>
-<tr>
-<td>Cost per verified outcome</td>
-<td>экономическую полезность topology</td>
-</tr>
-<tr>
-<td>Cancellation lag</td>
-<td>способность остановить дерево</td>
+<td>Независимый удалённый agent service</td>
+<td>Зафиксированная версия A2A</td>
+<td>Доверие, доступ, evidence и прикладная join policy</td>
 </tr>
 </tbody>
 </table>
-<p>Красивый transcript не заменяет distributed trace. Оператор должен быстро ответить: какой child держит critical path, кто расходует budget и какие writes уже произошли.</p>
-<h2>Как оценивать multi-agent систему</h2>
-<p>Сравнивайте минимум три variants:</p>
-<ol>
-<li>сильный single agent;</li>
-<li>deterministic workflow с теми же tools;</li>
-<li>multi-agent topology.</li>
-</ol>
-<p>Уравняйте или отдельно покажите token/tool budgets. Иначе «архитектура» побеждает просто дополнительным compute.</p>
-<h3>Outcome metrics</h3>
+<p>Это архитектурные варианты для испытания, а не обещание взаимозаменяемости. <a href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph</a> поддерживает графы со смесью детерминированных и агентных шагов и механизмами сохранения состояния. Нужно выбрать и настроить хранилище; сохранённый checkpoint не превращает внешний write в однократный эффект.</p>
+<p><a href="https://docs.temporal.io/workflow-execution">Temporal</a> использует историю событий и replay для восстановления workflow. Нестабильные внешние обращения, включая model calls, выносят в <a href="https://docs.temporal.io/activities">Activities</a>, а не заново исполняют при воспроизведении детерминированного workflow. Это иной уровень обязательств и эксплуатации, чем добавить второй prompt. Возможный повтор Activity требует продуманного контракта внешней операции.</p>
+<p>MCP из главы 6 подключает инструменты и данные. A2A предназначен для взаимодействия с агентным сервисом, внутренние шаги которого клиенту могут быть не видны. Эти механизмы могут работать вместе, но ни один не решает за приложение, кому верить и достаточно ли полученного результата. В этой книге профиль <a href="https://a2a-protocol.org/v0.3.0/specification/">A2A 0.3.0</a> рассматривается как конкретная версия, не как заявление о самой новой. Её запрос отмены также не гарантирует успешную остановку. Наши поля <code>attempt</code>, <code>evidence_refs</code> и <code>ready_for_synthesis</code> не являются полями или статусами этой спецификации.</p>
+<p>Для короткого локального ревью не нужно устанавливать все эти средства. Сначала реализуйте понятные границы и негативные случаи. Затем переносите проверенный контракт в выбранную библиотеку и отдельно испытывайте её сохранение состояния, повторы, отмену и совместимость. Архитектура должна оставаться объяснимой без названий продуктов.</p>
+<h2>Как проверить полезность команды</h2>
+<p>Сравните версию с одним агентом, фиксированный workflow и выбранную многоагентную схему на одних заданиях. Дайте им одинаковые tools, исходные ревизии и критерии. Бюджеты либо уравняйте, либо явно покажите разницу. Если команда читает больше материалов и расходует больше tokens, её лучший ответ ещё не доказывает преимущество самого разделения.</p>
+<p>Для ревью критерии качества можно сделать конкретными: найден путь ошибки, правильно установлено ожидаемое поведение, вывод связан с нужной ревизией, неполный отчёт не выдан за полный, публикация без согласия не произошла. Проверяйте как ложные замечания, так и пропущенные дефекты. Оценка одного красивого transcript особенно плохо показывает редкие сбои координации.</p>
+<p>Время измеряйте от запроса пользователя до проверенного результата, включая очереди, повторные попытки и сборку. Стоимость одного подтверждённого результата считайте с расходами на неуспешные проходы, а долю успеха показывайте отдельно. Иначе система может выглядеть дешёвой только потому, что сложные задачи исключили из отчёта.</p>
+<p>Помимо итогового качества наблюдайте время ожидания обязательной ветви, дублирование работы, пробелы покрытия, устаревшие ответы, число передач и задержку отмены. Root ID должен связываться с child ID, номером попытки, версией конфигурации, входами, tool calls и артефактом. Не обязательно сохранять все секретные тексты в trace; нужны безопасные идентификаторы и доступные уполномоченному оператору основания.</p>
+<p>Полезен ablation, контрольное исключение компонента. Запустите ту же схему без параллельного исполнения, без дополнительного проверяющего или с фиксированной вместо динамической декомпозицией. Если качество не меняется, дополнительный механизм пока не оправдан для этого набора. Не распространяйте вывод на все задачи. <a href="https://www.anthropic.com/engineering/multi-agent-research-system">Опыт multi-agent research Anthropic</a> показывает пользу разделения для широкого поиска, но также подчёркивает расходы и трудности координации. Он не является измерением скорости нашего ревьюера.</p>
+<p>Отдельно проведите fault injection: недоступный обязательный вход, повторное сообщение, поздний ответ старой попытки, restart координатора и потерянный ответ после внешней записи. Эти проверки нужны даже если все участники используют сильную модель. Модель не может исправить сборщик, который по ошибке принимает два ответа одной ветви за полное покрытие.</p>
+<h2>Практикум от одного ревью к нескольким модулям</h2>
+<p>Сначала выполните локальный опыт. Удалите ответ ветви тестов и объясните, почему итог неполный. Измените ревизию и номер попытки: оба должны привести к отказу, но по разным причинам. Затем добавьте другой вывод о фактическом поведении и убедитесь, что исходное основание не потерялось при обнаружении конфликта. Попробуйте заменить ссылку на неизвестную: сборщик не должен принять её только из-за знакомого слова <code>fixture</code>.</p>
+<p>После этого спроектируйте ревью трёх независимых модулей, не меняя реальный репозиторий. Нарисуйте зависимости, запишите вопрос и non-goals каждой ветви, укажите обязательное покрытие. Решите, кому действительно нужен собственный цикл поиска, а где хватит чтения заранее известных файлов. Оставьте одну точку подготовки итогового объяснения.</p>
+<p>Теперь пользователь разрешает предложить исправление, но не публиковать. Назначьте одного владельца записи и объясните, какую неизменяемую ревизию получит tester. Если два исполнителя меняют разные файлы, но общий API, назовите проверку после объединения. Наличие worktree не является ответом на вопрос о совместимости правок.</p>
+<p>Наконец, добавьте restart и поздний ответ. Какие записи надо сохранить до запуска child? Как отличить повтор от новой области работы? Когда можно освободить резерв? Если ответ на неизвестный исход внешней записи звучит как «создать ещё одного агента», контракт восстановления ещё не закончен.</p>
+<p>Проверьте себя: можете ли вы объяснить отказ от multi-agent для короткого <code>total(items)</code> и условие, при котором вернулись бы к разделению? Почему manager и fan-out совместимы, а handoff меняет владельца? Чем тестовое ожидание отличается от наблюдаемого поведения? Что означает <code>ready_for_synthesis</code> и чего оно не подтверждает? Ответы на эти вопросы важнее запоминания названий схем.</p>
+<div class="chapter-summary" style="break-inside: avoid-page"><h2>Итоги главы</h2>
+<p>Многоагентная система полезна не количеством ролей, а конкретным разделением работы, контекста, возможностей и проверки. Начинайте с одного рабочего агента и проблемы, которую можно измерить. Стройте зависимости до запуска участников и не делегируйте модели операции, которые проще и надёжнее закрепить в коде.</p>
+<p>Делегирование требует понятных входов, границ, результата и остановки. Сборка проверяет версии и обязательное покрытие, сохраняет основания и не заменяет противоречие голосованием. Даже полный допустимый набор ответов ещё требует содержательной оценки. Результат участника, итог всей задачи и состояние инфраструктуры - разные вещи.</p>
+<p>Надёжность команды опирается на обычные инженерные механизмы: владельца записи, устойчивые идентификаторы, учёт резервов, проверку попыток и сверку неизвестных эффектов. SDK, MCP, A2A и AX могут помочь с отдельными слоями, но не создают отсутствующие гарантии. В следующей главе свяжем логические границы участников с физической изоляцией исполнения и разберём, почему отдельный prompt не защищает host от чужого кода.</p>
+<h3>Источники и дальнейшее чтение</h3>
 <ul>
-<li>factual/correctness score;</li>
-<li>completeness и coverage;</li>
-<li>verified environment state;</li>
-<li>defects escaped после review;</li>
-<li>human acceptance;</li>
-<li>latency p50/p95;</li>
-<li>model и tool cost;</li>
-<li>failure recovery rate.</li>
+<li><a href="https://developers.openai.com/api/docs/guides/agents/orchestration">OpenAI Agents SDK Orchestration and handoffs</a> - различие владения ответом при вызове специалистов и передаче управления.</li>
+<li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic Building effective agents</a> - различие workflows и agents, параллельные ветви и цикл evaluator.</li>
+<li><a href="https://www.anthropic.com/engineering/multi-agent-research-system">Anthropic How we built our multi-agent research system</a> - опыт широкого поиска, делегирование, расходы и эксплуатация.</li>
+<li><a href="https://arxiv.org/abs/2503.13657v3">Cemri et al. Why Do Multi-Agent LLM Systems Fail v3</a> - наблюдаемые категории сбоев MAST и область исследования.</li>
+<li><a href="https://docs.langchain.com/oss/python/langgraph/overview">LangGraph overview</a> - графы, агентные и детерминированные шаги, persistence.</li>
+<li><a href="https://docs.temporal.io/workflow-execution">Temporal Workflow Execution</a> и <a href="https://docs.temporal.io/activities">Activities</a> - история, replay и граница внешних операций.</li>
+<li><a href="https://a2a-protocol.org/v0.3.0/specification/">A2A Protocol Specification 0.3.0</a> - взаимодействие с удалёнными агентами и запрос отмены.</li>
+<li>Главы 8, 22, 24, 33 и 37 - физическая изоляция, реализация делегирования на AX, полномочия, полные архитектуры и внешние действия.</li>
 </ul>
-<h3>Coordination metrics</h3>
-<ul>
-<li>правильность routing и decomposition;</li>
-<li>overlap/gap rate;</li>
-<li>schema-valid child outputs;</li>
-<li>ignored findings;</li>
-<li>incorrect or premature termination;</li>
-<li>количество cycles;</li>
-<li>authority violations;</li>
-<li>reproducibility при одинаковом input version.</li>
-</ul>
-<h3>Ablation tests</h3>
-<p>Удаляйте по одному элементу:</p>
-<ul>
-<li>без reviewer;</li>
-<li>без parallelism;</li>
-<li>один model вместо разных;</li>
-<li>text summary вместо structured result;</li>
-<li>общий workspace вместо branches;</li>
-<li>фиксированная decomposition вместо dynamic.</li>
-</ul>
-<p>Так становится видно, какой component даёт benefit. Если removal evaluator не меняет качество, evaluator был ритуалом.</p>
-<p>End-state evaluation важнее проверки единственного «правильного» пути. Agents могут прийти к одному verified outcome разными trajectories. Но process constraints - authority, budget, запрещённые actions - всё равно оцениваются отдельно.</p>
-<h2>Практика: software-engineering workflow</h2><figure><figcaption>Практика: software-engineering multi-agent workflow</figcaption><svg aria-label="Практика: software-engineering multi-agent workflow" class="diagram" role="img" viewbox="0 0 850 350"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="135.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="287.5" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="330.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="385.0" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="525.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="482.5" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="440.0" x2="720.0" y1="90" y2="145"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="580.0" y="111.5">delegate</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="330.0" x2="330.0" y1="210" y2="255"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="330.0" y="226.5">write</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="525.0" x2="525.0" y1="210" y2="255"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="525.0" y="226.5">run</text><line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="720.0" x2="440.0" y1="210" y2="20"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="580.0" y="109.0">verdict</text><rect fill="#f8efff" height="70" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="160" x="360" y="20"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="440.0" y="44">Coordinator</text><text fill="#465569" font-size="11" text-anchor="middle" x="440.0" y="65">scope/budget</text><rect fill="#edf4ff" height="65" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="150" x="60" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="135.0" y="169">Researcher</text><text fill="#465569" font-size="11" text-anchor="middle" x="135.0" y="190">read</text><rect fill="#fff0f0" height="65" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="150" x="255" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="330.0" y="169">Implementer</text><text fill="#465569" font-size="11" text-anchor="middle" x="330.0" y="190">write branch</text><rect fill="#fff7e8" height="65" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="150" x="450" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="525.0" y="169">Tester</text><text fill="#465569" font-size="11" text-anchor="middle" x="525.0" y="190">execute tests</text><rect fill="#eefaf3" height="65" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="150" x="645" y="145"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="720.0" y="169">Reviewer</text><text fill="#465569" font-size="11" text-anchor="middle" x="720.0" y="190">evaluate</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="150" x="255" y="255"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="330.0" y="279">Git/MCP</text><text fill="#465569" font-size="11" text-anchor="middle" x="330.0" y="300">scoped repo</text><rect fill="#f3f5f7" height="65" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="150" x="450" y="255"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="525.0" y="279">CI tools</text><text fill="#465569" font-size="11" text-anchor="middle" x="525.0" y="300">sandbox</text></svg></figure>
-<p>Рассмотрим issue: «после обновления cache library периодически теряются session records».</p>
-<h3>1. Coordinator фиксирует scope</h3>
-<p>Он создаёт immutable task manifest:</p>
-<pre><code class="language-yaml">goal: identify cause and prepare reviewed fix
-repository_ref: 31f27ab
-acceptance:
-  - regression test reproduces loss before fix
-  - test passes after fix
-  - no production deployment
-budgets:
-  children: 4
-  wall_time_minutes: 30
-</code></pre>
-<h3>2. Read-only fan-out</h3>
-<p>Три children работают параллельно:</p>
-<ul>
-<li>Researcher прослеживает session lifecycle и возвращает call graph.</li>
-<li>Dependency analyst читает changelog и semantics новой cache library.</li>
-<li>Test analyst ищет existing race tests и строит reproduction plan.</li>
-</ul>
-<p>У каждого distinct scope и один repository commit. Они пишут только artifacts.</p>
-<h3>3. Synthesis gate</h3>
-<p>Coordinator объединяет evidence. Если analysts расходятся, он не выбирает majority, а формирует discriminating experiment: искусственно задержать cache callback и проверить порядок delete/write.</p>
-<h3>4. Один implementer</h3>
-<p>Implementer получает:</p>
-<ul>
-<li>confirmed hypothesis;</li>
-<li>reproduction artifact;</li>
-<li>allowed files;</li>
-<li>отдельный branch;</li>
-<li>запрет merge и release.</li>
-</ul>
-<p>Он создаёт test и fix в одном bounded change set.</p>
-<h3>5. Tester проверяет конкретный commit</h3>
-<p>Tester запускает commands в sandbox, записывает environment digest и возвращает machine-readable report. Он не принимает summary «tests passed» от implementer.</p>
-<h3>6. Reviewer оценивает artifact</h3>
-<p>Reviewer получает goal, diff, test results и rubric. Он не имеет write tool. Verdict содержит blocking defects, evidence и coverage gaps.</p>
-<h3>7. Human/policy gate</h3>
-<p>Merge остаётся отдельной capability. Approval связан с exact commit SHA, а не с фразой «исправь проблему».</p>
-<p>Эта система multi-agent не потому, что роли похожи на людей. Её ценность в parallel read, одном writer, независимом execution environment и отдельном verification evidence.</p>
-<h2>AX и дерево Tasks</h2>
-<p>AX Task может служить unit isolation для child agent: отдельные resources, Workspace, lifecycle и credentials. Но платформа не обязана угадывать business semantics дерева.</p>
-<p>Application layer всё равно определяет:</p>
-<ul>
-<li>parent/child relation;</li>
-<li>deterministic task IDs;</li>
-<li>budget propagation;</li>
-<li>authority attenuation;</li>
-<li>join policy;</li>
-<li>cancellation и recovery;</li>
-<li>output schemas.</li>
-</ul>
-<p>Не создавайте AX Task на каждый model call. Новая Task оправдана, когда нужны isolation, отдельный lifecycle, параллельная capacity или другой security scope. Подробная реализация на AX рассматривается в главе 22, а две полные reference architectures - в главе 33.</p>
-<h2>Где заканчивается orchestration protocol</h2>
-<p>Внутри одного application agents можно вызывать как tools или handoffs. Между независимыми systems нужен protocol discovery, messaging и long-running task exchange. A2A, например, стандартизует взаимодействие потенциально opaque agents: capability discovery, structured messages, streaming и asynchronous task updates.</p>
-<p>Но interoperability protocol не решает:</p>
-<ul>
-<li>правильно ли decomposed objective;</li>
-<li>можно ли доверять remote agent;</li>
-<li>какой budget ему выдать;</li>
-<li>достаточно ли evidence;</li>
-<li>кто авторизует side effect;</li>
-<li>когда root Task считается успешной.</li>
-</ul>
-<p>Протокол переносит delegation contract и artifacts. Coordinator и прикладной orchestration layer остаются ответственными за смысл; infrastructure orchestrator лишь исполняет lifecycle выделенных workloads.</p>
-<h2>Типичные антипаттерны</h2>
-<p><strong>Role-play organization.</strong> Названия CEO, architect и engineer есть, а capabilities и boundaries одинаковы.</p>
-<p><strong>Spawn before decompose.</strong> Coordinator создаёт children до построения coverage map.</p>
-<p><strong>Everyone writes.</strong> Несколько agents меняют общий workspace без ownership.</p>
-<p><strong>Chat as state.</strong> Status и operation IDs извлекаются из сообщений.</p>
-<p><strong>Transcript forwarding.</strong> Каждый child получает всю history, включая secrets и irrelevant instructions.</p>
-<p><strong>Majority means truth.</strong> Correlated answers принимаются за независимое подтверждение.</p>
-<p><strong>Reviewer can silently fix.</strong> Verification и mutation смешаны в одной роли.</p>
-<p><strong>Unlimited recursion.</strong> Children создают children без subtree budget и depth limit.</p>
-<p><strong>Cancel means rollback.</strong> Parent считает остановленный child доказательством отсутствия side effect.</p>
-<p><strong>Success means done.</strong> Completion message принимается без output validation и external verification.</p>
-<p><strong>More agents in every eval.</strong> Multi-agent variant получает больше tokens, но cost не учитывается.</p>
-<p><strong>A2A/MCP as architecture.</strong> Наличие protocol заменяет design decomposition, authority и join semantics.</p>
-<h2>Checklist выбора и проектирования</h2>
-<p>Перед внедрением ответьте:</p>
-<ol>
-<li>Какую метрику single-agent baseline нужно улучшить?</li>
-<li>Какая часть работы действительно параллельна?</li>
-<li>Где critical path и coordination overhead?</li>
-<li>Почему нужен agent, а не function или workflow node?</li>
-<li>Какая topology соответствует ownership?</li>
-<li>Как выглядит delegation contract?</li>
-<li>Какие input versions связывают child result?</li>
-<li>Кто единственный owner каждого write target?</li>
-<li>Как attenuate authority?</li>
-<li>Как ограничены subtree cost, concurrency и depth?</li>
-<li>Как fan-in сохраняет contradictions и provenance?</li>
-<li>Кто имеет право завершить root Task?</li>
-<li>Что происходит при parent restart и child timeout?</li>
-<li>Как измеряется verified outcome и стоимость?</li>
-<li>Какой ablation докажет, что дополнительный agent действительно нужен?</li>
-</ol>
-<p>Если на вопросы 2, 6, 8 и 12 нет ответа, система ещё не готова к нескольким автономным loops.</p>
-<h2>Итоги главы</h2>
-<ul>
-<li>Multi-agent architecture - это несколько decision loops плюс coordination layer, а не несколько role prompts.</li>
-<li>Начинайте с single-agent baseline и измеримой проблемы, которую должно решить разделение.</li>
-<li>Основные источники пользы: независимый параллелизм, context isolation, capability isolation и verification.</li>
-<li>Dependency graph и critical path важнее списка агентов.</li>
-<li>Manager, handoff, fan-out/fan-in, pipeline, evaluator и swarm имеют разные ownership semantics.</li>
-<li>Delegation требует structured contract: objective, non-goals, versions, authority, budget, schema и termination.</li>
-<li>Child authority должна быть уже parent authority и Task scope.</li>
-<li>Coordination state хранится структурированно; сообщения передают commands, findings и progress, но не заменяют state store.</li>
-<li>Shared writes требуют одного owner, отдельных branches или transactional concurrency control.</li>
-<li>Subtree budgets, admission control и depth limits предотвращают task explosion.</li>
-<li>Multi-agent failures включают gaps, duplication, role drift, lost findings, stale outputs, cycles и correlated errors.</li>
-<li>Fan-in агрегирует claims и evidence, а не голосует за самый популярный текст.</li>
-<li>Recovery опирается на deterministic child IDs, journal, leases и reconciliation side effects.</li>
-<li>Evals сравнивают outcome, latency и cost с single-agent и workflow baselines.</li>
-<li>На AX отдельная Task нужна для isolation, lifecycle, capacity или security boundary, а не для каждого шага reasoning.</li>
-<li>Protocol interoperability не заменяет orchestration design, trust и authorization.</li>
-</ul>
-<p><strong>Дальше.</strong> Логическое разделение ролей требует физических границ выполнения. В следующей главе сравним process, container, gVisor и microVM и свяжем степень изоляции с threat model.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
-<li><a href="https://www.anthropic.com/engineering/multi-agent-research-system">Anthropic: How we built our multi-agent research system</a> - orchestrator-worker, delegation, parallelism, cost и evals.</li>
-<li><a href="https://www.anthropic.com/research/multiagent-systems">Anthropic: Patterns and problems in emerging multiagent systems</a> - coordination, systemic resource failures, correlated behavior и epistemic risks.</li>
-<li><a href="https://openai.github.io/openai-agents-python/multi_agent/">OpenAI Agents SDK: Agent orchestration</a> - manager/agents-as-tools, handoffs и code-driven orchestration.</li>
-<li><a href="https://openai.github.io/openai-agents-python/handoffs/">OpenAI Agents SDK: Handoffs</a> - ownership transfer, input filters и handoff configuration.</li>
-<li><a href="https://a2a-protocol.org/v0.3.0/specification/">A2A Protocol Specification 0.3.0</a> - interoperability между независимыми agent systems.</li>
-<li><a href="https://arxiv.org/abs/2503.13657">Cemri et al.: Why Do Multi-Agent LLM Systems Fail?</a> - MAST taxonomy и empirical analysis multi-agent failures.</li>
-<li><a href="https://www.anthropic.com/engineering/building-effective-agents">Anthropic: Building effective agents</a> - routing, parallelization, orchestrator-workers и evaluator-optimizer workflows.</li>
-<li>Главы 22, 33 и 37 этой книги - AX Task delegation, reference architectures и safe execution.</li>
-</ul></div></section><section class="chapter" id="ch-8"><div class="chapter-num">Глава 8</div><h1>От Linux process к gVisor и microVM</h1>
+</div></section><section class="chapter" id="ch-8"><div class="chapter-num">Глава 8</div><h1>От Linux process к gVisor и microVM</h1>
 <figure><figcaption>Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность</figcaption><svg class="diagram" viewBox="0 0 850 250" role="img" aria-label="Лестница изоляции: усиление boundary обычно увеличивает стоимость и сложность"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="130" y1="157.5" x2="160" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="145.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">isolate</text><line x1="300" y1="157.5" x2="330" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="315.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">restrict</text><line x1="470" y1="157.5" x2="500" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="485.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">syscall boundary</text><line x1="640" y1="157.5" x2="670" y2="157.5" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="655.0" y="151.5" text-anchor="middle" font-size="10" fill="#5c6875">stronger boundary</text><rect x="10" y="120" rx="12" ry="12" width="120" height="75" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="70.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Process</text><text x="70.0" y="165" text-anchor="middle" font-size="11" fill="#465569">same OS</text><rect x="160" y="120" rx="12" ry="12" width="140" height="75" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="230.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Container</text><text x="230.0" y="165" text-anchor="middle" font-size="11" fill="#465569">namespaces + cgroups</text><rect x="330" y="120" rx="12" ry="12" width="140" height="75" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="400.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Hardened</text><text x="400.0" y="165" text-anchor="middle" font-size="11" fill="#465569">seccomp/caps</text><rect x="500" y="120" rx="12" ry="12" width="140" height="75" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="570.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">gVisor</text><text x="570.0" y="165" text-anchor="middle" font-size="11" fill="#465569">userspace kernel</text><rect x="670" y="120" rx="12" ry="12" width="150" height="75" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="745.0" y="144" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">microVM</text><text x="745.0" y="165" text-anchor="middle" font-size="11" fill="#465569">guest kernel + KVM</text></svg></figure>
 <p>В главе 7 мы разделили работу между несколькими agents и зафиксировали ownership. Но логическая граница роли ещё не является физической границей выполнения. Два агента могут иметь разные prompts и разные Task IDs, но фактически работать под одним Linux user, видеть общий filesystem и обращаться к одному Docker socket. Тогда компрометация одного участника автоматически разрушает границы остальных.</p>
 <p>Представим reviewer, который получает чужой pull request. Чтобы проверить изменение, он запускает package manager, compiler и test suite. Любой из этих шагов может выполнить код из repository: post-install script, build plugin, test fixture или бинарник из dependency. Если такой workload видит credential, host filesystem или управляющий socket, одной prompt-инструкции «ничего не ломай» недостаточно.</p>
