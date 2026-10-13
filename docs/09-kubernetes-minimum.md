@@ -1,67 +1,180 @@
 # Kubernetes: необходимый минимум для понимания AX/Substrate
 
-![Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate](.gitbook/assets/diagrams/09-10.png)  
-*Kubernetes reconciliation loop - mental model, который нужен для AX/Substrate*
+В главе 8 мы выбрали условия исполнения внешних тестов: отдельная среда, подготовленный вход, отсутствие сети и credentials координатора. Теперь представим, что конфигурация принята кластером, а отчёта всё нет. В таблице Pods написано `Pending`. Что делать: добавить CPU, исправить image, переустановить gVisor или проверить код теста? Пока у нас только одно слово, обоснованного ответа нет.
 
-Kubernetes здесь нужен не как отдельный предмет, а как инфраструктурная среда, в которой живут AX и Substrate. Нам не требуется знать каждую настройку кластера; важно видеть путь workload от намерения до работающего процесса и понимать, где искать сбой.
+Kubernetes нужен инженеру прежде всего для такого разбора. Он связывает описание работы с её размещением, запуском, сетью и хранилищем. При этом он не понимает, насколько хорош ответ модели и завершено ли ревью. Наша задача - научиться читать цепочку исполнения, выбирать подходящий способ управления процессами и находить участок, на котором намерение перестало превращаться в результат.
 
-Эта глава не пытается заменить отдельную книгу о Kubernetes. Её задача практичнее: дать инженеру ровно ту модель, которая нужна, чтобы читать manifests AX/Substrate, понимать placement и lifecycle, отличать проблему Kubernetes от проблемы agent runtime и не принимать cluster abstraction за security boundary.
+Дальше мы будем возвращаться к проверке `total(items)` и `test_empty_list`. Учебный Job из главы 8 остаётся примером отдельного запуска теста; его не нужно путать с AX Task или Actor Substrate. Сначала разберём общие механизмы Kubernetes для Linux-кластера, затем покажем их действительное место в закреплённых версиях AX и Substrate. Практический разбор можно выполнить локально на искусственных наблюдениях, без кластера.
 
-## После главы вы должны уметь
+## Что читатель сможет сделать после главы
 
-- проследить путь объекта от YAML до процесса на конкретной node;
-- объяснить разницу между `spec`, `status`, событием и реальным состоянием процесса;
-- выбрать Deployment, StatefulSet, DaemonSet или Job по семантике workload;
-- понять, почему Pod остаётся Pending, перезапускается или не получает traffic;
-- связать requests, limits, probes, Service, storage и RuntimeClass с поведением agent platform;
-- определить, какие данные уместны в Kubernetes API, а какие должны жить в специализированном store;
-- провести первый диагностический проход без случайного изменения production state.
+- Объяснить путь от принятого YAML до процесса и найти ответственный компонент.
+- Различить имя ресурса, UID конкретного экземпляра и идентификатор прикладной задачи.
+- Выбрать Deployment, StatefulSet, DaemonSet или Job по требуемому жизненному циклу.
+- Рассчитать заявку на ресурсы и понять, почему свободный CPU не гарантирует размещение.
+- Прочитать probes, Service и volumes как конкретные условия работы, а не набор обязательных полей.
+- Отделить готовность Pod от готовности Worker, Actor и результата теста.
+- Провести диагностический разбор, сохраняя наблюдения и не меняя кластер наугад.
 
-## Kubernetes не запускает контейнер «по команде»
+## Что Kubernetes добавляет к запуску контейнера
 
-Самая полезная смена мышления - отказаться от модели удалённого shell. В shell команда означает разовое действие: «запусти процесс». В Kubernetes manifest означает **намерение**: «в cluster должен существовать workload с такими свойствами». Система сохраняет это намерение и продолжает работать с ним после завершения `kubectl`, disconnect клиента и перезапуска отдельных компонентов.
+На одной машине достаточно запустить контейнер и наблюдать за ним. Когда машин несколько, появляются новые вопросы: кто выберет место, кто создаст замену после сбоя, как клиент найдёт новый адрес, как подключить диск и как не дать одному процессу занять всю площадку. Kubernetes предоставляет общий API и набор согласующих эти действия механизмов.
 
-Пользователь пишет объект в API. API server проверяет запрос, применяет defaulting и admission policy, затем сохраняет объект. Controllers наблюдают объекты и создают следующие объекты. Scheduler выбирает node для Pod. Kubelet на этой node через CRI просит container runtime подготовить sandbox и containers. CNI настраивает сеть, CSI при необходимости подключает storage. После каждого шага компоненты публикуют status, но ни один успешный API response не обещает, что приложение уже готово.
+Слово **кластер** здесь означает совместно управляемые машины и управляющие компоненты. Машина, на которой исполняются Pods, называется **node**, или узлом. Управляющая часть - **control plane** - хранит описания ресурсов и принимает решения об их жизненном цикле. Компоненты узла воплощают решения в процессы. В небольшой установке роли могут размещаться рядом, но их обязанности всё равно различаются.
 
-Поэтому фраза `deployment.apps/controller created` означает только «API принял объект». Она не означает «image скачан», «Pod запущен», «probe прошла» или «Service направляет traffic». Между принятым намерением и полезно работающим процессом находится асинхронная цепочка reconciliation.
+Kubernetes оправдан, когда нужна общая площадка для множества сервисов, предсказуемое размещение, обновления и единые политики. Для одной собственной утилиты на одной машине сервисный менеджер или обычный контейнер часто проще. Если выбранная платформа требует Kubernetes, как Substrate в рассматриваемой архитектуре, он становится частью её эксплуатационной стоимости: нужны обновления, резервное копирование управляющего состояния, наблюдаемость и компетенции команды. Наличие кластера не отменяет эти работы.
 
-### Reconciliation как замкнутый контур
+### Намерение вместо разовой команды
 
-Controller читает desired state, наблюдает actual state, вычисляет различие и делает ограниченный шаг. Затем цикл повторяется. Он не обязан завершить всю работу за одну итерацию и должен переживать повторное выполнение. Если Pod исчез, Deployment controller создаст замену. Если node недоступна, другие controllers обновят состояния, а workload controller попытается восстановить нужное число replicas на доступных nodes.
+Команда shell «запусти процесс» описывает действие. Объект Deployment с `replicas: 2` описывает сохраняемое намерение: поддерживать два экземпляра сервиса. После завершения клиента это намерение остаётся в API. Контроллеры снова и снова сравнивают его с наблюдаемым состоянием и делают следующий шаг. Такой процесс называется **reconciliation**, или согласованием желаемого и наблюдаемого состояния.
 
-Важно различать **объект** и **реальность**. Запись Pod в API может существовать, пока container ещё не создан. Status может кратко отставать от процесса. Event описывает наблюдавшийся эпизод, но не является долговечным журналом. Именно поэтому оператор читает несколько сигналов, а не делает вывод по одному полю.
+Например, Deployment controller управляет ReplicaSets, а ReplicaSet controller создаёт недостающие Pods. Удаление одного управляемого Pod не отменяет намерение владельца: может появиться замена. Это полезно при случайной потере экземпляра, но объясняет, почему «удалил Pod, а он вернулся» не является загадочным поведением. Для изменения намерения нужно работать с владельцем, а не только с его дочерним процессом. [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/)
 
-## Кто за что отвечает
+Контроллер не волшебный ремонтник. Если образ отсутствует в registry, повторное согласование не создаст его. Если ни один узел не удовлетворяет требованиям, новый Pod останется без места. Механизм поддерживает попытки привести систему к заданному состоянию; достижимость этого состояния зависит от ресурсов, конфигурации и внешних сервисов.
 
-| Компонент | Ответственность | Чего он не делает |
-| --- | --- | --- |
-| `kube-apiserver` | единая API boundary, authentication, authorization, admission, validation и доступ к object state | не запускает containers и не выбирает node |
-| `etcd` | хранит cluster state, который обслуживает API server | не является application database для произвольных task events |
-| `kube-controller-manager` | запускает built-in control loops для workloads, nodes, endpoints и других ресурсов | обычно не выполняет workload сам |
-| `kube-scheduler` | для unscheduled Pod выбирает подходящую node и записывает binding | не запускает process и не переносит живой Pod между nodes |
-| `kubelet` | на assigned node приводит Pod к локально требуемому состоянию через runtime и публикует status | не решает глобальное размещение |
-| container runtime / CRI | создаёт Pod sandbox, images и containers | не определяет application policy |
-| CNI implementation | подключает Pod к cluster network и часто реализует NetworkPolicy | наличие API NetworkPolicy не гарантирует enforcement |
-| CSI driver | provision, attach и mount storage по storage contract | не выбирает retention и backup policy за владельца данных |
+## Путь от API до процесса
 
-## Объект Kubernetes: intent, identity и observation
+Удобно разделить путь на принятие описания, размещение и локальное исполнение. Так становится ясно, какие свидетельства искать на каждом участке.
 
-Почти любой объект имеет четыре слоя. `apiVersion` и `kind` выбирают schema. `metadata` содержит имя, namespace, UID, labels, annotations, owner references и generation. `spec` выражает desired state владельца. `status` сообщает наблюдаемое состояние, записанное системой или controller.
+![Путь обычного Job или Deployment: принятие, размещение, исполнение и отдельная проверка результата. Стрелки показывают этапы, не прямые RPC](.gitbook/assets/diagrams/09-10.png)  
+*Путь обычного Job или Deployment: принятие, размещение, исполнение и отдельная проверка результата. Стрелки показывают этапы, не прямые RPC*
 
-Это не просто формат YAML. Граница между `spec` и `status` определяет ownership. Пользователь не должен вручную «исправлять» status, а controller не должен тихо переписывать intent. Для custom controller полезно публиковать `observedGeneration`: тогда клиент понимает, относится ли status к последней версии spec. Conditions должны отвечать на операционные вопросы вроде `Ready`, `Progressing` и `Degraded`, а не превращаться в неструктурированный log.
+`kube-apiserver` - вход в Kubernetes API. Он проверяет полномочия, формат и допустимость запроса, применяет предусмотренные defaults и admission-механизмы. Принятые объекты хранятся через `etcd`, распределённое хранилище управляющего состояния. API server не запускает приложение. Ответ о создании объекта означает принятие описания, а не готовность процесса.
 
-Labels предназначены для выбора и группировки объектов; annotations - для дополнительной метаинформации, которую обычно не используют как selector. Namespace создаёт scope имён, RBAC и quotas, но сам по себе не даёт сильной tenant isolation: Pods разных namespaces всё ещё могут оказаться на одной node и использовать общий kernel, если platform не добавила другие boundaries.
+`kube-controller-manager` запускает встроенные контроллеры, которые наблюдают объекты и управляют зависимыми ресурсами. Внешний operator может добавлять собственные контроллеры. `kube-scheduler` ищет подходящий узел для ещё не назначенного Pod и фиксирует назначение. Он не переносит живой процесс между машинами. [Kubernetes components](https://kubernetes.io/docs/concepts/overview/components/)
 
-### Минимальный manifest, который стоит уметь читать
+На назначенном узле `kubelet` согласует состояние Pod с локальным исполнением. Через **CRI**, Container Runtime Interface, он обращается к container runtime, например containerd. Runtime подготавливает окружение Pod и контейнеры. **CNI**, Container Network Interface, используется сетевой реализацией для подключения окружения к сети; **CSI**, Container Storage Interface, применяется драйверами хранения для поддерживаемых операций с томами. Это точки интеграции, а не одна встроенная реализация сети и дисков.
 
-**Учебный manifest.** Этот `platform-api` показывает устройство Deployment, а не рабочую конфигурацию AX. Namespace и ServiceAccount нужно создать отдельно, placeholder digest заменить реальным image, а пути probes реализовать в приложении. Для AX `ac233282` проверяйте его собственные manifests и `/healthz`; отдельного ax-controller у него нет.
+Представьте, что scheduler уже выбрал узел, но registry недоступен. Назначение состоялось, исполнения ещё нет. Или контейнер работает, но приложение не прошло readiness. Локальный запуск состоялся, полезный сервис ещё не готов. Из цепочки сразу следует порядок вопросов: объект принят? дочерний Pod создан? место назначено? окружение подготовлено? приложение доступно? результат относится к нужной попытке?
+
+## Как читать объект и не спутать экземпляры
+
+YAML - текстовое представление объекта API, а не сценарий, который выполняется сверху вниз. `apiVersion` и `kind` выбирают тип и схему. `metadata` содержит имя, namespace, UID, labels и другие сведения. `spec` задаёт желаемые свойства. `status` содержит наблюдения компонентов, а не обещание автора YAML.
+
+**Namespace** задаёт область имён и удобную область применения многих политик. Можно иметь `platform-api` в двух namespaces, не получая один и тот же ресурс. Некоторые ресурсы, например Node и RuntimeClass, относятся ко всему кластеру. Namespace сам по себе не разделяет ядро, диски узла и все сетевые пути. Здесь продолжает действовать модель угроз главы 8.
+
+### Имя ресурса и UID
+
+Имя нужно для обращения к ресурсу, UID - для различения конкретного экземпляра. Удалённый Pod можно заменить новым с тем же именем, но новым UID. Поэтому журнал вида «ошибка в `worker-0`» недостаточен, если запись пережила замену этого Pod. Нужны namespace, имя, UID и время наблюдения; для прикладной работы дополнительно нужны Task, Actor и attempt ID. [Object Names and IDs](https://kubernetes.io/docs/concepts/overview/working-with-objects/names/)
+
+**Labels** - метки для выбора и группировки. Selector Service или контроллера выбирает ресурсы по ним. **Annotations** подходят для дополнительной метаинформации, не предназначенной для обычного выбора. **Owner references** связывают дочерний ресурс с владельцем и участвуют в сборке мусора. Метка `task=job-42` помогает искать, но не делает Pod частью корректной модели владения и не доказывает подлинность результата.
+
+### Версия намерения и версия записи
+
+У Deployment `metadata.generation` помогает различать версии желаемой конфигурации, а `status.observedGeneration` показывает, какую версию наблюдал контроллер. Если generation уже изменилась, старые conditions нельзя молча приписать новой конфигурации. `metadata.resourceVersion` относится к версии записи API и используется в механизмах чтения, watch и конкурентных обновлений. Значение передают обратно API без изменения; допустимые сравнения зависят от типа API и гарантий его версии. Это не прикладной счётчик завершённых работ. [API concepts](https://kubernetes.io/docs/reference/using-api/api-concepts/)
+
+Не переносите эти поля автоматически в другие API. У AX `ac233282` нет Kubernetes-полей `generation/resourceVersion/observedGeneration`; Actor metadata Substrate использует собственные `uid/version`. Kubernetes-подобный стиль описания не делает оба проекта Kubernetes API. Это различие пригодится в главе 10, где версии и повторы станут частью проектирования операций.
+
+## Pod и выбор способа управления работой
+
+**Pod** - группа совместно размещённых контейнеров и общих ресурсов Kubernetes. Контейнеры обычного Pod используют общую сетевую область и могут общаться через `localhost`; тома подключаются к тем контейнерам, которым они явно смонтированы. Это удобно для тесно связанных процессов, но не означает, что любой контейнер автоматически видит любой filesystem соседнего.
+
+Обычные init containers выполняют подготовку до основных контейнеров. Sidecar обслуживает тесно связанную функцию рядом с приложением: proxy, доставку данных или telemetry. Общая сеть, выданные volumes и credentials требуют анализа доверия. Вынести недоверенный тест во второй контейнер того же Pod - не то же самое, что отделить его от полномочий координатора. Особенности native sidecar lifecycle зависят от версии и конфигурации кластера; здесь не требуется строить на них учебный пример.
+
+Самостоятельный Pod не обеспечивает весь жизненный цикл сервиса. При потере узла или удалении такого объекта за ним может не стоять владелец, который создаст замену. Обычно выбирают workload controller - механизм, который управляет набором Pods по нужной семантике.
+
+| Потребность | Средство | Почему подходит | Что остаётся за приложением |
+| --- | --- | --- | --- |
+| Взаимозаменяемые экземпляры API | Deployment | Поддерживает replicas и обновляет Pod template через ReplicaSets | Совместимость версий, внешнее состояние и безопасность повторов |
+| Стабильное имя экземпляра и отдельный persistent volume | StatefulSet | Сохраняет ordinal identity и связь экземпляра с claims | Репликация данных, backup и предотвращение двух владельцев |
+| Компонент на каждом подходящем узле | DaemonSet | Число Pods следует за набором узлов | Права узлового компонента и его восстановление |
+| Конечный запуск теста или batch | Job | Учитывает успешное завершение и управляет попытками | Проверка результата и идемпотентность внешних действий |
+| Периодическое создание batch-работ | CronJob | Создаёт Jobs по расписанию | Пропуски, повторы и строгая бизнес-периодичность |
+
+### Deployment и StatefulSet выбирают по identity
+
+Если экземпляр `platform-api` можно заменить любым другим, состояние находится во внешнем store, а запросы обрабатываются независимо, Deployment естественен. Но `replicas: 2` ещё не означает высокую доступность: оба Pod могут оказаться на одном узле, а оба процесса - зависеть от одной недоступной базы. Rolling update не проверяет совместимость database schema и не откатывает изменения данных. [Deployments](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/)
+
+StatefulSet нужен, когда приложению важна устойчивая роль экземпляра: например, `store-0` и его собственный диск. Новый Pod с этим именем всё равно имеет новый UID; стабильная роль не означает непрерывность процесса. StatefulSet не превращает три независимых диска в реплицированную базу. Если база требует quorum, восстановления и безопасных upgrades, это обеспечивает сама база и её operator, либо managed service. [StatefulSets](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/)
+
+DaemonSet выбирают не потому, что сервис «важный», а потому, что его функция привязана к узлу: сетевой агент, сборщик node logs, runtime integration. Когда нужен просто пул из десяти исполнителей независимо от количества nodes, эта семантика может не подходить. [DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/)
+
+### Почему тест из главы 8 показан как Job
+
+Тест имеет конечный результат: выполнить подготовленную работу и завершить процесс. Для отдельной Kubernetes-реализации Job подходит лучше Deployment, который поддерживал бы сервис после завершения. В учебном Job `restartPolicy: Never` не перезапускает завершившийся контейнер внутри того же Pod, `backoffLimit: 0` отключает обычные повторные попытки после учтённой ошибки, а deadline ограничивает ожидание работы. TTL задаёт уборку объекта после завершения, не срок исполнения теста.
+
+Даже при одном completion и одной параллельной работе Job не обещает exactly-once запуск. Потеря связи с узлом или другие сбои могут привести к повторному исполнению; удаление записи не доказывает, что старый процесс уже остановлен. Поэтому операция, публикующая результат, должна различать попытки и защищаться от повторов. `Succeeded` означает успешное завершение процессов по правилам Pod, не содержательную правильность отчёта. [Jobs](https://kubernetes.io/docs/concepts/workloads/controllers/job/)
+
+Наш `job-42` - учебное обозначение работы, а `demo-fixture-v1` - ревизия фиксированных материалов, не настоящий Git SHA. Получатель всё ещё должен проверить связь отчёта с `test_empty_list` и нужным входом. Kubernetes может правильно завершить неправильный тест. Это не отказ оркестратора: критерий результата принадлежит приложению.
+
+## Размещение и ресурсы
+
+### Scheduler считает заявки на конкретном узле
+
+**Request** - заявка контейнера на ресурс. Scheduler использует её вместе с ограничениями размещения. **Allocatable** - объём узла, доступный Pods после предусмотренных резервов. Это не текущая свободная память из `top`. Уже размещённые заявки занимают место в модели scheduler даже тогда, когда процессы временно почти не работают.
+
+Пусть учебный узел имеет allocatable `4000m` CPU и `8192Mi` памяти. Другие Pods уже запросили `3400m` и `7168Mi`. Для новой работы с request `500m` и `256Mi` и условным runtime overhead `100m` и `128Mi` эффективная заявка будет `600m` и `384Mi`. Она ровно помещается по CPU и оставляет `640Mi` памяти. Если CPU request увеличить до `700m`, с тем же overhead получится `800m`: на узле осталось только `600m`, размещение не проходит. Низкая фактическая загрузка не изменяет этого расчёта.
+
+Числа здесь придуманы для арифметики, не измерены для gVisor или microVM. Реальный расчёт учитывает init containers, sidecars, расширенные ресурсы, overhead и правила конкретной версии. Ресурсы должны поместиться **на одном допустимом узле**: суммарные свободные `600m` на двух разных nodes не превращаются в один подходящий слот. CPU в `m` означает millicores: `1000m` - один CPU; `Mi` и `Gi` - двоичные единицы памяти.
+
+### Заявка и ограничение решают разные задачи
+
+**Limit** задаёт ограничение исполнения. На Linux CPU limit обычно приводит к throttling, а memory limit может привести к OOM kill; применение идёт через kubelet, runtime и kernel cgroups. Request не является жёстким потолком: при наличии ресурсов контейнер может потреблять больше него. Limit сам по себе не обещает ресурсы на узле. Если задан limit без request, Kubernetes при отсутствии другого admission-default обычно копирует limit в request. [Resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
+
+Для теста CPU limit помогает ограничить влияние на соседей, но способен увеличить длительность проверки. Для сервиса с чувствительной latency жёсткий CPU ceiling требует отдельного измерения throttling. Memory limit выбирают по рабочему набору и пикам, а не по желанию уменьшить цифру в YAML. Причину `OOMKilled` сопоставляют с состоянием контейнера, метриками и давлением памяти на node.
+
+`ephemeral-storage` ограничивает учитываемое временное хранение; это не универсальная синхронная файловая квота. Переполнение может обнаруживаться с задержкой и вести к eviction. `emptyDir` в памяти расходует память, а не просто бесплатное место. PID budget на узле задаётся механизмами kubelet/runtime, не произвольным `limits.pids` в container resources. Эти ограничения продолжают ресурсный профиль главы 8.
+
+ResourceQuota ограничивает потребление и количество определённых ресурсов в namespace, LimitRange может задавать defaults и границы requests/limits. Quota способна остановить создание ресурса ещё до scheduling; она не добавляет capacity и не гарантирует равномерное размещение. Когда Job принят, но дочерний Pod не появился, изучите status и Events владельца: причина может быть в admission или quota, а не в scheduler.
+
+### Требования к узлу и защита пула
+
+`nodeSelector` и required node affinity задают обязательные свойства узла. Preferred affinity задаёт предпочтение, которое допускается не выполнить. Taint `NoSchedule` не позволяет обычным неподходящим Pods занимать узел; toleration разрешает рассмотреть его, но не притягивает к нему работу. Для выделенного пула обычно нужны обе стороны: выбор нужного набора nodes и защита его от чужой работы. [Assigning Pods](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/), [Taints and tolerations](https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)
+
+Назначенная вручную `spec.nodeName` обходит обычный выбор scheduler, поэтому её нельзя использовать как штатный способ «починить Pending». Она способна обойти проверку `NoSchedule` и разрушить задуманный процесс размещения. Для защиты от недоверенных manifests нужны ограничения admission и права, а не надежда, что автор выберет подходящие labels.
+
+Anti-affinity и topology spread помогают разнести replicas по узлам или зонам. Жёсткое разнесение при недостатке подходящих nodes оставит Pod Pending; мягкое повышает доступность запуска ценой возможного общего отказа. Priority и preemption помогают получить место за счёт менее приоритетной работы, но не добавляют физических ресурсов и не лечат несовместимый runtime.
+
+### RuntimeClass связывает Pod с настроенным CRI handler
+
+Для обычного Kubernetes Job из главы 8 поле `runtimeClassName: review-gvisor` выбирает заранее настроенный RuntimeClass. Он ссылается на handler CRI, а его scheduling-настройки могут добавлять требования к узлам и tolerations. RuntimeClass не устанавливает `runsc`, не проверяет совместимость toolchain и сам по себе не решает, кто имеет право выбрать этот класс. [RuntimeClass](https://kubernetes.io/docs/concepts/containers/runtime-class/)
+
+Следующий эскиз продолжает имя из главы 8. `runsc` здесь - условное имя handler, которое администратор должен сопоставить с фактической конфигурацией CRI; label и taint тоже должны реально существовать на проверенных nodes. Это не manifest установки Substrate:
+
+```
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: review-gvisor
+handler: runsc
+scheduling:
+  nodeSelector:
+    sandbox.example/profile: review-gvisor
+  tolerations:
+  - key: sandbox.example/dedicated
+    operator: Equal
+    value: review
+    effect: NoSchedule
+```
+
+Если runtime добавляет существенные затраты, RuntimeClass `overhead.podFixed` позволяет учесть их при admission и scheduling. В эскизе overhead не указан: без измерения нельзя выдавать придуманную цифру за характеристику среды. В рабочей конфигурации следует задать измеренные значения и проверить, как они влияют на capacity. [Pod Overhead](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-overhead/)
+
+## Готовность процесса и доступность сервиса
+
+### Phase не является заключением о здоровье
+
+`Pending` охватывает больше, чем ожидание scheduler: Pod уже может иметь node, но ждать image или подготовки окружения. `Running` не означает `Ready`. `CrashLoopBackOff` - reason ожидания между перезапусками контейнера, а не отдельная phase Pod. У одного Pod одновременно могут быть разные состояния нескольких контейнеров, поэтому общей колонки STATUS мало для диагноза. [Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/)
+
+Conditions отвечают на отдельные вопросы. `PodScheduled=True` указывает на назначение; `Ready=True` участвует в готовности к обычному обслуживанию traffic. Для собственных readiness gates и init containers надо смотреть дополнительные условия и состояния. Это наблюдения во времени, не вечный сертификат работоспособности: после чтения ситуация могла измениться.
+
+### Три probes и три разных решения
+
+Startup probe даёт приложению время на инициализацию; пока она не успешна, обычные liveness/readiness проверки не выполняются. Readiness отвечает, можно ли использовать этот экземпляр для обслуживания запросов. Её failure меняет готовность, но не обязан перезапускать контейнер. Liveness нужен для состояния, из которого процесс не восстановится без restart, например deadlock. Неверная liveness превращает задержку зависимости в волну перезапусков. [Probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/)
+
+Для API разумно спросить: «может ли экземпляр принять новый запрос и корректно его обработать или отклонить?». Для Worker: «может ли он принять новое размещение?». Ни одна такая probe автоматически не подтверждает прогресс всех Actors и их tests. Если PostgreSQL временно недоступен, убийство каждого процесса может лишь увеличить нагрузку. Нужно отдельно решить, влияет ли зависимость на readiness и способен ли процесс дождаться её восстановления.
+
+Конечному тестовому Job не нужен Service лишь ради стандартного набора объектов. Readiness не является условием `Job Complete`, а liveness, которая убивает долгий тест, может испортить измерение и породить ошибочную попытку. Для batch чаще важны exit state, общий deadline, проверка результата и наблюдаемая остановка. Для долгоживущего сервиса probes выбирают по его конкретному контракту.
+
+### Читаем Deployment и Service как один контракт
+
+Рассмотрим вымышленный доверенный `platform-api`, который отдаёт результаты через HTTP. Это не `ax-server` и не Worker Substrate. Namespace `book-demo` нужно создать отдельно, image digest заменить реальным, а приложение должно слушать на Pod IP и реализовать три health endpoints. Значения времени учебные, не рекомендованные для production. Манифест показывает связь полей, не готовое безопасное развёртывание:
 
 ```
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: platform-api
-  namespace: ax-system
+  namespace: book-demo
 spec:
   replicas: 2
   selector:
@@ -72,243 +185,248 @@ spec:
       labels:
         app: platform-api
     spec:
-      serviceAccountName: platform-api
+      automountServiceAccountToken: false
+      terminationGracePeriodSeconds: 30
       containers:
-      - name: controller
-        image: registry.example/platform-api@sha256:...
+      - name: api
+        image: registry.example/platform-api@sha256:REPLACE_ME
+        ports:
+        - name: http
+          containerPort: 8080
         resources:
-          requests: {cpu: "500m", memory: "512Mi"}
-          limits: {memory: "1Gi"}
+          requests: {cpu: "500m", memory: "256Mi"}
+          limits: {memory: "512Mi"}
         startupProbe:
-          httpGet: {path: /health/startup, port: 8080}
+          httpGet: {path: /health/startup, port: http}
+          periodSeconds: 2
+          failureThreshold: 30
         readinessProbe:
-          httpGet: {path: /health/ready, port: 8080}
+          httpGet: {path: /health/ready, port: http}
+          periodSeconds: 5
+          failureThreshold: 2
         livenessProbe:
-          httpGet: {path: /health/live, port: 8080}
+          httpGet: {path: /health/live, port: http}
+          periodSeconds: 10
+          failureThreshold: 3
 ```
 
-Здесь Deployment владеет ReplicaSet, ReplicaSet владеет Pods, а Pod template определяет будущие экземпляры. Selector обязан соответствовать labels template. ServiceAccount задаёт workload identity. Digest фиксирует точный image content. Requests участвуют в scheduling, memory limit ограничивает cgroup, а probes отвечают на три разных вопроса о lifecycle.
+Selector выбирает именно Pods с label `app: platform-api`, Pod template даёт новым экземплярам этот label. `containerPort` документирует порт и позволяет ссылаться на имя `http`; он не заставляет приложение открыть сокет и не публикует порт наружу. Внешнее состояние у этого API должно переживать замену Pod. Отсутствие CPU limit здесь оставлено намеренно: request участвует в размещении, а CPU ceiling выбирают после оценки влияния throttling, не механически.
 
-## Pod: общая судьба, а не маленькая VM
-
-Pod - минимальный deployable compute object Kubernetes. В нём один или несколько containers делят network namespace и обращаются друг к другу через `localhost`. Они могут делить volumes и часть lifecycle. Это делает Pod хорошей границей для процессов, которые должны размещаться и завершаться вместе, но плохой границей для независимых services.
-
-Pod не является VM. Containers обычно используют kernel node. Pod IP может исчезнуть при пересоздании. Pod не «переезжает» на другую node: controller создаёт новый Pod с новым UID, а старый завершается или теряется. Локальный filesystem container не должен считаться durable state.
-
-**Init container** выполняет подготовительный шаг до application containers: например, проверяет schema или получает configuration. **Sidecar** живёт рядом с приложением ради тесно связанной функции. Каждый sidecar увеличивает resource footprint, startup dependencies и failure surface; telemetry, proxy или secret delivery не становятся бесплатными только потому, что вынесены во второй container.
-
-Для agent runtime Pod может содержать trusted supervisor и sandboxed execution component, но совместное размещение не отменяет security analysis. Общие volumes, localhost, process namespace и credentials способны превратить удобный sidecar в путь обхода boundary. Изоляцию следует доказывать конкретной runtime и Pod configuration, а не количеством containers.
-
-## Как выбрать workload controller
-
-| Ресурс | Когда выбирать | Ключевая семантика | Типичная ошибка |
-| --- | --- | --- | --- |
-| Deployment | stateless или externally stateful service с взаимозаменяемыми replicas | rolling update и поддержание replica count через ReplicaSet | хранить identity или единственную копию state в filesystem Pod |
-| StatefulSet | нужны стабильные ordinal identity, порядок rollout или отдельные persistent claims | предсказуемые имена Pods и управляемая связь с storage | считать StatefulSet автоматической репликацией и backup базы |
-| DaemonSet | по одному Pod на каждой подходящей node или на выбранном классе nodes | node-local agent, supervisor, networking или telemetry | использовать для обычного horizontally scaled API |
-| Job | конечная работа должна завершиться успешно | completion, retries и parallelism для batch | считать повтор Pod гарантией exactly-once side effect |
-| CronJob | периодическое создание Jobs | расписание, concurrency policy и history | полагаться на него как на единственный источник строгой бизнес-периодичности |
-
-Для AX/Substrate типичная картина неоднородна. API/controller components естественно выглядят как Deployment. Node-local worker supervisor или runtime integration может использовать DaemonSet. Stateful backing services требуют собственного operator или внешнего managed service. Отдельная agent Task не обязана быть отдельным Kubernetes Job: если platform создаёт тысячи коротких или suspendable actors, прямое отображение «одна Task = один API object» может стать дорогим и семантически неверным.
-
-## Scheduling: почему Pod остаётся Pending
-
-Scheduler не спрашивает, сколько ресурсов Pod потребляет прямо сейчас. Он проверяет requests и constraints против allocatable capacity и свойств nodes. Поэтому пустая node по графику CPU всё равно может не принять Pod, если уже размещённые requests исчерпали allocatable. И наоборот, отсутствие requests позволяет overcommit, но ухудшает предсказуемость и eviction behavior.
-
-**Request** - заявка на capacity и основа scheduling. CPU request также влияет на относительную долю CPU при contention. **Limit** - runtime ceiling: CPU обычно throttled, превышение memory limit может завершить process через OOM. Это разные механизмы; limit не резервирует capacity, а request не является жёстким потолком.
-
-Размещение уточняют несколько инструментов:
-
-- **nodeSelector/node affinity** притягивают workload к nodes с нужными labels, например virtualization support или local SSD;
-- **taints/tolerations** отталкивают неподходящие Pods; toleration разрешает рассматривать tainted node, но не гарантирует выбор;
-- **pod anti-affinity/topology spread** распределяют replicas по nodes и zones, уменьшая correlated failure;
-- **priority/preemption** помогают критичным Pods получить место, но могут вытеснить менее приоритетную работу;
-- **RuntimeClass** выбирает runtime handler и может добавлять scheduling constraints и Pod overhead.
-
-Для agent workloads RuntimeClass связывает главу 8 с Kubernetes: classification решает, что hostile build требует gVisor или microVM-backed runtime, а platform policy назначает разрешённый class. Недоверенный Task не должен самостоятельно понижать isolation tier. Nodes с KVM, gVisor или GPU обычно разделяют labels/taints и admission policy, иначе Pod либо не запустится, либо попадёт на неверный runtime pool.
-
-## Lifecycle и probes: три разных вопроса
-
-**Startup probe** отвечает: «успело ли приложение инициализироваться?». Пока она не прошла, liveness и readiness не начинают обычную работу. **Readiness probe** отвечает: «можно ли сейчас отправлять traffic?». Её failure убирает endpoint из готовых backend Service, но не обязана перезапускать container. **Liveness probe** отвечает: «застряло ли приложение так, что требуется restart?». Слишком агрессивная liveness во время нагрузки создаёт restart storm и усиливает incident.
-
-Для controller readiness должна учитывать способность обслуживать новые requests, а не обещать здоровье всех external dependencies сразу. Liveness не должна падать из-за временной недоступности Redis, PostgreSQL или model gateway, если process способен восстановиться без restart. Startup probe особенно важна для больших images, migrations, cache warm-up и local inference servers.
-
-Удаление Pod - протокол, а не мгновенное исчезновение. Kubernetes начинает termination, endpoint перестаёт считаться ready, выполняется lifecycle hook при наличии, process получает termination signal и имеет grace period. Приложение должно прекратить принимать новую работу, завершить или checkpoint активные операции и освободить lease. Если agent runtime игнорирует termination, rollout превращается в потерю задач.
-
-Pod phase `Running` означает, что Pod назначен node и хотя бы один primary container запущен или запускается; это не эквивалент application readiness. `CrashLoopBackOff` - не phase, а сообщение о backoff между повторными запусками. `OOMKilled` обычно указывает на memory boundary, но для причины нужно сопоставить last state, events, node pressure и application metrics.
-
-## Service, DNS и реальный путь traffic
-
-Pod IP нестабилен, поэтому клиент обычно обращается к Service. Selector Service выбирает Pods, EndpointSlice хранит актуальные backends, а service proxy или network dataplane направляет traffic. DNS создаёт удобное имя вроде `platform-api.ax-system.svc`. Service не запускает health check сам: готовность endpoints обычно следует из Pod readiness.
-
-Если DNS name разрешается, это доказывает только discovery. Если TCP connection устанавливается, это ещё не доказывает корректность application protocol, TLS identity или authorization. Диагностика должна идти слоями: DNS - endpoint membership - route - port - TLS - application response.
-
-NetworkPolicy определяет разрешённые ingress/egress flows на уровне Pod selectors, namespaces, IP blocks и ports. Но policy работает только если network implementation её поддерживает и применяет. Policy не является HTTP authorization, не понимает MCP semantics и не заменяет egress proxy. Для agent sandbox особенно опасен «разрешить весь egress ради package install»: тот же путь может использоваться для exfiltration.
-
-## Storage: lifetime важнее названия volume
-
-Container filesystem и `emptyDir` удобны для scratch data. `emptyDir` переживает restart отдельного container внутри того же Pod, но удаляется вместе с Pod. PersistentVolume имеет lifecycle, независимый от конкретного Pod; PersistentVolumeClaim выражает запрос workload, а StorageClass описывает provisioning и operational class storage.
-
-Наличие PVC не гарантирует durability. Нужно отдельно знать reclaim policy, replication, failure domain, snapshot support, backup, restore test, encryption и access mode. Local volume способен пережить Pod, но привязывает workload к node. Network volume снимает эту привязку ценой latency и внешней failure domain.
-
-В agent platform полезно разделять:
-
-- ephemeral workspace, которое можно уничтожить вместе с attempt;
-- durable artifacts, которые публикуются в object store;
-- runtime snapshots с отдельной compatibility и confidentiality policy;
-- control-plane database state, которое восстанавливается по собственному backup contract.
-
-Попытка смонтировать один общий PVC во все агенты упрощает demo, но создаёт race conditions, lateral access и неясное ownership. Workspace и artifact должны иметь tenant/task scope, quota и явный cleanup.
-
-## Configuration, identity и policy
-
-ConfigMap отделяет non-confidential configuration от image. Secret предназначен для confidential data, но base64 не является encryption. Без encryption at rest Secret может храниться в etcd незашифрованным; любой субъект с широким `get/list/watch` получает чувствительные значения. Монтирование Secret в Pod передаёт секрет процессу, а значит application обязано не логировать и не пересылать его.
-
-ServiceAccount даёт workload identity для Kubernetes API и связанных identity systems. RBAC отвечает, какие API verbs разрешены над какими resources. Для большинства execution Pods безопасный default - `automountServiceAccountToken: false`; token нужен только workload, который действительно обращается к Kubernetes API. Controller получает отдельный ServiceAccount и минимальные namespaced или cluster permissions.
-
-Admission выполняется до сохранения объекта. Здесь можно запретить privileged containers, host mounts, unsafe capabilities, untrusted registries, произвольный RuntimeClass и отсутствие resource requests. Pod Security Admission применяет профили Pod Security Standards на уровне namespace, но для platform-specific правил часто нужны ValidatingAdmissionPolicy или admission webhook.
-
-Namespace - удобный policy scope, не полноценная hostile multi-tenant boundary. Для недоверенного кода дополнительно нужны runtime isolation, node separation, NetworkPolicy, egress control, scoped identity, quotas и защита control-plane endpoints. Kubernetes оркестрирует эти controls, но не создаёт автоматически правильную threat model.
-
-## CRD и operator: когда расширять Kubernetes API
-
-CustomResourceDefinition добавляет новый kind, а custom controller реализует его lifecycle. Это полезно, когда объект действительно является декларативным infrastructure resource: имеет сравнительно небольшую population, долгоживущий desired state, понятные ownership/finalizers и естественно управляется через Kubernetes API.
-
-CRD не стоит использовать как удобную бесплатную database. Официальная документация прямо рекомендует не хранить в Custom Resources обычные application, end-user или monitoring data. Высокочастотные task events, model tokens, logs, traces и миллионы короткоживущих attempts создают нагрузку на API storage/watch и слишком тесно связывают application с cluster control plane.
-
-Хороший вопрос перед созданием CRD: «должен ли cluster operator управлять жизненным циклом этого объекта через декларативный API?». Если ответ звучит как «нам просто нужен JSON store с watch», вероятно, нужен PostgreSQL, Redis, event stream или object storage.
-
-## Граница ответственности Kubernetes, AX и Substrate
-
-| Слой | Владеет | Не должен подменять |
-| --- | --- | --- |
-| Kubernetes | nodes, Pods, placement, restart, cluster networking/storage integration, workload identity и cluster policy | agent semantics, tool authorization, conversation state и task event store |
-| Substrate | Actor/Worker lifecycle, runtime backend, sandbox placement, suspend/resume и snapshot contract | общий Kubernetes scheduler или application goal |
-| AX | Task/Workspace/Model records, инфраструктурный lifecycle и наблюдаемый status; прикладные policy, tools и журнал run принадлежат harness | container runtime internals и node lifecycle |
-| Harness/application | agent loop, prompts, context, domain state и решение о следующем действии | physical isolation и cluster-wide capacity management |
-
-Пример цепочки: пользователь создаёт AX Task. AX сохраняет intent и просит Substrate предоставить isolated Actor. Substrate выбирает подходящий WorkerPool и physical runtime. Kubernetes обеспечивает, чтобы нужная worker capacity существовала на nodes с требуемым RuntimeClass и ресурсами. Kubelet запускает Pod, runtime создаёт sandbox. При этом task progress не обязан записываться как новый Kubernetes object на каждый model/tool step.
-
-Эта декомпозиция важна при incident. `Pod Pending` обычно указывает на placement/resource/runtime integration. `Pod Ready, Actor not ready` указывает на Substrate lifecycle или ошибочную probe. `Actor ready, Task stuck` переводит расследование в AX, harness, model или tool layer. Без границ команда лечит каждую проблему перезапуском Pods и теряет исходную причину.
-
-## Диагностический маршрут: от intent к процессу
-
-1. **Найдите владельца.** Определите namespace, kind, name, labels и owner references. Не начинайте с произвольного Pod, если им управляет Deployment или DaemonSet.
-2. **Сравните spec и status.** Проверьте replica counts, conditions, generation, selected node, phase и container states.
-3. **Прочитайте Events.** Они часто сразу показывают FailedScheduling, image pull, mount, admission или probe failure. Помните об их ограниченном retention.
-4. **Если Pod Pending,** проверьте requests, unbound PVC, node selectors, affinity, taints/tolerations, RuntimeClass, quotas и admission.
-5. **Если container Waiting,** смотрите reason: image, configuration, volume, runtime sandbox или backoff.
-6. **Если container перезапускается,** сопоставьте current/previous logs, exit code, signal, OOMKilled, probe и termination events.
-7. **Если Pod Ready, но запрос не проходит,** проверьте Service selector, EndpointSlice, port mapping, DNS, NetworkPolicy, TLS и application authorization.
-8. **Если node подозрительна,** изучите Node conditions, allocatable/allocated resources, pressure, kubelet/runtime/CNI/CSI signals и соседние Pods.
-9. **Свяжите с platform ID.** Kubernetes metadata должны позволять найти AX Task, Actor, Worker и trace, не раскрывая secret data.
-10. **Не исправляйте до гипотезы.** Delete Pod может временно скрыть race, OOM или bad rollout и уничтожить evidence.
-
-### Минимальный набор read-only команд
+Обычный Service создаёт устойчивую точку обращения к меняющимся Pods. Вот продолжение того же примера:
 
 ```
-kubectl get deploy,ds,sts,pod -n ax-system -o wide
-kubectl describe pod <pod> -n ax-system
-kubectl get events -n ax-system --sort-by=.metadata.creationTimestamp
-kubectl logs <pod> -n ax-system -c <container> --previous
-kubectl get pod <pod> -n ax-system -o yaml
-kubectl get endpointslice -n ax-system -l kubernetes.io/service-name=<service>
-kubectl describe node <node>
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-api
+  namespace: book-demo
+spec:
+  selector:
+    app: platform-api
+  ports:
+  - name: http
+    port: 80
+    targetPort: http
 ```
 
-`logs --previous` особенно полезен после restart. `describe` объединяет status и недавние events, но для точной automation лучше читать structured fields через API. Доступ к debug shell, ephemeral containers и node logs должен быть отдельной привилегией и аудироваться.
+Клиент внутри кластера обращается к `platform-api.book-demo.svc` на порт 80, а dataplane направляет запрос к готовому backend на именованный порт `http`, то есть 8080. DNS-имя не описывает маршрут из внешнего интернета. Service типа ClusterIP по умолчанию предназначен для доступа в кластерной сети; публикация наружу требует отдельного решения. Service не выдаёт HTTP authorization и TLS identity. [Service](https://kubernetes.io/docs/concepts/services-networking/service/)
 
-## Практика: разместить hostile build pool
+### EndpointSlice и поиск потерянного запроса
 
-Представим, что AX исполняет tests из недоверенных pull requests. Из главы 8 известно, что обычный process или default container недостаточен. Теперь нужно выразить platform decision в Kubernetes.
+EndpointSlice описывает адреса, ports и условия backend endpoints. Обычный Service с selector получает их через контроллер. Наличие DNS-ответа подтверждает discovery, но не наличие подходящего готового backend. Пустой список или `ready: false` направляет нас к selector и readiness; правильный backend при отсутствии связи направляет к dataplane, сетевой политике и listener. Нужно смотреть все slices данного Service, не только первый. [EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/)
 
-1. Выделите nodes или node pool с поддерживаемым sandbox runtime; добавьте проверяемые labels и taint.
-2. Создайте RuntimeClass для gVisor или microVM-backed handler. Укажите scheduling constraints и overhead, если integration это поддерживает.
-3. Разрешите этот RuntimeClass только trusted controller через admission policy; пользовательский manifest не должен выбирать более слабый handler.
-4. Задайте requests/limits для CPU, memory и ephemeral storage; PID budget обеспечьте настройкой runtime/kubelet, а namespace ограничьте ResourceQuota.
-5. Отключите service account token, host namespaces, privileged mode и broad capabilities. Не монтируйте runtime socket.
-6. Примените default-deny ingress/egress и точечные разрешения к dependency mirror, artifact store и control endpoint.
-7. Workspace сделайте ephemeral и task-scoped; artifacts публикуйте через отдельный scoped identity.
-8. Добавьте startup/readiness для worker supervisor и graceful termination, который перестаёт принимать Tasks и завершает или checkpoint активную работу.
-9. Проверьте negative cases: host access, metadata, lateral traffic, token absence, resource storm, node drain и forced termination.
-10. Измерьте queue time, scheduling latency, sandbox start, image pull, execution и cleanup отдельно.
+После установленного TCP connection остаются TLS, authorization и прикладной ответ. Проверка `/health/ready` не заменяет запрос нужного метода API. `publishNotReadyAddresses` и специальные сценарии terminating endpoints могут менять привычное поведение: нельзя считать любой адрес в EndpointSlice безусловно обслуживающим обычный traffic.
 
-Результат - не просто «Pod запущен». Готовый contract утверждает, какой runtime применён, на каких nodes, с какими ресурсами и network policy, какой Task размещён, что произойдёт при drain и какие доказательства сохраняются в audit.
+При удалении Pod обновление endpoints и локальная остановка идут асинхронно, без единой мгновенной точки. Приложение прекращает принимать новую работу и обрабатывает уже начатую. При наличии `preStop` он расходует тот же grace budget; затем runtime обычно посылает TERM, а по истечении срока - принудительное завершение. Старые соединения и кэши не исчезают только потому, что API уже принял delete. [Pod termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/#termination-of-pods)
 
-## Типичные антипаттерны
+## Что хранить и кому выдавать полномочия
 
-**Running means ready.** Phase Pod принимают за готовность application и направляют traffic слишком рано.
+### Время жизни данных
 
-**Liveness checks every dependency.** Краткая проблема внешней системы запускает restart storm.
+Writable слой контейнера не предназначен для восстановления прикладных данных после его замены. `emptyDir` существует в течение жизни конкретного Pod и переживает restart отдельного контейнера, но не замену Pod или потерю узла. Для временного workspace теста это подходящая семантика: артефакт результата надо забрать до cleanup и сохранить отдельно. [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/)
 
-**No requests, generous limits.** Scheduler не получает честной модели demand, а node становится непредсказуемой под нагрузкой.
+PersistentVolume, или PV, представляет ресурс хранения с отдельным жизненным циклом; PersistentVolumeClaim, PVC, - заявку workload на него. StorageClass задаёт класс и механизм provisioning. CSI-драйвер реализует поддерживаемые операции подключения и работы с томом. Если Pod ждёт PVC, ошибка может находиться в классе, capacity, topology или драйвере; увеличение CPU не поможет.
 
-**Namespace equals sandbox.** Логическое разделение имён ошибочно принимают за boundary против hostile code.
+Два важных уточнения меняют архитектурный выбор. `ReadWriteOnce` обычно ограничивает подключение записью одним узлом, а не гарантирует ровно одного писателя Pod; на этом узле том могут использовать несколько Pods. Для поддерживаемого CSI есть более строгий `ReadWriteOncePod`. И `reclaimPolicy: Delete` при освобождении claim может привести к удалению ресурса хранения, тогда как `Retain` требует другого процесса освобождения. Резервная копия и restore не следуют ни из access mode, ни из слова persistent. [Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/)
 
-**Secret equals vault.** Base64, broad RBAC и mounted long-lived token оставляют прямой путь к credential theft.
+StorageClass с `WaitForFirstConsumer` откладывает выбор/provisioning до появления потребителя, чтобы учесть размещение и topology. Pending claim при этом не всегда означает сломанный диск. Local PV сохраняет данные независимо от конкретного Pod, но привязан к узлу; сетевой storage добавляет собственные задержки и отказы. Имя класса `fast` не является доказательством latency или backup policy. [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/)
 
-**One Task, one CRD.** Высокочастотный application state перекладывают в etcd и watch infrastructure.
+В агентной платформе разделяйте scratch попытки, долговечные artifacts, runtime snapshots и управляющую базу. Один общий writable PVC для всех тестов создаёт совместный доступ и гонки. Возврат snapshot из главы 5 или 8 не откатывает опубликованный отчёт и внешнее действие; владение данными и критерий восстановления остаются отдельными контрактами.
 
-**Delete until green.** Перезапуск уничтожает evidence и маскирует race, leak или неверный capacity model.
+### Identity не равна разрешению
 
-**Latest image tag.** Rollout становится невоспроизводимым, а rollback не гарантирует прежний content.
+ServiceAccount задаёт workload identity. RBAC связывает identity с разрешёнными действиями над API-ресурсами. Выбор ServiceAccount не даёт автоматически администраторских прав, но доступный процессу token может использовать скомпрометированный код. Для нашего offline теста Kubernetes API не нужен, поэтому в главе 8 отключён автоматический mount token. [Service Accounts](https://kubernetes.io/docs/concepts/security/service-accounts/)
 
-**Service proves connectivity.** Создание Service принимают за доказательство endpoints, route, TLS и authorization.
+`automountServiceAccountToken: false` запрещает автоматическую проекцию, но не удаляет вручную выданные tokens, env secrets и cloud credentials. Контроллеру, которому действительно нужен API, выдают собственную identity и минимальные права. Особенно опасно право создавать Pods с произвольными ServiceAccounts или secret mounts: это может дать доступ к данным, даже когда прямое `get Secret` запрещено. [RBAC good practices](https://kubernetes.io/docs/concepts/security/rbac-good-practices/)
 
-**RuntimeClass as user input.** Недоверенный workload сам выбирает более дешёвую и слабую isolation boundary.
+ConfigMap подходит для неконфиденциальной конфигурации. Secret предназначен для секретных значений, однако base64 - кодирование, не шифрование. Нужны отдельно encryption at rest, ограничение `get/list/watch`, безопасная передача и ротация. Процесс, получивший секрет через volume или environment, уже может его прочитать. Нельзя одновременно передать credentials внешнему тесту и считать их скрытыми от этого теста. [Secrets good practices](https://kubernetes.io/docs/concepts/security/secrets-good-practices/)
 
-## Checklist перед эксплуатацией AX/Substrate в Kubernetes
+### Admission и сетевые ограничения
 
-1. Какие components являются Deployment, DaemonSet, StatefulSet или внешним managed service и почему?
-2. Какие labels и owner references связывают Task, Actor, Worker, Pod и node?
-3. Что хранится в Kubernetes API, а что в Redis, PostgreSQL, object store и telemetry backend?
-4. Есть ли у status понятные conditions и связь с последней generation?
-5. Заданы ли реалистичные requests, limits, quotas и Pod overhead?
-6. Как workload попадает на нужный runtime/node pool и кто имеет право выбрать RuntimeClass?
-7. Разнесены ли replicas по failure domains?
-8. Что именно проверяют startup, readiness и liveness?
-9. Как проходит graceful termination при rollout, drain и scale-down?
-10. Какие данные исчезают вместе с Pod, а какие восстанавливаются после потери node?
-11. Поддерживает ли CNI применяемые NetworkPolicy и проверен ли default-deny?
-12. Отключён ли service account token там, где Kubernetes API не нужен?
-13. Ограничены ли RBAC, Secret access, privileged settings, host mounts и admission exceptions?
-14. Есть ли read-only диагностический маршрут и отдельный audited break-glass path?
-15. Проверены ли node pressure, OOM, image pull, CNI/CSI failure, drain и control-plane outage?
+Admission проверяет или изменяет запросы до сохранения объекта. Pod Security Admission может применять Pod Security Standards; `warn` и `audit` не равны `enforce`. Для собственных правил выбора RuntimeClass, допустимых images и запрета конкретных mounts используют соответствующие validating policies или webhooks. RBAC «можно создать Pod» не выражает все ограничения полей Pod. [Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/)
+
+NetworkPolicy выражает разрешённые соединения для выбранных Pods, если сетевой dataplane поддерживает её применение. Политики складываются: дополнительное разрешение не отменяется названием другой policy `default-deny`. Отсутствие DNS не доказывает невозможность соединения по IP. Node-local пути, metadata services и особенности NAT проверяют в реальной сети. Для обычного тестового Pod можно применить эскиз главы 8; для Actor внутри Worker сначала надо выяснить, какую именно сетевую identity видит dataplane. [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/)
+
+Здесь не нужно повторять всю security architecture. Рабочее правило проще: каждое требование свяжите с механизмом, точкой применения и внешним свидетельством. Namespace, RuntimeClass, policy object и Secret по отдельности не являются доказательством безопасного исполнения.
+
+## Где Kubernetes заканчивается и начинается Substrate
+
+### CRD описывает ресурс но не реализует его поведение
+
+CustomResourceDefinition, или CRD, добавляет тип объектов в Kubernetes API. Например, объект WorkerPool может выражать желаемый пул исполнителей. Чтобы пул действительно появился, нужен controller, который читает этот ресурс и создаёт или изменяет нижележащие объекты. **Operator** - подход, при котором controller несёт знания о жизненном цикле конкретной системы; одно добавление схемы таких знаний не создаёт.
+
+CRD уместен для инфраструктурного намерения, которым должен управлять оператор кластера. Поток model tokens, пользовательские сообщения, traces и каждый шаг agent loop - другая нагрузка. Официальная документация рекомендует не использовать Custom Resources как store обычных application, end-user и monitoring data. Данные и управление имеют разные частоты обновления и требования к retention. [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/)
+
+Выбор здесь не между «Kubernetes современный» и «база старомодная». Спросите, кому принадлежит жизненный цикл и что должен делать watch. Пул capacity естественно связывается с Kubernetes. Историю `job-42`, результат ревью и прикладные переходы хранит соответствующий слой приложения. etcd backup не заменяет backup этих store и object artifacts.
+
+### Закреплённая реализация AX и Substrate
+
+В AX `ac233282` manifest развёртывает `ax-server` как Deployment. Отдельного Kubernetes `ax-controller` из этого не следует; readiness и liveness в manifest используют `/healthz`. Учебные `/health/startup`, `/health/ready`, `/health/live` выше принадлежат вымышленному API, не обещают три разных проверки AX. Сам `ax-server` принимает Task, хранит состояние AX и обращается к Substrate. [AX deployment](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/ax-server.yaml)
+
+В Substrate `ccecc788` WorkerPoolReconciler создаёт и согласует **Deployment WorkerPool**. Его Pods содержат `ateom`, который участвует в исполнении Actors. Узловой `atelet` развёртывается как DaemonSet. Следовательно, модель «Worker обязательно отдельный DaemonSet» неверна для этого среза: Deployment управляет пулом Workers, а DaemonSet обеспечивает узловой компонент. [WorkerPool controller](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atecontroller/internal/controllers/workerpool_controller.go), [Worker Pod construction](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atecontroller/internal/controllers/workerpool_apply.go), [atelet manifest](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/manifests/ate-install/atelet.yaml)
+
+Здесь есть две разные операции размещения. Kubernetes scheduler назначает **Worker Pod на node**. Управляющий контур Substrate размещает **Actor на подходящем Worker** с учётом собственного capacity и lifecycle. Actor не обязан получать новый Kubernetes Pod на каждый запуск. Когда Actor задерживается, свободные requests кластера ещё не доказывают свободную capacity подходящих Workers, и наоборот.
+
+Не смешивайте Kubernetes `RuntimeClass` с Substrate `sandboxClass/SandboxConfig`. В показанном обычном Job sandbox создаётся через выбранный CRI handler. В закреплённом Substrate gVisor и microVM принадлежат его собственной интеграции: SandboxConfig описывает assets, а microVM path использует Kata и Cloud Hypervisor. Подстановка `runtimeClassName` в произвольный пример не воспроизводит эту архитектуру. [gVisor SandboxConfig](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/manifests/ate-install/sandboxconfig-gvisor.yaml), [microVM SandboxConfig](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/manifests/microvm/sandboxconfig-microvm.yaml.tmpl)
+
+Worker, создающий изолированное исполнение, является доверенной частью платформы и может иметь специальные полномочия. Нельзя скопировать узловой или Worker securityContext во внешний тест и назвать его безопасным. Нельзя и применить запрет всей сети к Worker Pod без разбора: можно отключить необходимые управляющие соединения, не получив правильную политику для отдельного Actor.
+
+Поэтому `Pod Ready`, `Worker доступен`, `Actor готов` и `Task завершена` - разные утверждения. При incident инженер сначала определяет слой. Harness по-прежнему отвечает за agent loop, допуск инструментов и принятие результата; ни Worker readiness, ни Kubernetes phase не заменяют его критерий завершения.
+
+## Практический разбор наблюдений
+
+### Сначала выясняем что уже состоялось
+
+Вернёмся к тесту из главы 8 в обычном Kubernetes Job. Автор видит `Pending` и предлагает добавить ещё один узел. Мы читаем `spec.nodeName`: узел уже выбран. В состоянии контейнера стоит `waiting.reason: ImagePullBackOff`, а Events сообщают о невозможности получить образ. Следующий обоснованный шаг - проверить reference образа, registry access и pull identity, а не изменять scheduler или Python-функцию.
+
+После исправления контейнер запустился, но это ещё не отчёт. У batch проверяем exit state и Job conditions, затем забираем artifact, сопоставляем revision и применяем критерий теста. У долгоживущего API дополнительно проверяем readiness, Service и нужный метод. Один и тот же `Running` ведёт к разным следующим вопросам в зависимости от договора с приложением.
+
+### Локальная программа выбирает следующий вопрос
+
+В `examples/ch09_pod_observation_demo.py` есть исполняемый пример на Python 3.10+ со стандартной библиотекой. Он не обращается к Kubernetes и не запускает контейнеры. `Observation` - сокращённая модель одного обычного контейнера без init containers и readiness gates: UID, phase, node assignment, условия scheduled/ready, reason ожидания и признак удаления. Это **не JSON-схема Kubernetes**, а учебное представление уже прочитанных полей.
+
+`None` для condition означает «сведения отсутствуют», не `False`. Настоящие API Conditions передают status строками `True/False/Unknown`; адаптер должен разобрать их отдельно. В примере уже используются Python bool или `None`. Validator отвергает неверные типы и несовместимые комбинации сокращённой модели, но не пытается решить все возможные состояния реального Pod.
+
+Основная функция предлагает участок расследования и следующее свидетельство:
+
+```
+def next_check(obs, expected_uid):
+    validate_observation(obs, expected_uid)
+    if obs.uid != expected_uid:
+        return "identity", "read_new_attempt"
+    if obs.deleting:
+        return "termination", "observe_shutdown_and_result"
+    if obs.phase == "Unknown":
+        return "unknown", "refresh_node_and_pod_observation"
+    if obs.phase == "Succeeded":
+        return "pod_succeeded", "verify_job_and_result_revision"
+    if obs.phase == "Failed":
+        return "pod_failed", "read_termination_and_events"
+    if obs.node is None:
+        if obs.scheduled is False:
+            return "placement", "read_scheduling_events"
+        return "unknown", "read_assignment_and_conditions"
+    if obs.waiting_reason is not None:
+        return "container_start_or_restart", "read_waiting_reason_and_events"
+    if obs.phase != "Running":
+        return "unknown", "read_container_and_init_states"
+    if obs.ready is False:
+        return "readiness", "read_probe_and_application_evidence"
+    if obs.ready is None:
+        return "unknown", "read_ready_condition"
+    return "pod_ready", "verify_service_or_task_contract"
+```
+
+Проверка UID стоит раньше признаков готовности. Иначе ответ нового Pod можно ошибочно отнести к старой попытке. Удаление стоит раньше `Ready`: экземпляр может ещё числиться готовым в наблюдении, но уже завершаться. `Succeeded` возвращает необходимость проверки результата, а не флаг «ревью принято». Функция намеренно не вызывает delete, retry или изменение ресурсов.
+
+Запустите из корня репозитория книги:
+
+```
+python3 examples/ch09_pod_observation_demo.py
+python3 -m unittest discover -s examples -p 'test_ch09_*.py'
+```
+
+Программа последовательно разбирает шесть искусственных наблюдений. Ниже полный вывод, не снятый с работающего кластера:
+
+```
+{
+  "source": "synthetic_fixture",
+  "cluster_contacted": false,
+  "task_completed": "not_established",
+  "checks": [
+    {"stage": "placement", "next_check": "read_scheduling_events"},
+    {"stage": "container_start_or_restart", "next_check": "read_waiting_reason_and_events"},
+    {"stage": "readiness", "next_check": "read_probe_and_application_evidence"},
+    {"stage": "pod_ready", "next_check": "verify_service_or_task_contract"},
+    {"stage": "pod_succeeded", "next_check": "verify_job_and_result_revision"},
+    {"stage": "identity", "next_check": "read_new_attempt"}
+  ]
+}
+```
+
+Это упражнение учит сохранять неопределённость и выбирать свидетельство. Оно не доказывает containment, истинность probes или актуальность API status. В реальной диагностике появляются несколько контейнеров, задержанные observations, races, внешние зависимости и свои условия controller. Для production нужны Kubernetes client, корректный разбор объектов, timestamps и повторное наблюдение; превращать учебную функцию в автоматический ремонтник не следует.
+
+### Какие данные читать в настоящем кластере
+
+Сначала проверьте текущий context и область доступа. У реального окружения имена заменяют placeholders; команды ниже только читают состояние и logs, но вывод может содержать чувствительные данные. Не копируйте его целиком в публичный отчёт:
+
+```
+kubectl config current-context
+kubectl get job <job> -n <namespace> -o yaml
+kubectl get pods -n <namespace> -l batch.kubernetes.io/job-name=<job> -o wide
+kubectl get pod <pod> -n <namespace> -o yaml
+kubectl describe pod <pod> -n <namespace>
+kubectl logs <pod> -n <namespace> -c <container>
+kubectl logs <pod> -n <namespace> -c <container> --previous
+kubectl get endpointslice -n <namespace> -l kubernetes.io/service-name=<service> -o yaml
+```
+
+`logs --previous` читает предыдущий экземпляр контейнера в **том же Pod**, если он доступен; это не журнал удалённого Pod с прежним UID. Для нашего Job с `restartPolicy: Never` такого предыдущего контейнера может не быть. EndpointSlice нужен при разборе Service, не для доказательства завершения batch.
+
+Events полезны для причин FailedScheduling, mount, image pull и probe failures, но их retention ограничен, а сообщения могут агрегироваться. Если Job не создал Pod, начните с владельца и его Events. Если Pod назначен, переходите к container/init states и runtime. Если сервис доступен, но Actor не принимает работу, продолжайте по наблюдениям Substrate, AX и harness, а не повторяйте бесконечно `kubectl get pod`.
+
+Read-only анализ может быть недостаточен, однако `exec`, ephemeral debug containers, node access и drain - уже отдельные полномочия и риск. Сначала сохраните существенные UID, версии, состояние и временные отметки, сформулируйте гипотезу и выберите минимальное проверяемое изменение. Перезапуск, который убрал симптом, ещё не объяснил его причину.
+
+## Ограничения восстановления и доступности
+
+Graceful termination работает, когда kubelet и процесс могут выполнить протокол. При потере узла ожидаемая остановка не равна подтверждённой остановке. Приложению нужны правила повторного владения и результата, иначе два исполнителя могут публиковать разные ответы одной работы. Kubernetes replacement не переносит память старого процесса в новый и не создаёт прикладной checkpoint сам.
+
+PodDisruptionBudget, PDB, помогает ограничивать допустимые disruption через Eviction API, например при штатном drain. Он не защищает от потери машины, прямого delete Pod и всех вариантов rollout. Deployment update управляется собственной стратегией. Для доступности нужны разнесение replicas, запас capacity, согласованность данных и проверка зависимостей, а не только объект PDB. [Disruptions](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/)
+
+Масштабирование тоже имеет два уровня. Если очередь Actors растёт, недостаточно знать процент CPU nodes: может не хватать подходящих Workers, runtime assets, памяти либо готовых slots. Добавление Worker replicas не ускорит внешний model gateway и не изменит concurrency лимит инструмента. Метрики queue, placement, sandbox start, выполнение и cleanup связывают с одним идентификатором попытки и измеряют отдельно.
+
+Для рассматриваемой пары проектов именно Worker rollout может затронуть множество Actors. Проверяют прекращение приёма новой работы, освобождение capacity, судьбу активных исполнений, сохранение результата и повторное размещение. Общее «Kubernetes восстановит» скрывает тот этап, за который отвечает приложение или Substrate. Его контракт подробно появится в главах о lifecycle и эксплуатации.
+
+## Практика для самостоятельного решения
+
+Первое упражнение: на узле свободно по requests `600m` CPU и `1024Mi` памяти. Работа просит `500m/256Mi`, измеренный для вашей среды overhead составляет `150m/128Mi`. Объясните, почему памяти достаточно, а CPU не хватает, даже если график показывает 10% загрузки. Затем предложите проверку requests, pool capacity и допустимости уменьшения заявки. Не начинайте с отключения runtime.
+
+Второе: `platform-api` имеет два Running Pods, но у обоих `Ready=False`. Service selector совпадает, endpoints не готовы. Что надо прочитать до изменения Service? Сопоставьте probe configuration, поведение health endpoint и application logs. Установленный TCP listener сам по себе не отменяет отказ readiness. Замена liveness на постоянный успех тоже не является доказательством здоровья.
+
+Третье: тестовый Pod завершился с `Succeeded`, но отчёт содержит другую input revision; затем появился Pod с новым UID. Сформулируйте, какие результаты получатель должен отклонить, какие сведения сохранить и что ещё неизвестно о прежнем процессе. Это мост к главе 10: операция могла выполнить внешний шаг, повториться и не дать однозначного ответа.
+
+Четвёртое: Actor Substrate не готов, хотя Worker Pod Running и API Kubernetes отвечает. Назовите две разные операции размещения и найдите, какой слой хранит наблюдение об Actor. Не создавайте для него Job «по аналогии» и не считайте label RuntimeClass доказательством применённой Substrate sandbox configuration.
+
+Хороший итог упражнения - объяснение вида «это свидетельство подтверждает данный этап; следующий вопрос требует таких данных». Оно полезнее набора команд, который случайно привёл все колонки к зелёному цвету.
 
 ## Итоги главы
 
-- Kubernetes хранит intent и непрерывно reconciles actual state; успешный API response не равен готовому workload.
-- API server, scheduler, controllers, kubelet, runtime, CNI и CSI образуют цепочку с разными обязанностями и failure modes.
-- `spec` принадлежит intent, `status` отражает observation; conditions должны быть операционно значимыми.
-- Pod - группа совместно размещённых containers с общей судьбой, но не VM и не durable identity.
-- Deployment, StatefulSet, DaemonSet и Job выбираются по lifecycle semantics, а не по привычке команды.
-- Requests управляют scheduling и долей ресурсов; limits задают runtime ceilings; отсутствие честной модели ломает capacity planning.
-- Startup, readiness и liveness отвечают на разные вопросы; ошибочная probe способна создать incident.
-- Service стабилизирует discovery над меняющимися Pods, а NetworkPolicy требует реального enforcement со стороны network implementation.
-- PVC не равен backup, Secret не равен vault, Namespace не равен hostile tenant boundary.
-- RuntimeClass связывает workload classification с physical isolation, но выбор должен контролироваться platform policy.
-- CRD подходит для декларативного infrastructure resource, а не для потока task events, logs или model tokens.
-- Kubernetes владеет cluster execution substrate; Substrate - Actor/Worker runtime; AX - Task orchestration; harness - agent semantics.
-- Диагностика идёт от owner/spec/status через events и container state к network, storage и node, сохраняя evidence.
+Kubernetes хранит намерение и через несколько независимых механизмов приводит его к исполнению. API acceptance, node assignment, container start, Pod readiness и проверенный прикладной результат обозначают разные этапы. Если они разделены, расследование превращается из перебора перезапусков в поиск конкретного нарушенного условия.
 
-**Дальше.** Kubernetes показал, как desired state превращается в Pods и почему observation всегда немного отстаёт от intent. Следующая глава разберёт общие законы control plane и distributed systems: eventual consistency, idempotency, retries, locks, streams и восстановление после частично выполненных операций.
+Способ управления выбирают по жизненному циклу и identity, а не по популярности ресурса. Requests описывают заявки на размещение, limits - ограничения исполнения. Probes, Service, volumes, identity и admission надо читать как согласованный договор приложения с площадкой; ни одно поле не гарантирует безопасность или доступность в одиночку.
+
+В закреплённом Substrate Kubernetes размещает Workers, а Substrate размещает Actors и управляет их runtime. AX и harness решают задачи следующих уровней. Учебный Job главы 8 и RuntimeClass этой главы помогают понять обычный Kubernetes путь, но не являются готовой копией реализации AX/Substrate.
+
+**Дальше.** Глава 10 разберёт, как управляющие операции переживают задержки, повтор, неизвестный результат и сбой между шагами. Kubernetes дал нам конкретный пример reconciliation; теперь нужно понять, какие дополнительные контракты делают собственный control plane восстанавливаемым.
 
 ### Источники и дальнейшее чтение
 
-- [Kubernetes Components](https://kubernetes.io/docs/concepts/overview/components/) - роли control plane и node components.
-- [Objects in Kubernetes](https://kubernetes.io/docs/concepts/overview/working-with-objects/) - object model, spec, status и record of intent.
-- [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) - reconciliation и controller pattern.
-- [Workloads](https://kubernetes.io/docs/concepts/workloads/) - Pods и workload resources.
-- [Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/) - phases, container states, restart и termination.
-- [Liveness, Readiness and Startup Probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/) - semantics probes и предупреждение о cascading failures.
-- [Resource Management for Pods and Containers](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/) - requests, limits, scheduling и cgroups.
-- [Scheduling, Preemption and Eviction](https://kubernetes.io/docs/concepts/scheduling-eviction/) - placement constraints и disruptions.
-- [RuntimeClass](https://kubernetes.io/docs/concepts/containers/runtime-class/) - runtime handler, scheduling и overhead.
-- [Services, Load Balancing and Networking](https://kubernetes.io/docs/concepts/services-networking/) - Pod network, Services, EndpointSlices, CNI и NetworkPolicy.
-- [Storage](https://kubernetes.io/docs/concepts/storage/) - ephemeral и persistent storage abstractions.
-- [Service Accounts](https://kubernetes.io/docs/concepts/security/service-accounts/) - workload identity и least-privilege RBAC.
-- [Good Practices for Kubernetes Secrets](https://kubernetes.io/docs/concepts/security/secrets-good-practices/) - encryption, access и ограничения base64.
-- [Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) - enforcement Pod Security Standards.
-- [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) - назначение CRD и рекомендация не использовать Kubernetes API как application data store.
-- [AX Core Concepts](https://github.com/google/ax/blob/main/docs/concepts.md) - Task и declarative API AX.
-- [Agent Substrate](https://github.com/agent-substrate/substrate) - Actor/Worker model и Kubernetes-backed runtime.
+- [Kubernetes components](https://kubernetes.io/docs/concepts/overview/components/), [Controllers](https://kubernetes.io/docs/concepts/architecture/controller/) и [API concepts](https://kubernetes.io/docs/reference/using-api/api-concepts/) - обязанности компонентов, reconciliation и чтение API state.
+- [Pods](https://kubernetes.io/docs/concepts/workloads/pods/), [Pod Lifecycle](https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle/) и [Probes](https://kubernetes.io/docs/concepts/workloads/pods/probes/) - совместное исполнение, состояния и готовность.
+- [Deployment](https://kubernetes.io/docs/concepts/workloads/controllers/deployment/), [StatefulSet](https://kubernetes.io/docs/concepts/workloads/controllers/statefulset/), [DaemonSet](https://kubernetes.io/docs/concepts/workloads/controllers/daemonset/) и [Job](https://kubernetes.io/docs/concepts/workloads/controllers/job/) - разные договоры о жизненном цикле.
+- [Resource management](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/), [ResourceQuota](https://kubernetes.io/docs/concepts/policy/resource-quotas/), [RuntimeClass](https://kubernetes.io/docs/concepts/containers/runtime-class/) и [Pod Overhead](https://kubernetes.io/docs/concepts/scheduling-eviction/pod-overhead/) - заявки, ограничения и расходы runtime.
+- [Service](https://kubernetes.io/docs/concepts/services-networking/service/), [EndpointSlices](https://kubernetes.io/docs/concepts/services-networking/endpoint-slices/) и [NetworkPolicy](https://kubernetes.io/docs/concepts/services-networking/network-policies/) - discovery, backends и условия применения сети.
+- [Volumes](https://kubernetes.io/docs/concepts/storage/volumes/), [Persistent Volumes](https://kubernetes.io/docs/concepts/storage/persistent-volumes/) и [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/) - lifetime, access modes и provisioning.
+- [Service Accounts](https://kubernetes.io/docs/concepts/security/service-accounts/), [RBAC](https://kubernetes.io/docs/concepts/security/rbac-good-practices/), [Secrets](https://kubernetes.io/docs/concepts/security/secrets-good-practices/) и [Pod Security Admission](https://kubernetes.io/docs/concepts/security/pod-security-admission/) - identity и контроль полномочий.
+- [Custom Resources](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/) и [Disruptions](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/) - расширение API и ограничения восстановления.
+- [AX ac233282](https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e) и [Substrate ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97) - закреплённые срезы реализации; точные файлы указаны в тексте.
