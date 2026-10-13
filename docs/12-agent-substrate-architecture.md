@@ -1,380 +1,395 @@
 # Agent Substrate: как устроен runtime для stateful Actors
 
-**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+В главе 11 сессия ревью `review-42` научилась отличать текущий план от старого результата. Теперь инженер возвращается к этой сессии после перерыва. Её прикладное состояние сохранено, но обслуживающего процесса может не быть. Чтобы показать статус или продолжить работу, мало найти запись `review-42` в базе. Нужно выделить среду исполнения, восстановить нужные данные и направить запрос именно туда.
 
-**Статус:** `SUBSTRATE v0.3.0 · ccecc788` · `OPERATIONS FIRST` · `LIMITS MADE EXPLICIT`
+Agent Substrate решает эту инфраструктурную часть. Он связывает логический Actor с временной вычислительной ёмкостью и умеет останавливать и возобновлять sandboxed workload. Но инфраструктурный `RUNNING` не означает, что исправление принято, а восстановленная память не доказывает актуальность плана. В этой главе проследим путь запроса и научимся находить границу, на которой действительно возникла проблема.
 
-В предыдущей главе мы отделили классическую Actor model от конкретной реализации Agent Substrate. Теперь можно пройти по системе изнутри. Представим, что HTTP-запрос адресован Actor, который сейчас не занимает CPU, не привязан к Worker и существует только как запись в control plane плюс snapshot в object storage. Что должно произойти, чтобы запрос получил ответ? Какие компоненты участвуют в этом пути? Где находится истина о состоянии? Что случится, если свободного Worker нет, PostgreSQL недоступен или snapshot повреждён?
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные компоненты, поля и поведение ниже относятся к этому commit. Experimental authz из главы 24 относится к другому профилю. Учебная сессия ревью - наш прикладной пример, не встроенный workflow Substrate.
 
-Именно на эти вопросы отвечает operational architecture. Названия процессов сами по себе мало полезны. Инженеру важнее понимать ответственность каждого компонента, границы согласованности и цену каждого перехода. Тогда можно решить, подходит ли Substrate workload, выбрать sandbox class, оценить capacity, сформулировать SLO и диагностировать сбой без хаотичных перезапусков.
+## Что читатель сможет сделать после главы
 
-## Что читатель должен унести из главы
+- Объяснить, зачем Actor отделён от Worker и почему это не отменяет расходы на вычисления.
+- Проследить запрос через router, ateapi, node runtime и tunnel.
+- Различить сохранённое назначение, завершённый wake-up и готовность приложения.
+- Выбрать источник восстановления без опасного предположения о fallback на пустой процесс.
+- Рассчитать ограничения capacity и объяснить поведение parking при разных deadlines.
+- Обосновать выбор обычного сервиса, WorkerPool и sandbox class под конкретную нагрузку.
+- Локализовать отказ, сохранив сведения, нужные для восстановления.
 
-После этой главы вы сможете:
+## Зачем отделять Actor от Worker
 
-- объяснить, зачем Substrate добавляет специализированный control plane поверх Kubernetes;
-- разделить infrastructure plane, Actor control plane и request data path;
-- проследить холодный и тёплый путь запроса от `atenet-router` до процесса Actor;
-- различать `pause`, `suspend`, `resume`, `revert` и `delete` по их эксплуатационным последствиям;
-- понимать, какую часть состояния держат PostgreSQL, object storage, Kubernetes и само приложение;
-- проектировать capacity, telemetry и runbook вокруг реальных failure modes;
-- не принимать показатели из README или architecture roadmap за гарантию для своего кластера.
+Вернёмся к ревью. Человек может ответить на вопрос через минуту, завтра или никогда. Всё это время записи плана и разрешений нужны, но интерпретатор, загрузивший зависимости, не обязательно должен постоянно занимать RAM. При тысячах таких сессий цена ожидания становится заметной. Важна не красота Actor API, а разница между количеством существующих сессий и количеством одновременно работающих окружений.
 
-## Какую проблему решает Substrate
+**Actor** в Substrate - адресуемая логическая единица workload. **Worker** - заранее запущенный Pod с ёмкостью для sandbox. Actor может не иметь текущего Worker, а его identity и lifecycle metadata продолжат существовать. Несколько активных Actors могут разделять ёмкость Worker, если это допускают его actor slots и ресурсы. Долговечность прикладного state зависит ещё и от того, где приложение его сохраняет.
 
-Обычный Kubernetes хорошо управляет сравнительно небольшим числом Pod, которые живут минуты, часы или дни. Для agent-like workload профиль часто другой: логических исполнителей много, большинство долго ждёт пользователя, модели или события, а активные периоды короткие и всплесковые. Если каждому логическому исполнителю постоянно держать отдельный Pod, оплачиваются idle memory, Pod IP, записи control plane и лимиты node даже тогда, когда полезной работы нет.
+Такая схема похожа на рабочие места в лаборатории: записей о проектах больше, чем столов с оборудованием. Остановленный проект не исчезает, но возобновить все проекты одновременно нельзя. Аналогия помогает увидеть capacity, а не обещает переносимость любого состояния. Snapshot должен подходить выбранному backend, а внешняя база и уже выполненные действия живут по своим правилам.
 
-Substrate вводит два разных объекта. **Actor** - долговечная логическая единица с identity и состоянием. **Worker** - заранее поднятая физическая ёмкость, способная временно исполнять Actor. Большое множество Actors отображается на меньшее множество Workers. Когда Actor не нужен, его execution state можно вынести в snapshot и освободить Worker. Когда приходит запрос, Actor восстанавливается на свободном Worker.
+### Какая работа исчезает из обычного resume
 
-Это не бесплатная оптимизация. Мы экономим постоянно зарезервированный compute, но получаем новые задачи: атомарное назначение Worker, перемещение snapshot, маршрутизацию к меняющемуся location, защиту от смешивания состояний разных Actors, наблюдаемость через несколько activation и управление очередью при дефиците capacity. Substrate полезен только там, где эта цена оправдывается плотностью и характером idle/active workload.
+Kubernetes продолжает размещать Worker Pods на nodes. Но для очередного Actor не требуется каждый раз создавать новый Pod и снова проходить весь путь admission, scheduler, CNI и kubelet. Эти затраты заранее понёс тёплый Worker. Обычный resume использует уже существующую ёмкость и запускает или восстанавливает sandbox внутри неё.
 
-> **Не перепутайте слой.** Substrate не строит agent loop, не выбирает модель, не управляет prompt и не вводит классический mailbox. Это execution runtime для sandboxed, stateful workload. Harness и приложение по-прежнему отвечают за reasoning, tool protocol, идемпотентность бизнес-операций и семантику сообщений.
+Здесь важно слово «обычный». Если подходящего Worker нет, новый Pod или node всё равно придётся подготовить. Autoscaling не материализует ёмкость в момент прихода запроса. Тёплый пул сокращает путь только пока в нём есть подходящее место. Snapshot download, восстановление файлов и память sandbox тоже не становятся бесплатными.
 
-### Когда специализированный control plane оправдан
+Специализированная система оправдана, когда время простоя велико, окружение дорого и восстановление заметно дешевле повторной подготовки. Если сессия содержит несколько строк в SQL и быстро запускаемый stateless handler, обычный сервис может оказаться проще. Нам не нужно сохранять RAM только потому, что задача называется агентной.
 
-Специализированный Actor control plane нужен не потому, что Kubernetes плох. У него другой рабочий диапазон. Создание Pod включает scheduler, admission, image pull, CNI, kubelet и readiness. Это разумный путь для долгоживущей нагрузки, но слишком тяжёлый для activation, которую хотят укладывать в сотни миллисекунд. Кроме того, миллионы часто обновляемых Actor records и snapshot references не следует превращать в миллионы Kubernetes objects.
+### Что остаётся у harness и приложения
 
-Поэтому Substrate оставляет Kubernetes то, что тот делает хорошо: nodes, Deployments, DaemonSets, Worker Pods, инфраструктурную изоляцию и low-frequency reconciliation. Частые операции Actor lifecycle идут через отдельный API и state store. Это фундаментальное архитектурное решение, а не деталь реализации.
+Substrate не выбирает модель, не планирует reasoning и не превращает HTTP в надёжный mailbox. В нашей сессии harness и прикладной код всё ещё проверяют revision, approval, call ID и результат. Сохранённая квитанция `tool_requested` не становится новым разрешением только потому, что sandbox восстановился.
 
-## Три плоскости системы
+Практическая граница такая: runtime возвращает среду, а приложение возвращает смысл работы. Если состояние ревью находится в отдельной SQLite или SQL-базе, надо обеспечить её реальную доступность после восстановления. Файл в удалённом эфемерном контейнере не становится durable от слова stateful. Если память содержит прежний r1, а authoritative прикладная база уже содержит r2, приложение должно согласовать их до новых действий.
 
-Удобно читать архитектуру не как один граф, а как три связанные плоскости.
+## Как читать архитектуру по ответственности
 
-| Плоскость | Что управляет | Основные компоненты | Характер изменений |
-| --- | --- | --- | --- |
-| Infrastructure plane | Nodes, Worker Pods, controller deployments, sandbox capacity | Kubernetes, `atecontroller`, WorkerPool CRD, atelet DaemonSet | Секунды и минуты; declarative reconciliation |
-| Actor control plane | Actor records, Worker assignments, lifecycle workflows, template metadata | `ateapi`, PostgreSQL | Высокая частота; транзакции и state transitions |
-| Request data path | Wake-on-request, выбор текущего Worker, туннель до Actor | `atenet-router`, Envoy `ext_proc`, `atunnel`, Actor | На каждый запрос; latency-sensitive |
+Вместо списка процессов начнём с трёх вопросов. Кто готовит физические места? Кто решает, где сейчас Actor? Кто несёт конкретный запрос? Это разные задачи, хотя в одной трассировке они встречаются рядом.
 
-Object storage пересекает плоскости: оно не принимает решение о placement, но хранит durable snapshot, без которого suspended Actor не восстановится. `atelet` и `ateom` тоже стоят на границе: control plane инициирует операцию, а фактический checkpoint или restore происходит на node и внутри Worker Pod.
+| Плоскость | Какой вопрос решает | Где искать сведения |
+| --- | --- | --- |
+| Infrastructure plane | Есть ли подходящие Worker Pods и nodes | Kubernetes, WorkerPool CRD, atecontroller, atelet |
+| Actor control plane | Какой lifecycle state и assignment у Actor | ateapi, PostgreSQL, lifecycle workflow |
+| Request data path | Как довести этот HTTP-запрос до workload | atenet-router, dataplane, atunnel, Actor network |
+
+Infrastructure plane готовит ёмкость и восстанавливает её после отказа. Control plane управляет часто меняющимися Actor records. Data path обслуживает запросы с чувствительностью к задержке. Такое разделение позволяет сначала назвать сломавшуюся ответственность, а уже затем смотреть конкретный процесс.
 
 ![Agent Substrate: operational data path](.gitbook/assets/diagrams/12-12.png)  
 *Agent Substrate: operational data path*
 
-## Карта компонентов и ответственности
+Схема показывает связи компонентов, а не строгий порядок RPC. Ниже разберём последовательность отдельно. Object storage хранит bytes snapshots, но не назначает Worker. atelet работает на node и связывает control plane с исполнением. ateom внутри Worker управляет sandbox, а не определяет пользовательскую задачу. atunnel относится к пути трафика, а не к хранению state.
 
-| Компонент | За что отвечает | Чего от него не ждать |
+### Компоненты без магических полномочий
+
+`atecontroller` превращает описание WorkerPool в Kubernetes resources. Его успешный reconcile ещё не означает успешный запуск конкретного Actor. `ateapi` обрабатывает lifecycle API и выдаёт актуальный Actor record. Сам sandbox исполняется не внутри API server.
+
+PostgreSQL хранит metadata: state, assignment, version guards, snapshot references и сведения, по которым workflow продолжает операцию. Object storage хранит большие объекты snapshot. «База доступна» и «восстановление возможно» - разные утверждения: ссылка может существовать, а объект уже быть удалённым или недоступным.
+
+Node-local `atelet` выполняет запросы запуска, checkpoint и restore через runtime Worker. `ateom` управляет sandbox выбранного класса. Router запрашивает resume и выбирает backend. `atunnel` принимает аутентифицированный tunnel на Worker и передаёт HTTP внутрь сети Actor. Ни один из этих компонентов не подтверждает, что человек принял результат ревью.
+
+## Путь запроса к работающему Actor
+
+Пусть gateway уже проверил право инженера обратиться к ревью. В ingress Substrate он передаёт `ate-target-actor: demo-tenant/review-42`. Это адрес workload. `Host` остаётся authority приложения и сам по себе не выбирает Actor. Имя в заголовке не является пользовательской аутентификацией или доказательством права доступа.
+
+Для Envoy dataplane headers проходят через `ext_proc` - внешнюю обработку заголовков. Router вызывает `ResumeActor`. Несмотря на имя метода, это также fast path для уже `RUNNING` Actor: workflow читает текущую запись и возвращает её без нового restore и без actor lease для этой ранней ветки. Отдельного Pod на каждый HTTP-запрос не создаётся.
+
+По Worker assignment router выбирает адрес `atunnel` на порту 443 и соединяется по mTLS. Tunnel проверяет доверенную router identity и целевой Actor относительно текущих назначений Worker. Только затем запрос проходит к workload через private network. Открытый порт 80 Worker не является предусмотренным публичным ingress Actor.
+
+Это всё ещё распределённый путь. Actor может быть жив физически, но недоступный `ateapi` сорвёт lookup через router. Устаревший assignment нельзя превращать в вечный кэш Pod IP. Проверка назначения уменьшает риск неверного маршрута, но не обещает, что assignment никогда не изменится между чтением и отправкой. Ошибка на этой границе не означает автоматически потерю Actor state.
+
+### Почему RUNNING не является health check
+
+Fast path не повторяет `wakeup_probe`. Приложение могло успешно пройти проверку при пробуждении, а затем потерять подключение к базе или перестать отвечать. Слово `RUNNING` сообщает lifecycle state, а не непрерывное наблюдение за бизнес-функцией.
+
+Если сессия долго работает, health monitoring и собственная проверка допустимости действия нужны отдельно. Pod Ready сообщает о Pod, wakeup probe - о конкретном пробуждении, а endpoint статуса ревью должен сообщать о прикладном состоянии. Смешав эти сигналы, оператор легко получит «всё зелёное» при зависшей пользовательской работе.
+
+## Путь пробуждения остановленного Actor
+
+Теперь `review-42` находится в `SUSPENDED`. Router начинает тот же `ResumeActor`, но ранний fast path уже не подходит. Workflow получает actor lifecycle lease, повторно читает запись и определяет источник запуска. Это lease инфраструктурной операции, не блокировка прикладного mailbox и не универсальная защита всех side effects.
+
+Затем workflow при необходимости создаёт volumes, находит подходящий Worker, записывает назначение и состояние `RESUMING`, подключает volumes и вызывает atelet. Node runtime выбирает cold run или restore. После успешного ответа node-компонента ateapi заново читает Actor и фиксирует `RUNNING` с version precondition. Router получает record и направляет исходный HTTP-запрос.
+
+```
+HTTP request -> router -> ResumeActor
+  read Actor; acquire lifecycle lease when work is needed
+  resolve source; prepare volumes
+  claim Worker; persist RESUMING and assignment
+  attach volumes; call atelet Run or Restore
+  run configured wakeup probes on the waking workload
+  commit RUNNING -> return assignment -> atunnel -> application
+```
+
+У этого порядка две важные границы. Назначение Worker сохраняется раньше окончательного `RUNNING`, поэтому наличие assignment не доказывает завершение restore. И завершение wake-up содержит проверку готовности приложения только в пределах настроенных probes. Сама последовательность не подтверждает текущий план ревью и не восстанавливает потерянный HTTP response клиенту.
+
+### Как выбирается источник запуска
+
+Сначала рассматривается local snapshot, если он есть. Он ограничивает допустимые nodes. Иначе используется указанная external snapshot reference. Если источника snapshot нет, workload запускается из template spec. Этот третий случай - cold boot, а не разрешение игнорировать сломанный checkpoint.
+
+Указанный external snapshot с отсутствующими bytes остаётся ошибкой restore. В ветке `ensureAteletRestored` ошибка вызова Restore переводит Actor в `CRASHED`; автоматической второй попытки с пустым процессом эта ветка не делает. Иначе можно было бы тихо потерять state и принять новую пустую сессию за восстановленную прежнюю.
+
+Различайте «ссылка не предусмотрена для этого запуска» и «предусмотренный источник утрачен». В первом случае cold boot может быть правильным. Во втором сначала нужны причина, последний пригодный источник и решение о допустимой потере работы. Не исправляйте такую ошибку удалением Actor ради успешного HTTP 200.
+
+### Full Data и golden snapshot
+
+Full и Data описывают состав snapshot, а local и external - место хранения. Full включает captured guest state, в том числе память и filesystem delta в поддерживаемом runtime. Data сохраняет предусмотренные durable data, но не обещает продолжение с прежней heap. Выбор класса sandbox и поддерживаемого snapshot scope нужно проверять вместе.
+
+Golden snapshot - прогретое исходное состояние template. Оно позволяет не повторять дорогую инициализацию каждого нового Actor. Это общая заготовка, а не индивидуальная память сессии `review-42`. Для Data resume политика template может выбрать cold guest или golden guest с индивидуальными данными. Это отличается от обычного Full restore.
+
+Смена template тоже может изменить путь: несовпадение UID template, записанного в external snapshot, и текущего template приводит к Data restore с новым guest вместо переноса несовместимой памяти. Допустимость самого update отдельно ограничена API. Полный разбор полей и ownership находится в главе 13, lifecycle - в главе 14.
+
+Golden memory не должна содержать действующие разрешения одного пользователя, его r1 или общие credentials, которые все клоны получат как свои. Метаинформацию конкретного Actor и вращаемые credentials нужно получать через соответствующий runtime contract, а не запекать в shared state. Успешное восстановление прогретого интерпретатора ничего не говорит о праве исполнить прошлое действие.
+
+## Что означает готовность после wakeup
+
+В закреплённом API у container можно настроить `wakeupProbe`; protobuf-поле называется `wakeup_probe`. При реальном wake-up runtime ждёт HTTP 200 от каждого контейнера, у которого probe задан. Без probe возврат `ResumeActor` может предшествовать началу listen приложения. При уже `RUNNING` Actor проверка заново не выполняется.
+
+Поэтому фраза «router ждёт готовности Actor» требует уточнения. Он ждёт результат resume. Если нужные probes настроены и правильно написаны, это включает одноразовую проверку их endpoints. Если контейнер не имеет probe, его прикладная готовность из успеха resume не следует. Если endpoint отвечает 200 слишком рано, формально успешная probe тоже не доказывает безопасный приём работы.
+
+### Как написать осмысленную probe
+
+Для сервиса ревью endpoint может вернуть 200 после загрузки текущего state, проверки незавершённых операций и восстановления необходимых подключений. Это прикладной проект, не встроенный recovery hook Substrate. Важно не пытаться по одному слову healthy доказать, что все внешние эффекты завершены.
+
+Probe не должна повторно запускать тест или выполнять approval. Иначе многократный GET проверки сам создаст действия. Она проверяет готовность безопасно принять запрос. Если восстановление требует дополнительной обработки, endpoint может оставаться неготовым до её завершения в пределах допустимого timeout.
+
+Не стоит привязывать 200 к доступности всех необязательных сервисов мира. Это превратит отказ второстепенной зависимости в невозможность восстановить даже страницу статуса. Разделите минимальную безопасную готовность и возможность конкретной операции. Для запуска теста может понадобиться сервис тестирования, для чтения состояния - только authoritative state store.
+
+### Wakeup probe и readinessProbe
+
+Kubernetes `readinessProbe` может регулярно управлять доступностью Pod в Service. Substrate wakeup probe - одноразовый gate каждого пробуждения workload. Они работают на разных объектах и временных границах. Наличие здорового Worker Pod не означает, что его новый sandbox уже готов.
+
+Timeout wakeup probe по умолчанию 30 секунд. Это предел конкретной проверки, а не обещанный end-to-end latency. В API guide неуспешный wake-up приводит к `CRASHED`; прямой resume из этого state не предназначен для бесконечного retry. Сначала требуется осмысленный recovery через `RevertActor` к допустимому источнику, с пониманием потери изменений после snapshot.
+
+## Parking и три разных срока ожидания
+
+Представим, что все подходящие места сейчас заняты. Router может не сразу отказать, а дождаться освобождения capacity и повторить resume. Это **request parking**: удержание запроса в пути ingress, не сохранение бизнес-команды в durable inbox. Router process, HTTP stream и deadlines всё ещё имеют срок жизни.
+
+В этой версии при включённом parking retryable считаются `ResourceExhausted`, `FailedPrecondition`, `Unavailable` и `Aborted`. `NotFound`, `DeadlineExceeded` и ошибки доступа идут по fail-fast ветке. Классификация status code не доказывает, что каждая конкретная причина `FailedPrecondition` устранится сама: Actor в `CRASHED` или неверная конфигурация могут пережить весь budget.
+
+### Общий flight для одного Actor
+
+Одновременные callers к одному Actor присоединяются к одному resume flight внутри экземпляра resumer. **Flight** здесь означает общую выполняющуюся операцию resume с её retry sequence. Это не глобальный distributed singleflight всех router replicas и не устранение повторов прикладного HTTP-действия.
+
+Clock budget начинается с первого caller. Пришедший позже caller наследует оставшийся срок, а не получает новый полный budget. Каждый реально parked request занимает собственный slot parking lot. Поэтому сто клиентов одного Actor могут дать один flight в этом resumer, но сто удерживаемых streams. Уменьшение числа control-plane RPC не устраняет давление на ingress.
+
+Slot берётся после первого retryable результата, когда request действительно начинает parking. Успешная первая попытка не занимает parking slot. Даже долгий первый resume может не парковаться в этом смысле. Не путайте метрику parking с длительностью всех возможных холодных запусков.
+
+### Budget не отменяет начатый restore
+
+По умолчанию `--parked-request-budget` равен 5 секундам, а `--parked-request-max` - 1024. Budget ограничивает начало новых попыток resume. Попытка, начатая до исчерпания budget, может закончиться позже; router не отменяет её по этому budget и может обслужить request поздним успешным результатом.
+
+Отдельно существуют deadline конкретного caller, timeout `ext_proc` и server-side maximum RPC deadline у ateapi. В Envoy-конфигурации message timeout связан с budget как `budget + 5s`. Успех resume после пяти секунд и timeout клиента не противоречат друг другу: это разные часы и разные результаты.
+
+Для оператора здесь неприятный, но важный вывод. Если клиент перестал ждать, это не доказывает прекращение restore. Actor может перейти в `RUNNING` позже. Перед повтором команды нужны прежний operation ID и правила главы 10; новый HTTP stream не разрешает новый внешний эффект. Router не предоставляет application exactly-once.
+
+### Parking lot не является capacity
+
+Увеличение размера lot позволяет удержать больше запросов, но не создаёт sandbox slots, RAM или bandwidth object storage. Увеличение budget может скрыть shortage за более долгим ожиданием. Смотрите одновременно waiting time, rejection, число допустимых Workers и скорость освобождения ресурсов.
+
+`ext_proc` circuit breaker тоже ограничивает число streams. В стандартной конфигурации его headroom выводится из размера parking lot; явный override меняет этот запас. Даже если уже `RUNNING` requests не занимают lot, общий ingress можно перегрузить другими лимитами. Локальная защита одной очереди не означает неограниченной доступности всего пути.
+
+## Практический разбор общей операции resume
+
+Программа `examples/ch12_wakeup_trace_demo.py` работает на Python 3.10+ со стандартной библиотекой. Это калькулятор заранее заданной трассы: времена поданы как числа, а не измерены. Нет threads, сети, router, Worker, настоящего checkpoint или лабораторного стенда. Мы используем его, чтобы сравнить несколько сигналов, которые часто ошибочно сводят к одному timeout.
+
+Пусть budget равен 5000 мс. Первая попытка начинается в t=0 и в t=10 возвращает retryable error. Следующая заданная попытка начинается в t=100 и заканчивается успехом в t=5200. Это разрешённая поздняя развязка уже начатой операции, а не разрешение начинать новый resume после t=5000.
+
+| Событие | Время относительно начала flight | Что означает |
 | --- | --- | --- |
-| `ateapi` | gRPC API, lifecycle state machine, выбор и атомарное назначение Worker, orchestration resume/suspend, Actor identity issuance | Не исполняет Actor и не хранит blob snapshot внутри себя |
-| PostgreSQL | Динамические Actor и Worker records, state, assignment, version guards, ссылки на snapshot | Не является хранилищем process memory или файловой системы Actor |
-| `atecontroller` | Reconcile WorkerPool CRD в Kubernetes resources и warm Worker capacity | Не планирует каждую Actor activation через Kubernetes scheduler |
-| `atelet` | Node supervisor, связь control plane с runtime, перенос snapshot, координация checkpoint/restore | Не является глобальной базой placement и не должен самостоятельно назначать чужой Actor |
-| `ateom` | Управление sandbox внутри Worker: запуск, checkpoint, restore; варианты для gVisor и microVM | Не решает, какой Actor и на каком Worker должен работать |
-| `atenet-router` | Определяет целевой Actor по `ate-target-actor`, вызывает resume/lookup, выбирает backend, паркует retryable requests | Не хранит authoritative Actor state и не заменяет application gateway с пользовательской authz |
-| `atunnel` | Принимает аутентифицированный TLS tunnel на Worker и пересылает HTTP к активному Actor через private network | Worker port 80 не становится публичным Actor ingress |
-| Object storage | Durable external snapshots: memory, writable rootfs и durable data в зависимости от scope/backend | Snapshot не равен backup всей системы и не откатывает внешние side effects |
-| Kubernetes | Жизненный цикл control-plane и Worker Pods, node placement, devices, NetworkPolicy, ресурсы | Не является high-frequency Actor registry |
+| Первый caller начинает flight | 0 мс | Запущены общая операция и её budget |
+| Первый retryable результат | 10 мс | Requests переходят к parking |
+| Вторая попытка resume | 100 мс | Она началась до budget |
+| Два новых callers присоединяются | 4900 мс | Они разделяют старый flight |
+| Один caller прекращает ждать | 5100 мс | Его deadline не отменяет общую попытку |
+| Resume завершается | 5200 мс | Остальные могут получить assignment позже budget |
 
-### Почему Worker уже должен быть тёплым
+В калькуляторе принято, что поздние callers уже присоединились к одному существующему flight и приняты в lot. Полнота lot, создание новых flights, backoff с jitter, повторная проверка state и маршрутизация HTTP не моделируются. Нельзя перенести эти числа в SLO своего кластера.
 
-Главная latency-оптимизация - не создавать Pod при каждом wake-up. Worker Pods заранее запущены и зарегистрированы как свободные. Control plane выбирает подходящий Worker, после чего node-local компоненты восстанавливают sandbox. Kubernetes scheduler находится вне критического пути обычного resume. Он возвращается в путь, когда надо увеличить или восстановить сам пул Workers.
+### Запуск и чтение вывода
 
-Это означает, что autoscaling WorkerPool не спасает запрос мгновенно. Даже если HPA или cluster autoscaler увидит нагрузку, новые Pod и node появятся позже. Короткий burst должен быть покрыт warm headroom, request parking или admission control верхнего уровня.
-
-## Путь одного запроса: Actor уже работает
-
-Начнём с fast path. Клиент или верхнеуровневый gateway отправляет HTTP-запрос в `atenet-router` и указывает адрес `<atespace>/<actor>` в заголовке `ate-target-actor`. Значение `Host` остаётся authority приложения и не выбирает Actor.
-
-1. Envoy передаёт request headers внешнему процессору router.
-2. Router обращается к `ateapi` через `ResumeActor`. Операция также играет роль locate: если Actor уже `RUNNING`, ответ содержит его актуальное Worker assignment.
-3. Router открывает mTLS tunnel к `atunnel` на порту 443 выбранного Worker.
-4. `atunnel` проверяет router identity и соответствие заголовка Actor, реально назначенному этому Worker.
-5. Запрос передаётся по private veth к приложению Actor; ответ идёт обратно тем же путём.
-
-Даже fast path не должен полагаться на кэшированный Pod IP без проверки assignment. Actor может suspend/resume на другом Worker. Location transparency удобна приложению, но инфраструктура обязана разрешать identity в актуальное placement.
-
-## Путь wake-up: Actor suspended
-
-Для suspended Actor request data path превращается в distributed workflow:
+Из корня репозитория:
 
 ```
-Client
-  -> atenet-router: HTTP + ate-target-actor
-  -> ateapi: ResumeActor
-  -> PostgreSQL: проверить state и атомарно claim свободного Worker
-  -> atelet на выбранной node: Restore
-  -> object storage: скачать manifest и snapshot objects
-  -> ateom: восстановить sandbox и network
-  -> application readiness: Actor способен принять request
-  -> ateapi: commit RUNNING + worker assignment
-  -> router: открыть mTLS tunnel к atunnel
-  -> Actor: исходный HTTP request
+python3 examples/ch12_wakeup_trace_demo.py
+python3 -m unittest discover -s examples -p 'test_ch12*.py'
 ```
 
-У этой цепочки есть важное свойство: исходный request удерживается, пока Actor ещё не готов. Нельзя сначала отправить трафик, а затем надеяться, что restore закончится. Граница readiness должна означать готовность приложения обработать запрос, а не только наличие процесса или network namespace.
+```
+{
+  "source": "offline_supplied_trace",
+  "cluster_contacted": false,
+  "clock_or_latency_measured": false,
+  "shared_flight": {
+    "outcome": "routable",
+    "finished_ms": 5200,
+    "attempts": 2,
+    "parked": true,
+    "served_late": true
+  },
+  "first_caller": {
+    "outcome": "routable",
+    "wait_ms": 5200,
+    "flight_outlives_caller": false
+  },
+  "late_joiner": {
+    "outcome": "routable",
+    "wait_ms": 300,
+    "flight_outlives_caller": false
+  },
+  "short_deadline_caller": {
+    "outcome": "caller_timeout",
+    "wait_ms": 200,
+    "flight_outlives_caller": true
+  },
+  "declared_snapshot_failure": {
+    "state": "CRASHED",
+    "automatic_cold_fallback": false
+  },
+  "one_unprobed_container": {
+    "state": "RUNNING",
+    "all_containers_probed": false,
+    "continuous_health_verified": false,
+    "business_safety_verified": false
+  }
+}
+```
 
-### Golden snapshot и первый запуск
+`routable` означает только, что в заданной трассе resume завершился успешно. Калькулятор не отправляет прикладной request и не получает от него 200. Первый caller ждёт 5200 мс, late joiner - 300 мс. Третий caller заканчивает ожидание раньше, но общий результат остаётся тем же. Реальная гонка ответа с deadline не детерминирована так, как учебное сравнение чисел.
 
-При создании `ActorTemplate` Substrate может поднять временный golden Actor, дождаться readiness или warm-up interval, suspend его и сохранить опубликованный tag. Новый Actor начинает с ссылки на этот golden snapshot. Первый resume тогда восстанавливает уже прогретое состояние, а не повторяет дорогую инициализацию.
+`declared_snapshot_failure` показывает другое правило: выбранный external source с неуспешным restore не заменяется cold boot. Калькулятор не читает manifest и не проверяет криптографическую целостность, а отражает заданный failure outcome. Template migration, Full/Data и golden composition здесь не реализованы.
 
-Golden snapshot особенно полезен для загрузки больших зависимостей, инициализации runtime и подготовки read-only caches. Но нельзя бездумно запекать в него краткоживущие credentials, соединения и данные конкретного пользователя. Всё, что попало в memory image или writable layer, размножается вместе с шаблоном. Template следует считать immutable state root; обновление кода обычно означает новый ActorTemplate и новый golden snapshot.
+### Проверка готовности в примере
 
-### Cold boot и restore - разные режимы
+Короткая функция из программы:
 
-Если snapshot недоступен, несовместим или Actor создан до готовности golden tag, система может идти через cold boot, если это допускает конкретная конфигурация и lifecycle. Cold boot заново запускает OCI workload. Restore возвращает process memory и filesystem state из checkpoint. Эти пути имеют разную latency, разные failure modes и должны различаться в telemetry. Метрика "Actor started" без признака `cold`/`restore` скрывает самое важное.
+```
+def wakeup_gate(probe_results):
+    """None = probe absent. True = observed HTTP 200. False = probe failed.
 
-## Что происходит при дефиците Worker
+    This is a completed-wakeup observation, not a polling implementation.
+    It cannot prove that an endpoint's 200 means business safety.
+    """
+    if not probe_results or any(x is not None and type(x) is not bool
+                                for x in probe_results):
+        raise ValueError("one bool or None per container required")
+    passed = all(x is not False for x in probe_results)
+    return {"state": "RUNNING" if passed else "CRASHED",
+            "all_containers_probed": all(x is not None for x in probe_results),
+            "continuous_health_verified": False,
+            "business_safety_verified": False}
+```
 
-Oversubscription означает, что свободный Worker иногда отсутствует. Это не обязательно авария: другой Actor может освободить capacity через несколько сотен миллисекунд. Текущий router поддерживает **request parking**. При `ResourceExhausted`, некоторых transient `FailedPrecondition`, `Aborted` и `Unavailable` он может удержать request и повторять resume с backoff.
+При `[True, None]` одна настроенная probe прошла, у другого контейнера её нет. Функция не превращает отсутствие наблюдения в доказанную готовность. Даже `[True, True]` не устанавливает `business_safety_verified`: смысл 200 задаёт приложение. Это расчёт уже завершённого wake-up, не реализация HTTP polling и не универсальная runtime state machine.
 
-Parking имеет ограниченный budget и ограниченный parking lot. По умолчанию документация описывает budget 5 секунд и максимум 1024 parked requests, но production должен явно закрепить эти параметры и проверить их для выбранной версии. Запросы к одному Actor дедуплицируются на один in-flight resume call, хотя каждый клиентский request занимает отдельный parking slot.
+Тесты проверяют начало retry до budget, поздний результат, наследование завершения late joiner, отдельный deadline, отсутствие fallback и границы probes. Они проверяют наш учебный код, а не работоспособность pinned Substrate. Для интеграционной проверки понадобились бы реальные RPC, восстановление workload и наблюдение исходного HTTP-запроса. Такая проверка не заменена calculator output.
 
-| Ситуация | Поведение | Что увидит оператор |
+## Snapshot сохраняет не всю систему
+
+После практического примера полезно назвать, какие данные мы вообще пытаемся вернуть. State Actor - не один объект, который можно целиком переложить в bucket. Metadata, память, пользовательский план и внешний тест находятся на разных слоях.
+
+| Данные | Кто их хранит | Что нужно для восстановления |
 | --- | --- | --- |
-| Actor уже RUNNING | Fast path, parking slot не нужен | Низкая router latency |
-| Нет свободного Worker, но скоро появился | Request ждёт и обслуживается | `parking.wait.duration{outcome="served"}` |
-| Capacity не появилась до budget | HTTP 503 после bounded wait | `budget_exhausted`, pool saturation |
-| Parking lot заполнен | Новый ожидающий request сбрасывается | `parking.rejected`, HTTP 503 |
-| Actor не существует | Fail fast | HTTP 404, ждать бессмысленно |
-| Authentication/permission error | Fail fast | HTTP 401/403 |
+| Lifecycle state и assignment | PostgreSQL Substrate | Пригодная запись, version и согласованный workflow |
+| Snapshot bytes и manifest | Object storage или node для local | Доступность нужных объектов и совместимый runtime |
+| Текущий план и квитанции ревью | Прикладной state store | Актуальная revision и незавершённые операции |
+| Запущенный внешний тест | Тестовый сервис и журнал вызовов | Проверка по operation ID, не предположение из heap |
 
-Parking сглаживает короткий burst, но не создаёт capacity. Если p95 parking wait растёт, а `budget_exhausted` становится нормой, увеличивать budget бесконечно нельзя: вы только превратите отказ в длинный отказ и займёте больше streams. Нужны warm Workers, admission control, приоритизация или другой коэффициент oversubscription.
+Полный snapshot может вернуть код к прежней точке исполнения. Он не возвращает внешний мир к тому же времени. Если тестовый сервис уже завершил c1, а восстановленная память всё ещё ждёт c1, надо прочитать журнал или запросить результат по устойчивому ключу. Повтор без прежнего operation ID может создать второй внешний запуск.
 
-## Lifecycle: не все виды остановки одинаковы
+### Pause Suspend и Revert
 
-Состояния Actor - это не декоративные labels. Они задают допустимые операции и объясняют, какие данные уже durable, а какие ещё живут только на node.
+Pause оставляет local checkpoint, связанный с допустимыми nodes. Это удобная оптимизация внутри контролируемого окна, но не переносимый backup. Suspend публикует external snapshot и освобождает execution capacity после завершённого перехода. Для newly created `SUSPENDED` Actor собственный snapshot ещё не обязателен: источник может быть заимствован или запуск будет cold.
 
-| Операция | Результат | Worker | Snapshot | Типичный смысл |
-| --- | --- | --- | --- | --- |
-| `CreateActor` | `SUSPENDED` | Не назначен | Golden или указанный source tag, если доступен | Создать identity без постоянного compute |
-| `ResumeActor` | `RESUMING -> RUNNING` | Занят Actor | External snapshot читается или выполняется cold boot | Начать обработку запросов |
-| `PauseActor` | `PAUSING -> PAUSED` | Освобождается, но local checkpoint привязан к node | Node-local | Быстрый краткий stop без полной durable выгрузки |
-| `SuspendActor` | `SUSPENDING -> SUSPENDED` | Возвращается в pool | Новый external snapshot записан durable | Освободить capacity с переносимым состоянием |
-| `RevertActor` | `... -> SUSPENDED` | Активный sandbox прекращается | Возврат к последнему завершённому external snapshot | Восстановиться после crash или отбросить неудачный run |
-| `DeleteActor` | Record удалён | Assignment освобождён | Actor-owned snapshot собирается | Окончательно убрать logical Actor |
+Revert прекращает текущий execution и возвращает Actor в `SUSPENDED`, сохраняя прежнюю external snapshot reference для последующего resume. Если её нет, последующий запуск может пойти cold path. Если bytes по сохранённой ссылке повреждены или удалены, сам revert их не починит: повторный restore снова встретит ту же проблему. Он также не отменяет изменения в внешней БД, письмо или тест. Успех revert не доказывает, что повтор приложения безопасен. Delete тем более не является способом восстановить потерянный response: он уничтожает lifetime Actor.
 
-### Pause не равен suspend
+Для обслуживания node важна разница local и external. Нельзя считать local pause защитой от потери node. Сначала нужно обеспечить пригодный durable источник и проверить завершение перехода. Описание 30-минутного окна при graceful eviction в API guide не обещает, что Actor получит это время при внезапном отказе node или принудительном уничтожении Pod.
 
-`PAUSED` экономит execution resources, но local snapshot остаётся привязанным к node. Такой Actor нельзя считать полностью переносимым или защищённым от потери node. Resume должен вернуться туда, где находится local checkpoint. `SUSPENDED` означает, что завершённый external snapshot сохранён в object storage и Actor может быть восстановлен на другом подходящем Worker.
+### Ссылка и bytes должны пережить восстановление вместе
 
-Из этого следует простое эксплуатационное правило: pause полезен как latency-оптимизация внутри контролируемого окна, suspend - как граница durable hibernation. Перед node maintenance или rolling upgrade paused Actors надо обнаружить и перевести в suspended state, иначе локальное состояние станет препятствием или будет потеряно.
+При suspend сначала формируются внешние данные, а затем control plane фиксирует новую snapshot reference и итоговый state. Между этими шагами возможны частичные ошибки. Сам факт наличия объектов в bucket ещё не означает, что они выбраны текущей записью. Обратная ситуация - восстановленная база со ссылкой на уже удалённые bytes - тоже неработоспособна.
 
-### Revert не отменяет внешний мир
+Disaster recovery должен возвращать согласованный набор metadata и объектов. Retention bucket нельзя проектировать независимо от Actor и Tag ownership. Клон может пользоваться tag-owned snapshot до первого собственного suspend; удаление source Tag способно лишить его источника. Детальные правила из главы 13 полезны именно потому, что источник нельзя угадывать по похожему имени.
 
-`RevertActor` завершает текущий execution и возвращает Actor к последнему успешно завершённому external snapshot. Это откатывает memory и captured filesystem state, но не отменяет отправленное письмо, списание денег, запись в стороннюю базу или содержимое external volume. Поэтому side effects должны иметь idempotency keys, operation records или compensation. Snapshot rollback - локальный механизм восстановления, а не распределённая транзакция.
+Checksum подтверждает совпадение bytes с digest, но не доказывает доверие к snapshot, если атакующий может заменить и digest. Integrity, происхождение, доступ и совместимость - разные проверки. Рекомендация проверить эти свойства не означает, что любой backend выполняет полный набор автоматически.
 
-### Crash и окно потери данных
+## Capacity по ресурсам и допустимому placement
 
-Если Worker Pod вытесняется, приложению передаётся `SIGTERM`, а control plane даёт ограниченное окно на suspend. Текущая API guide описывает 30 минут. Если suspend не завершён, Actor переходит в `CRASHED`, и изменения после последнего external snapshot могут быть потеряны. Долгоживущий Actor, который часами не делает durable checkpoint, имеет большой recovery point objective, даже если процесс кажется здоровым.
+«Свободный Worker» - сокращение. Подходящее место должно одновременно удовлетворять sandbox class, selectors template и Actor, ограничениям local snapshot, actor slots и оставшимся ресурсам. Registry может показывать много Workers, но ни один не подходит `review-42`. При таком отказе бессмысленно увеличивать общий replica count без понимания, чего именно не хватает.
 
-Частоту suspend нельзя выбирать только по стоимости snapshot. Это решение между overhead и потенциальным объёмом потерянной работы. Для задач с дорогими side effects приложение должно дополнительно фиксировать logical progress вне memory snapshot.
+В pinned scheduler выбор кандидата использует текущую картину Workers. Затем bind перепроверяет eligibility и room под row lock Worker. Два претендента на последнее место не должны оба быть приняты по прежнему свободному значению. Но это не одна транзакция с runtime, volumes и object storage: сохранённый claim ещё должен пройти последующие этапы resume.
 
-## Где на самом деле живёт состояние
+### Числовой пример без обещания benchmark
 
-| Слой | Примеры | Свойство | Что резервировать |
-| --- | --- | --- | --- |
-| PostgreSQL control-plane state | Actor state, Worker assignment, versions, snapshot URI | Authoritative metadata для lifecycle | Database backup, HA, point-in-time recovery, schema compatibility |
-| Object storage | Memory image, writable rootfs, durable-data objects, manifests | Большие durable blobs, привязанные к owner и template version | Bucket durability, retention, integrity, access policy, inventory |
-| Kubernetes | WorkerPool, Deployments, DaemonSets, node labels, NetworkPolicy | Desired infrastructure state | Git/manifests, CRDs, cluster configuration |
-| Node-local state | Pause checkpoint, caches, runtime assets | Быстро, но связано с node и может исчезнуть | Не считать единственной durable копией |
-| Application/external state | Бизнес-БД, object store приложения, очереди, SaaS side effects | Не входит автоматически в Actor snapshot | Собственный backup, idempotency и consistency protocol |
+Допустим, в совместимом pool четыре Workers. Для учебного расчёта у каждого задана ёмкость 4 CPU, 8 GiB RAM и четыре actor slots. Template ревью декларирует 1 CPU и 2 GiB на Actor. По каждой из трёх границ получается четыре Actors на Worker, суммарно шестнадцать. Это placement envelope для однородной нагрузки, не измеренная производительность.
 
-PostgreSQL и object storage образуют связанную пару. База говорит, какой snapshot является последним завершённым и кому он принадлежит; bucket содержит bytes. Восстановить только базу без соответствующих объектов - получить Actors со сломанными ссылками. Восстановить только bucket - получить orphaned blobs, о которых control plane не знает. Disaster recovery должен определять согласованную точку, порядок восстановления и проверку ссылочной целостности.
+Если нужна способность пережить потерю одного такого Worker, для normal operation остаётся расчётный предел двенадцать одновременно выделенных Actors. Maintenance, восстановление и runtime overhead могут потребовать дополнительного запаса. Его нельзя снова использовать как свободную production capacity, сохранив прежнее обещание отказоустойчивости.
 
-### Snapshot ownership и commit boundary
+Теперь часть Actors требует 5 GiB. На Worker с двумя малыми Actors уже занято 4 GiB, и новый большой не поместится, хотя CPU и slots свободны. Сумма свободной RAM по всему pool не помогает одному Actor, если она распределена по разным Workers. Это fragmentation, а не ошибка подсчёта replica count.
 
-External snapshot имеет одного owner: Actor или Tag. Новый snapshot не должен становиться текущим, пока все обязательные объекты не записаны и не проверены. Практически это означает: сначала создать данные под уникальным именем, затем атомарно обновить authoritative reference. Если процесс упал между шагами, останется garbage для сборщика, но не ссылка на незавершённый snapshot.
+### Какие значения являются договором
 
-Actor хранит один текущий external snapshot. Успешный следующий suspend заменяет старый. Если checkpoint нужно сохранить дольше, его фиксируют Tag. Actor, созданный из Tag, может сначала заимствовать tag-owned snapshot. Удаление такого Tag до первого собственного suspend клона оставит его без источника resume; текущая документация прямо предупреждает, что эта опасная операция пока не всегда предотвращается автоматически.
+В этой версии placement сопоставляет declared limits и учёт allocated resources. Размер и фактическое ограничение sandbox зависят также от runtime. Отсутствующий CPU или memory capacity dimension может трактоваться scheduler как unconstrained, а не как доказательство бесконечного физического ресурса. Actor slots всё равно проверяются.
 
-### Version compatibility
+Поэтому до расчёта density задайте limits осмысленно и проверьте enforcement. «Scheduler принял» не равно «workload не способен исчерпать node». Для microVM учитывают VMM и virtiofsd overhead; Full restore может сохранить размер VM из snapshot. Изменение числа в template не является автоматическим resize уже captured memory.
 
-Memory image тесно связан с runtime, image и ActorTemplate. При смене template нельзя считать старую память переносимой. Текущий API допускает ограниченное обновление suspended Actor при совместимых sandbox, volumes и storage location; если UID template snapshot не совпадает с новым template, система может восстановить durable data и загрузить guest заново вместо memory resume. Production rollout должен тестировать именно такую границу, а не только успешный cold start новой версии.
+Измеряйте одновременные allocations, active/idle intervals, размер snapshot, параллельные restore и suspend throughput. Сессию, которая ждёт внешнего теста три минуты, нельзя автоматически считать idle sandbox: приложение могло оставить процессы и память активными. Коэффициент oversubscription следует из реального поведения, не из общего числа Actors в registry.
 
-## WorkerPool и capacity engineering
+## Как выбирать среду исполнения
 
-WorkerPool задаёт физическую тёплую ёмкость. ActorTemplate выбирает подходящие pool по labels и sandbox class. Один Worker может одновременно размещать несколько активных Actors, пока хватает CPU, RAM и actor slots. Поэтому capacity считают по каждому ограничивающему ресурсу, а не по равенству «один Worker - один Actor»:
+Наша задача - не объявить один runtime лучшим. Нужно назвать, какой дорогой ресурс и какое повторяемое действие мы хотим убрать. Если можно восстановить всю сессию из небольшой durable записи, перенос RAM может оказаться ненужным. Если дорого прогревать тяжёлую среду, snapshot способен изменить стоимость ожидания.
 
-```
-for each resource dimension:
-  replicas * worker_capacity
-    >= concurrent_actor_allocations_at_target_percentile
-     + restore_and_maintenance_headroom
-     + failure_headroom
-
-and:
-  total_actor_slots >= concurrent_running_actors + headroom
-```
-
-Но количество Actors в registry в формулу почти не входит. Важны concurrency, средняя длительность active period, burst shape, suspend rate и restore latency. Миллион mostly-idle Actors может требовать меньше Workers, чем несколько тысяч Actors с длинными tool calls.
-
-### Что измерять до выбора oversubscription
-
-- распределение active и idle intervals, а не только среднее;
-- p50/p95/p99 одновременных running Actors по pool и template;
-- скорость wake-up events и длительность всплеска;
-- размер full/data snapshot и фактическую пропускную способность object storage;
-- CPU, memory и I/O contention во время параллельных restore;
-- время освобождения Worker при suspend;
-- долю parked, rejected и budget-exhausted requests;
-- capacity, которую можно потерять при отказе одной node или zone.
-
-Если pool обслуживает workloads с разными resource profiles, маленький Actor может конкурировать с большим за одинаковый Worker. На практике полезны отдельные pools или классы capacity, чтобы тяжёлые Actors не создавали fragmentation и noisy-neighbor effects.
-
-### Версионирование dataplane
-
-Worker capacity привязана к версии Substrate. Nodes несут label `ate.dev/substrate-version`, а atelet и Workers должны быть совместимы. Новая node, появившаяся после установки без нужного label, не даст ожидаемой capacity. Upgrade нельзя выполнять массовой заменой serving WorkerPool: сначала создаётся новый pool и dataplane, затем Actors последовательно suspend, nodes переводятся на новую версию и только после soak удаляется старый pool. Глава об operations вернётся к полному runbook; здесь важен принцип: Actor portability не отменяет управление version skew.
-
-## Sandbox class: gVisor или microVM
-
-Оба backend дают единый lifecycle API, но не одинаковую реализацию и стоимость.
-
-| Критерий | gVisor | microVM |
+| Потребность | Что рассмотреть | Что проверить до выбора |
 | --- | --- | --- |
-| Изоляция | Отдельное user-space kernel boundary, меньше overhead | Guest kernel и VMM, более тяжёлая граница |
-| Checkpoint/restore | `runsc` process tree и filesystem state | VM memory snapshot плюс host-backed writable data |
-| Требования к node | Runtime assets, совместимый kernel | `/dev/kvm`, nested virtualization, Kata/Cloud Hypervisor assets |
-| Latency и density | Обычно выгоднее, но проверяется workload benchmark | Больше overhead, возможна более сильная isolation boundary |
-| Выбор | Подходит большинству sandboxed Linux workload, если syscall compatibility достаточна | Подходит, когда threat model или workload требует VM boundary |
+| Небольшой state и быстрый handler | Обычный сервис с транзакционной БД | Конкурентные переходы, retries и backup |
+| Долго ждём человека или внешнее событие | Workflow runtime либо durable job model | История, activities, versioning и идемпотентность |
+| Нужна дешёвая пауза дорогого sandbox | Substrate с тёплым pool | Scope snapshot, стоимость restore и burst capacity |
+| Требуется sandbox для Linux workload | gVisor при подходящей совместимости | Syscalls, devices, сеть и выбранный threat model |
+| Нужен guest kernel или VM boundary | microVM backend | KVM, runtime assets, overhead и restore compatibility |
 
-Выбор нельзя делать по маркетинговому ярлыку. Сначала определяют threat model, необходимые syscalls, devices, network behavior и предел latency. Затем запускают одинаковый benchmark для cold start, resume, steady-state и suspend. Sandbox, который быстро восстанавливается на игрушечном counter, может вести себя иначе с сотнями мегабайт dirty memory и большим writable layer.
+gVisor и microVM не являются обещаниями «быстро» и «абсолютно безопасно». Один использует user-space kernel boundary, другой - guest kernel и VMM. Проверяют необходимый workload, host configuration и модель угроз. Требование VM boundary имеет смысл объяснять конкретной изоляцией, а не прилагательным «сильнее» без условий.
 
-## Networking и identity-aware routing
+### Небольшая матрица испытаний вместо красивой цифры
 
-Router знает не только IP, но и логический Actor target. Это позволяет разбудить Actor и выбрать его новое placement. Но такой заголовок становится частью security boundary: пользователь не должен иметь возможность просто подставить имя чужого Actor.
+Сравните cold boot, golden restore и restore индивидуального snapshot на малом и типичном state. Затем повторите с burst и почти занятым pool. Измерьте не только happy-path задержку, но ошибки, сумму held streams, время освобождения capacity и correctness приложения после восстановления.
 
-Текущая схема разделяет routing и transport. Router получает `ate-target-actor`, control plane возвращает assignment, затем router подключается к `atunnel` по mTLS. `atunnel` проверяет, что target соответствует Actor, назначенному Worker. Это защищает от устаревшего или подменённого маршрута внутри dataplane, но не заменяет пользовательскую authorization policy на входе.
+README claims и aspirational targets architecture не являются SLO вашего кластера. Особенно опасно сравнивать цифры с разными snapshot sizes, backend, concurrency и границами измерения. End-to-end wake-up включает lookup, claim, возможное ожидание, download, runtime restore, настроенные probes и tunnel setup. Не складывайте отдельные p95 фаз как математически точный p95 суммы; используйте общую трассу и распределение полного запроса.
 
-### Arbitrary ports и ограничения протокола
+## Доступ и сеть по конкретным границам
 
-Для порта, отличного от стандартного HTTP, текущая архитектура использует HTTP `CONNECT`. Каждый request внутри долгоживущего tunnel снова проходит actor-aware routing, поэтому может пережить перемещение Actor. Это не означает произвольный raw TCP ingress: документация ограничивает путь HTTP(S)-трафиком. Если agent tool требует SSH, custom binary protocol или inbound UDP, совместимость надо проверять отдельно.
+Gateway должен проверять principal и разрешённый target до передачи запроса в Actor-aware ingress. mTLS между router и Worker защищает транспортный участок и доверенную identity router, но не даёт конечному пользователю права на любой Actor. Знание `demo-tenant/review-42` и возможность написать header не являются authorization.
 
-### Timeout должен покрывать весь wake-up path
+Для закреплённого профиля authentication guide предупреждает об отсутствии полноценного control-plane RBAC. Настроенный JWT provider даёт доверенным пользователям широкое управление control plane, а не только «своей сессией». Ограничьте сеть ateapi и набор таких клиентов. Не переносите сюда возможности experimental authz из главы 24.
 
-Client timeout, gateway timeout, Envoy `ext_proc` timeout, parking budget и server-side resume deadline образуют цепочку. Если внешний gateway ждёт 2 секунды, а допустимый restore занимает 3 секунды, увеличение Substrate budget не поможет: клиент уже ушёл, хотя control plane может закончить resume. Таймауты проектируют от end-to-end SLO и делают так, чтобы внутренние операции имели осмысленное завершение даже после client disconnect.
+Snapshot содержит чувствительные prompts, код, файлы и иногда credentials. Bucket access Actor, node runtime и backup-оператора - разные полномочия. Изоляция sandbox не защищает от слишком широкого доступа к snapshots. При Worker reuse отдельно проверяют очистку файлов, процессов, mounts, маршрутов и credentials между Actors.
 
-## Security boundaries без самообмана
+Egress policy и отсутствие широких secrets тоже требуют проверки конкретного dataplane. В pinned router есть ограничения реализации, например credential injection и часть passthrough policy не работают как универсальные возможности. Наличие policy object не доказывает обещанную функцию. Полный security-разбор находится в профильных главах; здесь важно не строить capacity и recovery на ложной модели доверия.
 
-Substrate pre-1.0, а его threat model прямо говорит о ранней стадии и недостаточной hardening. Поэтому безопасная эксплуатация начинается не со слова secure-by-default в README, а с проверки конкретных invariant.
+Для arbitrary-port ingress предусмотрен HTTP CONNECT с actor-aware обработкой HTTP(S) внутри tunnel. Это не универсальная поддержка SSH, произвольного raw TCP или inbound UDP. CONNECT создаёт транспортную форму, а фактическую совместимость определяет путь обработки выбранной версии.
 
-- **Control-plane access.** `ateapi`, PostgreSQL и node-local APIs не выставляются во внешнюю сеть; доступ ограничен NetworkPolicy и infrastructure firewall.
-- **Authentication не равна authorization.** Текущий `ateapi` принимает mTLS и JWT, но документация указывает, что пользовательские RBAC/authorization ещё не реализованы. Подключённый identity provider фактически даёт широкие права control plane.
-- **Worker reuse.** После Actor должны быть удалены process state, filesystem delta, environment, credentials, routes и policy. Остаток от предыдущего tenant - критическая уязвимость.
-- **Snapshot integrity и confidentiality.** Actor не должен иметь прямые широкие credentials к bucket. Manifest и blobs нужно проверять до restore; доступ node ограничивают ровно нужными prefixes, насколько позволяет backend.
-- **Routing authorization.** Знание имени Actor не должно давать право вызвать его. User-facing gateway обязан сопоставить principal, atespace и разрешённое действие.
-- **Actor identity.** Выдача credentials проверяет, что Actor сейчас running и назначен Worker на той же node, откуда обращается atelet. Короткий срок и отзыв при reschedule уменьшают окно злоупотребления.
-- **Egress.** Untrusted agent не получает cluster DNS, metadata service, Kubernetes API и произвольные secrets по умолчанию. Нужны default deny и явные policy.
+## Как расследовать неотвечающую сессию
 
-> **Практический вывод.** До появления полноценной authorization в control plane его сеть и набор доверенных клиентов являются основной границей доступа. Не подключайте к `ateapi` identity provider, пользователи которого не должны управлять всеми atespaces и Actors.
+Начните с точного target, UID, времени и request ID. Actor с тем же именем после delete/create может принадлежать другой lifetime. Затем установите, где остановилась цепочка: control lookup, placement, restore, probe, tunnel или приложение. Это полезнее массового restart, который уничтожит часть evidence.
 
-## Failure matrix: что ломается и как выглядит
-
-| Отказ | Симптом | Что остаётся доступным | Первое действие |
-| --- | --- | --- | --- |
-| `ateapi` недоступен | Новые resume/lookup не проходят; requests могут парковаться и завершаться 503 | Уже running Actor физически может быть жив, но router control path затронут | Проверить API replicas, TLS, PostgreSQL и rollout, а не перезапускать Workers |
-| PostgreSQL недоступен | Lifecycle RPC failing, assignment не подтверждается | Running processes могут продолжить работу до следующей операции | Восстановить DB connectivity/HA и проверить consistency до новых writes |
-| Object storage медленное | Рост restore/suspend latency, timeouts | Fast path к already-running Actors | Разложить timing на download/upload, проверить bandwidth, throttling и snapshot size |
-| Snapshot отсутствует или повреждён | Один Actor не resume, integrity/NotFound error | Другие Actors и pools | Не затирать evidence; проверить owner URI, manifest, retention и последний хороший tag |
-| Нет свободного Worker | Parking, затем 503 budget exhausted | Already-running Actors | Проверить pool utilization, stuck RUNNING/PAUSED, suspend throughput и warm headroom |
-| Worker/Node умер | Actor CRASHED или завис в переходном state; assignment устарел | Actors на других nodes | Определить последний external snapshot; затем controlled revert, а не слепой delete |
-| Router недоступен | Ingress падает, хотя Actors и control plane здоровы | Прямые administrative RPC | Проверить Envoy/ext\_proc, certificates, service endpoints и parking saturation |
-| Устаревший route/assignment | Tunnel отвергнут, 5xx после перемещения | Control plane state | Проверить assignment version и что router заново разрешает target |
-
-## Наблюдаемость: Actor живёт дольше Pod
-
-Pod name не является identity Actor. Один Actor за жизнь появится на разных Workers, а один Worker последовательно примет разных Actors. Логи и traces нужно связывать по стабильным полям: `ate.atespace`, `ate.actor.name`, `ate.actor.uid`, template identity, operation и activation epoch.
-
-Текущая observability guide описывает structured container logs и lifecycle records. Для расследования особенно полезны:
-
-- `Actor state changed` - committed transition, а не намерение до транзакции;
-- `Actor crashed` - событие с operation и actor identity;
-- `Restore timing breakdown` - download, OCI unpack, ateom restore и total;
-- `Checkpoint timing breakdown` - где тратится suspend time;
-- router access и parking metrics - сколько запросов реально ждало capacity;
-- pool utilization, free/busy Workers и assignment churn;
-- object-store bytes, errors и throttling;
-- PostgreSQL transaction latency, lock conflicts и connection saturation.
-
-### SLO нужно разложить на бюджет
-
-```
-wake_up_latency =
-    router_processing
-  + control_plane_lookup_and_claim
-  + queue_or_parking_wait
-  + snapshot_fetch
-  + sandbox_restore
-  + application_readiness
-  + tunnel_setup
-```
-
-Одна итоговая p95 не говорит, что оптимизировать. Если dominant phase - download, добавление CPU в `ateapi` бессмысленно. Если dominant phase - parking, сжатие snapshot не решит shortage capacity. Записывайте phase timing для успеха и ошибки, а также признак snapshot scope, sandbox class и template. Actor UID нельзя бездумно помещать в metric labels с высокой cardinality; для per-Actor расследований подходят logs и traces.
-
-## Runbook: Actor не отвечает
-
-1. **Зафиксируйте точный target.** Atespace, Actor name, UID, template, время и request/trace ID. Одинаковое имя после delete/create может означать другую lifetime.
-2. **Проверьте HTTP outcome.** 404 указывает на identity/resource, 401/403 - на доступ, 503 - на capacity или unavailable control plane, 504 - на deadline.
-3. **Прочитайте Actor state.** `SUSPENDED`, `RESUMING`, `RUNNING`, `PAUSED`, `SUSPENDING` и `CRASHED` требуют разных действий.
-4. **Если RESUMING завис.** Найдите operation trace, Worker assignment и restore timing. Проверьте свободные Workers, object storage и atelet на выбранной node.
-5. **Если RUNNING, но request не проходит.** Сверьте assignment с tunnel destination, atunnel TLS, private network и readiness приложения. Не делайте вывод по одному Pod Ready.
-6. **Если PAUSED.** Проверьте node-local snapshot и доступность исходной node. Для maintenance переведите Actor в durable suspend.
-7. **Если CRASHED.** Определите последний завершённый external snapshot и цену потери данных. После этого используйте revert осознанно.
-8. **Проверьте scope проблемы.** Один Actor, один template, один pool, одна node, object-storage region или весь control plane. Это быстрее всего сужает слой.
-9. **Сохраните evidence.** State versions, operation logs, manifest URI и timings до restart. Массовый restart может освободить симптомы и уничтожить причинную цепочку.
-
-## Project claims, targets и ваш benchmark
-
-README проекта сообщает sub-500ms resume и более 500 activations/sec, architecture document формулирует north-star target 100ms p95 и 1000 wakeups/sec, а также очень большой scale target. Это полезные направления развития, но не взаимозаменяемые гарантии. Документ архитектуры прямо предупреждает, что многое aspirational, а проект остаётся pre-1.0.
-
-Минимальный benchmark должен включать не один counter, а матрицу:
-
-- cold boot, golden restore и последующий Actor-owned restore;
-- snapshot sizes: малый, типичный, p95 и предельный;
-- gVisor и microVM, если рассматриваются оба;
-- одиночный wake-up и burst при 50/80/95/100% pool utilization;
-- object storage в той же region и с искусственным throttling;
-- node failure, router rollout и временную недоступность `ateapi`;
-- parking enabled/disabled и реальные client timeouts;
-- correctness после restore: память, writable data, external side effects и credentials.
-
-Результат benchmark - не одно красивое число. Нужны latency distributions по phase, throughput до насыщения, error taxonomy, recovery time и стоимость единицы active Actor-hour при выбранном oversubscription.
-
-## Граница между AX и Substrate
-
-В стеке этой книги AX управляет задачей и agent execution на уровне продукта: Task, Workspace, runner, desired state и reconciliation. Substrate предоставляет sandboxed Actor runtime, placement, suspend/resume и actor-aware ingress. Один слой не должен притворяться другим.
-
-| Вопрос | AX | Substrate |
+| Наблюдение | Первое подозрение | Что проверить до изменения state |
 | --- | --- | --- |
-| Какую пользовательскую задачу выполнить? | Да | Нет |
-| Какой harness/process запустить? | Да, через runner/workspace contract | Исполняет заданный OCI workload |
-| Где взять sandbox capacity? | Запрашивает runtime | Выбирает WorkerPool/Worker |
-| Как сохранить RAM и writable filesystem? | Не обязан реализовывать | Checkpoint/snapshot lifecycle |
-| Как возобновить Task после side effect? | Task state и application idempotency | Только возвращает execution environment |
+| 404 | Target или ресурс не найден | Atespace, имя и lifetime; timeout здесь не поможет |
+| 503 и parking exhaustion | Capacity либо retryable resume error | Конкретный status, eligible Workers и общий flight |
+| RESUMING с assignment | Claim есть, последующий шаг не завершён | Volumes, atelet, snapshot и wakeup probe |
+| RUNNING с 5xx | Lifecycle закончен, data path или приложение отказали | Assignment, atunnel, listen и зависимости приложения |
+| CRASHED после restore | Неуспешный запуск или probe | Последний пригодный source и цена revert |
+| Клиентский timeout при позднем RUNNING | Разные сроки caller и workflow | Flight trace и результат операции, не новый effect |
 
-Для end-to-end диагностики идентификаторы должны проходить через оба слоя: AX Task ID, Actor UID, Actor operation/activation, request/trace ID и tool operation ID. Иначе успешный `ResumeActor` нельзя связать с зависшей пользовательской задачей.
+Коды помогают сузить слой, но 503 сам по себе не доказывает нехватку RAM, а 504 - повреждение snapshot. Router map, gateway и приложение могут давать похожие HTTP outcomes. Сохраните исходный gRPC code и место его возникновения.
 
-## Production readiness checklist
+### Наблюдаемость и безопасный следующий шаг
 
-- Версия Substrate закреплена; release notes, API guide и manifests соответствуют бинарям.
-- Проверено, какие фрагменты architecture являются implemented, а какие roadmap.
-- Control plane изолирован от Worker burst; PostgreSQL имеет проверенный backup/restore.
-- Object storage policy, lifecycle и snapshot integrity протестированы.
-- У `ateapi` есть authentication, а отсутствие полноценной user authorization компенсировано network boundary и доверенным набором клиентов.
-- WorkerPools разделены по sandbox class и resource profile; есть failure и maintenance headroom.
-- Node labels `ate.dev/substrate-version` автоматически применяются к новым nodes.
-- Client/gateway/router/resume timeouts согласованы.
-- Parking lot имеет bounded size; alerts различают served wait, budget exhaustion и rejection.
-- Restore и checkpoint timings видны по phase; Actor lifecycle связывается по UID.
-- Приложение корректно переживает потерю sockets, повтор request и откат к предыдущему snapshot.
-- Side effects имеют idempotency keys или compensation; snapshot не считается транзакцией.
-- Проверены node loss, partial suspend, corrupt/missing snapshot и rolling upgrade.
-- Runbook учит сначала локализовать слой и сохранить evidence, а не restart всего кластера.
+Соедините Actor name с UID, template, Worker и operation trace. Для ревью добавьте прикладную revision и tool operation ID. Это разные идентификаторы: lifecycle operation не равна test call, а новый Pod не равен новой пользовательской задаче. Высококардинальные Actor UID разумно держать в logs и traces, а не без ограничения в metric labels.
 
-## Итог
+Полезны committed state transitions, restore timing, snapshot download/upload, parking wait outcome и eligible capacity. Учитывайте, что поздний joiner может иметь короткий wait при budget exhaustion, а успешная первая долгая попытка не даёт parking sample. Иначе dashboard легко направит расследование не туда.
 
-Agent Substrate превращает Actor в логическую сущность, которая живёт дольше конкретного Pod и получает compute по требованию. Для этого система разделяет медленное инфраструктурное reconciliation Kubernetes, быстрый Actor control plane и latency-sensitive request path. Warm Workers убирают Kubernetes scheduler из обычного resume, PostgreSQL фиксирует lifecycle и assignment, object storage хранит durable snapshots, atelet/ateom восстанавливают sandbox, а atenet-router направляет request к текущему location.
+Перед revert определите, какие изменения будут отброшены и какие внешние действия остаются актуальными. Перед retry приложения проверьте прежний operation ID. Перед новым rollout сохраните источник для восстановления и проверьте совместимость dataplane, node labels и snapshot runtime. Переносимость Actor не отменяет version skew и node maintenance.
 
-Главный инженерный вывод не в том, чтобы запомнить восемь названий. Нужно видеть границы: metadata отдельно от blob state, pause отдельно от suspend, routing отдельно от authorization, snapshot отдельно от business transaction, request parking отдельно от capacity. Если эти различия отражены в SLO, telemetry и runbook, multiplexing становится управляемой оптимизацией. Если нет, экономия на idle Pods превращается в систему со скрытой очередью, непонятной потерей состояния и трудно воспроизводимыми отказами.
+## Практика для самостоятельного решения
 
-Следующая глава приблизит камеру к ресурсной модели: Atespace, WorkerPool, SandboxConfig, ActorTemplate, Actor и Tag. Мы разберём, какие поля задаёт platform team, какие - разработчик workload, какие значения изменяет только server и как эти объекты связываются без смешивания Kubernetes API с Actor API.
+Измените в demo начало второй попытки со 100 на 5000 мс. Объясните, почему она больше не выполняется и чем этот случай отличается от завершения первой допустимой попытки в t=5200. Затем оставьте раннее начало, но замените результат на retryable: бюджет исчерпан после поздней ошибки, а не превращается в новую попытку.
+
+Подайте в `wakeup_gate` `[True, True]`, `[True, None]` и `[True, False]`. Для каждого результата назовите, что известно о containers, а чего нельзя утверждать о business state. Спроектируйте для ревью endpoint, который не выполняет действий при проверке, но не разрешает работу с устаревшим планом.
+
+Рассчитайте pool для двенадцати одновременных малых Actors и потери одного Worker из числового примера. Затем добавьте два больших Actors и покажите placement, который действительно помещается по каждой размерности. Нельзя ограничиться суммарной RAM всех nodes.
+
+Наконец, разберите случай «external snapshot reference есть, объект удалён retention policy». Что сохраните до вмешательства? Какой источник допустим? Как выясните, был ли внешний тест уже запущен? Ответ «запущу пустой Actor и повторю» не сохраняет прежнюю сессию и не решает неопределённый effect.
+
+## Итоги главы
+
+Substrate экономит повторную подготовку окружений, используя заранее поднятую ёмкость и Actor lifecycle. Kubernetes готовит Workers, control plane хранит metadata и управляет переходами, node runtime запускает sandbox, а router и tunnel доводят запрос до текущего placement. Эти обязанности связаны, но ни одна не заменяет прикладной протокол ревью.
+
+Запомнить названия недостаточно. Assignment появляется раньше окончательного `RUNNING`; `RUNNING` не равно непрерывному health; wakeup probe проверяет только настроенные endpoints при пробуждении; parking budget ограничивает новые попытки, а не отменяет начатый restore. Отсутствие источника допускает cold path, но ошибка указанного snapshot не разрешает тихо начать всё заново.
+
+Для выбора runtime нужно сравнить стоимость дорогого state с ценой snapshot, capacity и эксплуатации. Для восстановления - увидеть владельца каждого состояния и границу уже выполненного действия. Для диагностики - пройти конкретный request trace, а не требовать от зелёного Pod объяснения всей пользовательской задачи.
+
+Дальше в главе 13 разберём ресурсы, которые выражают эти решения: Atespace, WorkerPool, SandboxConfig, ActorTemplate, Actor и Tag. Теперь поля selectors, snapshot references и version guards будут не списком настроек, а способом описать понятный runtime contract.
 
 ### Источники и дальнейшее чтение
 
-- [Agent Substrate README](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/README.md)
-- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md)
-- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md)
-- [ate-api authentication](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/authentication.md)
-- [Request parking](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md)
-- [Actor observability](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md)
-- [Substrate threat model](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/threat-model.md)
-- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md)
+- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md) - capacity, probes, snapshot scope и ownership.
+- [Resume workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_resume.go) - ранний RUNNING path, claim, source и finalize.
+- [Scheduler](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/scheduling/scheduling.go) - eligibility, slots и resource dimensions.
+- [Request parking](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md) и [resumer](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/ingress/resumer.go) - shared flight, budget и callers.
+- [Router contract](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/README.md) - ingress, egress и ограничения dataplane.
+- [Authentication](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/authentication.md) и [threat model](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/threat-model.md) - доверие и необходимые защитные границы.
+- [Architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md), [observability](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md) и [upgrade](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md) - дальнейший эксплуатационный разбор.
