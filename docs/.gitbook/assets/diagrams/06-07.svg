@@ -1,82 +1,96 @@
-<svg aria-label="MCP trust boundary: протокол не заменяет авторизацию" class="diagram diagram-redrawn" height="144.92" role="img" viewBox="0 0 946.92 144.92" width="946.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 131.96)">
+<svg aria-label="Tools, MCP и Skill: процедура помогает модели, проверки ограничивают исполнение" class="diagram diagram-redrawn" height="475.92" role="img" viewBox="0 0 456.42 475.92" width="456.42" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 462.96)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
 <g class="edge">
 <title>n0-&gt;n1</title>
-<path d="M94.09,-98C121.54,-98 156.58,-98 185.72,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="185.79,-100.52 192.99,-98 185.79,-95.48 185.79,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="143.5" y="-100.56">tool intent</text>
+<path d="M158.59,-429C184.24,-429 214.66,-429 242.68,-429" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="242.93,-431.52 250.13,-429 242.93,-426.48 242.93,-431.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="204.5" y="-434.56">инструкции</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M294.19,-98C318.09,-98 347.21,-98 373.49,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="373.62,-100.52 380.82,-98 373.62,-95.48 373.62,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="337.5" y="-100.56">request</text>
+<path d="M329.5,-407.76C329.5,-392.72 329.5,-372.02 329.5,-355.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="332.02,-355.41 329.5,-348.21 326.98,-355.41 332.02,-355.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="364.5" y="-375.56">предложение</text>
 </g>
 <!-- n2&#45;&gt;n3 -->
 <g class="edge">
 <title>n2-&gt;n3</title>
-<path d="M512.05,-98C537.55,-98 566.67,-98 591.68,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="591.76,-100.52 598.96,-98 591.76,-95.48 591.76,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="555.5" y="-100.56">allowed</text>
+<path d="M329.5,-305.76C329.5,-290.72 329.5,-270.02 329.5,-253.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="332.02,-253.41 329.5,-246.21 326.98,-253.41 332.02,-253.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="376.5" y="-273.56">допустимый вызов</text>
 </g>
 <!-- n3&#45;&gt;n4 -->
 <g class="edge">
 <title>n3-&gt;n4</title>
-<path d="M706,-98C738.03,-98 778.92,-98 811.48,-98" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="811.52,-100.52 818.72,-98 811.52,-95.48 811.52,-100.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="760.5" y="-100.56">side effect</text>
+<path d="M329.5,-203.76C329.5,-188.72 329.5,-168.02 329.5,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="332.02,-151.41 329.5,-144.21 326.98,-151.41 332.02,-151.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="359.5" y="-171.56">MCP request</text>
 </g>
-<!-- n5&#45;&gt;n3 -->
+<!-- n4&#45;&gt;n6 -->
 <g class="edge">
-<title>n5-&gt;n3</title>
-<path d="M814.7,-39.86C783.97,-50.94 745.03,-64.99 713.12,-76.5" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
-<polygon fill="#7a6a8e" points="711.92,-74.25 706,-79.07 713.63,-78.99 711.92,-74.25" stroke="#7a6a8e" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="760.5" y="-70.56">scoped auth</text>
+<title>n4-&gt;n6</title>
+<path d="M329.5,-101.76C329.5,-86.72 329.5,-66.02 329.5,-49.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="332.02,-49.41 329.5,-42.21 326.98,-49.41 332.02,-49.41" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="353" y="-69.56">API вызов</text>
+</g>
+<!-- n5&#45;&gt;n4 -->
+<g class="edge">
+<title>n5-&gt;n4</title>
+<path d="M173.2,-123C193.44,-123 215.09,-123 235.62,-123" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="235.63,-125.52 242.83,-123 235.63,-120.48 235.63,-125.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="208" y="-128.56">scope</text>
 </g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M82,-119C82,-119 12,-119 12,-119 6,-119 0,-113 0,-107 0,-107 0,-89 0,-89 0,-83 6,-77 12,-77 12,-77 82,-77 82,-77 88,-77 94,-83 94,-89 94,-89 94,-107 94,-107 94,-113 88,-119 82,-119" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="27" y="-100.4">Agent</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-90">model-driven</text>
+<path d="M146.5,-450C146.5,-450 50.5,-450 50.5,-450 44.5,-450 38.5,-444 38.5,-438 38.5,-438 38.5,-420 38.5,-420 38.5,-414 44.5,-408 50.5,-408 50.5,-408 146.5,-408 146.5,-408 152.5,-408 158.5,-414 158.5,-420 158.5,-420 158.5,-438 158.5,-438 158.5,-444 152.5,-450 146.5,-450" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="84" y="-431.4">Skill</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="52.5" y="-421">процедура ревью</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M282,-119C282,-119 205,-119 205,-119 199,-119 193,-113 193,-107 193,-107 193,-89 193,-89 193,-83 199,-77 205,-77 205,-77 282,-77 282,-77 288,-77 294,-83 294,-89 294,-89 294,-107 294,-107 294,-113 288,-119 282,-119" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="207.5" y="-100.4">MCP client</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="207" y="-90">discovery/calls</text>
+<path d="M396.5,-450C396.5,-450 262.5,-450 262.5,-450 256.5,-450 250.5,-444 250.5,-438 250.5,-438 250.5,-420 250.5,-420 250.5,-414 256.5,-408 262.5,-408 262.5,-408 396.5,-408 396.5,-408 402.5,-408 408.5,-414 408.5,-420 408.5,-420 408.5,-438 408.5,-438 408.5,-444 402.5,-450 396.5,-450" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="302" y="-431.4">Модель</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="264.5" y="-421">выбор Tool и аргументов</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M500,-119C500,-119 393,-119 393,-119 387,-119 381,-113 381,-107 381,-107 381,-89 381,-89 381,-83 387,-77 393,-77 393,-77 500,-77 500,-77 506,-77 512,-83 512,-89 512,-89 512,-107 512,-107 512,-113 506,-119 500,-119" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="395" y="-100.4">Policy/Gateway</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="414" y="-90">auth + scope</text>
+<path d="M396.5,-348C396.5,-348 262.5,-348 262.5,-348 256.5,-348 250.5,-342 250.5,-336 250.5,-336 250.5,-318 250.5,-318 250.5,-312 256.5,-306 262.5,-306 262.5,-306 396.5,-306 396.5,-306 402.5,-306 408.5,-312 408.5,-318 408.5,-318 408.5,-336 408.5,-336 408.5,-342 402.5,-348 396.5,-348" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="301.5" y="-329.4">Harness</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="264.5" y="-319">policy и проверка ответа</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M694,-119C694,-119 611,-119 611,-119 605,-119 599,-113 599,-107 599,-107 599,-89 599,-89 599,-83 605,-77 611,-77 611,-77 694,-77 694,-77 700,-77 706,-83 706,-89 706,-89 706,-107 706,-107 706,-113 700,-119 694,-119" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="613" y="-100.4">MCP server</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="615" y="-90">tools/resources</text>
+<path d="M386,-246C386,-246 273,-246 273,-246 267,-246 261,-240 261,-234 261,-234 261,-216 261,-216 261,-210 267,-204 273,-204 273,-204 386,-204 386,-204 392,-204 398,-210 398,-216 398,-216 398,-234 398,-234 398,-240 392,-246 386,-246" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="293.5" y="-227.4">MCP client</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="275" y="-217">обмен в составе host</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M905,-119C905,-119 831,-119 831,-119 825,-119 819,-113 819,-107 819,-107 819,-89 819,-89 819,-83 825,-77 831,-77 831,-77 905,-77 905,-77 911,-77 917,-83 917,-89 917,-89 917,-107 917,-107 917,-113 911,-119 905,-119" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="833" y="-100.4">API/DB/Git</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="839" y="-90">real system</text>
+<path d="M404,-144C404,-144 255,-144 255,-144 249,-144 243,-138 243,-132 243,-132 243,-114 243,-114 243,-108 249,-102 255,-102 255,-102 404,-102 404,-102 410,-102 416,-108 416,-114 416,-114 416,-132 416,-132 416,-138 410,-144 404,-144" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="290" y="-125.4">MCP server</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="257" y="-115">проверка доступа и adapter</text>
 </g>
 <!-- n5 -->
 <g class="node">
 <title>n5</title>
-<path d="M909,-42C909,-42 827,-42 827,-42 821,-42 815,-36 815,-30 815,-30 815,-12 815,-12 815,-6 821,0 827,0 827,0 909,0 909,0 915,0 921,-6 921,-12 921,-12 921,-30 921,-30 921,-36 915,-42 909,-42" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="829" y="-23.4">Credentials</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="833" y="-13">least privilege</text>
+<path d="M161,-144C161,-144 12,-144 12,-144 6,-144 0,-138 0,-132 0,-132 0,-114 0,-114 0,-108 6,-102 12,-102 12,-102 161,-102 161,-102 167,-102 173,-108 173,-114 173,-114 173,-132 173,-132 173,-138 167,-144 161,-144" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="47.5" y="-125.4">Credentials</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-115">ограниченные полномочия</text>
+</g>
+<!-- n6 -->
+<g class="node">
+<title>n6</title>
+<path d="M418.5,-42C418.5,-42 240.5,-42 240.5,-42 234.5,-42 228.5,-36 228.5,-30 228.5,-30 228.5,-12 228.5,-12 228.5,-6 234.5,0 240.5,0 240.5,0 418.5,0 418.5,0 424.5,0 430.5,-6 430.5,-12 430.5,-12 430.5,-30 430.5,-30 430.5,-36 424.5,-42 418.5,-42" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="253.5" y="-23.4">Репозиторий и checks</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="242.5" y="-13">источники проверяемых данных</text>
 </g>
 </g>
 </svg>
