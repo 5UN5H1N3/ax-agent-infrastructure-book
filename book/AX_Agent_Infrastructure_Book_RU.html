@@ -5521,135 +5521,327 @@ python3 -m unittest discover -s examples -p 'test_ch14*.py'
 <li><a href="#ch-39">Глава 39</a> - ownership и согласованное восстановление графа snapshots.</li>
 </ul>
 </section><section class="chapter" id="ch-15"><div class="chapter-num">Глава 15</div><h1>Substrate networking: routing, request parking и безопасный egress</h1>
-<p><strong>Срез реализации Substrate:</strong> <a href="https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97">v0.3.0 · ccecc788</a>. Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.</p>
-<div class="badges"><span class="badge">ACTOR-AWARE ROUTING</span><span class="badge">BOUNDED PARKING</span><span class="badge">DEFAULT-DENY EGRESS</span></div>
-<p>В главе 14 Actor исчезал с Worker и появлялся снова, сохраняя logical identity. Теперь проследим сетевой путь. Клиент не может обращаться к Pod IP: Actor может быть suspended, переехать на другую node или получить новый Worker. Router должен разрешить logical Actor в текущее назначение, при необходимости дождаться resume и только затем открыть защищённый tunnel.</p>
-<p>В обратную сторону действует другой контракт. Код агента считается недоверенным и не должен свободно выходить в интернет. Egress path перехватывает соединение, подтверждает identity Actor и применяет его policy. Ingress решает «куда доставить запрос», egress - «куда этому Actor разрешено обратиться». Смешивать эти задачи опасно.</p>
-<h2>Что читатель должен унести из главы</h2><ul>
-<li>почему <code>ate-target-actor</code> является routing key, но не заменяет caller authorization;</li>
-<li>как Envoy, <code>atenet-router</code>, ate API, Worker и <code>atunnel</code> образуют ingress path;</li>
-<li>что request parking сглаживает краткий дефицит capacity, но не создаёт capacity;</li>
-<li>как per-Actor flight registry предотвращает resume storm;</li>
-<li>почему egress policy должна быть default-deny и как различаются HTTP, HTTPS и TLS passthrough;</li>
-<li>как credential injection исключает прямую выдачу secret Actor и что проверить против отражения credential разрешённым origin;</li>
-<li>какие positive/negative probes нужны после каждого изменения policy.</li>
+<p>Пользователь возвращается к <code>review-42</code> из главы 14 и открывает результат ревью. Actor сейчас suspended: процесса на Worker нет, хотя его имя и сохранённые данные существуют. Сервис должен найти эту сессию, восстановить среду и доставить запрос. А когда агент продолжит работу, ему понадобятся исходящие вызовы к model API и сервису публикации. Эти два направления выглядят как обычная сеть, но решают разные задачи и доверяют разным участникам.</p>
+<p>Ingress - входящий путь к Actor. Здесь нужно установить, кому адресован запрос и где этот Actor исполняется сейчас. Egress - исходящий путь из Actor. Здесь недоверенный код сам выбирает, куда обратиться, а платформа должна ограничить этот выбор. Открытый ingress не разрешает Actor выходить куда угодно; разрешённый egress не даёт пользователю доступ к чужой сессии.</p>
+<p><strong>Срез реализации Substrate:</strong> <a href="https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97">v0.3.0 · ccecc788</a>. Далее конкретные defaults и поля относятся к этому commit и описанному Envoy-пути. HTTPS interception требует режима установки с sdsmint, выпуском сертификатов gateway; credential injection включается отдельно. Альтернативный dataplane нельзя считать эквивалентным без проверки. Experimental authz AX из главы 24 - другой профиль.</p>
+<p><strong>Статус:</strong> <code>ACTOR-AWARE ROUTING</code> · <code>BOUNDED PARKING</code> · <code>DEFAULT-DENY EGRESS</code></p>
+<h2>Что читатель сможет сделать после главы</h2>
+<ul>
+<li>Проследить запрос от logical Actor ref до текущего Worker, не подменяя identity адресом.</li>
+<li>Объяснить, что удерживает request parking и почему очередь не создаёт capacity.</li>
+<li>Разделить бюджет повторов, срок ожидания клиента и время уже начатого resume.</li>
+<li>Выбрать нужный слой защиты: caller authorization, сетевую policy или контроль tool-операции.</li>
+<li>Составить минимальный egress policy body и проверить исполнимость его правил.</li>
+<li>Отличить policy deny, TLS failure, provider failure и ответ приложения.</li>
 </ul>
-<pre><code class="language-text">INGRESS
-Client -> atenet-router -> ate-api Resume/Assign -> mTLS atunnel -> Actor
-             | park/retry when transient capacity is unavailable |
-
-EGRESS
-Actor -> atunnel (original destination) -> Egress PEP -> authorized upstream
-                                           identity + policy + effects</code></pre>
-<h2>Стабильная identity вместо Pod address</h2>
-<p>Ingress request указывает Actor заголовком <code>ate-target-actor: &lt;atespace&gt;/&lt;actor&gt;</code>. <code>Host</code> остаётся application authority и не выбирает Actor. Router проверяет формат, обращается к control plane и получает текущий <code>workerAssignment</code>. Если Actor suspended, этот же lookup запускает resume.</p>
-<p>Actor name удобен для маршрутизации, но lifetime определяется UID. Удалённый и заново созданный Actor с тем же именем - другой объект. Long-lived authorization, audit и certificate validation должны сверять UID, иначе имя можно случайно принять за непрерывную identity.</p>
-<blockquote><p><strong>Security boundary.</strong> Заголовок сообщает router, куда направить запрос. Он не доказывает, что caller имеет право обращаться к Actor. Caller authentication и authorization должны выполняться upstream или отдельным policy layer; сам пользовательский заголовок нельзя считать разрешением.</p></blockquote>
-<h2>Ingress path: от первого байта до Actor</h2><ol>
-<li>Client отправляет HTTP request в Envoy перед <code>atenet-router</code>.</li>
-<li>Envoy передаёт headers внешнему processor через <code>ext_proc</code>.</li>
-<li>Router извлекает Actor ref и вызывает <code>ResumeActor</code>.</li>
-<li>Control plane возвращает текущий assignment либо назначает Worker и восстанавливает Actor.</li>
-<li>Router открывает authenticated TLS tunnel к <code>atunnel</code> на Worker port 443.</li>
-<li><code>atunnel</code> пересылает request в private veth Actor.</li>
-<li>Response проходит назад по тому же tunnel.</li>
+<h2>Имя выбирает Actor но не даёт право доступа</h2>
+<p>Pod IP отвечает на вопрос «куда послать пакет сейчас». Имя Actor отвечает на вопрос «чья это сессия». После suspend Actor может вообще не занимать Worker; после resume он может оказаться на другой node. IP, сохранённый клиентом вчера, не становится правильным оттого, что сегодня по нему кто-то отвечает.</p>
+<p>Входящий HTTP request несёт <code>ate-target-actor: team-a/review-42</code>. Это routing key - ключ выбора адресата. HTTP <code>Host</code> остаётся authority приложения и не выбирает Actor. Router обращается к control plane через <code>ResumeActor</code>: для running Actor получает состояние и assignment, для допустимого остановленного состояния запускает восстановление. Assignment сообщает текущий Worker, а не заменяет долгоживущую identity.</p>
+<p>Имя тоже не является вечной identity. Если удалить Actor и создать другой с тем же именем, UID будет новым. Пользовательский доступ к сессии, audit и привязки длительных операций должны учитывать эту границу жизни объекта. Нельзя переносить разрешение старому Actor на новую incarnation только из-за совпадения <code>atespace/name</code>.</p>
+<p>Главное ограничение ingress handler этого среза: клиентский заголовок не доказывает право обращения. Авторизация вызывающего пользователя должна быть отдельной функцией доверенного front door или прикладного слоя. Сначала аутентифицируйте caller и разрешите ему конкретную сессию, затем сопоставьте её Actor ref. Не принимайте произвольный внешний target header как полномочие. mTLS к Worker аутентифицирует инфраструктурный путь, а не пользователя браузера.</p>
+<h2>Как запрос доходит до текущего исполнения</h2>
+<p>Envoy - proxy, который принимает и передаёт трафик. <code>atenet-router</code> принимает решения, для которых нужна модель Actor. Envoy вызывает его через <code>ext_proc</code>, external processing: передаёт метаданные запроса и ждёт результата обработки заголовков. Сам HTTP workload не выполняется в этом processor.</p>
+<p>Для <code>review-42</code> путь состоит из следующих действий:</p>
+<ol>
+<li>Доверенный вход платформы проверяет caller и выбирает адресуемую сессию.</li>
+<li>Envoy передаёт заголовки ingress processor. Router извлекает Actor ref.</li>
+<li>Router вызывает <code>ResumeActor</code>. Control plane проверяет lifecycle и возвращает assignment либо выполняет его подготовку и restore.</li>
+<li>Router сообщает Envoy адрес <code>atunnel</code> на Worker, обычно <code>WorkerPodIP:443</code>, и целевой port приложения Actor, по умолчанию 80.</li>
+<li>Envoy отправляет workload через TLS-аутентифицированный инфраструктурный путь. <code>atunnel</code> доставляет его в private network Actor.</li>
+<li>Ответ проходит обратно. Прикладной статус и содержимое ответа нужно проверять отдельно от успеха routing.</li>
 </ol>
-<p>Worker Pod port 80 не является прямым ingress Actor. Обход router лишил бы систему resume, assignment lookup и actor-aware authentication. NetworkPolicy должна запрещать такой обход, а observability - различать router traffic и неожиданные прямые connections.</p>
-<h3>Почему routing нельзя построить на Kubernetes Service</h3>
-<p>Kubernetes Service хорошо маршрутизирует к набору взаимозаменяемых Pods. Здесь нужен конкретный logical Actor, который может вообще не иметь Pod. Его placement меняется при каждом resume и фиксируется control plane атомарно, без ожидания reconciliation Service/EndpointSlice. Поэтому Substrate использует собственный mapping Actor -> Worker.</p>
-<h2>Request parking: bounded wait вместо мгновенного 503</h2>
-<p>Oversubscription означает, что Actors больше, чем свободных Workers. Во время burst scheduler может вернуть <code>ResourceExhausted</code>, хотя через сотни миллисекунд другой Actor suspend'ится и освободит capacity. Request parking удерживает входящий request и повторяет resume с backoff вместо немедленного 503.</p>
-<p>По умолчанию park budget равен 5 секундам, parking lot допускает 1024 parked requests. Retryable считаются <code>ResourceExhausted</code>, transient <code>FailedPrecondition</code>, <code>Unavailable</code> и concurrent <code>Aborted</code>. <code>NotFound</code>, authentication/authorization errors и обычный deadline fail fast.</p>
-<table><thead><tr><th>Resume result</th><th>Router behavior</th><th>HTTP смысл</th></tr></thead><tbody>
-<tr><td><code>OK</code></td><td>Route к Worker</td><td>Продолжить исходный request</td></tr><tr><td><code>Aborted</code></td><td>Retry</td><td>Конкурентный lifecycle</td></tr><tr><td><code>ResourceExhausted</code></td><td>Park + retry</td><td>Временный дефицит capacity</td></tr><tr><td><code>FailedPrecondition</code></td><td>Park + retry</td><td>Actor в переходном состоянии</td></tr><tr><td><code>Unavailable</code></td><td>Park + retry</td><td>Краткий сбой control plane</td></tr><tr><td><code>NotFound</code></td><td>Fail fast</td><td>404</td></tr><tr><td><code>PermissionDenied/Unauthenticated</code></td><td>Fail fast</td><td>403/401</td></tr><tr><td><code>DeadlineExceeded</code></td><td>Fail fast</td><td>504</td></tr>
-</tbody></table>
-<h3>Budget ограничивает новые retries, а не начатый restore</h3>
-<p>Если budget закончился, router перестаёт начинать новые попытки. Уже выполняющийся resume не отменяется: control plane мог назначить Worker и загружать snapshot. Router ждёт его реальный результат в пределах server-side RPC deadline и Envoy <code>ext_proc</code> timeout. Поэтому request иногда обслуживается позже park budget. Это лучше, чем отменить почти завершённый restore и оставить дорогой workflow без клиента.</p>
-<h3>Один Actor - один resume flight</h3>
-<p>Конкурентные requests одного Actor присоединяются к единому in-flight <code>ResumeActor</code>. Они занимают отдельные parking slots, но не создают resume storm. Budget принадлежит flight: поздний request получает только оставшееся время, поэтому может увидеть <code>budget_exhausted</code> раньше пяти секунд собственного ожидания.</p>
-<h3>Parking lot - backpressure, а не очередь без границ</h3>
-<p>Slot берётся только после первой retryable ошибки. Fast-path request к running Actor lot не использует. При заполнении новые parked requests получают 503 <code>router at capacity</code>. Envoy circuit breaker по умолчанию рассчитывается как удвоенный размер lot, минимум 1024: одна часть для parked streams, вторая сохраняет headroom быстрым запросам.</p>
-<pre><code class="language-text">parking capacity plan:
-  parked_request_max <= ext_proc max_requests
-  fast_path_headroom remains available
-  client timeout > expected park + restore
-  park budget < upstream end-to-end deadline</code></pre>
-<h3>Graceful shutdown</h3>
-<p>При SIGTERM router и Envoy sidecar продолжают обслуживать in-flight ext_proc streams до drain deadline. Он должен быть не меньше park budget. Иначе rolling update сам создаст сбросы parked requests.</p>
-<h2>Нестандартные ingress ports</h2>
-<p>Для Actor port, отличного от default 80, клиент использует HTTP <code>CONNECT</code> с port в authority. Router завершает CONNECT и проводит HTTP(S) traffic через тот же actor-aware path. Каждый request внутри long-lived tunnel снова может разрешить assignment после relocation.</p>
-<p>Это не универсальный TCP proxy. Сейчас arbitrary-port path поддерживает HTTP(S); raw TCP и другие protocols таким способом недоступны. Protocol requirement нужно проверить до выбора Substrate, а не после переноса workload.</p>
-<h2>Worker tunnel и mTLS</h2>
-<p>После assignment router соединяется с <code>atunnel</code> на Worker port 443. Tunnel аутентифицирован TLS, а Actor доступен только через private veth. Certificate и control-plane assignment связывают логическую identity с текущим runtime location.</p>
-<p>Нельзя кэшировать Worker IP дольше lifecycle assignment. После suspend/resume Actor может оказаться в другом Pod. Любой sidecar или higher-order gateway, который запомнил старый address, должен повторить actor-aware lookup.</p>
-<h2>Egress: Actor считается недоверенным</h2>
-<p>Каждое исходящее TCP connection Actor, кроме DNS на destination port 53, перенаправляется nftables в <code>atunnel</code>. Он получает original destination и открывает mTLS HTTP/1.1 CONNECT к policy enforcement point. PEP проверяет Actor certificate, его UID и состояние через control plane, затем применяет <code>EgressPolicy</code>.</p>
-<p>DNS по TCP/UDP 53 может обходить PEP к node-configured resolver. Остальной UDP блокируется, как и прочие IP protocols. Actor networking сейчас IPv4-only. Это конкретный product contract, а не общая «сетевость контейнера».</p>
-<h3>Почему PEP не доверяет SNI и Host от Actor</h3>
-<p>Actor контролирует HTTP headers и TLS ClientHello. SNI может быть policy input, но не доказательством, что connection действительно идёт к этому hostname. Если policy разрешает имя, gateway должен сам разрешить и dial'ить разрешённое имя, а не авторизовать произвольный original IP только потому, что Actor прислал подходящий SNI.</p>
-<h2>EgressPolicy: allow rules, default deny</h2>
-<p>EgressPolicy является nested resource конкретного Actor. У Actor может быть максимум одна policy с именем <code>default</code>. Rules - unordered allow set; если ни одно правило не совпало, traffic запрещён. Policy имеет UID/version и обновляется read-modify-write, как другие ate resources.</p>
-<table><thead><tr><th>Rule</th><th>Что видит gateway</th><th>TLS</th><th>Effects</th></tr></thead><tbody>
-<tr><td><code>http</code></td><td>Каждый cleartext HTTP request, authority и port</td><td>Нет</td><td>Возможна замена headers</td></tr><tr><td><code>https</code></td><td>SNI, затем decrypted HTTP requests</td><td>Gateway MITM и re-origination</td><td>Header replacement/credential injection</td></tr><tr><td><code>tlsPassthrough</code></td><td>ClientHello SNI и port один раз</td><td>Без расшифровки</td><td>Нет</td></tr>
-</tbody></table>
-<p>Exact hostname сильнее wildcard; explicit port сильнее all ports. Конфигурации, где два rules одинаково решают один name/port, отклоняются. Wildcard <code>*.example.com</code> покрывает ровно один label: он не включает <code>example.com</code> и <code>a.b.example.com</code>.</p>
-<h3>Поддерживаемый egress traffic</h3>
-<table><thead><tr><th>Traffic</th><th>Поддержка</th><th>Отказ виден Actor</th></tr></thead><tbody>
-<tr><td>HTTP/1.1, HTTP/2, gRPC over HTTP/2</td><td>Через policy</td><td>403</td></tr><tr><td>HTTPS с interception или TLS passthrough</td><td>Через соответствующий rule</td><td>403/TLS failure</td></tr><tr><td>WebSocket</td><td>Блокируется</td><td>403</td></tr><tr><td>Forward-proxy CONNECT</td><td>Блокируется</td><td>403</td></tr><tr><td>Другой TCP</td><td>Блокируется</td><td>Connection закрывается</td></tr><tr><td>UDP 53 DNS</td><td>Разрешён к node resolver</td><td>Обычный DNS</td></tr><tr><td>Другой UDP/protocol</td><td>Drop</td><td>Ожидание до client timeout</td></tr>
-</tbody></table>
-<h2>Пример policy</h2>
+<p>Это не означает, что router сам открывает все соединения или что успешный lookup навсегда закрепил Worker. Решение принято для текущего пути запроса. Между lookup и передачей могут произойти relocation, сбой tunnel или остановка приложения. Ошибку после начала передачи нельзя автоматически считать безопасным поводом повторить изменяющую операцию. Для публикации ревью по-прежнему нужны operation ID и сверка результата из главы 14.</p>
+<p><code>RUNNING</code> также не заменяет health check. Быстрый путь <code>ResumeActor</code> для уже работающего Actor не выполняет заново все wakeup probes. Полученный assignment означает возможность попытаться маршрутизировать запрос, а не доказанный успех бизнес-действия.</p>
+<h3>Зачем здесь отдельный router</h3>
+<p>Kubernetes Service удобен, когда любой из выбранных Pods может обслужить запрос. Stateful Actor - адресат с собственной сессией, который может сейчас отсутствовать на Worker. Нужно совместить lookup конкретного объекта с lifecycle call, а затем выбрать его место исполнения. Один Service к пулу Workers этого не делает.</p>
+<p>Разделение полезно и для безопасности. Сетевые ограничения кластера должны не позволять недоверенным клиентам обходить предусмотренный gateway и обращаться напрямую к инфраструктурным listeners. Но наличие NetworkPolicy в YAML само по себе не доказывает, что сеть конкретного sandbox и CNI закрывает такой обход. Проверяйте фактическую topology и enforcement. NetworkPolicy ограничивает сетевой путь; доступ пользователя к <code>review-42</code> остаётся отдельной задачей.</p>
+<h2>Parking удерживает запрос до возможности resume</h2>
+<p>В burst свободных Workers может временно не хватать. Немедленный 503 превращает короткий дефицит в ошибку пользователя; бесконечное ожидание превращает его в неограниченную очередь. Request parking выбирает промежуточный вариант: router сохраняет ожидание входящего запроса и повторяет <em>resume</em>, пока это имеет смысл в пределах бюджета.</p>
+<p>Пока запрос ждёт решение <code>ext_proc</code>, он ещё не стал полезной работой Actor. Это не durable job queue: нет обещания сохранить запрос при падении router, пережить отключение клиента или повторно доставить его после восстановления. Для задачи, которую обязательно нужно принять и выполнить позже, нужен прикладной job/workflow contract с записью intent и отдельным статусом. Parking предназначен для короткой паузы живого HTTP request.</p>
+<p>В этом срезе включённый parking по умолчанию имеет бюджет 5 секунд и lot на 1024 parked requests. Повторы начинаются с интервала 100 ms, factor 1.1 и jitter 0.1; jitter разносит попытки во времени, чтобы ожидающие запросы не создавали синхронную нагрузку. Это defaults, а не рекомендуемая ёмкость любого кластера.</p>
+<h3>Какие ответы стоит ждать</h3>
+<p><code>ResourceExhausted</code> означает нехватку ресурсов, <code>Unavailable</code> - недоступность control plane, <code>Aborted</code> - конфликт конкурентной операции. <code>FailedPrecondition</code> может сопровождать состояние, которое другая операция ещё изменит. Router повторяет эти коды при включённом parking, но не знает, станет ли условие успешным через секунду. Постоянно сломанная предпосылка тоже может потратить весь бюджет.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Результат ResumeActor</th>
+<th>Решение router</th>
+<th>Что увидит клиент при окончательном отказе</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Успех</td>
+<td>Маршрутизировать workload</td>
+<td>Дальше действует прикладной HTTP contract</td>
+</tr>
+<tr>
+<td>ResourceExhausted, FailedPrecondition, Unavailable, Aborted</td>
+<td>Повторять до исчерпания бюджета</td>
+<td>Обычно 503 с причиной соответствующего слоя</td>
+</tr>
+<tr>
+<td>NotFound</td>
+<td>Не ждать появления объекта</td>
+<td>404</td>
+</tr>
+<tr>
+<td>PermissionDenied или Unauthenticated</td>
+<td>Не лечить повтором</td>
+<td>403 или 401</td>
+</tr>
+<tr>
+<td>DeadlineExceeded</td>
+<td>Завершить ожидание этой операции</td>
+<td>504</td>
+</tr>
+</tbody>
+</table>
+<p>Здесь 503 из-за отсутствия Worker - не то же самое, что 429 из-за лимита конкретного пользователя. И статус без emitter неоднозначен: 503 может вернуть front proxy, router, credential provider или origin. Нужны correlated logs, Actor ref и код control-plane результата, а не один общий счётчик неудач.</p>
+<p>При <code>--parked-request-max=0</code> parking выключен. Остаются повторы <code>Aborted</code> в отдельном 15-секундном бюджете; остальные перечисленные временные ошибки возвращаются сразу. Выключение parking не превращает HTTP в очередь с другим размером.</p>
+<h2>Один flight не означает один RPC на весь кластер</h2>
+<p>Flight - одна совместная операция resume, к которой присоединяются несколько ожидающих запросов. В одном экземпляре <code>ActorResumer</code> registry связывает Actor ref с незавершённым flight. Поэтому десять клиентов одного Actor могут ждать одну текущую попытку RPC, а не десять независимых restore.</p>
+<p>Но этот registry находится в памяти процесса router. Запросы на другой replica могут создать другой flight и другой RPC. Конкурентные lifecycle изменения затем регулирует control plane. Singleflight снижает локальный шторм; он не является distributed lock и не доказывает «один resume RPC на Actor во всём кластере».</p>
+<p>Бюджет начинается с первого caller flight, не с каждого присоединившегося запроса. Если поздний клиент пришёл на отметке 4.9 секунды, до границы новых повторов остаётся 0.1 секунды. Его небольшое собственное время ожидания до <code>budget_exhausted</code> не обязательно означает ошибку таймера.</p>
+<p>Отмена первого клиента не отменяет общий resume. Даже если ушли все callers, начатая попытка может продолжить восстановление. Следующий request на этот router присоединится к ещё живому flight. В логах нельзя переводить «клиент получил timeout» в «Actor не был восстановлен».</p>
+<h2>У ожидания несколько разных таймеров</h2>
+<p><strong>Бюджет повторов ограничивает запуск новых попыток.</strong> Уже начатый RPC отделён от cancellation клиента и от budget timer. Попытка, начавшаяся до границы, может закончиться после неё. Поздний успех всё ещё пригоден для routing, если клиент и его stream ещё ждут. Поздняя retryable ошибка завершит flight без нового RPC.</p>
+<p><strong>Stream timeout ограничивает ожидание processor.</strong> В описанном Envoy ingress-пути при включённом parking <code>ext_proc</code> message timeout получает бюджет плюс 5 секунд: при defaults это 10 секунд. Потеря stream или deadline клиента может закончить его ожидание раньше завершения resume. Сам flight не получает этим автоматически сигнал остановить начатую работу; остаётся server-side RPC limit control plane.</p>
+<p><strong>Route timeout относится к переданному workload.</strong> В xDS этого среза default равен 5 минутам и не включает предшествующий resume/parking. Client end-to-end deadline, connect timeout и stream idle timeout - ещё другие ограничения. Нельзя объявить «ответ всегда за 5 секунд» на основании park budget или сложить несвязанные p95 всех этапов и назвать сумму измеренной p95 запроса.</p>
+<p>Для <code>review-42</code> сначала определите продуктовый срок: сколько пользователь готов ждать открытия ревью и сколько может идти generation. Затем измерьте весь путь и отдельные stages. Если штатный restore часто не помещается в окно processor, выбирайте более дешёвый resume, prewarming, другое окно ожидания или асинхронное принятие задачи. Простое увеличение клиентского timeout не изменит короткий timeout proxy.</p>
+<h2>Lot ограничивает callers а не все операции</h2>
+<p>Parking lot - ограничитель числа запросов, уже перешедших к повторному ожиданию. Slot берётся после первой retryable ошибки flight. Успех первой попытки slot не занимает, даже если lot заполнен. Каждый parked caller занимает собственный slot: один hot Actor способен заполнить lot множеством клиентов при небольшом числе RPC.</p>
+<p>Первая медленная попытка тоже ещё не занимает parking slot, хотя держит <code>ext_proc</code> stream и другие ресурсы. Поэтому lot нельзя считать полным лимитом всех одновременно выполняющихся resume, всей памяти router или всех HTTP connections.</p>
+<p>Envoy circuit breaker, ограничитель активных запросов к processor, даёт другой предел. Auto-значение в этом срезе - <code>max(1024, 2 * parked-request-max)</code>: для lot 1024 получается 2048. Startup validation запрещает явный breaker меньше lot. Однако breaker ровно равный lot не оставляет резерва для быстрых requests. Другие listeners, соединения и ресурсы всё равно имеют собственные пределы.</p>
+<p>Для начальной оценки можно использовать размерность «скорость входа в parking × среднее время occupancy». Например, при заданных 200 park transitions в секунду и среднем удержании 2 секунды получается около 400 занятых slots в устойчивом режиме. Это не гарантия для burst, skew одного Actor или хвостов restore. Сравнивайте распределение по replicas, время ожидания и rejection, а не только среднее.</p>
+<p>При заполнении lot router возвращает 503 <code>router at capacity</code>. Увеличить lot - значит разрешить больше ожидания, не больше Workers. Если причина <code>Unavailable</code>, увеличение WorkerPool вообще не лечит недоступность control plane. Если причина <code>ResourceExhausted</code>, выясните, кто занимает пул и как быстро capacity освобождается.</p>
+<h2>Практический пример границы parking</h2>
+<p>В <code>examples/ch15_parking_boundary_demo.py</code> есть маленькая модель с явно заданной временной шкалой. Python 3.10+ и стандартной библиотеки достаточно. Она не запускает network, Envoy или Substrate: methods вручную моделируют прибытие callers, ответ попытки и освобождение slot. Для наглядности lot равен двум, а бюджет - 5000 ms.</p>
+<p>В начале <code>r1</code> и <code>r2</code> ждут одну попытку для <code>review-42</code>. На 100 ms она возвращает <code>ResourceExhausted</code>: оба callers занимают lot. <code>r3</code> не помещается и получает отказ. При этом запрос <code>fast</code> к уже работающему другому Actor успешно проходит первую попытку, не занимая lot. <code>r1</code> отключается, освобождая slot, но не уничтожая общий flight.</p>
+<p>Следующая попытка начинается на 4800 ms. Клиент <code>late</code> приходит на 4900 ms и получает оставшиеся 100 ms бюджета новых повторов. На 5100 ms RPC всё ещё выполняется; модель не запускает третий и не отменяет второй. Успех приходит на 6200 ms и доставляется остающимся callers. Эти времена заданы для разбора, не измерены на кластере.</p>
+<pre><code class="language-bash">python3 examples/ch15_parking_boundary_demo.py
+python3 -m unittest discover -s examples -p 'test_ch15*.py'
+</code></pre>
+<p>Основное решение отделяет начатую работу от возможности новой попытки:</p>
+<pre><code class="language-python">def retry_action(last_result, *, elapsed_ms, budget_ms, in_flight):
+    for value in (elapsed_ms, budget_ms):
+        if type(value) is not int or value &lt; 0:
+            raise ValueError(&quot;times must be nonnegative integer milliseconds&quot;)
+    if budget_ms == 0:
+        raise ValueError(&quot;budget must be positive&quot;)
+    if in_flight:
+        return &quot;WAIT_FOR_IN_FLIGHT&quot;
+    if last_result == &quot;OK&quot;:
+        return &quot;ROUTE&quot;
+    if last_result not in RETRYABLE:
+        return &quot;FAIL_FAST&quot;
+    if elapsed_ms &gt;= budget_ms:
+        return &quot;STOP_RETRIES&quot;
+    return &quot;START_NEXT_ATTEMPT&quot;
+</code></pre>
+<h3>Чтение результата</h3>
+<p style="break-after:avoid-page">Полный вывод demo:</p>
+<pre><code class="language-json">{
+  &quot;source&quot;: &quot;supplied_timeline_and_process_local_model&quot;,
+  &quot;substrate_contacted&quot;: false,
+  &quot;review_flight_attempts&quot;: 2,
+  &quot;action_after_budget&quot;: &quot;WAIT_FOR_IN_FLIGHT&quot;,
+  &quot;late_join_remaining_budget_ms&quot;: 100,
+  &quot;completed_ms&quot;: 6200,
+  &quot;results&quot;: {
+    &quot;fast&quot;: &quot;ROUTE&quot;,
+    &quot;late&quot;: &quot;ROUTE&quot;,
+    &quot;r1&quot;: &quot;CALLER_CANCELED&quot;,
+    &quot;r2&quot;: &quot;ROUTE&quot;,
+    &quot;r3&quot;: &quot;ROUTER_AT_CAPACITY&quot;
+  },
+  &quot;parked_after_completion&quot;: 0,
+  &quot;other_router_rpc_starts&quot;: 1
+}
+</code></pre>
+<p>У <code>review-42</code> две последовательные попытки, а не один RPC за всё время flight и не отдельный RPC для каждого клиента. <code>r1</code> не получает поздний успех, потому что перестал ждать. Второй экземпляр <code>RouterLab</code> начинает собственный RPC того же Actor: локальный registry не является общекластерным.</p>
+<p>Модель показывает управление ожиданием, но не проверяет scheduling goroutines, порядок реального admission, jitter, xDS, server deadline, disconnect обнаружение, restart или body buffering. Она не обещает FIFO и сама не запускает таймер клиента: уход задаётся явно через <code>leave</code>. Для стенда нужны concurrent requests, controlled capacity failure и correlated RPC/stream traces. <code>ROUTE</code> в выводе означает решение модели направить запрос, не ответ приложения 200.</p>
+<h2>CONNECT и tunnel решают разные задачи</h2>
+<p>HTTP CONNECT создаёт туннель, внутри которого идут другие байты. В книге есть два разных CONNECT-пути. На ingress клиент может выбрать нестандартный port Actor через CONNECT authority; Envoy завершает внешний tunnel и повторно обрабатывает внутренние HTTP requests через actor-aware routing. Так новый request внутри долгого tunnel может получить актуальный assignment после relocation.</p>
+<p>На egress CONNECT формирует уже <code>atunnel</code>, а не доверенное решение приложения: передаёт PEP исходный <code>IP:port</code> перехваченного соединения. Оба механизма используют одно имя HTTP method, но разные identities и policy boundaries.</p>
+<p>Arbitrary-port ingress этого среза обслуживает HTTP(S), а не любой raw TCP protocol. Требование SSH, database wire protocol, WebSocket или другого transport нужно проверять на выбранном пути до миграции. Открытый port и успешно созданный CONNECT ещё не доказывают поддержку внутренних bytes и прикладных semantics.</p>
+<h2>Egress ограничивает действия недоверенного Actor</h2>
+<p>PEP, policy enforcement point, - место исполнения решения о доступе. В Substrate TCP Actor, кроме DNS на destination port 53, перехватывается nftables и передаётся <code>atunnel</code>. Тот строит mTLS CONNECT к PEP: обе стороны проверяют сертификаты, а Actor-specific client certificate остаётся в доверенной инфраструктуре tunnel.</p>
+<p>PEP проверяет сертификат и затем существование Actor, совпадение UID и running state через control plane. Actor не становится доверенным оттого, что его certificate корректен: identity нужна, чтобы применить именно его ограничения. Приватный ключ tunnel не нужно выдавать процессу агента.</p>
+<p>Имя в HTTP Host или TLS SNI, Server Name Indication, выбирает сам Actor. Эти значения могут быть входом policy, но не доказательством того, что исходный произвольный IP принадлежит разрешённому сервису. На hostname-based HTTP-пути gateway сам разрешает и набирает разрешённое имя. Разрешить <code>api.example.test</code> и затем послать байты на любой original IP - ошибочная модель защиты.</p>
+<p>При этом hostname allowlist не доказывает, что DNS разрешённого имени никогда не укажет на чувствительный внутренний address. Сеть и доступ самого gateway также требуют ограничений. И даже корректный model endpoint может принять конфиденциальные данные: destination restriction не является DLP или проверкой аргументов tool.</p>
+<p>DNS по TCP/UDP 53 идёт через relay к configured resolvers Worker, вне внешнего PEP; per-Actor <code>EgressPolicy</code> не фильтрует эти запросы. Остальной UDP и другие IP protocols блокируются; Actor networking здесь IPv4-only. Поэтому «default-deny egress» нельзя переводить в «у Actor нет никакого канала наружу» или «HTTP/3 заработает после allow port 443». DNS, QUIC и TCP - разные пути.</p>
+<h2>Сначала проверьте возможность затем пишите policy</h2>
+<p><code>EgressPolicy</code> - вложенный ресурс конкретного Actor, максимум одна policy с именем <code>default</code>. Это не Kubernetes NetworkPolicy. Parent Actor задаётся отдельно в API request; metadata policy с одним atespace не выбирает его автоматически.</p>
+<p>Rules являются набором allow, отсутствие совпадения означает deny. Более конкретное hostname имеет приоритет над wildcard, конкретный port - над всеми ports. <code>*.example.test</code> покрывает ровно один непустой label: <code>api.example.test</code>, но не <code>example.test</code> и не <code>a.b.example.test</code>. API проверяет конфигурации, включая неоднозначные правила; порядок списка не следует использовать как систему deny/allow precedence.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Rule или требование</th>
+<th>Что даёт описанный путь ccecc788</th>
+<th>Существенная граница</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>http</td>
+<td>Решение по каждому cleartext HTTP request</td>
+<td>Не получает credential injection в cleartext</td>
+</tr>
+<tr>
+<td>https</td>
+<td>SNI-проверка и решение по authority после TLS interception</td>
+<td>Нужны sdsmint gateway и доверие TLS клиента к его CA</td>
+</tr>
+<tr>
+<td>tlsPassthrough</td>
+<td>Поле существует в API, но не исполняется как allow этим Envoy classifier</td>
+<td>SNIRules не включает такие rules; само поле не открывает tunnel</td>
+</tr>
+<tr>
+<td>Raw TCP, WebSocket, forward-proxy CONNECT, обычный UDP</td>
+<td>Не считать поддержанными обычным hostname allow</td>
+<td>Нужна отдельная проверка transport; для UDP кроме DNS действует drop</td>
+</tr>
+</tbody>
+</table>
+<p>Идея TLS passthrough в других реализациях - передавать зашифрованный поток до origin без HTTP inspection. Она полезна, например, при необходимости origin certificate pinning, но не даёт gateway читать headers и внедрять credential. В данном срезе это <em>не рабочий обход</em> ограничений MITM. Если приложение требует passthrough, выберите совместимую реализацию и докажите этот путь, а не добавляйте правило и отключайте certificate verification.</p>
+<p>На HTTPS MITM leg отдельно проверяются SNI connection и authority каждого decrypted request. Смена Host внутри уже открытого HTTP/2 соединения не должна обходить request policy. Port для решения берётся из исходного dial, переданного trusted CONNECT, а не заменяется произвольным port из Host. API принятие policy, gateway allow и успешная операция приложения - три отдельных результата.</p>
+<h3>Policy для нужных зависимостей</h3>
+<p>Для <code>review-42</code> составьте inventory: модель, публикация ревью, telemetry; отдельно отметьте инфраструктурные операции вроде pull image. Agent-side telemetry тоже является egress клиентом. Она не получает разрешение только потому, что нужна observability.</p>
+<p>Следующий эскиз - <strong>body EgressPolicy</strong>, не самостоятельный Kubernetes manifest и не команда запуска. Parent Actor <code>team-a/review-42</code> передаётся в API отдельно. Имена <code>.test</code> обозначают ваши контролируемые endpoints, не готовые сервисы:</p>
 <pre><code class="language-yaml">metadata:
   atespace: team-a
   name: default
 rules:
 - https:
-    hostnames: ["api.example.com"]
-    ports:
-      numbers: [443]
-- tlsPassthrough:
-    hostnames: ["models.example.net"]
+    hostnames: [&quot;models.example.test&quot;, &quot;review-api.example.test&quot;]
     ports:
       numbers: [443]
 - http:
-    hostnames: ["otel-collector.ate-system.svc"]
+    hostnames: [&quot;otel-collector.ate-system.svc&quot;]
     ports:
-      numbers: [4318]</code></pre>
-<p>Policy должна перечислять также telemetry endpoints. OpenTelemetry SDK внутри Actor является обычным egress client и не достигает collector без разрешающего rule.</p>
-<h2>HTTPS interception и trust bundle</h2>
-<p><code>https</code> rule требует расшифровать HTTP, поэтому gateway выдаёт leaf certificate для SNI и устанавливает новый TLS session к upstream. Actor обязан доверять gateway CA через projected trust bundle. Без него TLS validation внутри Actor должна завершиться ошибкой; отключать verification нельзя.</p>
-<p><code>tlsPassthrough</code> сохраняет end-to-end TLS до origin, но gateway видит только ClientHello. Он не может заменить headers или проверять каждый HTTP request. Policy update начинает действовать для нового connection; уже открытый passthrough tunnel может жить до закрытия.</p>
-<h2>Credential injection: secret не входит в Actor</h2>
-<p>Для HTTPS API policy может заменить placeholder header реальным credential. Actor отправляет, например, <code>Authorization: placeholder</code>. Gateway спрашивает credential provider, provider проверяет actor identity/atespace и читает secret store, затем gateway подставляет значение перед отправкой upstream. Этот механизм не передаёт upstream secret непосредственно Actor и не записывает его в Actor snapshot. Но это не абсолютная защита от раскрытия: разрешённый origin может отразить header в response или логе. Проверьте поведение целевого API, ограничьте credential scope и исключите echo/debug endpoints; credential injection не заменяет проверку возможности утечки по разрешённому пути.</p>
-<pre><code class="language-yaml">- https:
-    hostnames: ["api.example.com"]
-    effects:
-      replaceHeaders:
-      - header: Authorization
-        prefix: "Bearer "
-        credentialUri: ate-secret://k8s.io/default/ns1/api/token</code></pre>
-<p>Отсутствующий placeholder означает «не запрашивать credential» и request идёт без замены. Если header есть, но provider отключён, secret не найден, Actor не авторизован или provider недоступен, gateway fail closed: обычно 403 для постоянного отказа и retryable 503 для временной недоступности.</p>
-<p>Reference Kubernetes provider использует default-deny mapping Atespace -> разрешённые namespaces. Cluster-wide permission читать Secrets у provider не означает, что любой Actor может получить любой Secret; provider обязан применить actor-scoped authorization.</p>
-<h2>Policy rollout и consistency</h2>
-<p>Egress gateway может кэшировать policy, поэтому update действует не мгновенно. Long-lived TLS passthrough connection также сохраняет решение до reconnect. Runbook должен учитывать cache TTL и принудительное закрытие connections, когда требуется срочный revoke.</p>
-<p>Readiness gateway подтверждает, что компоненты и configuration загрузились. Она не доказывает end-to-end доступность конкретного hostname, корректность DNS, CA chain или credential provider. После deployment нужны probes из реального sandbox.</p>
-<h2>Как тестировать ingress и egress</h2>
-<h3>Ingress probes</h3><ul><li>running Actor: fast path без parking;</li><li>suspended Actor: первый request переживает resume;</li><li>несколько requests одного Actor: один resume flight;</li><li>pool saturation: served within budget и budget-exhausted 503;</li><li>unknown Actor: 404 без parking;</li><li>rolling restart router: parked stream получает нормальный verdict.</li></ul>
-<h3>Egress probes</h3><ul><li>разрешённый DNS и HTTPS hostname;</li><li>запрещённый hostname и тот же IP с поддельным SNI;</li><li>wildcard boundary: один label, apex и nested name;</li><li>TLS validation через projected gateway CA;</li><li>credential placeholder: успешная замена и отрицательный atespace;</li><li>UDP/TCP protocol, который workload реально использует;</li><li>telemetry, model endpoint и MCP endpoint отдельно;</li><li>revoke policy на новом и уже открытом connection.</li></ul>
-<h2>Observability и capacity signals</h2>
-<table><thead><tr><th>Сигнал</th><th>Что означает</th><th>Действие</th></tr></thead><tbody>
-<tr><td><code>parking.active</code></td><td>Текущий demand сверх мгновенной capacity</td><td>Смотреть длительность и pool saturation</td></tr><tr><td><code>parking.wait.duration</code> by outcome</td><td>Served, budget exhausted, canceled, timeout, error</td><td>Разделять capacity и client cancellation</td></tr><tr><td><code>parking.rejected</code></td><td>Parking lot заполнен</td><td>Scale router и проверить burst/circuit breaker</td></tr><tr><td>Resume latency</td><td>Причина задержки первого request</td><td>Коррелировать с главой 14</td></tr><tr><td>Egress denies by actor/rule</td><td>Policy gap или атака</td><td>Не разрешать wildcard без расследования</td></tr><tr><td>Credential provider 403/503</td><td>Authorization или availability</td><td>Разные alerts/runbooks</td></tr><tr><td>Tunnel TLS failures</td><td>Identity/CA/certificate rotation</td><td>Проверить обе стороны mTLS</td></tr>
-</tbody></table>
-<blockquote><p><strong>Capacity lesson.</strong> Большой parking lot скрывает burst, но удерживает memory и ext_proc streams. Если <code>budget_exhausted</code> растёт постоянно, проблема не в размере очереди: WorkerPool или suspend rate не соответствуют demand.</p></blockquote>
-<h2>Антипаттерны</h2><ul>
-<li><strong>Маршрутизировать по Pod IP.</strong> Address устаревает после каждого relocation.</li><li><strong>Считать target header авторизацией.</strong> Caller может подставить чужое имя.</li><li><strong>Увеличивать park budget вместо capacity.</strong> Ошибка превращается в долгую latency.</li><li><strong>Доверять SNI как доказательству destination.</strong> Actor контролирует ClientHello.</li><li><strong>Разрешать <code>*</code> для удобства.</strong> Default-deny исчезает именно там, где agent способен exfiltrate данные.</li><li><strong>Отключать TLS verification для interception.</strong> Нужно проецировать gateway CA.</li><li><strong>Класть API keys в env Actor.</strong> Они попадут в memory/snapshot и доступны недоверенному коду.</li><li><strong>Проверять policy только с admin Pod.</strong> Реальный path из sandbox другой.</li></ul>
-<h2>Production checklist networking</h2><ul>
-<li>Ingress принимает logical Actor ref и не использует Worker address как identity.</li><li>Caller authorization выполняется до или независимо от routing.</li><li>Park budget, lot size, ext_proc breaker и client deadline согласованы.</li><li>Fast-path headroom остаётся при заполненном parking lot.</li><li>Router drain timeout не меньше park budget.</li><li>Worker ingress доступен только через authenticated tunnel.</li><li>У каждого Actor есть минимальная default-deny EgressPolicy.</li><li>Выбран правильный rule: http, https interception или tls passthrough.</li><li>Gateway CA доступен только workload, которым нужен HTTPS interception.</li><li>Secrets выдаёт credential provider с actor-scoped authorization.</li><li>Positive и negative probes выполняются из обоих sandbox classes.</li><li>Dashboards разделяют parking capacity, lifecycle errors и egress denies.</li></ul>
-<h2>Итог</h2>
-<p>Substrate networking связывает стабильную Actor identity с меняющейся execution. Ingress router при необходимости будит Actor, bounded parking сглаживает краткий дефицит Workers, а mTLS tunnel доставляет request только текущему assignment. Egress начинается с противоположного предположения: Actor недоверен, traffic default-deny, destination выбирает gateway, а secrets остаются у credential provider.</p>
-<p>Эта глава завершает dataplane path. В следующей главе мы поднимемся уровнем выше и разберём AX control plane: какие решения принадлежат AX, какие делегируются Substrate и где проходит граница ответственности между продуктовым orchestration и runtime.</p>
-<div class="sources"><h3>Источники и дальнейшее чтение</h3><ul>
-<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md">Agent Substrate architecture</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md">Request parking design</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/network-egress.md">Network egress contract</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-traffic.md">Supported egress traffic</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-credential-injection.md">Egress credential injection</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto">EgressPolicy API definitions</a></li>
-</ul></div></section><section class="chapter" id="ch-16"><div class="chapter-num">Глава 16</div><h1>AX control plane: от декларации к Actor и граница с Substrate</h1>
+      numbers: [4318]
+</code></pre>
+<p>Cleartext telemetry допустима только при соответствующей модели сети и данных; чувствительный export требует защищённого пути и поддержки клиента. Hostname restriction здесь не задаёт URL path, method, доступ к конкретному repository или MCP tool. Эти права проверяет origin, harness или broker соответствующего протокола.</p>
+<h2>HTTPS interception меняет цепочку доверия</h2>
+<p>MITM здесь - управляемое завершение TLS на gateway, а не отключение проверки TLS. Приложение проверяет leaf, выпущенный gateway для нужного SNI; gateway создаёт отдельное TLS-соединение к origin. mTLS CONNECT между <code>atunnel</code> и PEP - ещё одна session. Ошибка Actor trust и ошибка gateway trust к origin чинятся на разных границах.</p>
+<p>Для этого режима CA material можно проецировать через <code>systemInfo</code> volume с <code>trustBundle.name: egress-mitm.ate.dev</code>. В filesystem оказывается публичный trust bundle, не private key gateway. Но одного PEM-файла недостаточно: используемая TLS library должна действительно его читать. Python requests, Node.js, Java и curl не обязаны использовать один store. Configure и probe нужны для реального SDK; <code>curl -k</code> убирает проверку, которую требуется подтвердить.</p>
+<p>Interception нарушает обычное pinning origin leaf. Кроме того, Full restore может вернуть TLS client со старым trust store или session в памяти. Проекция anchors при Run/Restore и reload уже созданного клиента - не одна операция. Rotation требует overlap и отдельной проверки fresh boot, непрерывной работы и resume. Подробная диагностика DNS, TLS и SDK находится в главе 40.</p>
+<h2>Credential injection не равна готовой безопасности</h2>
+<p>Gateway может добавить API credential после проверки разрешённого HTTPS request, не помещая его в env, filesystem и snapshot Actor. Credential provider - отдельный сервис, который решает, какие secrets разрешены этому Actor/atespace, и читает secret store. Gateway получает значение для request и подставляет его upstream. Сам gateway остаётся частью доверенной области, а разрешённый origin может увидеть credential.</p>
+<p>В этом срезе поддержка требует Envoy MITM leg и включённого provider client; shell install flag <code>--experimental-egress-credential-injection</code> также включает sdsmint. Provider deployment и его authorizations остаются отдельной зависимостью. Наличие effects в policy не запускает provider и не доказывает готовность всей установки.</p>
+<p>Например, отдельное <code>https</code> rule для review API может содержать:</p>
+<pre><code class="language-yaml">effects:
+  replaceHeaders:
+  - header: Authorization
+    prefix: &quot;Bearer &quot;
+    credentialUri: ate-secret://k8s.io/default/ns1/review-api/token
+</code></pre>
+<p>В URI указаны provider class, provider name и его собственный namespace/secret/key. Это ссылка на credential, а не его значение. Reference Kubernetes provider применяет default-deny atespace-to-namespace mapping; широкий Kubernetes RBAC provider не даёт любому Actor право читать любой Secret.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Ситуация в applyEffects этого среза</th>
+<th>Реальное поведение</th>
+<th>Что проверить инженеру</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>HTTPS MITM, provider настроен, credential доступен</td>
+<td>FetchSecret и header overwrite-or-add</td>
+<td>Нужная identity origin без возврата token Actor</td>
+</tr>
+<tr>
+<td>Нет исходного Authorization header</td>
+<td>Нет надёжного opt-out по отсутствию placeholder; header может быть добавлен</td>
+<td>Не строить permission boundary на presence header</td>
+</tr>
+<tr>
+<td>Provider не настроен или leg cleartext</td>
+<td>Injection пропускается; request идёт без добавленного credential</td>
+<td>Различать отсутствие функции и отказ попытки её выполнения</td>
+</tr>
+<tr>
+<td>FetchSecret получает NotFound или PermissionDenied</td>
+<td>403, request не отправляется как обещанный authenticated вызов</td>
+<td>URI, namespace mapping и scope</td>
+</tr>
+<tr>
+<td>Provider недоступен или истёк его deadline</td>
+<td>503, попытка injection fail closed</td>
+<td>Availability provider; не расширять allowlist</td>
+</tr>
+</tbody>
+</table>
+<p>В частности, код <code>applyEffects</code> не проверяет presence placeholder перед FetchSecret и использует <code>OVERWRITE_IF_EXISTS_OR_ADD</code>. Отсутствие header нельзя использовать как «безопасный вызов без привилегий». И provider, отключённый в конфигурации, не равнозначен подключённому provider, который вернул отказ. Если продукт требует запретить любой request без успешной injection, такую обязательность нужно обеспечить и проверить отдельно.</p>
+<p>«Actor не получил token напрямую» также не означает «Actor не может использовать его полномочия». Разрешённый request уже использует credential; echo/debug endpoint способен вернуть его в response. Тестируйте на собственном canary origin с тестовым secret и безопасным marker вместо reflected headers. Ограничивайте origin permissions и операции, а не только хранение token.</p>
+<h2>Как выбирать сетевой инструмент под задачу</h2>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Требование</th>
+<th>Нужный слой</th>
+<th>Чего недостаточно</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Пользователь обращается только к своей сессии</td>
+<td>Caller authn/authz и привязка product session к Actor</td>
+<td>Клиентского target header и mTLS Worker</td>
+</tr>
+<tr>
+<td>Найти конкретный Actor после resume</td>
+<td>Actor-aware router и актуальный assignment</td>
+<td>Cached Pod IP или одного Service к WorkerPool</td>
+</tr>
+<tr>
+<td>Обязательно выполнить задачу после ухода клиента</td>
+<td>Durable job/workflow и operation ledger</td>
+<td>Request parking</td>
+</tr>
+<tr>
+<td>Ограничить hosts и ports исходящих HTTP requests</td>
+<td>Поддерживаемый egress PEP плюс защита сети gateway</td>
+<td>Поля policy без работающего dataplane</td>
+</tr>
+<tr>
+<td>Запретить опасный tool или подтвердить публикацию</td>
+<td>Harness/tool broker, origin permissions и при необходимости approval</td>
+<td>Hostname allowlist</td>
+</tr>
+</tbody>
+</table>
+<p>Не обязательно строить stateful Actor ради каждого короткого job. Если процесс легко запускается заново, данные и результат доступны через durable records, обычная job/service модель может оказаться проще. Substrate router полезен там, где адресуемая сессия и её меняющееся исполнение действительно часть задачи.</p>
+<h2>Что измерять и как менять конфигурацию</h2>
+<p>Parking metrics называются <code>atenet.router.parking.active</code>, <code>atenet.router.parking.wait.duration</code> и <code>atenet.router.parking.rejected</code>. Active считает parked callers, не Actor и не число Workers. Wait duration относится к собственному parked времени caller; outcome <code>served</code> подтверждает завершение ожидания routing, не бизнес-успех. Rejected считает lot overflow, но не все возможные Envoy-generated отказы.</p>
+<p><code>budget_exhausted</code> означает, что закончился бюджет при retryable условии. Коррелируйте его с последним gRPC code: возможны дефицит capacity, lifecycle contention и control-plane outage. <code>timeout</code> относится к контексту ожидания caller, <code>canceled</code> - к его отмене, <code>error</code> - к non-retryable завершению. Без этого разделения autoscaling Workers легко назначить лечением недоступного API.</p>
+<p>Policy cache gateway по умолчанию живёт 10 секунд, TTL можно настроить или отключить. Новый сохранённый resource не означает мгновенное новое решение всех replicas. HTTP request проверяется по headers; уже разрешённый response stream не обязан остановиться при revoke. Для немедленного отзыва нужен отдельный план закрытия sessions или upstream credential revocation, а не обещание TTL отменить уже выполненную операцию.</p>
+<p>Router drain координируется с Envoy, но ограничен собственным сроком. Default drain timeout складывается из park budget, 10-секундного route drain budget и 5-секундного margin: при defaults 20 секунд. Это не пять минут route timeout и не 30 минут workload shutdown из главы 14. Startup guard <code>drain-timeout &gt;= park budget</code> предотвращает одну ошибку конфигурации, но не гарантирует, что любая длинная generation переживёт rollout. Согласуйте router drain, Pod grace и требования к active streams отдельно.</p>
+<h2>Проверка полезного пути и границы deny</h2>
+<p>До rollout зафиксируйте image/version, dataplane mode, policy version, Actor UID и безопасные canary destinations. Проверка из admin Pod не воспроизводит path sandbox. Выполните allow и deny внутри реального Actor, с тем же SDK и после resume; сначала на gVisor или microVM class, который действительно выбран, затем на другом, если продукт обещает оба.</p>
+<p>Для ingress нужны running fast path, suspended resume, несколько concurrent callers одного Actor на одной и разных replicas, retryable capacity/API failure, lot overflow и unknown Actor. Отдельно отключите caller во время RPC и подтвердите судьбу Actor; проведите rollout во время parked request и долгого response stream. Измеряйте реальные stream/RPC outcomes, не количество «ошибок» без причины.</p>
+<p>Для egress выберите живой разрешённый endpoint и живой запрещённый canary. Подтвердите policy deny <em>и отсутствие request на denied origin</em>. Несуществующий hostname доказывает только ошибку DNS. Проверьте wildcard apex/nested boundaries, другой port, смену authority, TLS trust и unsupported transport. Для injection отдельно нужны configured provider, отсутствие provider, отсутствие placeholder, запрещённый scope и outage; production secret в тесте не нужен.</p>
+<p>Readiness gateway не заменяет эту программу: она не доказывает конкретный DNS, origin CA, полномочия credential или завершение streaming. Успешный короткий GET тоже не доказывает, что model API отдаёт полезные chunks, а review API безопасно обрабатывает повтор публикации. Не устраняйте неизвестный отказ разрешением <code>*</code>, отключением TLS verification или безусловным retry изменяющего request.</p>
+<h2>Практика для самостоятельного решения</h2>
+<p>В модели уменьшите lot до одного slot, добавьте ещё caller того же Actor и затем другого Actor. Объясните, почему один flight может занять весь lot и почему первый быстрый lookup ещё проходит. Не объявляйте порядок admission гарантией FIFO.</p>
+<p>Замените поздний успех на <code>Unavailable</code>, затем на <code>NotFound</code>; сравните результат и число новых попыток после 5000 ms. Отмените всех callers до completion и проверьте, что модель не возвращает им успех задним числом. Для реального стенда запишите, какие таймеры и traces потребуются, чтобы проверить то же поведение.</p>
+<p>Для <code>review-42</code> распределите требования по слоям: доступ пользователя к сессии, поиск Worker, публикация с operation ID, запрет чужого hostname, запрет конкретного tool, неотражаемый credential. Какое требование нельзя закрыть одной EgressPolicy? Что изменится, если SDK требует origin pinning или HTTP/3? И чем подтвердить, что новая policy уже действует после resume, а не просто сохранена в API?</p>
+<h2>Итоги главы</h2>
+<p>Ingress соединяет logical Actor с текущим исполнением; caller authorization разрешает обращение к сессии. Parking сглаживает краткое retryable ожидание, но не создаёт capacity, не является durable queue и не отменяет уже начатый resume по park budget. Local flight, parking slot и Envoy stream - разные единицы учёта.</p>
+<p>Egress начинает с недоверенного Actor, подтверждает его identity и ограничивает доступ по возможностям конкретного dataplane. Наличие policy field не доказывает passthrough или готовую injection. Даже правильно разрешённая сеть не определяет бизнес-смысл запроса и не отменяет безопасную сверку неизвестного результата.</p>
+<p>В главе 16 поднимемся к AX control plane: как продуктовые Task, Workspace и Model превращаются в операции Substrate и кто отвечает за статус, intent и runtime. DNS/TLS диагностику уже работающего egress пути подробно продолжает глава 40.</p>
+<h3>Источники и дальнейшее чтение</h3>
+<ul>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/ingress/ingress.go">Ingress handler</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/ingress/resumer.go">ActorResumer</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/ingress/parking.go">parking</a>: routing, local flights и admission.</li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md">Request parking design</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/xds.go">xDS</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/config.go">router config</a>: разные budgets и limits.</li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/network-egress.md">Network egress contract</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/egresspolicy/egresspolicy.go">policy evaluator</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/dataplane/envoy/dynamic-modules/egress-policy/README.md">Envoy classifier</a>: trust model, matching и отсутствие passthrough allow.</li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/request.go">Egress request handling</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/credentials.go">credential implementation</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/credentials_test.go">injection tests</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/policycache.go">policy cache</a>: actual behavior вместо устаревшего описания placeholder.</li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-trust-bundle.md">CA projection</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/hack/install-ate.sh">install flags</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/manifests/ate-install/atenet-egress-with-sdsmint.yaml">Envoy/sdsmint manifest</a>: prerequisites и protocol boundary.</li>
+</ul>
+</section><section class="chapter" id="ch-16"><div class="chapter-num">Глава 16</div><h1>AX control plane: от декларации к Actor и граница с Substrate</h1>
 <div class="badges"><span class="badge">AX · ac233282</span><span class="badge">DIRECT RECONCILIATION</span><span class="badge">ROADMAP SEPARATED</span></div>
 <p>В главах 12-15 мы смотрели на Agent Substrate снизу: как Actor получает Worker, как сохраняется его состояние и как трафик находит Actor после suspend/resume. Теперь поднимемся на продуктовый уровень. Инженеру редко хочется вручную создавать ActorTemplate, передавать в него описание workspace, управлять Actor и переводить его runtime states. Ему нужна более понятная декларация: вот задача, вот рабочая среда, вот модель, запусти это безопасно и покажи состояние.</p>
 <p>Именно эту роль выполняет AX. Он не заменяет Substrate и не является ещё одним sandbox runtime. AX принимает продуктовый intent в виде <code>Task</code>, <code>Workspace</code> и <code>Model</code>, а затем переводит его в lifecycle operations Substrate. Полезная аналогия: AX отвечает за язык платформы и orchestration конкретной agent workload, Substrate - за надёжное выполнение stateful Actor на кластере.</p>
@@ -7540,7 +7732,7 @@ idempotencyKey: op-7f81
 </ul>
 <p><strong>Высокая cardinality уходит в logs, events и traces:</strong> Task ID, Actor UID, user/session, repository URL, prompt digest, external operation ID. В metric exemplar можно оставить ссылку на конкретный trace, не превращая trace ID в label.</p>
 <p>В Substrate это уже сделано намеренно: агрегированные <code>ate.actor.stats.*</code> metrics используют bounded template/pool dimensions, а per-actor measurements идут как events. Не создавайте поверх них log-based metric с label <code>ate.actor.uid</code> — это вернёт ту же проблему под другим названием.</p>
-<p>Метрика должна сохранять смысл. Например, <code>atenet.router.parking.wait.duration</code> различает <code>served</code>, <code>budget_exhausted</code>, <code>canceled</code>, <code>timeout</code> и <code>error</code>. <code>budget_exhausted</code> означает capacity bottleneck, а не обычный application error. Один counter <code>requests_failed_total</code> стёр бы это различие и направил расследование не туда.</p>
+<p>Метрика должна сохранять смысл. Например, <code>atenet.router.parking.wait.duration</code> различает <code>served</code>, <code>budget_exhausted</code>, <code>canceled</code>, <code>timeout</code> и <code>error</code>. <code>budget_exhausted</code> означает, что бюджет закончился при retryable условии, а не обычную application error. По последнему gRPC code нужно различать дефицит capacity, lifecycle contention и control-plane outage. Один counter <code>requests_failed_total</code> стёр бы эти различия и направил расследование не туда.</p>
 <h2>Что уже даёт Substrate</h2>
 <p>На снимке <code>df788825</code> Substrate реализует существенно больше, чем было видно из краткой версии этой главы:</p>
 <ul>
@@ -7699,7 +7891,7 @@ idempotencyKey: op-7f81
 <li>Найти <code>root_job_id</code> и определить terminal/expected outcome. Goal ещё исполняется, ждёт человека или уже завершён без verification?</li>
 <li>По <code>task_id</code> проверить последний committed agent event. Если это <code>approval.requested</code>, искать approval ID и deadline, а не CPU.</li>
 <li>По Actor UID запросить current state у Substrate и сравнить его с lifecycle history. Не принимать последний log event за authoritative current state.</li>
-<li>Если Actor ждёт resume, разложить route/parking/restore latency. <code>budget_exhausted</code> указывает на capacity, <code>timeout</code> — на deadline клиента, <code>error</code> — на non-retryable failure.</li>
+<li>Если Actor ждёт resume, разложить route/parking/restore latency. При <code>budget_exhausted</code> бюджет исчерпан на retryable условии: по последнему gRPC code различать дефицит capacity, lifecycle contention и control-plane outage. <code>timeout</code> относится к deadline ожидания caller, <code>error</code> — к non-retryable failure.</li>
 <li>Для работающей activation перейти по trace link к model/tool spans. Отделить gateway queue, provider latency и tool execution.</li>
 <li>Для write tool сопоставить proposed → authorized → executed → verified. HTTP 200 без verification не закрывает инцидент.</li>
 <li>Если сигнал обрывается, проверить сам telemetry pipeline: dropped records, collector queue, duplicate ingestion и clock skew.</li>

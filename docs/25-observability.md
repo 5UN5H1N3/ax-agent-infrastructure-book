@@ -149,7 +149,7 @@ Metric backend создаёт отдельную time series для каждой
 
 В Substrate это уже сделано намеренно: агрегированные `ate.actor.stats.*` metrics используют bounded template/pool dimensions, а per-actor measurements идут как events. Не создавайте поверх них log-based metric с label `ate.actor.uid` — это вернёт ту же проблему под другим названием.
 
-Метрика должна сохранять смысл. Например, `atenet.router.parking.wait.duration` различает `served`, `budget_exhausted`, `canceled`, `timeout` и `error`. `budget_exhausted` означает capacity bottleneck, а не обычный application error. Один counter `requests_failed_total` стёр бы это различие и направил расследование не туда.
+Метрика должна сохранять смысл. Например, `atenet.router.parking.wait.duration` различает `served`, `budget_exhausted`, `canceled`, `timeout` и `error`. `budget_exhausted` означает, что бюджет закончился при retryable условии, а не обычную application error. По последнему gRPC code нужно различать дефицит capacity, lifecycle contention и control-plane outage. Один counter `requests_failed_total` стёр бы эти различия и направил расследование не туда.
 
 ## Что уже даёт Substrate
 
@@ -298,7 +298,7 @@ Page должен приходить по пользовательскому с�
 1. Найти `root_job_id` и определить terminal/expected outcome. Goal ещё исполняется, ждёт человека или уже завершён без verification?
 2. По `task_id` проверить последний committed agent event. Если это `approval.requested`, искать approval ID и deadline, а не CPU.
 3. По Actor UID запросить current state у Substrate и сравнить его с lifecycle history. Не принимать последний log event за authoritative current state.
-4. Если Actor ждёт resume, разложить route/parking/restore latency. `budget_exhausted` указывает на capacity, `timeout` — на deadline клиента, `error` — на non-retryable failure.
+4. Если Actor ждёт resume, разложить route/parking/restore latency. При `budget_exhausted` бюджет исчерпан на retryable условии: по последнему gRPC code различать дефицит capacity, lifecycle contention и control-plane outage. `timeout` относится к deadline ожидания caller, `error` — к non-retryable failure.
 5. Для работающей activation перейти по trace link к model/tool spans. Отделить gateway queue, provider latency и tool execution.
 6. Для write tool сопоставить proposed → authorized → executed → verified. HTTP 200 без verification не закрывает инцидент.
 7. Если сигнал обрывается, проверить сам telemetry pipeline: dropped records, collector queue, duplicate ingestion и clock skew.
