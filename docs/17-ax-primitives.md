@@ -2,286 +2,276 @@
 
 **Статус:** `AX · ac233282` · `THREE API KINDS` · `CONTRACTS VS WIRING`
 
-В главе 16 мы проследили путь запроса через `ax-server`, Redis и Substrate. Теперь пора разобрать язык, на котором пользователь объясняет AX, что именно нужно запустить. Этот язык намеренно мал: в закреплённом срезе `ac233282` есть три API kind - `Task`, `Workspace` и `Model`.
+Представьте, что вы поручаете агенту разобраться с ошибкой в сервисе. Ему нужны исходники, определённая версия инструментов, возможность вызвать модель и место для результатов. Всё это относится к одной работе, но меняется с разной скоростью. Исходники обновляются ежедневно, образ среды выпускает платформенная команда, модель выбирает владелец harness, а результат принадлежит конкретному запуску. Если собрать эти решения в один изменяемый объект, непонятно, что можно обновить, не повредив уже выполненную работу.
 
-Маленький API полезен только тогда, когда границы объектов понятны. Если положить image, Git repositories, credentials, model parameters, network policy и весь lifecycle в один универсальный manifest, его легко создать, но почти невозможно безопасно переиспользовать. AX разделяет описание выполняемой единицы, подготовку рабочей среды и model configuration. При этом текущая реализация ещё не соединяет все три объекта так полно, как подсказывают их названия.
+AX предлагает три вида ресурсов: `Task`, `Workspace` и `Model`. Task задаёт экземпляр исполнения. Workspace описывает, как подготовить его рабочие каталоги. Model хранит настройки внутреннего клиента модели. Ключевое слово здесь - «описывает». Описание само по себе не создаёт файлов, не выдаёт права и не связывает агент с провайдером.
 
-Эта глава поэтому отвечает на два вопроса одновременно: какой mental model заложен в primitives и что действительно делает source code на зафиксированном commit. Для pre-stable системы такое разделение важнее красивой диаграммы.
+В главе 16 мы разобрали путь запроса через AX, Redis и Substrate. Теперь посмотрим, какие решения стоит выражать каждым ресурсом и где требуется дополнительный механизм. Все утверждения о реализации AX ниже относятся к `ac233282`, а не к будущей версии API. Учебная модель в примере запускается отдельно от AX и не подтверждает совместимость лабораторной пары.
 
-## Что читатель должен унести из главы
+## Что читатель сможет сделать после главы
 
-- почему Task не равен Pod, Job или «агенту целиком»;
-- почему Workspace является blueprint среды, а не общей сетевой файловой системой;
-- что Model настраивает для платформы и почему Task пока не может ссылаться на него;
-- почему Gateway больше не является AX kind в срезе `ac233282`;
-- какие поля уже влияют на runtime, а какие пока существуют только в schema;
-- почему порядок документов в multi-document YAML имеет значение;
-- что на самом деле доказывает `WorkspaceReady`;
-- как выбирать границы ресурсов и versioning strategy для production.
+- Разделить конфигурацию среды, экземпляр исполнения и прикладной результат.
+- Объяснить, почему Workspace не является общим диском нескольких агентов.
+- Найти компонент, который действительно применяет конкретное поле manifest.
+- Выбрать стратегию обновления среды без неявной подмены работающей Task.
+- Различить Model resource, клиент harness и сервис инференса.
+- Проверить содержимое среды до дорогого или опасного действия агента.
 
-## Primitive - это граница ответственности и lifecycle
+## Почему в API нужны отдельные ресурсы
 
-Primitive полезно выделять не потому, что ему нашёлся знакомый аналог в Kubernetes. Его выделяют, когда часть системы должна иметь собственные владельца, частоту изменений, правила переиспользования и failure semantics.
+Primitive, или базовый ресурс, - это не просто удобная группа полей. Это часть системы с собственным владельцем и правилами жизни. В нашем примере платформенная команда может выпускать среду для сотен задач, а инженер расследует одну ошибку. Расследование нужно приостановить и сохранить, но остановка одной Task не должна удалять общее описание среды. И наоборот: новая среда не должна незаметно перезаписать checkout, который агент уже изменил.
 
-| Primitive | Главный вопрос | Типичный lifecycle |
+| Ресурс | За какое решение отвечает | Чего создание ресурса не обещает |
 | --- | --- | --- |
-| `Task` | Что изолированно запустить и как управлять этим экземпляром? | Создать один раз, resume/suspend, затем удалить |
-| `Workspace` | Какой materialized environment должен получить Task? | Переиспользовать и обновлять как blueprint |
-| `Model` | Как platform component должен вызвать model provider? | Централизованно менять provider configuration и secret reference |
+| Task | Какой экземпляр изолированного исполнения создать и каким command его занять | Что агент закончил работу или получил правильный результат |
+| Workspace | Какие исходники и файлы подготовить в рабочей среде | Общий live filesystem или обновление всех существующих Tasks |
+| Model | Как настроить внутренний клиент провайдера модели | Выдачу этой модели и её credential любой Task |
 
-Эти lifecycle различаются намеренно. Task immutable после создания: её runtime identity уже связана с Actor и durable state. Workspace и Model обновляемы: это reusable configuration. Но обновляемость объекта не означает автоматическое распространение изменения во все уже созданные Tasks. Между API semantics и rollout semantics всегда нужен отдельный ответ.
+Такое разделение удобно лишь при понятных связях. В TaskSpec есть список ссылок на Workspace, но нет ссылки на Model. В Workspace есть объявления MCP и skills, но обычный setup не устанавливает весь объявленный набор. Если пропустить эти ограничения, схема из трёх аккуратных блоков начнёт объяснять возможности, которых пока нет.
 
-## Current API surface и documentation drift
+Для каждого поля полезно задавать один вопрос: кто прочитает его и какое действие совершит? Схема отвечает, можно ли передать поле. Validator отвечает, допустимо ли значение. Reconciler переводит часть описания в Substrate. Runner подготавливает каталоги. Harness использует инструменты и вызывает модель. Возможность реализована только в той мере, в какой эта цепочка действительно работает.
 
-Источником истины для поддерживаемых kinds является protobuf и CLI switch, а не отдельная фраза в документации. На проверенном commit `ax.proto` и `ax apply` принимают ровно три kind.
+## Как manifest попадает в систему
 
-| Kind | В protobuf/CLI | Комментарий |
+Manifest - YAML-описание ресурса. Общие поля AX: `apiVersion: ax.io/v1alpha1`, `kind`, `metadata.name` и `metadata.atespace`. Name и atespace проверяются как lowercase RFC 1123 label: не более 63 символов, буквы нижнего регистра, цифры и дефис, без дефиса по краям. Пустой atespace сервер заменяет на `default`.
+
+Atespace задаёт область имени. `team-a/checkout-v1` и `team-b/checkout-v1` - разные ресурсы. AX ищет связанные Workspaces в atespace самой Task; binding не содержит отдельного namespace. При чтении credential внутреннего Model client atespace используется как Kubernetes namespace. Но разделение имён ещё не является авторизацией: оно не доказывает, что пользователь имеет право читать этот ресурс или Secret. Защиту API и права service account нужно проектировать отдельно.
+
+CLI читает документы YAML по порядку и отправляет каждый отдельным typed RPC. Сервер не получает весь файл и не сортирует зависимости. Более того, клиент декодирует документы последовательно: ошибка в конце файла не отменяет уже применённое начало. Не стоит считать multi-document manifest транзакцией или проверкой всего пакета перед записью.
+
+| Kind | Что вызывает ax apply | Что произойдёт при повторе |
 | --- | --- | --- |
-| `Task` | Да | Create/get/list/delete/suspend/resume/watch |
-| `Workspace` | Да | Update/get/list/delete |
-| `Model` | Да | Update/get/list/delete |
-| `Gateway` | Нет | Нет kind, message или CLI branch в срезе `ac233282` |
+| Task | CreateTask | Уже существующее имя отклоняется как immutable |
+| Workspace | UpdateWorkspace | Описание создаётся или обновляется |
+| Model | UpdateModel | Описание создаётся или обновляется |
 
-`docs/manifests.md` всё ещё начинается словами «all four kinds», хотя дальше показывает только Task, Workspace и Model. Это обычный пример documentation drift. Gateway нельзя объявить «на всякий случай»: CLI вернёт unsupported kind. Сетевые ingress/egress contracts принадлежат Agent Substrate и были разобраны в главе 15.
+Слова `created`, `configured` и `unchanged` для Workspace/Model описывают сравнение сохранённых spec, а не результат подготовки sandbox. `workspace configured` не означает «агент уже получил новый toolchain».
 
-> **Правило для pre-stable API.** README помогает понять intent, docs дают examples, но окончательный contract подтверждают schema, validator и execution path выбранного commit.
+В этом срезе AX поддерживает ровно три kind. В `docs/manifests.md` осталась фраза «all four kinds», но protobuf и CLI не содержат Gateway kind. Сетевые возможности существуют в Substrate; добавление `kind: Gateway` в AX manifest их не включит. Поэтому документационный пример сверяют со схемой и исполняющим кодом выбранной версии.
 
-## Общие правила: metadata, atespace и apply
+## Task задаёт экземпляр исполнения
 
-Каждый AX object имеет `apiVersion: ax.io/v1alpha1`, kind, `metadata.name` и `metadata.atespace`. Пустой atespace server заменяет на `default`. Name и atespace становятся именами ресурсов Substrate, поэтому validator требует lowercase RFC 1123 label длиной не более 63 символов.
+Task удобно понимать как управляемую сессию в изолированной среде. В ней может работать короткая команда или долгоживущий harness. Сам harness, как мы разобрали в главе 4, управляет агентным циклом: собирает контекст, вызывает модель, проверяет действия и использует инструменты. Task даёт этому процессу окружение и lifecycle, но не заменяет его логику.
 
-Atespace - не декоративная папка. Это scope имени, secret lookup и runtime resources. Одинаковые имена в разных atespaces различаются, а Kubernetes Secret для Model client ищется в namespace, равном atespace. Поэтому production manifest лучше задаёт atespace явно, даже если лаборатория использует `default`.
+У Task есть Actor в Substrate, рабочие данные и возможность suspend/resume. Это не делает её эквивалентом Kubernetes Job: Job предполагает отдельный контракт завершения вычисления, а default runner AX остаётся жить после выхода дочерней команды. Task phase `Running` не доказывает, что агент ещё работает. Результат расследования лучше выражать прикладным артефактом: отчётом, проверенным commit, записью результата и идентификатором внешней операции.
 
-`ax apply` читает multi-document YAML последовательно и отправляет каждый document отдельным typed RPC. Server не получает исходный YAML целиком и не строит dependency graph. Общей транзакции тоже нет: первые документы могут примениться, а следующий завершиться ошибкой.
+Отдельная Task оправдана, когда работу нужно независимо приостанавливать, восстанавливать или ограничивать. Например, агент, читающий чужой patch, и агент, публикующий изменения, могут требовать разных полномочий. Разнести их по Tasks полезно, но одного разделения процессов недостаточно: разные права нужно реально выдать и применить. Если два процесса всегда работают с одними данными и завершаются вместе, дополнительная Task может лишь усложнить координацию.
 
-| Resource | Apply operation | Повторное применение |
-| --- | --- | --- |
-| Task | `CreateTask` | Ошибка, если имя уже существует |
-| Workspace | `UpdateWorkspace` | `created`, `configured` или `unchanged` |
-| Model | `UpdateModel` | `created`, `configured` или `unchanged` |
+### Image и command относятся к разным процессам
 
-### Порядок документов является contract
+Image определяет программное окружение контейнера. AX задаёт в ActorTemplate фиксированный запуск `/usr/local/bin/ax-task-runner`; пользовательский `spec.command` затем запускает runner как дочерний процесс. Поэтому образ с привычным ENTRYPOINT, но без совместимого runner по этому пути, не подходит автоматически. При пустом image reconciler использует default runner image; это значение по умолчанию, а не замена фиксации проверенного образа в вашей pipeline.
 
-Task reconciliation читает связанные Workspaces из Redis во время создания. Если Task стоит раньше Workspace, отсутствующая ссылка сейчас не вызывает validation error: server просто не передаст Workspace в runner. Runner сопоставит binding с пустым объектом и создаст directory без ожидаемого содержимого.
+Для своего агента обычно достаточно расширить проверенный образ runner: добавить CLI, библиотеки и собственный executable. Переписывать runner ради одного пакета не нужно. Если вы меняете supervisor, сигналы, probes или способ подготовки файлов, появляется отдельная обязанность поддерживать весь runner contract. Подробно эту границу разберёт глава 18.
 
-Поэтому безопасный порядок таков: сначала Workspace, затем Model, если он нужен platform component, и только потом Task. Ещё надёжнее применять reusable resources отдельным deployment step и создавать Tasks после проверки их наличия.
+`command` - список executable и аргументов, а не строка shell. Список `["agent", "--issue", "142"]` запускает agent напрямую; символы `&&`, перенаправления и подстановки в аргументе не становятся shell-командами. Shell должен быть запущен явно. Это различие полезно и для безопасности: превращать произвольный пользовательский текст в shell script не стоит.
+
+### Какие поля действительно меняют исполнение
+
+`image` и `env` участвуют в построении ActorTemplate, а Task YAML передаётся runner. `workspaces` задаёт bindings, `command` - запускаемый child, `debug` - guest services для доступа к процессам и файлам. Однако создание пользовательского ActorTemplate может завершиться warning и fallback к default template. Проверенный manifest ещё не доказывает, что Actor использует нужный image и environment; после provisioning необходимо сверить фактический template. Причину этого ограничения мы рассмотрели в главе 16.
+
+`resources.requests` и `resources.limits` выглядят знакомо инженеру Kubernetes. В этом срезе reconciler не переносит Task.spec.resources в ActorTemplate. Следовательно, красивое значение CPU в manifest не доказывает ни применённый limit, ни резервирование мощности. Проверять нужно настройки исполняющего runtime. Точно так же сам binding path не гарантирует, что этот путь включён в сохраняемый volume выбранного template.
+
+`env` содержит literal name/value. Значение входит в Task record и доступно через API; у поля нет `valueFrom.secretKeyRef`. Помещать туда API key опасно. Secret reference у Model решает другую задачу и не превращает Task env в secret store. Отдельный hardcoded Gemini lookup reconciler также не является универсальной связью с Model. Для агентной команды нужен собственный контракт выдачи credential или сервис-посредник, который выполняет запросы к провайдеру без передачи постоянного ключа в sandbox.
+
+### Immutable означает запрет неявной подмены
+
+CreateTask запрещает повторное создание существующего имени, даже с тем же spec. Это не идемпотентный update. Если применить файл с Workspace, а затем уже существующей Task, Workspace может обновиться, а Task будет отклонена. Частичная запись из главы 16 проявляется здесь как обычная проблема deployment.
+
+Запрет менять Task spec помогает не подменить command и image под именем уже существующего исполнения. Но это не гарантия вечной идентичности Actor: восстановление после crash может включать recreate, а TaskStatus.id не является Actor UID. Delete и повторное создание того же имени также не продолжают прежнее расследование. Для результата и внешних действий храните отдельные execution/operation identifiers.
+
+Lifecycle меняется явными suspend/resume/delete, а не редактированием spec. Если нужен новый executable contract, безопаснее создать новое имя Task и отдельно решить, какие данные переносить. Просто удалить старую Task, чтобы `apply` снова прошёл, означает принять риск потери её runtime и рабочего состояния.
+
+## Workspace описывает подготовку а не общий диск
+
+Workspace - рецепт подготовки рабочей среды, или blueprint. В нём могут быть Git repositories и небольшие inline-файлы. Когда runner подготавливает binding, эти данные становятся реальными каталогами и файлами внутри конкретной Task. Это действие будем называть материализацией.
+
+Две Tasks могут пользоваться одним рецептом, но материализуют его независимо. Если первый агент изменит файл, второй не увидит правку только из-за общей ссылки на Workspace. Для совместного редактирования нужны Git-публикация, обмен артефактами или отдельное общее хранилище. Выбор зависит от задачи: обмен готовыми patch обычно проще и лучше отслеживается, чем конкурентная запись в общий каталог.
+
+Название Workspace не является версией готовой среды. Даже одинаковое описание с `branch: main` может дать разный checkout в разные дни. Для воспроизводимости фиксируют образ, ожидаемый Git commit, dependency lockfiles и набор инструментов, а затем проверяют, что именно получилось. Версия рецепта и версия результата связаны, но не тождественны.
+
+### Binding задаёт расположение и рабочий каталог
+
+Binding находится в Task.spec.workspaces: `name` выбирает Workspace, `path` задаёт каталог, `goal` описывает желаемую подготовку. При пустом path используется `/workspace/<name>`. Первый binding становится рабочим каталогом команды (CWD); runner подготавливает bindings в порядке объявления. Если bindings вообще нет, он создаёт пустой `/workspace`.
+
+Git checkout располагается ещё на один уровень глубже по правилам `git.dir` и имени repository. Binding `/workspace/service` не означает, что исходники сразу лежат в этом каталоге: без `dir: .` repository обычно попадает в отдельный подкаталог. Тогда `command` может стартовать не там, где находится project. В manifest ниже `dir: .` выбран именно для согласования checkout и CWD.
+
+Validator отклоняет повторное имя Workspace, относительный path и одинаковые paths после удаления завершающих `/`. Но он не является полной политикой размещения: не проверяет пересечение родительского и дочернего каталога, не нормализует все `..` и не требует путь под `/workspace`. Для своей deployment pipeline полезно запретить неоднозначные и перекрывающиеся paths. Это дополнительная политика команды, а не уже встроенная гарантия AX.
+
+Есть и менее очевидная причина. Runner использует marker - файл-признак уже проведённой подготовки. Его имя строится из очищенного path с заменой `/` на `-`. Paths `/workspace/a-b` и `/workspace/a/b` дадут одинаковое имя marker. Поэтому уникальные path strings не всегда означают независимые признаки инициализации. Для сложной раскладки проверяют и это соответствие, а реальную сохранность файлов - по volume mapping template.
+
+### Setup выполняет конкретные операции
+
+Обычный SetupWorkspace создаёт каталог, ищет marker и, если его нет, записывает inline files, получает Git repositories, создаёт skills.path и при наличии goal пробует bootstrap. MCP declarations и skills registries в этом пути не устанавливаются. Они остаются описанием, которое должен читать другой компонент. Само наличие `mcp.servers` не доказывает ни запуск сервера, ни его подключение к harness.
+
+Inline files записываются до Git fetch/checkout. Если inline-файл имеет то же имя, что tracked file в repository, checkout может заменить его содержимое. Поэтому файл политики в manifest не стоит считать гарантированно установленным: его фактическое содержимое проверяют после checkout. Ошибки записи files и создания skills directory здесь логируются, но не обязательно превращают setup в ошибку.
+
+В source paths для files и Git dir могут быть absolute; относительные paths тоже не образуют самостоятельную security boundary. Workspace следует считать доверенной конфигурацией, способной менять файлы внутри guest, а не безобидным текстом конечного пользователя. Ограничения paths, доступ к приватным repositories и provenance пакетов требуют явной политики. Файлы с credential могут попасть в сохраняемые данные; их не стоит добавлять в рецепт среды.
+
+### Goal не заменяет проверку результата
+
+Goal передаётся Antigravity bootstrap script, если script есть в image и доступен `GEMINI_API_KEY`. Default timeout - 10 минут. Такой способ удобен для исследовательской среды: агент может подобрать зависимости под незнакомый проект. Но просьба «подготовь окружение» не является точным контрактом: разные toolchain или версии пакетов могут одинаково удовлетворять тексту.
+
+Для известной повторяющейся работы предпочтительнее заранее собранный образ и deterministic setup с lockfiles. Goal уместен там, где вариативность допустима и результат затем проверяется. В этом runner skipped, failed или timed-out bootstrap не возвращает fatal setup error. Git failure удерживает marker от записи для следующего старта, но тоже возвращается без error. Отсутствующий Workspace в server lookup пропускается, а runner может подготовить пустой каталог и marker.
+
+Отсюда важная граница: `WorkspaceReady=True` сообщает об окончании ограниченной процедуры, а не о полноте среды. Прикладная acceptance probe проверяет то, без чего работа бессмысленна: фактический Git HEAD, lockfiles, наличие executable, версии инструментов и доступные безопасные зависимости. Её запускают до дорогих model calls и тем более до изменения внешней системы. Это проверка среды, не доказательство будущего качества результата агента.
+
+## Обновление Workspace и обновление файлов это разные операции
+
+UpdateWorkspace сохраняет новое описание в store; он не обходит существующие Tasks и не обновляет их каталоги. Reconcile на последующем RPC может прочитать новую запись, но уже существующий Actor и его launch configuration не обязаны измениться. Нельзя выводить rollout из одного успешного UpdateWorkspace.
+
+Кроме того, SetupWorkspace проверяет marker `/ax/initialized-<path>` прежде, чем читает новое содержимое spec. Marker хранит имя Workspace и время, но не digest рецепта. Даже если передать runner новое описание, marker позволяет пропустить setup. Это полезно: агент мог сделать незакоммиченные изменения, и повторный Git checkout не должен их стереть. Та же защита не даёт считать resume автоматическим обновлением toolchain.
+
+Практичный вариант - выпускать `checkout-v1`, `checkout-v2` и создавать новую Task для новой версии. AX не запрещает изменить и versioned Workspace: неизменность версии должна обеспечивать ваша pipeline, например сравнением digest spec и запретом повторной записи под тем же versioned name. Иначе `v2` останется только обещанием в названии.
+
+Если нужна миграция действующей Task, это отдельная операция: сохранить её изменения, проверить текущую среду, определить допустимые преобразования, выполнить их и проверить результат. Удаление marker не заменяет миграцию. Повторный setup содержит принудительный Git checkout и может перезаписать рабочие данные. Сначала инвентаризация и backup, затем разрешённые изменения.
+
+## Практический пример расхождения рецепта и файлов
+
+`examples/ch17_workspace_versions.py` запускается на Python 3.10+ без внешних зависимостей. Он создаёт только собственные временные каталоги и моделирует inline files, marker и дополнительную deployment policy. Git, bootstrap, Secret, Model, AX и Substrate не вызываются. Это не копия полного runner и не симулятор suspend/snapshot/resume.
+
+Сначала Task A получает `toolchain.lock` версии v1. Агент оставляет в каталоге notes. Затем описание под тем же именем Workspace заменяется на v2. Пример явно передаёт новое описание setup, но тот видит marker и пропускает запись. Это сильнее, чем предположение «старый runner просто не получил новый YAML»: даже получения YAML недостаточно.
+
+После этого отдельная Task B получает Workspace с новым именем и версией v2. Её каталог независим от A. Дополнительная функция `preflight` до запуска отклоняет отсутствующие ссылки, повторные bindings, неоднозначные paths, пересечения каталогов и коллизии marker. Она строже upstream validator в этих пунктах, но не является полной проверкой AX manifest. Лексическая проверка path также не доказывает безопасность symlinks или mounts реального guest.
 
 ```
-safe apply sequence:
-  1. apply Workspace and Model definitions
-  2. verify: ax get workspace / ax get model
-  3. create Task that binds the Workspace
-  4. resume Task and wait for Ready=True
+python3 examples/ch17_workspace_versions.py
+python3 -m unittest discover -s examples -p 'test_ch17_workspace_versions.py'
 ```
 
-## Task: единица isolation и runtime identity
+Acceptance в модели сверяет содержимое объявленных файлов, а не наличие marker. Она не исправляет среду и не удаляет работу агента:
 
-Task отвечает не на вопрос «какую бизнес-задачу решает агент», а на более конкретный: какой sandboxed execution instance должен существовать, с каким filesystem state и lifecycle. Один Task может содержать короткую команду, долгоживущий agent harness или корневой узел, который порождает другие Tasks.
+```
+def acceptance(target: Path, expected: Workspace) -> str:
+    """Read-only fixture check, not a complete environment acceptance probe."""
+    for name, content in expected.files:
+        file = target / name
+        if not file.is_file():
+            return 'ENVIRONMENT_DRIFT'
+        if sha256(file.read_bytes()).digest() != sha256(content.encode()).digest():
+            return 'ENVIRONMENT_DRIFT'
+    return 'ACCEPT'
+```
 
-Границу Task стоит проводить там, где нужны отдельные isolation, credentials, suspend/resume, failure recovery или audit identity. Два процесса, которые должны падать, восстанавливаться и получать permissions независимо, не следует помещать в одну Task только ради удобного manifest.
+Полный вывод примера:
 
-### Поля Task и их фактический эффект
+```
+{
+  "source": "local_inline_file_model",
+  "ax_and_substrate_contacted": false,
+  "existing_setup": "SKIPPED",
+  "existing_file": "v1",
+  "existing_acceptance_for_v2": "ENVIRONMENT_DRIFT",
+  "existing_notes_preserved": true,
+  "new_task_file": "v2",
+  "new_task_acceptance": "ACCEPT",
+  "missing_reference_preflight": [
+    "MISSING_WORKSPACE"
+  ],
+  "missing_reference_unchecked_setup": "SETUP_COMPLETE"
+}
+```
 
-| Поле | Назначение | Current main |
-| --- | --- | --- |
-| `image` | Container image для ActorTemplate | Работает; при пустом значении используется default runner image |
-| `command` | Agent process и arguments | Runner запускает как child; это не container entrypoint |
-| `env` | Переменные окружения workload | Передаются в ActorTemplate и доступны через API в открытом виде |
-| `resources` | CPU/memory requests и limits | Есть в schema, но inspected reconciler не маппит их в Substrate ActorTemplate |
-| `workspaces` | Именованные bindings, paths и goals | Работают, но existence ссылки не валидируется |
-| `debug` | Включить guest services для `ax ssh` | Работает; открывает process/file access внутри sandbox |
+`SKIPPED` объясняет, почему старые файлы не изменились. `ENVIRONMENT_DRIFT` означает, что имеющаяся среда не соответствует ожиданию v2; это не разрешение автоматически её перезаписать. `existing_notes_preserved` показывает полезную сторону marker. `ACCEPT` у новой Task подтверждает только fixture files этого примера, а не готовность модели, MCP или приложения.
 
-### Image и command - разные уровни
+Последние два поля объясняют место preflight: отсутствующую ссылку можно остановить ещё до создания исполнения. Без такой проверки пустая подготовка выглядит успешной. В реальном deployment дополнительно проверяют schema, image/runner compatibility, фактический checkout, path/volume mapping и безопасные application probes. Локальный пример не заменяет эти проверки.
 
-AX всегда запускает в container фиксированный путь `/usr/local/bin/ax-task-runner`. Пользовательский `spec.command` приходит runner через `AX_TASK_YAML` и становится дочерним процессом. Поэтому custom image обязан содержать совместимый runner по ожидаемому пути. Просто указать image с привычным ENTRYPOINT недостаточно.
+## Model хранит настройки клиента а не предоставляет модель
 
-Если command пуст, runner продолжает обслуживать metadata до остановки. Если child завершился, runner также остаётся PID 1. Следовательно, phase `Running` и даже container health не доказывают, что agent process продолжает работу. Подробный runner contract будет в главе 18.
+Важно разделить три сущности. Model resource - сохранённая конфигурация. Model client - код, который читает её и отправляет запрос. Inference service - система, реально выполняющая вычисление: удалённый provider или собственный сервер. Создание первого не создаёт два остальных и не заставляет любой agent process их использовать.
 
-### Env не является secret store
+ModelSpec содержит `provider`, `model`, свободную карту `parameters` и `secretKey` с именем Secret и ключа. Внутренний клиент способен прочитать Model из store и разрешить Secret в namespace, заданном atespace. Но TaskSpec не содержит model reference. Если агент в image вызывает свой SDK, именно конфигурация harness определяет endpoint, model identifier и credential. Ресурс Model в Redis может остаться совершенно неиспользованным.
 
-`EnvVar` содержит только `name` и literal `value`. Значение сохраняется в Task record и возвращается через `ax get task`. В schema нет `valueFrom.secretKeyRef`, а у Task нет `modelRef`. Open issue #348 именно поэтому предупреждает: credentials, помещённые в Task env, становятся API-readable.
+Сохранение Model проверяет metadata, но не подтверждает существование Secret, права на его чтение или поддержку provider. Конфигурация загружается при создании клиента, и разрешённый API key сохраняется в нём. UpdateModel сам по себе не перенастраивает уже созданный client и не доказывает ротацию credential. Потребителю нужен отдельный механизм reload или создание нового клиента, с проверкой фактического запроса.
 
-Current reconciler отдельно умеет находить hardcoded `gemini-api-secret/GEMINI_API_KEY` и добавлять его в ActorTemplate. Это не универсальная связь Task -> Model и не решает безопасную выдачу произвольных provider credentials. Для production предпочтительны egress credential injection или другой broker, при котором secret не входит в sandbox.
+Workspace planner имеет constructor для загрузки `default-model` из store. Обычный runner path его не вызывает: он запускает bootstrap script напрямую. Более того, PlanEnvironment явно передаёт `model.DefaultModel` в GenerateRequest, а request model имеет приоритет над config. Поэтому даже подключение этого planner не означает, что любое изменение Model.spec.model будет определять фактическую модель запроса. Сверяют конкретного потребителя и его effective request, а не только запись ресурса.
 
-### Resources: declaration ещё не enforcement
+### Provider в схеме и работающий adapter
 
-Manifests показывают `requests.cpu`, `requests.memory`, limits и похожи на Kubernetes. Но `TaskReconciler` строит ActorTemplate без чтения `task.spec.resources`. Пока mapping не реализован, эти значения нельзя использовать как доказательство quota или isolation.
+Provider - строка, но remote Generate path внутреннего клиента реализован для `google`. Пример с другим provider в документации не доказывает наличие adapter. `parameters` для Google передаются как generationConfig; `systemInstruction` обрабатывается отдельно, а явные request settings могут перекрыть config. Универсальные названия параметров не гарантируют одинаковый смысл у разных providers.
 
-При выборе AX инженер должен проверить не только наличие поля, но и полный путь: parse -> validation -> translation -> runtime enforcement -> observation. Если цепь заканчивается на schema, поле является intent или placeholder, а не control.
+Есть более опасная граница. Клиент может вернуть fallbackResponse без error, если отсутствует API key, отключён remote mode, произошла transport error либо Google ответил 401, 403, 429 или 503. Fallback - шаблонная строка о подготовленной среде с приблизительным подсчётом usage, а не вычисление локальной LLM и не доказательство успешного вызова Gemini. Успешный возврат Generate сам по себе не подтверждает доступ к провайдеру.
 
-### Task immutable, но state продолжает жить
+Для экспериментального scaffolding заглушка удобна. Для инженерной автоматизации, зависящей от содержательного ответа модели, нужны наблюдаемость реального provider call и политика, не допускающая незаметной замены ответа заглушкой. Проверяют auth failure, rate limit, transport outage и unsupported provider отдельно. Разбор таких результатов не стоит подменять тестом «метод вернул строку».
 
-Повторный CreateTask с тем же именем запрещён. Это защищает связь Task name, Actor и durable state от неявной подмены image или command. Изменение executable contract должно создавать новую Task identity либо проходить явную migration procedure.
+Если агент должен выбирать между несколькими providers, работать с local inference или централизованно контролировать стоимость и credentials, эти задачи решают на границе harness и model gateway. Model resource AX полезен только для компонента, который действительно использует его contract. Конкретное размещение и производительность inference мы разберём в главах 20–21.
 
-В AX `ac233282` suspend/resume меняют lifecycle, а не spec. Delete ждёт удаления Actor, затем пытается очистить per-task ActorTemplates и удаляет Redis record. Ошибка очистки templates обрабатывается как warning, поэтому отсутствие Task не доказывает отсутствие templates или их golden snapshots; проверьте inventory Substrate отдельно. Если нужна история завершённых задач, экспортируйте её до delete: Task store не является архивом.
+## Как выразить расследование в manifest
 
-## Workspace: blueprint materialized environment
-
-Workspace часто ошибочно воспринимают как общий PVC. На самом деле это reusable blueprint: список Git sources, inline files, MCP/skills declarations. Когда Task связывает Workspace, runner материализует его в durable filesystem именно этой Task. Две Tasks ссылаются на один Workspace definition, но получают независимые рабочие копии и независимый runtime state.
-
-Такое разделение полезно для агентных нагрузок. Агент должен свободно менять checkout, создавать artifacts и сохранять локальные caches, не повреждая среду соседней Task. Shared collaboration требует отдельного storage или coordination service; Workspace reference сама по себе его не создаёт.
-
-### Что хранит Workspace и что делает setup
-
-| Часть spec | Intent | Фактическая maiden setup |
-| --- | --- | --- |
-| `git` | Repositories, branch, dir, depth | Init/fetch/checkout, до 5 попыток, default branch `main` |
-| `files` | Создать небольшие configuration files | Записываются с mode 0644; absolute path также разрешён |
-| `mcp.registries/servers` | Объявить tool landscape | Хранится в resource и metadata; inspected `SetupWorkspace` не materializes MCP config |
-| `skills.registries` | Источники skill packages | Inspected setup не загружает registries |
-| `skills.path` | Directory для skills | Directory создаётся, но packages не устанавливаются |
-
-Это не повод объявлять Workspace бесполезным. Git и files уже дают воспроизводимый старт, а MCP/skills schema фиксирует желаемый contract для runner или внешнего planner. Но platform owner должен различать declarative data и materialization implementation.
-
-### Binding принадлежит Task
-
-Path и goal находятся не в WorkspaceSpec, а в `Task.spec.workspaces[]`. Один blueprint можно смонтировать по разным paths и подготовить под разные цели. Binding без path получает `/workspace/<name>`; первый binding становится working directory command. Paths должны быть absolute и уникальными.
-
-Если bindings нет, runner всё равно создаёт пустой `/workspace`. Если binding ссылается на отсутствующий Workspace, current code также создаёт пустую directory. Поэтому `WorkspaceReady=True` нельзя трактовать как доказательство, что named Workspace был найден.
-
-### Goal - просьба bootstrap agent, а не postcondition
-
-Goal передаётся default runner в Antigravity bootstrap script. Script запускается только если он присутствует в image и доступен `GEMINI_API_KEY`; default timeout равен 10 минутам. Goal может установить toolchain или dependencies, но он не является формально проверяемым desired state.
-
-В current setup skipped, timed-out или failed bootstrap логируется, но не делает `SetupWorkspace` error. После этого marker всё равно может быть записан, а runner выставит readiness. Аналогично Git failure не возвращается runner как error: marker не пишется для retry, однако текущий boot может получить `WorkspaceReady=True`.
-
-> **Readiness lesson.** В текущей реализации `WorkspaceReady` ближе к «runner завершил setup procedure без fatal Go error», чем к «все repositories, tools и goal postconditions проверены». Нужны собственные acceptance probes перед запуском дорогой agent loop.
-
-### Idempotency marker и versioning
-
-Runner создаёт marker `/ax/initialized-<path>` отдельно для каждого binding. Если marker найден, maiden setup пропускается. Это защищает изменённый агентом checkout от повторного clone после restart/resume.
-
-Но marker не содержит digest Workspace spec. Update Workspace не запускает fan-out reconciliation существующих Tasks, а already initialized runner не обязан повторять setup. Поэтому изменение branch, files или skill declarations следует считать новой версией environment.
-
-Практичные стратегии: включать version в Workspace name, создавать новую Task на новую версию, либо писать custom migration step с собственным digest marker. Mutable Workspace удобен для future Tasks, но не является fleet-wide rollout mechanism.
-
-### Security и ownership
-
-Inline file может иметь absolute path, а goal запускает agent-assisted bootstrap с доступными sandbox privileges. Workspace поэтому должен считаться доверенным platform configuration, а не произвольным input конечного пользователя. Code review, provenance и ограничения egress для maiden setup важны не меньше, чем policy runtime agent.
-
-Credentials для private Git, MCP registries и package managers требуют отдельного design. Простое добавление secret в files или env делает его частью Task record или filesystem snapshot. Лучше выдавать short-lived credentials только setup phase и отделять setup Actor от runtime Actor; именно такое разделение присутствует в AX roadmap, но ещё не реализовано.
-
-## Model: configuration для platform model client
-
-Model хранит provider name, model identifier, provider-specific parameters и Kubernetes Secret reference. Его смысл - централизовать model configuration для компонентов AX, например Workspace planner. Это не inference service и не автоматическая настройка каждого agent process.
-
-| Поле | Что означает | Current main caveat |
-| --- | --- | --- |
-| `provider` | Provider selector | Schema принимает string; remote Generate path реализован только для Google |
-| `model` | Provider model identifier | Используется internal model client |
-| `parameters` | Свободная JSON map generation settings | Для Google передаётся как generationConfig; `systemInstruction` обрабатывается отдельно |
-| `secretKey` | Kubernetes Secret name/key | Secret ищется в namespace, равном atespace |
-
-### Model не привязан к Task
-
-В TaskSpec нет model reference. Создание `Model/default-model` не меняет environment пользовательской команды и не заставляет agent использовать указанный model. Internal `model.Client` умеет загрузить Model из store, но такой client должен быть явно создан platform component.
-
-Workspace planner содержит constructor, который читает `default-model` из store, однако default runner path в inspected code напрямую запускает Antigravity bootstrap и не вызывает этот planner. Для task workload выбор model остаётся ответственностью harness внутри image или внешнего model gateway.
-
-### Provider name не гарантирует adapter
-
-Manifest documentation показывает Google и Anthropic examples. Но current `Generate` выполняет remote request только для `google`; другой provider возвращает unsupported provider, если не включён local fallback mode. Схема специально extensible, однако adapter support нужно проверять по коду и end-to-end test.
-
-### Secret reference имеет узкую область
-
-`secretKey` не копирует secret в Model record: internal client читает Kubernetes Secret. Это лучше literal env. Но наличие Model не даёт credential Task. Более того, current Task reconciler использует отдельный hardcoded Gemini lookup, а не выбирает Model resource по ссылке.
-
-Поэтому перед production нужно ответить: кто вызывает model - AX planner или agent command? В первом случае Model подходит как platform configuration. Во втором нужен contract harness/gateway и отдельный способ безопасной выдачи credentials.
-
-## Куда делся Gateway
-
-Старая версия главы называла Gateway четвёртым primitive и приписывала ему listeners, allowlist и `GatewayReady`. В current protobuf такого ресурса нет. Сетевой boundary существует, но реализуется на уровне Substrate routing и EgressPolicy, а не AX Gateway manifest.
-
-Это хороший пример правильной эволюции abstraction: отсутствие user-facing kind не означает отсутствие функции. Иногда platform становится яснее, когда policy остаётся у слоя, который реально применяет её. AX Task может пользоваться runtime networking, не копируя весь Substrate network API в свой schema.
-
-## Как собрать primitives в рабочую декларацию
+Ниже шаблон, а не готовый стенд: example repository и image digest нужно заменить собственными проверенными значениями. Сначала идёт Workspace, затем новая Task. Ресурс Model не добавлен: выбор модели этого агента выполняет его harness через отдельно настроенный gateway.
 
 ```
 apiVersion: ax.io/v1alpha1
 kind: Workspace
 metadata:
-  name: checkout-v3
+  name: checkout-v2
   atespace: team-a
 spec:
   git:
   - repo: https://github.com/example/service.git
-    branch: main
+    branch: release-v2
+    dir: .
     depth: 1
-  files:
-  - path: AGENTS.md
-    content: |
-      Run tests before changing code.
 ---
 apiVersion: ax.io/v1alpha1
 kind: Task
 metadata:
-  name: investigate-142
+  name: investigate-142-v2
   atespace: team-a
 spec:
   image: ghcr.io/example/agent@sha256:PINNED_DIGEST
-  command: ["agent", "--ticket", "142"]
+  command: ["agent", "--issue", "142"]
   workspaces:
-  - name: checkout-v3
+  - name: checkout-v2
     path: /workspace/service
-    goal: Verify the toolchain and dependencies.
   debug: false
 ```
 
-Workspace расположен первым намеренно. Image pinned digest отделяет изменение runtime от изменения Task name. Goal короткий и проверяемый внешним probe. Debug выключен по умолчанию. Credentials в manifest отсутствуют. Model не добавлен, потому что этот Task использует model gateway через собственный harness; объявлять неиспользуемый resource только для красоты не нужно.
+`dir: .` помещает checkout в CWD команды. Новое имя Task отделяет новое исполнение от предыдущего расследования. Goal опущен намеренно: подготовка известной среды должна быть воспроизводимой, а необходимые инструменты входят в image. Credential в manifest нет. Отсутствие resources здесь не обещает отсутствие ограничений runtime: реальные quotas и limits проверяют на уровне Substrate/template.
 
-## Как выбирать primitive под задачу
+Даже release branch может измениться, поэтому ожидаемый commit фиксируют в deployment evidence и сверяют после checkout. Сначала применяют и проверяют Workspace, затем создают Task, сверяют Actor/template и явно выполняют resume. Создание Task начинается с phase Suspended. После setup harness проверяет среду до основного цикла; в manifest нет встроенного поля `acceptanceProbe`. Пример не следует запускать, пока эта логика и доступ к gateway не реализованы в вашем image.
 
-| Потребность | Правильная точка | Почему |
+Повторять весь файл как универсальный «repair» нельзя: Workspace обновляем, Task immutable. Для следующего запуска меняют имя Task, а старое исполнение сохраняют до решения о завершении, переносе данных и удалении.
+
+## Как выбрать механизм под задачу
+
+| Потребность | Что выбирать | Цена и обязательная проверка |
 | --- | --- | --- |
-| Другой image, command или isolation boundary | Новая Task | Меняется runtime identity |
-| Одинаковый checkout/setup для многих Tasks | Versioned Workspace | Переиспользуется blueprint, не live filesystem |
-| Несколько repositories с разными paths | Один или несколько Workspace bindings | Первый задаёт CWD, каждый получает свой marker |
-| Model для platform planner | Model resource | Internal client может прочитать config и secret reference |
-| Model для agent command | Harness/model gateway contract | Task не имеет modelRef |
-| Egress allowlist и credential injection | Substrate EgressPolicy/gateway | Gateway не является AX kind |
-| Общий mutable filesystem нескольких agents | Отдельный storage/collaboration service | Workspace создаёт независимые copies |
+| Изолированная сессия со своими данными и lifecycle | Отдельная Task | Координация результатов и реальные permissions |
+| Повторяемая известная среда | Образ с toolchain и versioned Workspace | Build pipeline, проверка checkout и запрет изменения версии |
+| Исследовательская подготовка незнакомого проекта | Goal bootstrap | Вариативность, timeout и отдельные postconditions |
+| Передать результат другому агенту | Git patch или artifact store | Версия, provenance и контроль применения |
+| Совместно менять одни live данные | Отдельное shared storage | Конкурентная запись, locks и восстановление; Workspace этого не даёт |
+| Настроить внутренний model client AX | Model resource и явный потребитель | Adapter, effective request и наблюдаемость fallback |
+| Выбирать provider для команды агента | Конфигурация harness или model gateway | Credentials, quotas, ошибки и API compatibility |
 
-## Антипаттерны
+Начинайте с самого простого варианта, который обеспечивает нужную границу. Один Workspace с pinned inputs обычно дешевле полноценного механизма миграций. Отдельный gateway оправдан общими требованиями к credential и нескольким потребителям, а не самим наличием LLM. Общий диск стоит вводить лишь тогда, когда обмена готовыми артефактами недостаточно и команда готова управлять конфликтами записи.
 
-- **Считать field реализованным по наличию в YAML.** Проверяйте translation и enforcement.
-- **Ставить Task первым в multi-document file.** Dependencies не сортируются автоматически.
-- **Хранить API key в Task env.** Literal возвращается через API.
-- **Считать Workspace общим volume.** Каждая Task получает собственную materialization.
-- **Обновлять Workspace и ожидать rollout.** Existing Tasks не получают новую среду автоматически.
-- **Считать WorkspaceReady semantic test.** Goal, Git или tools могут быть неполными.
-- **Создавать Model и ожидать его внутри Task.** Прямой связи в schema нет.
-- **Писать Gateway manifest из старой документации.** Current CLI его отвергает.
-- **Включать debug постоянно.** Guest services дают process execution и file access.
+Практический критерий выбора - не число красивых ресурсов, а возможность ответить: кто владеет описанием, кто применяет его, что сохранится после сбоя и как проверить результат. Если ответ на один из вопросов отсутствует, дополнительная abstraction лишь спрячет проблему.
 
-## Production checklist primitives
+## Практика для самостоятельной проверки
 
-- API kinds и fields сверены с pinned `ax.proto`.
-- Atespace задан явно и соответствует namespace/security boundary.
-- Workspace и Model применяются до Task и проверяются отдельно.
-- Task image закреплён digest, command и working directory однозначны.
-- Task resources подтверждены на уровне Substrate, а не только manifest.
-- Workspace references существуют; missing reference даёт deployment failure в вашей pipeline.
-- Workspace versioning не зависит от mutable update существующего имени.
-- Git checkout, required tools и goal postconditions проверяются отдельным probe.
-- Secrets отсутствуют в Task env, inline files и durable snapshot.
-- Model используется только компонентом, который действительно читает resource; provider adapter проверен end-to-end, включая rate limits и auth failure.
+Измените v2 в локальном примере, оставив Workspace name прежним. Объясните, почему marker не меняется и acceptance отклоняет старые файлы. Затем создайте новый versioned Workspace, но сохраните старый task-local каталог: одного нового имени рецепта достаточно или marker всё ещё остановит setup?
 
-## Итог
+Добавьте bindings `/workspace/a-b` и `/workspace/a/b`. Они не совпадают как строки и не вложены друг в друга, но дают одну marker identity. Найдите, какая проверка дополнительной policy обнаруживает это и почему проверки upstream validator недостаточно.
 
-Task, Workspace и Model разделяют три разных вида решений: runtime identity, materialized environment и platform model configuration. Их полезно комбинировать, но нельзя воображать связи, которых нет в current implementation. Task пока не выбирает Model, WorkspaceReady не является полноценным acceptance test, resources ещё не доходят до runtime, а Gateway больше не входит в AX API.
+Для собственной архитектуры выпишите путь одного model call: какой executable вызывает модель, где он берёт параметры, кто выдаёт credential и как отличить provider response от fallback. Если на схеме есть Model resource, покажите конкретный вызов, который читает его. Если такого вызова нет, уберите воображаемую связь.
 
-Зрелая работа с primitives начинается с вопроса «кто применяет это поле и когда?». Schema описывает intent, reconciler переводит часть intent в Substrate, runner материализует Workspace, а harness выполняет agent logic. Только пройдя всю цепочку, инженер может считать capability реализованной.
+## Итоги главы
 
-В следующей главе мы углубимся в runner: почему он становится PID 1, как принимает Task и Workspace contracts, что означает maiden setup и какие обязанности нельзя переложить на обычный container entrypoint.
+Task задаёт экземпляр исполнения, Workspace - рецепт подготовки каталогов, Model - конфигурацию внутреннего model client. У них разные владельцы и lifecycle. Поэтому обновление одного ресурса не означает обновление всех связанных процессов, файлов и клиентов.
+
+В AX ac233282 особенно важно помнить три границы: существующая Task не обновляется через apply; marker Workspace защищает работу агента, но не подтверждает версию среды; Model не привязан к Task, а успешный возврат внутреннего клиента может быть заглушкой. Проверку нужных свойств добавляют там, где они реально используются.
+
+Следующая глава разберёт runner: как он получает эти описания, готовит каталоги, запускает child и обслуживает probes. После выбора ресурсов остаётся понять, кто превращает их в работающий процесс и какие обязанности по-прежнему принадлежат harness.
 
 ### Источники и дальнейшее чтение
 
-- [AX README and three primitives](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md)
-- [AX v1alpha1 protobuf schema](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto)
-- [Validation and workspace binding helpers](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/types.go)
-- [AX CLI apply implementation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax/main.go)
-- [AX manifest examples](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/manifests.md)
-- [AX runner lifecycle](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go)
-- [Workspace maiden setup implementation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/workspace/setup.go)
-- [AX internal model client](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/model/client.go)
-- [Issue #348: Task secret and modelRef gap](https://github.com/google/ax/issues/348)
+- [AX protobuf schema](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto): kinds, TaskSpec, WorkspaceSpec и ModelSpec.
+- [YAML decoding, validation и Workspace helpers](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/types.go): strict fields, paths и границы validator.
+- [CLI apply](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax/main.go): последовательные документы и разные операции для kinds.
+- [Server handlers](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go): immutable Task, lookup Workspaces и отсутствие rollout на UpdateWorkspace.
+- [Task reconciler](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go) и [Substrate client](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go): launch configuration, runner path и template fallback.
+- [Workspace setup](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/workspace/setup.go): files до checkout, markers, Git failures и bootstrap.
+- [Runner](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go): bindings, CWD, readiness и lifetime child.
+- [Internal model client](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/model/client.go) и [Workspace planner](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/workspace/planner.go): config, request overrides и fallbackResponse.
+- [Manifest documentation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/manifests.md): примеры требуют сверки с API выбранной версии.
