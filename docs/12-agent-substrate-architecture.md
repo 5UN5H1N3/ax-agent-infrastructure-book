@@ -303,7 +303,7 @@ Checksum подтверждает совпадение bytes с digest, но н�
 
 ### Какие значения являются договором
 
-В этой версии placement сопоставляет declared limits и учёт allocated resources. Размер и фактическое ограничение sandbox зависят также от runtime. Отсутствующий CPU или memory capacity dimension может трактоваться scheduler как unconstrained, а не как доказательство бесконечного физического ресурса. Actor slots всё равно проверяются.
+В этой версии placement сопоставляет declared limits и учёт allocated resources. Размер и фактическое ограничение sandbox зависят также от runtime. В исполняемой проверке `Quantities.Covers` отсутствующее измерение Worker capacity читается как ноль: положительный CPU или memory request Actor не проходит. Отсутствующий limit самого Actor означает отсутствие запроса по этому измерению, а не бесконечный физический ресурс. Actor slots всё равно проверяются.
 
 Поэтому до расчёта density задайте limits осмысленно и проверьте enforcement. «Scheduler принял» не равно «workload не способен исчерпать node». Для microVM учитывают VMM и virtiofsd overhead; Full restore может сохранить размер VM из snapshot. Изменение числа в template не является автоматическим resize уже captured memory.
 

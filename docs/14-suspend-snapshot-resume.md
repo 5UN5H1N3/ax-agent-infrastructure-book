@@ -91,7 +91,7 @@ Actor, созданный до готовности golden tag, может по�
 ![Resume on demand: запрос может разбудить suspended actor](.gitbook/assets/diagrams/14-14.png)  
 *Resume on demand: запрос может разбудить suspended actor*
 
-`ResumeActor` переводит Actor в `RUNNING`, но внутри это разные пути. Control plane читает status/template, создаёт и подключает external volumes, выбирает Worker, просит atelet восстановить workload и только после готовности фиксирует assignment.
+`ResumeActor` переводит Actor в `RUNNING`, но внутри это разные пути. Control plane читает status/template, подготавливает external volumes и выбирает Worker. Claim резервирует ресурсы; затем сохраняются `RESUMING` и `workerAssignment` ещё до restore. После подключения volumes и восстановления workload проходят объявленные probes, и status становится `RUNNING`. Наличие assignment само по себе не доказывает завершённый wake-up.
 
 | Источник | Когда | Фактический запуск |
 | --- | --- | --- |
@@ -105,11 +105,11 @@ Actor, созданный до готовности golden tag, может по�
 1. Если Actor уже `RUNNING`, вызов является no-op и возвращает `resumed=false`.
 2. Lease сериализует lifecycle, чтобы два запроса не назначили два Workers.
 3. Выбираются source, scope и совместимость template UID.
-4. Пересекаются sandbox class, selectors и свободные CPU/RAM/slots.
-5. Создаются/подключаются external volumes.
-6. Atelet выполняет restore либо cold boot.
+4. Создаются или проверяются external volumes до назначения Worker.
+5. Пересекаются sandbox class, selectors, node locality и свободные CPU/RAM/slots; claim резервирует место, сохраняются `RESUMING` и `workerAssignment`.
+6. Volumes подключаются, atelet выполняет restore либо cold boot.
 7. Все объявленные wakeup probes должны вернуть HTTP 200.
-8. Status становится `RUNNING` с `workerAssignment`.
+8. Status становится `RUNNING`; ранее сохранённый `workerAssignment` остаётся назначением этого Actor.
 
 Если snapshot создан под другим ActorTemplate UID, memory image нельзя считать совместимой. При разрешённом update Substrate может восстановить durable data, но запустить guest заново. Это migration path, а не hot resume; SLO должен различать эти случаи.
 

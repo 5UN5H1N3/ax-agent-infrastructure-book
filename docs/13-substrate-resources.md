@@ -1,437 +1,390 @@
 # Ресурсная модель Substrate: от capacity до долговечного Actor
 
-**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+В главе 12 мы вернули среду сессии `review-42`: нашли Actor, выделили Worker и довели запрос до приложения. Теперь подготовим такую сессию к эксплуатации. Где задать её размер? Как потребовать нужный регион, не перепутав его с Kubernetes namespace? Что произойдёт при выпуске новой версии агента? Можно ли удалить исходный snapshot, если клон уже работает?
 
-**Статус:** `TWO API DOMAINS` · `VERSIONED RESOURCES` · `OWNERSHIP MATTERS`
+Ответы распределены между несколькими ресурсами. Это кажется лишней сложностью, пока систему не приходится обновлять или восстанавливать. Один объект с полями «образ, tenant, память, backup» смешал бы решения с разными владельцами и сроками жизни. Ресурсная модель разделяет версию среды, конкретную сессию, временную вычислительную ёмкость и удерживаемую точку восстановления. Инженеру нужно понимать связи между ними, а не помнить весь API наизусть.
 
-В предыдущей главе мы прошли по operational path: запрос приходит в router, control plane находит или возобновляет Actor, а Worker предоставляет sandbox capacity. Теперь нужно понять, какими объектами инженер описывает эту систему. Без этого архитектура остаётся набором процессов, а любое изменение превращается в угадывание: куда положить label, что можно обновить, кто владеет snapshot и почему объект с тем же именем после пересоздания уже не тот же объект.
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Поля и проверки ниже относятся к этому commit. Atespace и selectors не заменяют authorization; experimental authz главы 24 относится к другому профилю.
 
-Ресурсная модель Substrate специально разделена между Kubernetes API и собственным ate API. Это не косметика. Инфраструктурные объекты меняются редко и хорошо согласуются с Kubernetes reconciliation. Actor records и assignments меняются часто, поэтому живут в отдельном control-plane store. Инженеру нужно видеть обе стороны и не переносить правила одной на другую автоматически.
+## Что читатель сможет сделать после главы
 
-## Что читатель должен унести из главы
+- Разнести конфигурацию между Kubernetes API и ate API и выбрать нужный инструмент для изменения.
+- Объяснить, чем имя, UID и version защищают разные стороны одной операции.
+- Найти причину отказа placement, не снимая обязательные ограничения.
+- Подготовить новую версию ActorTemplate и отличить проверку API от совместимости прикладных данных.
+- Определить, кто владеет snapshot и кто пока заимствует его bytes.
+- Выбрать обычный запуск, golden baseline или Tag по задаче, а не по обещанию «быстро».
 
-- какие ресурсы принадлежат Kubernetes, а какие ate API;
-- чем Atespace отличается от Kubernetes namespace и почему это ещё не полноценная authorization boundary;
-- как WorkerPool, SandboxConfig и ActorTemplate вместе определяют допустимый placement;
-- почему ActorTemplate следует версионировать созданием нового объекта, а не редактировать на месте;
-- как `uid` и `version` защищают update/delete от гонок и повторного использования имени;
-- что именно принадлежит Actor, Tag и template golden snapshot;
-- как собрать минимальный набор ресурсов без скрытой зависимости от namespace, mutable tags или непроверенного snapshot URI.
+## Ресурсы описывают разные решения
 
-## Два API-домена и три типа состояния
+Представим сервис ревью. Пользователь работает с одним репозиторием, ждёт ответа коллеги и возвращается через несколько часов. Платформа поддерживает совместимый sandbox runtime и запас Workers. Команда приложения выпускает версию агента. Сессия пользователя сохраняет свой `/workspace`. Для учебного примера другой команде иногда нужен клон подготовленного workspace.
 
-| Домен | Ресурсы | Где хранятся | Кто обычно управляет |
-| --- | --- | --- | --- |
-| Kubernetes API | `WorkerPool`, `SandboxConfig`, Deployments, Pods | etcd/Kubernetes control plane | Platform team, GitOps, cluster controllers |
-| ate API: declarative definitions | `Atespace`, `ActorTemplate`, `Tag` | Substrate control-plane store | Platform или application team через `kubectl ate`/gRPC |
-| ate API: dynamic records | `Actor`, `Worker`, assignments и status | Substrate control-plane store | Clients создают intent; server ведёт lifecycle/status |
+Здесь уже четыре разных изменения: увеличить ёмкость, обновить программу, продолжить сессию и удержать её состояние. Если увеличить WorkerPool, версия агента не поменяется. Если создать ActorTemplate v2, существующие Actors не станут v2 автоматически. Если создать Tag, новый Worker не появится. С этого различия и начинается управление системой.
 
-`WorkerPool` является Kubernetes CRD в конкретном namespace. `SandboxConfig` тоже Kubernetes resource, но cluster-scoped. Напротив, `ActorTemplate`, `Actor`, `Tag` и `Atespace` не являются Kubernetes objects. Их нельзя корректно описывать как обычные namespaced CRD и ожидать, что Kubernetes RBAC автоматически ограничит доступ.
-
-Это разделение определяет диагностику. Если не создаются Worker Pods, смотрят controller, CRD и Kubernetes events. Если Actor застрял в `RESUMING` или update получил `ABORTED`, смотрят ate API, resource version и lifecycle workflow. Один `kubectl get all` не показывает всю систему.
-
-## Общая грамматика ate API: metadata и references
-
-Atespaced resources имеют общий `ResourceMetadata`:
-
-| Поле | Кто задаёт | Смысл |
+| Вопрос инженера | Ресурс и API | Что он не решает |
 | --- | --- | --- |
-| `atespace` | Клиент при create | Логическая область ресурса; immutable |
-| `name` | Клиент при create | DNS-compatible имя, уникальное внутри Atespace; immutable |
-| `uid` | Server | Глобально уникальная identity конкретной lifetime |
-| `version` | Server увеличивает при mutation | Optimistic concurrency guard |
-| `createTime`, `updateTime` | Server | Аудит и диагностика возраста состояния |
+| Сколько тёплых Worker Pods поддерживать | WorkerPool в Kubernetes | Не задаёт число всех существующих сессий |
+| Какие sandbox binaries использовать | Cluster-scoped SandboxConfig в Kubernetes | Не определяет код агента |
+| Какую версию среды запускать | ActorTemplate в ate API | Не является пользовательской сессией |
+| Какую сессию продолжить | Actor в ate API | Не гарантирует постоянный process или Worker |
+| Как организовать адреса ресурсов | Atespace в ate API | Не выдаёт tenant изоляцию сам по себе |
+| Как удержать и передать snapshot | Tag в ate API | Не является историей всех checkpoints |
 
-Имя удобно человеку, но не доказывает identity. Если Actor `team-a/assistant` удалили и создали заново, новый объект может иметь то же имя, но другой `uid`. Логи, snapshot prefixes, idempotency records и долгоживущие ссылки должны учитывать UID, когда важно отличить lifetimes.
+### Почему нужны два API
 
-### ObjectRef не является строкой
+Kubernetes управляет инфраструктурой: `atecontroller` превращает WorkerPool в Deployment, затем Kubernetes размещает Worker Pods на nodes. Ate API управляет Actor records, их состояниями и assignments через свой control-plane store. В этой книге им служит PostgreSQL. `Worker` в ate API связывает обе стороны: он описывает конкретный Worker Pod и состояние его ёмкости, которое использует Substrate.
 
-Ссылка на ate resource содержит отдельные поля `atespace` и `name`. Даже ссылка на объект в том же Atespace должна явно указывать Atespace. Строка `team-a/assistant` удобна в CLI и routing header, но внутри API её не следует парсить вручную или хранить вместо typed reference.
+WorkerPool является namespaced CRD; SandboxConfig - cluster-scoped CRD. ActorTemplate, Actor, Atespace и Tag не являются Kubernetes CRD. Их обслуживает `kubectl ate` или gRPC client, а не обычный Kubernetes resource endpoint. Наличие слова `kubectl` в имени клиента не переносит на ate API все правила Kubernetes.
 
-### Почему update начинается с read
+Для эксплуатации это даёт простой первый вопрос: что именно не получилось? Если нет Worker Pods, начните с Deployment, events и `atecontroller`. Если Pods существуют, но Actor не получает assignment, нужны Worker records, selectors и capacity. Если UpdateActor возвращает `ABORTED`, увеличение Deployment replicas не исправит устаревший UID/version. `kubectl get all` тоже не является полным инвентарём: он не охватывает ни все Kubernetes kinds, ни ate API.
 
-Для mutable resource клиент сначала читает объект, меняет разрешённые поля и отправляет полный replacement с теми же `uid` и `version`. Если другой процесс уже обновил объект, server возвращает `ABORTED`. Это лучше last-write-wins: оператор видит конфликт и решает, как объединить intent.
+## Адрес ресурса не равен его личности
 
-```
-read object (uid=u1, version=17)
-  -> modify allowed field
-  -> update with uid=u1, version=17
-      success: stored version becomes 18
-      conflict: ABORTED, re-read before retry
-```
+`review-team/review-42` - удобный адрес Actor. Он состоит из `metadata.atespace` и `metadata.name`. Сервер добавляет `metadata.uid`, `metadata.version` и timestamps. UID отличает конкретную жизнь объекта от его предыдущего существования; version отличает последовательные изменения внутри этой жизни.
 
-Создавать update message с нуля опасно: можно неявно очистить поля, которых клиент не знал. `status` и server-managed metadata игнорируются на input, но immutable/mutable spec fields всё равно требуют точной модели.
-
-## Atespace: logical scope, но не Kubernetes namespace
-
-`Atespace` - глобально-scoped запись ate API. Его собственное `metadata.atespace` пусто, а identity задаётся `metadata.name`. Actor, ActorTemplate и Tag адресуются парой `(atespace, name)`. Одинаковое имя Actor может существовать в разных Atespaces.
-
-Atespace нужен до создания Actor и удаляется только после очистки зависимых ресурсов. Он помогает организовать tenancy, snapshot prefixes и references. Но Atespace не равен Kubernetes namespace:
-
-- WorkerPool живёт в Kubernetes namespace и может обслуживать Actors из разных Atespaces, если selectors это позволяют;
-- ActorTemplate живёт в Atespace, но выбирает WorkerPool по labels, а не по совпадению namespace;
-- Substrate API authentication не превращает Atespace автоматически в RBAC boundary;
-- published Tag может быть использован Actor из другого Atespace и потребовать cross-prefix доступа к object storage.
-
-> **Проектное правило.** Используйте Atespace как logical ownership и адресное пространство, но security boundary подтверждайте отдельной authorization и storage/network policy. Совпадение названий Atespace и Kubernetes namespace может быть полезной convention, но не системной гарантией.
-
-![Golden snapshot и жизненный цикл stateful Actor](.gitbook/assets/diagrams/13-13.png)  
-*Golden snapshot и жизненный цикл stateful Actor*
-
-## WorkerPool: тёплая физическая ёмкость
-
-`WorkerPool` описывает fleet заранее запущенных Worker Pods. Это Kubernetes CRD, который `atecontroller` преобразует в Deployment. Ключевые поля:
-
-| Поле | Роль | Инженерный риск |
-| --- | --- | --- |
-| `spec.replicas` | Число Worker Pods | Реплики не равны числу Actors: один Worker может держать несколько Actors |
-| `spec.workerImage` | Образ `ateom` для sandbox class | Непроверенный tag создаёт version drift; pin digest |
-| `spec.sandboxClass` | `gvisor` или `microvm` | Должен совпадать с template и SandboxConfig |
-| `spec.template.resources.limits` | Общий CPU/RAM envelope Worker | Нулевое/отсутствующее измерение может трактоваться как unconstrained placement data |
-| `spec.template.nodeSelector` | Node placement, включая Substrate version | Непривязанный pool ломает безопасный rolling upgrade |
-| `metadata.labels` | Их сопоставляют Actor selectors | Не путать с `spec.template.labels` |
-
-### Labels пула и labels Pod - разные поверхности
-
-`WorkerPool.metadata.labels` участвуют в Actor placement. `WorkerPool.spec.template.labels` копируются на Deployment/Pods и нужны Kubernetes tooling, policy или observability. Selector ActorTemplate не смотрит на Pod labels. Это типичная ошибка: инженер добавляет `workload=secure` в pod template, а Actor продолжает попадать во все eligible pools.
-
-### Capacity теперь многомерная
-
-Текущий Worker может одновременно держать несколько Actors. Каждый assignment вычитает declared Actor limits из remaining Worker capacity. Дополнительно действует actor-count limit, по умолчанию связанный с `ateom --max-actors`. Placement прекращается по первому исчерпанному ограничению: CPU, RAM или числу Actors.
+Пользователь может удалить сессию и создать другую с тем же именем. Старый запрос всё ещё обращается по знакомому адресу, но должен ли он изменить новый объект? Нет. Именно здесь нужен UID. А если сессию не удаляли, но два оператора прочитали её до изменения, один из них не должен молча затереть решение другого. Здесь нужна version.
 
 ```
-eligible(worker, actor) =
-    sandbox_class_matches
-  AND template_selector_matches
-  AND actor_selector_matches
-  AND remaining_cpu >= actor_cpu_limit
-  AND remaining_memory >= actor_memory_limit
-  AND assigned_actors < max_actors
+Один объект: uid=A, version=17
+  оператор 1 читает его и обновляет -> uid=A, version=18
+  оператор 2 отправляет старую version=17 -> ABORTED
+
+Пересозданный объект с прежним именем: uid=B, version=17
+  старый запрос несёт uid=A, version=17 -> ABORTED
 ```
 
-Поэтому capacity planning нельзя сводить к `replicas == concurrent Actors`. Нужны bin-packing, resource fragmentation и headroom на failure. Два Worker по 8 GiB не гарантируют placement Actor на 12 GiB, хотя суммарно RAM достаточно.
+Вторая version выбрана для примера: совпадение чисел между разными объектами не делает их одной сессией. В логах и прикладных ссылках сохраняйте Actor UID, когда важно отличить эти жизни. UID ресурса не заменяет operation ID внешнего действия из главы 10: один Actor выполняет много разных операций.
 
-### Минимальный WorkerPool
+### Что хранит ObjectRef
+
+`ObjectRef` содержит отдельные `atespace` и `name`, но не UID. Для ссылок Actor на template и sourceTag Atespace указывают явно, даже если он тот же. При работе с API используйте соответствующее поле сообщения, а не самодельный парсер строки `atespace/name`.
+
+Это типизированная форма адреса, не вечная ссылка на конкретную жизнь объекта. Перед опасной записью нужен свежий объект и guards. Для snapshot происхождение дополнительно фиксируется в status через template UID. Автоматизация не должна считать неизменное имя template достаточным доказательством того, что его прежний объект ещё существует.
+
+### Update является заменой ресурса
+
+UpdateActor требует UID и version, полученные из чтения. Клиент берёт прочитанный Actor целиком, меняет разрешённое поле и отправляет replacement. Сервер сохраняет свой status и metadata, проверяет guards и допустимость изменения. Это не patch произвольной части PodSpec.
+
+Создать новое сообщение только с изменённым selector опасно: остальные клиентские поля могут исчезнуть или нарушить immutable validation. После `ABORTED` перечитайте Actor и заново примените намерение. Не просто подставляйте новую version в старое тело: так можно затереть изменение, из-за которого конфликт и возник.
+
+Version меняется и при серверных mutations, поэтому конфликт не обязательно означает работу второго оператора. Read-modify-write защищает отдельную запись. Он не делает атомарной цепочку «обновить Actor, создать Tag, выдать bucket permission».
+
+### Delete требует собственного решения о guards
+
+У DeleteOptions UID и version опциональны: отсутствующий guard не проверяется. Для удаления именно увиденного объекта UID особенно важен. Version добавляет условие «он не менялся после моего чтения». После частично выполненного DeleteActor lifecycle может уже иметь новую version, и повтор с прежними guards получит конфликт. Перечитайте объект; если задача всё ещё состоит в завершении удаления той же жизни, используйте guard её UID либо свежие UID/version.
+
+Это правило не означает «при ошибке удалять снова». Сначала выясните, осталась ли запись и какая операция продолжается. Удаление ресурса не становится безопасным только потому, что совпала version: его содержимое может быть нужно другому ресурсу.
+
+## Atespace задаёт область адресов
+
+Для нашей команды создаётся Atespace `review-team`. Он global-scoped: его собственное `metadata.atespace` пусто, а имя находится в `metadata.name`. Actor, ActorTemplate и Tag имеют свои адреса внутри Atespace. Actor `review-42` другой команды может существовать одновременно и не является нашей сессией.
+
+Но WorkerPool живёт в Kubernetes namespace, например `ate-workers`. Один такой pool может обслуживать Actors разных Atespaces, если их ограничения подходят. Template выбирает pools по labels, а не по совпадению имён namespace и Atespace. Naming convention `team-a` на обеих сторонах может облегчить работу людям, но система не выводит из неё placement или права.
+
+В закреплённом профиле нет полноценного control-plane RBAC для изоляции таких команд. Доверенный ate API client и пользователь, которому разрешён один бизнес-запрос, - разные субъекты. Платформа отдельно ограничивает доступ к API, snapshot prefixes и сети workload. Label `tenant=review-team` может участвовать в размещении, но он не проверяет, кто имеет право изменить label.
+
+Второй нюанс появляется при опубликованном Tag. Actor другой команды может получить допустимую ссылку на него, но snapshot остаётся под prefix исходного Atespace. Доступ к reference и доступ runtime к bytes должны быть согласованы. Иначе create пройдёт, а restore получит storage error; выдача общего bucket access всем tenants решит симптом ценой новой утечки.
+
+## WorkerPool и SandboxConfig отвечают за разные слои
+
+WorkerPool задаёт заранее подготовленные Worker Pods: число replicas, worker image, sandbox class, Pod resources и node placement. SandboxConfig задаёт сами runtime assets. ActorTemplate выбирает SandboxConfig по имени и class, а совместимые Workers должны иметь тот же class.
+
+Для gVisor SandboxConfig содержит `runsc` asset по архитектуре и digest-pinned pause image. Для microVM нужен другой набор: Cloud Hypervisor, `virtiofsd`, guest kernel и image, а также доступный `/dev/kvm` на nodes. Один label на node не создаёт поддержку KVM. Digest workload image и hash runtime asset фиксируют разные bytes; pin одного не фиксирует другой.
+
+Это удобно для владельцев платформы: они могут поддерживать согласованный runtime для нескольких версий агента. Обратная сторона - cluster-scoped config становится общей зависимостью. Замена assets под знакомым именем не должна быть незаметным экспериментом для работающих сессий. Snapshot manifest хранит runtime provenance, но это не обещание совместимости любого нового binary со старой памятью.
+
+### Где ставить label
+
+В WorkerPool есть две поверхности. `metadata.labels` пула зеркалируются в labels Worker record; их проверяют template и Actor selectors. `spec.template.labels` попадают на Kubernetes workload и помогают Kubernetes policy и observability. Совпадающий ключ не делает эти поверхности взаимозаменяемыми.
+
+Ниже фрагмент формы WorkerPool, а не готовый manifest для применения. В полном объекте нужны worker image, resources, остальные настройки и реальные значения версии установленного dataplane.
 
 ```
 apiVersion: ate.dev/v1alpha1
 kind: WorkerPool
 metadata:
-  name: general-gvisor
+  name: review-eu
   namespace: ate-workers
   labels:
     tier: general
-    sandbox: gvisor
+    region: eu
 spec:
-  replicas: 6
-  workerImage: registry.example/ateom-gvisor@sha256:...
   sandboxClass: gvisor
   template:
+    labels:
+      app: review-worker
     nodeSelector:
       ate.dev/substrate-version: "<installed-version>"
-    resources:
-      limits:
-        cpu: "8"
-        memory: 16Gi
 ```
 
-Pool labels задают eligibility, а nodeSelector фиксирует совместимую версию dataplane. При upgrade создают новый pool и поэтапно переводят nodes/Actors, а не редактируют serving pool с массовым restart.
+Actor selector `region=eu` увидит pool label. Он не увидит `app=review-worker` из Pod template. А nodeSelector решает другой вопрос: где Kubernetes размещает Worker Pod. Он не является per-Actor selector. Pin dataplane version помогает отделить старую и новую инфраструктуру при rolling upgrade; его значение берут из установленной системы, а не из названия главы.
 
-## SandboxConfig: воспроизводимый runtime, а не workload
+### От Pod Ready до пригодного Worker
 
-`SandboxConfig` - cluster-scoped Kubernetes resource. Он отделяет sandbox binaries от ActorTemplate. Для gVisor это `runsc` asset и digest-pinned pause image; для microVM - Cloud Hypervisor, `virtiofsd`, kernel и guest image по архитектурам.
+Worker record описывает Kubernetes coordinates, Pod UID, node, class, labels и server-managed status. В `WorkerStatus` этого среза есть `state`, `capacity` и `allocated`. Assignments являются отдельными records; их читают через `ListWorkerActorAssignments`, а не ожидают полного списка в каждом Worker.
 
-ActorTemplate хранит только runtime family и имя config. При cold boot atelet разрешает assets через этот объект, а snapshot manifest фиксирует версии, необходимые для restore. Такой слой позволяет платформе централизованно поддерживать runtime, не переписывая каждый workload template.
+`ACTIVE` означает допустимое состояние для новых assignments; `DRAINING` исключает Worker из нового placement. Даже ACTIVE Worker должен сообщить capacity. При регистрации она ещё не заполнена, пока `ateom` не отправит свой отчёт. Так control plane не размещает Actor на основании догадки о размере Pod.
 
-| Поле | gVisor | microVM |
-| --- | --- | --- |
-| `sandboxClass` | `gvisor` | `microvm` |
-| `pauseImage` | Обязателен, pinned digest | Не допускается |
-| `assets` | gVisor archive per architecture | VMM, virtiofsd, kernel, image |
-| Node requirements | Совместимый Linux runtime | `/dev/kvm`, nested virtualization |
+Не выводите из Pod Ready сохранность пользовательского state. Если runtime перестал отвечать, проверьте конкретный Actor, его assignment, ошибки dataplane и последний пригодный snapshot. Диагностика Actor важнее предположения «Pod тот же, значит сессия цела».
 
-SandboxConfig нельзя обновлять как обычный mutable config без плана совместимости. Новый runtime может не восстановить старую memory image. Безопасная стратегия - новый config/version, новый WorkerPool и новый ActorTemplate с controlled migration.
+## Placement является пересечением ограничений
 
-## ActorTemplate: immutable blueprint версии workload
+Template selector задаёт разрешённый набор pools для версии среды. Per-Actor selector может его сузить, например потребовать `region=eu`. Он не перебивает template. Если template требует `tier=general`, а Actor - `tier=isolated`, ни один pool не удовлетворит обоим значениям одного ключа. Больше replicas не исправят логическое противоречие.
 
-`ActorTemplate` - ate API resource в конкретном Atespace. Он описывает не отдельный процесс, а версию исполняемой среды: containers, limits, volumes, sandbox, snapshot policy и pool constraints. После создания Substrate строит golden snapshot. Поэтому изменение template задним числом сделало бы непонятным, с каким кодом и runtime связан уже существующий snapshot.
+Далее действуют sandbox class, состояние Worker и, для local snapshot, требуемая node. Уже среди таких Workers проверяются CPU, memory и actor slots. Удобно разделять вопросы «подходит ли Worker по условиям» и «есть ли место». Увеличение памяти не превращает microVM Worker в gVisor Worker, а свободный Worker в другом регионе не снимает ограничение нашего Actor.
 
-Практический вывод: имя template должно отражать release или configuration version, например `coding-agent-v3`. Новая image, иной sandbox, другие volume mounts или limits - новый ActorTemplate. Rollout then becomes an explicit migration, а не скрытая мутация основания состояния.
+### Capacity это учёт объявленных размеров
 
-| Поле | Что задаёт | На что влияет |
-| --- | --- | --- |
-| `metadata` | Atespace, name; server добавляет UID/version | Identity template и snapshot provenance |
-| `containers` | Digest-pinned OCI images, command, args, env, mounts, wakeup probe | Код и готовность workload |
-| `resources.limits` | Actor CPU и RAM | Sandbox sizing и placement capacity |
-| `workerSelector` | Equality match по WorkerPool labels | Допустимые pools |
-| `sandboxConfig` | Runtime family и имя cluster config | Hard gate по sandbox class и restore compatibility |
-| `snapshotConfig` | Storage prefix, pause/commit scopes | Что сохраняется и сколько стоит lifecycle |
-| `volumes` | DurableDir, external volume template или systemInfo | State, credentials/trust data и persistence surface |
-| `status.goldenSnapshotStatus` | Server | Готовность golden tag или причина ошибки |
+`resources.limits` ActorTemplate задают размер sandbox и участвуют в placement. Scheduler вычитает сумму объявленных limits уже назначенных Actors из reported Worker capacity. Это не замер текущего RSS или CPU usage. Actor, который сейчас почти не работает, всё равно занимает свой учтённый envelope. Limits помогают не обещать один и тот же ресурс нескольким сессиям.
 
-### Images, command и environment
+Ещё каждый assignment расходует actor slot. Этот предел ограничивает накладные затраты, которые не выражаются только в CPU/RAM: mounts, namespaces, file descriptors. Worker с достаточной памятью, но исчерпанными slots не примет следующую сессию. Число replicas не равно числу одновременно исполняющихся Actors, а тем более числу всех Actors, включая suspended.
 
-Container image должен быть pinned digest. Mutable tag вроде `:latest` разрушает воспроизводимость: две node могут cold-boot одинаковый template с разными bytes. Команда и args не полностью повторяют Kubernetes semantics: если явно задан `command`, image ENTRYPOINT и CMD отбрасываются; ссылки `$(VAR)` в command/env не разворачиваются. `envFrom` и `valueFrom` также не являются автоматической частью этого API.
+В исполняемой проверке `Quantities.Covers` отсутствующее измерение capacity читается как ноль. Если Actor запросил CPU, а Worker его не сообщил, такой Worker не покрывает запрос. Отсутствующий limit у самого Actor означает отсутствие запроса по этому измерению, а не бесконечную физическую ёмкость. Для эксплуатации нужны явные размеры и проверка runtime defaults. [Код сравнения ресурсов](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/resources/quantities.go) и [тесты scheduler](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/scheduling/scheduling_test.go) задают это поведение, несмотря на оставшийся в API guide текст про unconstrained dimensions.
 
-Не копируйте PodSpec механически. ActorTemplate похож на Pod template концептуально, но его schema меньше и ориентирована на checkpointable sandbox. Каждое используемое поле нужно проверять по API выбранной версии.
+Задача планирования напоминает упаковку предметов в несколько коробок: важен размер каждой коробки, а не только сумма. Но scheduler этого среза не оптимизирует упаковку. Он фильтрует подходящих кандидатов и случайно выбирает одного из них; отдельно claim проверяет возможность assignment при записи. Поэтому расчёт идеального заполнения не является гарантией конкретного размещения или защиты от fragmentation.
 
-### Wakeup probe - контракт готовности resume
+## Практический разбор отказа placement
 
-Без `wakeupProbe` `ResumeActor` может завершиться, когда container process уже запущен, но HTTP server ещё не слушает. Probe заставляет lifecycle ждать HTTP 200. Это особенно важно для router wake-on-request: успешный resume должен означать, что исходный request можно передавать приложению.
+Версия агента требует gVisor и `tier=general`. Для Actor `review-42` дополнительно задан `region=eu`, размер - 1000 millicores CPU и 2048 MiB RAM. Millicore - тысячная доля CPU core; эти целые единицы выбраны, чтобы расчёт не зависел от парсинга Kubernetes quantities.
 
-Probe не должен проверять медленную внешнюю dependency без необходимости. Иначе краткий сбой database превратит каждый Actor resume в timeout и займёт Worker. Разделяйте готовность локального process и полноценную business health.
+В заданном отчёте четыре ACTIVE Workers. Числа ниже - учебные входные данные, не измерения кластера. Labels в таблице - labels Worker records, полученные от pools.
 
-### Actor resources и bin packing
+| Worker | Class и labels | Свободные CPU и RAM | Свободные slots | Почему не подходит |
+| --- | --- | --- | --- | --- |
+| w-a | gvisor, general, eu | 3000m, 1024 MiB | 3 | Не хватает RAM |
+| w-b | gvisor, general, us | 4000m, 8192 MiB | 4 | Не тот регион |
+| w-c | microvm, general, eu | 4000m, 8192 MiB | 4 | Не тот sandbox class |
+| w-d | gvisor, general, eu | 3000m, 6144 MiB | 0 | Исчерпаны actor slots |
 
-Actor-level limits - часть immutable template и snapshot compatibility. Для gVisor они задают cgroup quota и видимую memory; для microVM - vCPU и guest RAM с runtime reserve. Scheduler использует эти limits при выборе Worker. Отсутствующий limit зависит от runtime defaults и затрудняет capacity planning, поэтому production template лучше задавать CPU/RAM явно.
+Суммарно памяти много. Но свободные 1024 MiB на w-a нельзя сложить с RAM Worker другого региона и получить место для одного Actor. Подмена selector пустым значением тоже не является лечением: требование eu было частью задачи. Инженер должен сначала решить, можно ли изменить это требование, а не позволять автоматике снимать его при первом отказе.
 
-Заявлять завышенный limit тоже дорого: scheduler резервирует declared envelope, даже если процесс обычно использует меньше. Сначала измерьте p95/p99 steady-state и restore peaks, затем добавьте понятный safety margin.
+### Запуск локального калькулятора
 
-### SnapshotConfig: policy, а не URI одного файла
+Программа `examples/ch13_resource_fit_demo.py` на Python 3.10+ со стандартной библиотекой объясняет все проваленные проверки заданного отчёта. Она не выбирает Worker и не резервирует ресурсы.
 
-`snapshotConfig.storageLocation` - базовый object-storage prefix. Конкретные snapshot objects получают owner path автоматически. Policy также задаёт:
+```
+python3 examples/ch13_resource_fit_demo.py
+python3 -m unittest discover -s examples -p 'test_ch13*.py'
+```
 
-- `onPause` - scope node-local checkpoint;
-- `onCommit` - scope durable snapshot при suspend;
-- `Full` - process memory, writable rootfs delta и поддерживаемые durable volumes;
-- `Data` - durable data без индивидуальной memory/rootfs; `onResume.fromData` выбирает cold boot либо guest state общего golden snapshot.
+Основная часть проверки выглядит так:
 
-`onCommit` должен быть subset `onPause`. Если pause захватил только Data, поздний suspend не может волшебно получить уже отброшенную process memory. Подробнее стоимость и failure semantics этих scopes разобраны в следующей главе.
+```
+    for name, capacity, allocated, requested in (
+            ("cpu", worker.cpu_m, worker.used_cpu_m, intent.cpu_m),
+            ("memory", worker.memory_mib, worker.used_memory_mib,
+             intent.memory_mib)):
+        # Missing capacity reads as zero, not as an unbounded physical resource.
+        free = (capacity if capacity is not None else 0) - allocated
+        if requested > 0 and free < requested:
+            reasons.append(name)
+```
 
-### Volumes: не всё является snapshot state
+Это фрагмент функции `explain_fit`, не самостоятельная программа. До него отдельно проверяются class, ACTIVE state, оба selectors, node и slots. Ниже сокращённый вывод для исходных Workers; полный вывод содержит также источник данных и результаты guards.
 
-`DurableDir` входит в Data/Full snapshot. External volumes имеют отдельный lifecycle и могут не откатываться вместе с Actor. `systemInfo` передаёт platform metadata или trust bundle. Из названия volume нельзя выводить transactional semantics. Для каждого mount зафиксируйте owner, backup, deletion policy и поведение при revert.
+```
+[
+  {"worker": "w-a", "candidate": false, "failed_checks": ["memory"]},
+  {"worker": "w-b", "candidate": false, "failed_checks": ["actor_label:region"]},
+  {"worker": "w-c", "candidate": false, "failed_checks": ["sandbox_class"]},
+  {"worker": "w-d", "candidate": false, "failed_checks": ["actor_slots"]}
+]
+```
 
-### Пример ActorTemplate
+Затем demo добавляет report w-e: gVisor, general, eu, 2000m CPU, 4096 MiB RAM и четыре свободных slots. Он становится кандидатом. Это подтверждает расчёт на заданных данных, но не успешный resume: в настоящей системе между чтением и claim другой Actor может занять место. Нужны актуальные records, admission при записи и последующие шаги lifecycle.
+
+### Как использовать результат при расследовании
+
+Если все Workers исключены по label, исправлять нужно намерение или маркировку pool после проверки требований. Если подходящие Workers заполнены, нужны дополнительная совместимая capacity, освобождение assignments либо пересмотр размера workload по измерениям. Если исчерпаны slots, увеличение только RAM может ничего не изменить. Если нужен resume локального snapshot на node-a, добавление Worker на node-b не даёт подходящего кандидата для этого пути.
+
+В реальной системе смотрите и распределение нагрузки. Поднимать количество Workers, каждый из которых слишком мал для одного Actor, бесполезно. Уменьшать declared limits только ради зелёного placement тоже опасно: restore peak может превысить новый размер. Сопоставьте размеры, пики восстановления, запас на failure и стоимость тёплого pool.
+
+Калькулятор принимает уже разобранные целые числа и equality labels. У него нет Kubernetes quantity parser, workercache, RPC, SQL lock, random choice, claim, lifecycle или snapshot files. Он не проверяет kubeconfig, bucket permissions и совместимость runtime. Тесты проверяют учебные условия и границы этой модели, а не установку Substrate.
+
+## ActorTemplate фиксирует версию среды
+
+Template `review-agent-v1` описывает containers, sandbox config, Actor limits, volumes, snapshot policy и template selector. Он отличается от Docker image: image фиксирует содержимое контейнера, а template ещё задаёт, куда монтировать данные, какой runtime использовать и какой смысл имеет сохранённое состояние.
+
+Для клиентов ActorTemplate immutable: публичного UpdateActorTemplate RPC нет. Сервер может изменять status подготовки golden snapshot, но это не разрешение клиенту переписывать workload. Новая версия программы, другой размер sandbox или иная схема mounts требуют нового template. Так snapshot можно связать с определённым основанием, а rollout перестаёт быть скрытой заменой среды под той же memory image.
+
+### Форма template не является PodSpec
+
+Контейнеры задают OCI image, command, args, env, mounts и необязательный wakeup probe. Не копируйте Kubernetes PodSpec целиком: `envFrom` и `valueFrom` не появляются в ate API автоматически, а `$(VAR)` в command/env здесь не разворачивается. Явный command отбрасывает image ENTRYPOINT и CMD. Ошибка в этих предположениях проявится ещё до полезной работы агента.
+
+Ниже фрагмент protojson-shaped ActorTemplate в YAML, не полный документ для create. У него нет Kubernetes `kind` и `apiVersion`. Полный template содержит остальные обязательные поля, реальный image digest и выбранный storage prefix; его форма и команда `kubectl ate create actor-template -f` описаны в API guide.
 
 ```
 metadata:
-  atespace: team-a
-  name: coding-agent-v3
-containers:
-- name: agent
-  image: registry.example/coding-agent@sha256:...
-  wakeupProbe:
-    httpGet:
-      path: /readyz
-      port: 80
-  volumeMounts:
-  - name: workspace
-    mountPath: /workspace
-resources:
-  limits:
-  - name: cpu
-    quantity: "2"
-  - name: memory
-    quantity: 4Gi
+  atespace: review-team
+  name: review-agent-v1
 workerSelector:
   matchLabels:
     tier: general
 sandboxConfig:
   sandboxClass: SANDBOX_CLASS_GVISOR
-  configName: gvisor-2026-10
-snapshotConfig:
-  onPause: SNAPSHOT_CONTENT_SCOPE_FULL
-  onCommit: SNAPSHOT_CONTENT_SCOPE_FULL
-  storageLocation: gs://substrate-state/coding-agent
-volumes:
-- name: workspace
-  durableDir: {}
+  configName: gvisor-default
+resources:
+  limits:
+  - name: cpu
+    quantity: "1"
+  - name: memory
+    quantity: 2Gi
 ```
 
-Это protojson-shaped ate API document, а не Kubernetes manifest: здесь нет `apiVersion` и `kind`. Его создают через `kubectl ate create actor-template` или gRPC client.
+WorkerPool использует строку `gvisor`, а sandbox selection в ate API - enum `SANDBOX_CLASS_GVISOR`. Это разные формы сообщений одной runtime family. `configName` должен разрешаться в существующий Kubernetes SandboxConfig совпадающего class. Установленный config тоже нужно проверить: знакомое имя не фиксирует его нынешнее содержимое.
 
-## Golden snapshot: status становится частью deployment gate
+### Что должно быть общим и что индивидуальным
 
-Create ActorTemplate запускает workflow:
+Template задаёт общую среду версии. Имя сессии, tenant-specific данные и текущий план ревью относятся к Actor и прикладному state. Для проекции identity есть `systemInfo.actorMetadata`: имя, Atespace и UID можно передать в файлы. Это не durable journal и не выдача полномочий внешнему сервису.
 
-1. создать временный golden Actor в reserved Atespace `ate-golden`;
-2. cold-boot workload с выбранным SandboxConfig;
-3. дождаться wakeup/readiness или warmup interval;
-4. сделать Full suspend;
-5. скопировать snapshot в immutable published Tag, имя которого связано с template UID;
-6. удалить временный Actor и записать ссылку в `status.goldenSnapshotStatus.goldenTag`.
+Workload images следует фиксировать digest. Mutable tag может дать разные bytes при cold boot и подготовке baseline под одним и тем же template intent. Но digest обеспечивает воспроизводимость содержимого, а не отсутствие уязвимостей или способность нового кода читать старый workspace. Платформенная проверка и контракт данных остаются отдельными задачами.
 
-Успешный create RPC не всегда означает, что golden snapshot уже готов. Deployment automation должна ждать template readiness и проверять error status. Если Actor создать раньше, чем golden tag готов, он может остаться без snapshot и пойти через cold boot даже после того, как template позже станет Ready.
+### Размер и mounts являются частью контракта
 
-## Worker: observed capacity и runtime epoch
+Actor-level limits задают размер sandbox; per-container limits, где поддержаны, делят этот размер между контейнерами, а не создают новый резерв на каждого. Для microVM нужны также guest и VMM overhead, для gVisor - соответствующее runtime enforcement. Сначала измерьте workload и restore peaks, затем выбирайте понятный запас. p95 steady-state сам по себе не покрывает дорогую фазу запуска.
 
-`Worker` - глобально-scoped dynamic record, представляющий конкретный Worker Pod. Его создаёт dataplane, а не application developer. Record связывает Kubernetes coordinates, pool labels, sandbox class, IP addresses и server-managed status.
+`DurableDir` входит в Data/Full snapshots. В этом срезе gVisor template ограничен одним DurableDir, microVM может иметь несколько. External volume имеет свой lifecycle и не входит в Actor snapshot как обычный DurableDir. Если память откатили, внешний volume не обязан откатиться вместе с ней. Поэтому сначала определите владельца каждого mount и способ восстановления, потом выбирайте scope.
 
-Worker status показывает:
+`snapshotConfig.onPause` задаёт scope локального checkpoint, `onCommit` - snapshot при suspend. Full содержит поддерживаемый guest state и durable data; Data не сохраняет индивидуальную RAM/rootfs. `onCommit` должен быть подмножеством `onPause`. Пара Full/Data позволяет иметь полный local checkpoint и более компактный durable snapshot. `onResume.fromData` определяет, откуда взять guest state: cold boot либо общий golden baseline. Подробный выбор операций и окон потери данных остаётся главе 14.
 
-- `state` - можно ли принимать новые assignments;
-- `capacity` - CPU/RAM и actor slots, которые runtime реально сообщает;
-- `allocated` - сумма limits назначенных Actors;
-- `observedEpoch` - обработана ли смена runtime epoch.
+## Golden baseline подготавливается отдельно
 
-`epoch` увеличивается при restart процесса `ateom` внутри того же Pod. Такой restart означает, что sandbox state прежних Actors потерян, даже если Pod UID не изменился. Control plane должен пометить Actors старой epoch как crashed и освободить assignments. Проверка только Pod Ready пропустит этот класс отказа.
+CreateActorTemplate записывает template, а reconciler готовит baseline асинхронно. Он создаёт временный Actor в reserved Atespace `ate-golden`, запускает среду, ждёт предусмотренный warmup, делает Full suspend, копирует snapshot в published Tag и удаляет временный Actor. Ссылка на Tag появляется в `status.goldenSnapshotStatus.goldenTag`; terminal failure записывается в `errorMessage`.
 
-## Actor: identity, intent и server-managed status
+«Template Ready» удобно говорить в runbook, но не стоит искать универсальное поле `status.ready` в этой схеме. Deployment gate должен читать реальный golden status, проверять отсутствие terminal error, наличие goldenTag и пригодность его snapshot. Timeout ожидания gate не является разрешением незаметно перейти к другой политике запуска.
 
-`Actor` - конкретная логическая instance template. Клиент задаёт минимум:
+![Golden snapshot и жизненный цикл stateful Actor](.gitbook/assets/diagrams/13-13.png)  
+*Golden snapshot и жизненный цикл stateful Actor*
 
-- `metadata.atespace` и `metadata.name`;
-- `actorTemplate` как ObjectRef;
-- опциональный per-Actor `workerSelector`;
-- опциональный immutable `sourceTag`.
+Схема показывает происхождение общей стартовой точки и последующего Actor snapshot. Это не полный граф API ресурсов: WorkerPool и SandboxConfig задают среду по обе стороны этого пути. Golden не является текущим планом ревью пользователя. В него безопаснее включать общие libraries и заранее подготовленные assets, а не tenant secrets, уникальные leases или индивидуальные полномочия.
 
-```
-metadata:
-  atespace: team-a
-  name: alice-coding-session
-actorTemplate:
-  atespace: team-a
-  name: coding-agent-v3
-workerSelector:
-  matchLabels:
-    zone-class: standard
-sourceTag:
-  atespace: team-a
-  name: baseline-workspace
-```
+### Когда create захватывает исходную точку
 
-### Placement - пересечение, а не приоритет
+У CreateActor два случая. Явный `sourceTag` берёт snapshot выбранного Tag. Без него server использует текущий goldenTag template, если он уже есть, и записывает соответствующий externalSnapshot в Actor status. При этом caller-owned поле sourceTag не заполняется автоматически.
 
-Template selector и Actor selector объединяются логическим AND. Actor не может расширить pools, разрешённые template; он только сужает выбор. Затем применяются hard sandbox-class match и remaining capacity. Если labels не пересекаются, результатом будет отсутствие eligible Worker, а не fallback в более широкий pool.
+Если Actor создан до появления goldenTag, он остаётся без этой исходной ссылки. Поздняя готовность template не перепривязывает его перед первым resume. Поэтому «подожду Ready после create всех Actors» и «подожду Ready до create» - разные последовательности. Когда нужен именно golden baseline, дождитесь его до создания сессий.
 
-| Ограничение | Источник | Можно ли Actor расширить выбор |
+Wakeup probe остаётся условием конкретного запуска, как в главе 12. Настроенные probes должны пройти, но их HTTP 200 не доказывает принятие ревью или безопасность внешнего действия. Отсутствующая probe также не является доказанной готовностью контейнера. Прогрев golden Actor без всех probes использует warmup interval; это задержка подготовки, не универсальная проверка приложения.
+
+## Actor хранит сессию и намерение размещения
+
+Actor `review-team/review-42` ссылается на `review-team/review-agent-v1`, имеет собственный UID и опциональный selector `region=eu`. `sourceTag`, если он был задан, immutable. Status ведёт сервер: lifecycle state, Worker assignment, snapshots, external volumes и сведения о crash. Запись `status.state=RUNNING` в клиентском сообщении не запускает процесс; нужны lifecycle RPC.
+
+Изменение per-Actor selector не переносит уже работающий процесс на другой Worker. Это условие следующего назначения, а не команда миграции. В частности, быстрый ResumeActor для уже RUNNING Actor не означает новый placement. Чтобы изменить среду существующей сессии, нужен отдельный план lifecycle и восстановления.
+
+### Выпуск review-agent-v2
+
+Предположим, новый агент умеет читать тот же workspace, но изменились image и command. Создаём новый immutable template и ждём подготовки его baseline. В pilot проверяем, как v2 читает старые данные и незавершённые operation records. Только после этого рассматриваем перевод существующих Actors.
+
+Смена ссылки `actorTemplate` разрешена в `SUSPENDED`. При существующем старом template сервис сравнивает sandbox config и volumes; containers, присутствующие в обеих версиях, должны сохранить mounts. В коде равенство volumes/mounts включает порядок. Это проверка конкретного API, не оценка бизнес-совместимости приложения. Смена gVisor на microVM через обычный repoint не проходит тот же sandbox config.
+
+Старый external snapshot сохраняет `actorTemplateUid` среды, которая его создала. После смены template UID resume не переносит прежнюю индивидуальную RAM/rootfs в новый код, а использует durable data и свежий guest по соответствующему пути. Поэтому entrypoint v2 обязан понимать старый формат данных и сверять незавершённые операции. «Обновили ссылку» не означает «продолжили тот же instruction pointer».
+
+Есть и граница проверки: если старый template уже удалён, сервису не с чем сравнить прежний sandbox config и volumes. Это не способ безопасно обойти compatibility gate. Сохраняйте старое основание, пока оно нужно для проверки и восстановления, а не удаляйте его ради успешного update.
+
+### Storage prefix не мигрирует от смены ссылки
+
+`snapshotConfig.storageLocation` задаёт базовый prefix для записи snapshots. Уже записанный `status.externalSnapshot.snapshotUri` остаётся адресом прежней точки. Исполняемый UpdateActor в этом срезе не вводит отдельного запрета на новый storageLocation; это не делает перенос bucket автоматическим.
+
+Если новая версия пишет под другим prefix, будущая запись и чтение прежней точки могут требовать прав на оба места. Retention старого bucket тоже не должен уничтожать эту зависимость раньше времени. Для обычного rollout проще сохранить storage policy; смену хранения планировать отдельно с проверкой читателей, записей и cleanup. Поле template задаёт намерение, не выполняет копирование старых объектов.
+
+В локальном demo функция `guard_result` отдельно показывает устаревшую version и пересозданный UID. Оба случая дают `ABORTED`; свежие guards дают `GUARDS_MATCH`. Последний результат не обещает успешный UpdateActor: функция не проверяет SUSPENDED, volumes, sandbox config и полный replacement. Это намеренно узкая проверка, чтобы не принять совпадение guards за разрешение любого изменения.
+
+## Tag удерживает bytes и создаёт зависимость
+
+Actor обычно имеет одну текущую external точку. Следующий successful suspend заменяет её; это не история всех промежуточных версий workspace. Когда одну точку нужно удержать дольше, suspended Actor с external snapshot служит источником CreateTag. Workflow копирует snapshot под UID нового Tag, поэтому последующее удаление исходного Actor не должно собрать tag-owned copy.
+
+На этом сходство с обычным именем версии заканчивается. Snapshot внутри завершённого Tag неизменен: Tag не переставляют на другую точку как mutable branch pointer. При этом scope завершённого Tag можно обновлять через read-modify-write с guards. Неизменность bytes не означает неизменность доступности ссылки другим Atespaces.
+
+`TAG_SCOPE_ATESPACE` разрешает создание Actor из Tag в его Atespace, `TAG_SCOPE_PUBLISHED` - также в других. В обоих случаях требуется тот же ActorTemplate UID, под которым был captured snapshot. Published Tag не становится универсальным образом для любых templates, не переносится в target Atespace и не выдаёт storage permissions. Explicit sourceTag cloning для template с external volumes в этом срезе отклоняется: CSI state не входит в обещание такого клона.
+
+### Почему работающий клон ещё заимствует состояние
+
+Support подготовил `/workspace` в отдельном Actor, сделал suspend и Tag `review-fixture-v1`. Из него создан учебный Actor `review-copy`. CreateActor не копирует snapshot bytes: его externalSnapshot указывает на tag-owned URI. После resume process уже работает на Worker, но его последняя external точка всё ещё чужая.
+
+Если сейчас удалить Tag, текущий process может некоторое время продолжить работу. Проблема проявится позже: после потери runtime или revert потребуется source, которого больше нет. Поэтому «клон запустился» не является критерием независимости.
+
+Первый успешный suspend клона записывает собственный Actor snapshot и обновляет status. После подтверждения этого status зависимость конкретного клона от Tag исчезает. Но это ещё не разрешение DeleteTag: тот же Tag могли заимствовать другие Actors. Для golden baseline дополнительно сохраняйте зависимость от template и путей Data-on-golden, а не только текущие Actor URI.
+
+| Точка | Кто владеет bytes | Когда зависимость остаётся |
 | --- | --- | --- |
-| Sandbox class | ActorTemplate/SandboxConfig | Нет |
-| Template pool labels | ActorTemplate.workerSelector | Нет |
-| Instance labels | Actor.workerSelector | Только добавить ограничения |
-| CPU/RAM/actor slots | Worker observed capacity | Нет |
-| Drain/state/version | Worker/control plane | Нет |
+| Текущий snapshot исходного Actor | Actor | Пока он текущий либо нужен незавершённому workflow |
+| Snapshot завершённого Tag | Tag | Пока его заимствуют clones или удерживает retention |
+| Golden Tag | Template-managed Tag | Пока baseline нужен новым Actors или Data-on-golden |
+| Собственный snapshot клона | Новый Actor | До замены его текущей точки или удаления владельца |
 
-### Status читают, но не задают
+### Проверка перед очисткой
 
-`Actor.status` server-managed и игнорируется на create/update input. Он включает lifecycle state, current Worker assignment, external/local snapshot, in-progress snapshot URI, external volume records и crash details. Клиент не переводит Actor в `RUNNING` записью поля; он вызывает lifecycle RPC, а server выполняет workflow и фиксирует status после реального действия.
+В prefixes используются UID, а не human name: путь Actor содержит `/actors/<actor-uid>/snapshots/<snapshot-id>`, Tag - `/tags/<tag-uid>`. В automation читайте URI из status. Не конструируйте destination по имени сессии и не объявляйте всё под старым именем мусором. Если для аудита нужен parser, он должен проверять документированную структуру, а не искать случайную подстроку `tags`.
 
-### Что можно обновить
+Перед очисткой нужно собрать все страницы Actor и Tag listings в требуемых Atespaces, проверить provenance и зависимости и исключить гонку с новым clone. Пустая страница listing при непустом nextPageToken не означает конец обхода. Даже полное чтение без остановки новых creates не является атомарной проверкой отсутствия borrowers.
 
-ActorTemplate reference может измениться только в `SUSPENDED` и при строгой совместимости: тот же SandboxConfig, совместимые volumes/mounts, а после собственного external snapshot - тот же storage location. `sourceTag` immutable. Update требует актуальных UID/version preconditions. Это защищает snapshot от попытки восстановить memory в несовместимом runtime.
+В этом срезе DeleteTag может идти одновременно с CreateActor: Tag ещё разрешается, пока его bytes уже собираются. Lease удаления не является полной защитой borrower graph. Поэтому разовая выборка «зависимостей сейчас нет» недостаточна для автоматического массового удаления. Нужны управляемое окно очистки и политика, которая не позволяет создавать новые зависимости в это время. Bucket age сам по себе тоже не является такой политикой.
 
-## Tag: долговечное имя и отдельный owner snapshot
+### Почему create и delete повторяются по-разному
 
-`Tag` создаётся из suspended Actor. Control plane копирует его external snapshot в новый tag-owned prefix. После завершения Tag неизменно указывает на одну snapshot copy. Это не mutable branch pointer вроде Git tag, который можно передвинуть, а immutable retention pin и источник для клонирования.
+CreateTag сначала резервирует запись и имя, затем копирует bytes, затем заполняет `status.snapshot`. Сбой после reservation оставляет pending Tag. Повтор create с тем же именем возвращает `ALREADY_EXISTS`, а не продолжает copy. Перечитайте Tag; нельзя удалять готовую точку только ради повторного RPC. Для действительно pending попытки сначала исключите продолжающуюся copy, затем удалите именно эту жизнь с guards и создайте заново.
 
-| Scope | Кто может создать Actor из Tag | Адрес Tag |
+DeleteTag делает обратную по зависимости уборку: сначала owned bytes, потом строку. Между шагами запись ещё есть, а данные уже исчезли частично или полностью. Повтор может завершить cleanup, но не восстановить уничтоженную точку. Tags не обеспечивают распределённую транзакцию между БД и bucket. Более подробные окна сбоя и recovery разобраны в [главе 39](39-substrate-snapshot-ownership.md).
+
+## Как выбирать объекты и инструменты
+
+Прежде чем создавать новый ресурс, назовите задачу и то, что должно пережить изменение. Для нашего ревью это помогает избежать лишней инфраструктуры. Если приложение хранит все данные в durable store и быстро стартует, обычный service или restartable job может быть проще snapshot runtime. Если важна дорогая подготовка sandbox и долгое ожидание сессий, пригодность Substrate оценивают по измеренной цене boot/restore, совместимости и эксплуатации.
+
+| Потребность | Что использовать или проверить | Цена выбора |
 | --- | --- | --- |
-| `TAG_SCOPE_ATESPACE` | Только Actor в owning Atespace | Всегда `owner-atespace/tag-name` |
-| `TAG_SCOPE_PUBLISHED` | Actor в любом Atespace | Не перемещается; остаётся в source Atespace |
+| Повторяемая общая подготовка среды | ActorTemplate и golden baseline | Подготовка, storage, compatible restore и отсутствие индивидуальных secrets |
+| Продолжение конкретной сессии | Actor и собственная external точка | Durable state, lifecycle и reconciliation внешних операций |
+| Передача подготовленного workspace | Завершённый Tag подходящего template | Copy при create, storage access и borrower retention |
+| Выделенная группа capacity | WorkerPool и selectors | Тёплый запас, fragmentation и пределы масштабирования |
+| Другая runtime boundary | Новый SandboxConfig и template выбранного class | Совместимость workload, hardware и отдельный migration plan |
+| Только новая версия программы | Новый ActorTemplate | Gate baseline, проверка формата данных и rollout Actors |
 
-Published не означает, что snapshot bytes копируются в target Atespace. Restore читает source prefix, поэтому node/storage identity должна иметь доступ к source Atespace. Это важная часть multi-tenant design: публикация control-plane reference и выдача object-storage permissions должны быть согласованы.
+gVisor и microVM выбирают по workload compatibility и конкретной модели угроз, а не по label «standard/strong». Это разные boundaries, не универсальный рейтинг безопасности. Совместимый class является hard gate, но сама пригодность workload ещё требует испытаний. В этом срезе GPU device pass-through для Actors временно не поддержан: GPU reservation у Worker Pod не означает доступ устройства внутри Actor.
 
-### Clone сначала заимствует snapshot
+### Какой интерфейс для какого изменения
 
-Когда Actor создаётся с `sourceTag`, bytes сразу не копируются. `status.externalSnapshot` указывает на tag-owned snapshot. После первого успешного suspend Actor пишет собственную copy под actor prefix и становится её owner.
+WorkerPool и SandboxConfig принадлежат Kubernetes, поэтому их declarative intent удобно хранить в GitOps и применять Kubernetes tooling. Наблюдаемый capacity report не следует подменять таким manifest. Он описывает нынешний Worker, а не желание команды иметь Worker заданного размера.
 
-> **Опасное окно.** Не удаляйте Tag, пока есть Actors, которые ещё заимствуют его snapshot. Сегодня control plane не всегда предотвращает это автоматически. Проверяйте, что clone сделал собственный suspend или что его `snapshotUri` больше не указывает на `/tags/<tag-uid>`.
+ActorTemplate и Atespace создают через ate API. Для ручного изучения ресурсов подходит `kubectl ate`; для automation, которая делает guarded updates и различает RPC errors, нужен соответствующий API client. Не используйте предположение «всё можно kubectl apply» для объектов, которые этим endpoint не обслуживаются. Перед write полезен read и проверка существующего намерения, особенно после ответа с неизвестным исходом.
 
-## Snapshot paths и ownership
+Модель, которая предлагает ресурсные настройки, тоже не должна иметь право тихо снимать region или sandbox constraint ради успеха. Harness из главы 4 проверяет намерение и допустимость действия. Сервисное полномочие клиента, tenant ownership и storage permission устанавливает платформа; selector не является этим разрешением.
 
-```
-<storageLocation>/atespaces/<atespace>/actors/<actor-uid>/snapshots/<snapshot-id>
-<storageLocation>/atespaces/<atespace>/tags/<tag-uid>
-```
+## Собираем версию для review-42
 
-UID в path не даёт новому объекту с повторно использованным name унаследовать старые bytes. Server-generated snapshot ID не позволяет двум suspend перезаписать друг друга. Snapshot URI из status следует трактовать как opaque server output; код не должен конструировать его по имени Actor.
+Сначала платформа проверяет установленный dataplane, SandboxConfig, worker image и совместимые nodes. Создаёт или выделяет pool с нужными labels, версиями и ресурсами. Затем владелец создаёт Atespace и согласует storage prefixes и доступ runtime. Эти действия нельзя заменить одним успешным CreateActor.
 
-| Owner | Когда создаётся | Когда удаляется | Кто может ссылаться |
-| --- | --- | --- | --- |
-| Actor | Первый и последующие successful suspend | Следующий suspend заменяет или Actor удалён | Сам Actor |
-| Tag | CreateTag копирует snapshot suspended Actor | При DeleteTag | Actors в пределах scope |
-| Golden Tag | Template preparation workflow | При удалении template | Новые Actors этого template |
+Команда приложения создаёт `review-agent-v1`: pinned image, runtime selection, явный размер Actor, workspace mount, probes и осмысленную snapshot policy. Automation ждёт golden status и его пригодной точки. После этого создаётся `review-42` с typed template reference и дополнительным region selector. Проверяют не только факт записи Actor, но и пригодных Workers, wake-up и прикладное восстановление workspace.
 
-Запись в БД и snapshot bytes не образуют одну транзакцию. Поэтому создание, удаление и suspend имеют разные точки фиксации и разные последствия сбоя. В таблице разобран release [Substrate v0.3.0](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go); для другого среза проверьте его workflow.
+Если подготовленная учебная точка нужна другой команде, отдельно создают Tag и проверяют его завершение, scope и содержимое. Публиковать workspace с credentials или customer data без проверки нельзя. Второй runtime получает минимально нужный доступ к исходному prefix, а не ко всему bucket. Borrowers учитываются до очистки, включая окно, когда клон уже исполняется, но ещё не сделал собственный suspend.
 
-| Операция | Порядок и окно сбоя | Безопасное восстановление |
-| --- | --- | --- |
-| CreateTag | Reservation → copy → status.snapshot. После reservation может остаться pending Tag; повтор с тем же именем возвращает AlreadyExists, а не продолжает copy | Перечитать Tag. Для pending исключить продолжающуюся операцию, удалить именно эту запись с UID/version guards и создать заново. Ready Tag автоматически не удалять |
-| DeleteTag | Owned bytes удаляются до строки. Между шагами запись ещё существует, но содержимое уже частично или полностью исчезло; borrowers могут потерять restore source | До удаления проверить зависимости. Повтор delete завершает уборку, но не возвращает уничтоженные bytes |
-| Suspend | Новый snapshot и status фиксируются до best-effort уборки прежнего owned snapshot; неубранные bytes могут остаться | Сверить сохранённый status и provenance, затем убирать только действительно неиспользуемые объекты по правилам выбранного workflow |
+Этот порядок не является командами готового стенда. В реальном deployment должны быть подтверждены runtime assets, permissions и совместимость приложения. Его смысл - сделать явными gates и владельцев: подготовка инфраструктуры, версия среды, жизнь сессии и удержание bytes завершаются в разные моменты.
 
-Подробные окна сбоя и borrowed/golden dependencies разобраны в [39. Substrate snapshots: ownership, storage и совместимость](39-substrate-snapshot-ownership.md). Здесь важно запомнить границу: успешное разрешение имени Tag ещё не доказывает, что его bytes пригодны для восстановления. Возраст объекта также не доказывает, что его можно удалить.
+## Практика для самостоятельного решения
 
-## Практический порядок развёртывания
+В demo замените region Actor на `us`. Предскажите, какие причины исчезнут и какой Worker станет кандидатом. Затем сделайте template selector `tier=isolated`, а Actor selector оставьте `tier=general`. Объясните, почему ни увеличение памяти, ни добавление replicas с этими же labels не решат противоречие.
 
-1. **Platform:** установить Substrate и узнать version label dataplane.
-2. **Platform:** создать/проверить SandboxConfig с pinned assets.
-3. **Platform:** создать WorkerPool с labels, capacity и node version pin.
-4. **Owner:** создать Atespace и определить storage prefix/policy.
-5. **Developer:** создать immutable ActorTemplate с digest-pinned images и явными limits.
-6. **Automation:** дождаться golden snapshot Ready, не только успешного create RPC.
-7. **Application:** создать Actor, при необходимости из sourceTag.
-8. **Operations:** проверить eligible Workers, resume и wakeup probe.
-9. **Protection:** сделать Tag только для snapshot, который действительно нужно удерживать.
-10. **Cleanup:** удалять в обратном порядке с проверкой borrowers и external volumes.
+У w-e удалите CPU capacity, сохранив slots и memory. Сравните положительный CPU request и intent без объявленного CPU request. Объясните разницу между результатом учёта и настоящим размером sandbox. Затем добавьте `required_nodes=("node-a",)` и выясните, почему новый Worker на другой node не помогает local resume.
 
-## Сквозной пример: general и isolated pools
+В функции guards подайте одинаковую version, но другой UID. Почему повторное чтение обязательно даже тогда, когда human name не изменился? Какие ещё проверки нужны после `GUARDS_MATCH`, прежде чем UpdateActor станет допустимым?
 
-Представим платформу для coding agents. Большинство sessions можно запускать в gVisor на общем node pool. Отдельные customers требуют microVM. Platform team создаёт два SandboxConfig и два WorkerPool с labels `isolation=standard` и `isolation=strong`. Application team публикует два ActorTemplate, потому что sandbox class и snapshot compatibility являются частью версии workload.
+Наконец разберите cleanup: три clones созданы из Tag; два сделали собственный suspend, третий пока RUNNING без него. Можно ли удалить Tag? А если current URI всех трёх уже собственные, но новые clones ещё могут создаваться? Назовите недостающие условия вместо ответа «раз записи не ссылаются, значит безопасно».
 
-Для обычного Actor template selector требует `isolation=standard`. Для regulated Actor - `isolation=strong` и microVM config. Per-Actor selector может дополнительно потребовать `region=eu`, но не может отправить microVM Actor в gVisor pool. Если eu microVM capacity закончилась, правильный результат - bounded waiting или capacity error, а не тихий fallback на более слабую изоляцию.
+## Итоги главы
 
-Когда support engineer готовит воспроизводимый workspace, он suspend'ит Actor и создаёт Atespace-scoped Tag. Для передачи baseline другой команде создаётся отдельный PUBLISHED Tag после проверки, что snapshot не содержит customer secrets. Storage policy выдаёт runtime второй команды read access к source prefix. После того как clone сделал собственный suspend, borrowed dependency можно удалить по retention policy.
+WorkerPool описывает тёплую инфраструктурную ёмкость; SandboxConfig - runtime assets; ActorTemplate - неизменную клиентскую версию среды; Actor - конкретную сессию; Atespace - её область адресов; Tag - удерживаемую snapshot copy. Worker records показывают, что есть сейчас, и связывают намерение pool с фактическим placement.
 
-Этот пример показывает, что выбор инструмента выражается несколькими ресурсами: Atespace отвечает за logical ownership, WorkerPool - за capacity, SandboxConfig - за runtime bytes, ActorTemplate - за immutable workload contract, Actor - за lifetime, а Tag - за retention и cloning. Попытка поместить всё в один объект сделала бы границы доступа и обновления неявными.
+Три различия предотвращают большую часть опасных выводов. Адрес не равен UID, совпадение guards не равно совместимости изменения, работающий клон не равен независимому snapshot. Selectors и reported resources определяют кандидатов, но не заменяют authorization, физический ресурс или успешный lifecycle.
 
-### GPU reservation пока не означает GPU внутри Actor
-
-Текущая API guide отдельно предупреждает: device pass-through для Actors временно не поддержан. Extended resource `nvidia.com/gpu` в WorkerPool может поставить Worker Pod на GPU node и зарезервировать устройство, но Substrate не передаст его Actor sandbox. Для GPU workload нужен отдельный подтверждённый integration path; одного pool limit недостаточно.
-
-## Кто за что отвечает
-
-| Решение | Platform team | Application team | Control plane |
-| --- | --- | --- | --- |
-| Sandbox runtime/assets | SandboxConfig, node capabilities | Выбирает разрешённый class | Проверяет match |
-| Warm capacity | WorkerPool replicas/resources/labels | Объявляет Actor limits | Bin-packing и assignment |
-| Workload version | Registry policy | ActorTemplate, image digest, probes | Golden workflow/status |
-| Tenant scope | Authorization/storage policy | Atespace references | Validation и lifecycle |
-| Snapshot retention | Bucket lifecycle/backup | Tag semantics | Owner references и garbage collection |
-| Instance lifecycle | Capacity/SLO | Create/update/resume/suspend intent | State machine и status |
-
-## Антипаттерны
-
-- **Считать Atespace Kubernetes namespace.** Это ломает ожидания RBAC и placement.
-- **Матчить Pod labels вместо WorkerPool labels.** Actor selector не увидит `spec.template.labels`.
-- **Использовать mutable image tag.** Golden/cold boot становятся невоспроизводимыми.
-- **Редактировать template как Deployment.** Snapshot остаётся связан со старым code/runtime.
-- **Не задавать Actor limits.** Runtime defaults и unconstrained dimensions скрывают capacity risk.
-- **Писать status вручную.** Lifecycle изменяется RPC, а не patch поля.
-- **Retriable update без re-read.** Повтор с устаревшей version снова конфликтует или стирает intent.
-- **Удалять Tag сразу после clone.** Clone может всё ещё заимствовать snapshot.
-- **Строить snapshot URI по имени.** Ownership основан на UID и server-generated IDs.
-- **Публиковать Tag без storage policy.** Reference доступна, bytes нет.
-
-## Production checklist ресурсной модели
-
-- Документировано, какие объекты идут через Kubernetes API, а какие через ate API.
-- Atespace naming не выдаётся за authorization без реальной policy.
-- WorkerPool labels отделены от Pod template labels.
-- Pool pinned к `ate.dev/substrate-version` и sandbox class.
-- Worker capacity учитывает CPU, RAM, actor slots, fragmentation и failure headroom.
-- SandboxConfig assets и pause image content-addressed.
-- ActorTemplate images pinned digest; limits и wakeup probes протестированы.
-- Snapshot scopes выбраны осознанно, а storage prefix имеет per-Atespace policy.
-- Automation ждёт golden snapshot Ready.
-- Actor updates выполняются read-modify-write с UID/version.
-- Tag borrowers обнаруживаются до deletion.
-- Logs и audit сохраняют UID, version и ссылки на operation, а не только human name.
-
-## Итог
-
-Ресурсная модель Substrate связывает два мира. Kubernetes описывает физическую ёмкость и runtime assets через WorkerPool и SandboxConfig. Ate API описывает logical scope, workload version, Actor lifetimes и snapshot retention через Atespace, ActorTemplate, Actor и Tag. Worker records соединяют declarative capacity с фактическим состоянием dataplane.
-
-Главная мысль - ownership и version важнее красивого имени. Template UID определяет происхождение snapshot, Actor UID отделяет одну lifetime от другой, resource version защищает от гонок, Tag владеет отдельной immutable copy, а pool labels задают eligibility независимо от Kubernetes namespace. Если эти связи явны, rollout и cleanup можно автоматизировать. Если скрыты, ошибки проявятся только во время restore или удаления.
-
-Следующая глава разбирает самую дорогую часть этой модели: что именно происходит при pause, suspend и resume, как отличаются Full и Data snapshots, где проходит durable commit boundary и какое состояние невозможно восстановить из process checkpoint.
+Для изменения выбирайте ресурс по ответственности, для расследования - проверку, которая действительно могла отказать, для очистки - полный граф зависимостей и контролируемое окно. Следующая глава проходит по самим операциям pause, suspend и resume: где появляется durable точка, сколько стоит её восстановление и что нельзя вернуть process checkpoint.
 
 ### Источники и дальнейшее чтение
 
-- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md)
-- [Agent Substrate glossary](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/glossary.md)
-- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md)
-- [ate API resource definitions](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto)
-- [Substrate API style guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-style-guide.md)
-- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md)
+- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md) - формы WorkerPool, SandboxConfig и ActorTemplate.
+- [Ресурсные сообщения ate API](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto) - fields, scope и typed references.
+- [API style guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-style-guide.md) - replacement, UID/version и pagination.
+- [Scheduler](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/scheduling/scheduling.go) и [сравнение quantities](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/resources/quantities.go) - исполняемые условия placement.
+- [CreateActor и UpdateActor](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/actor.go) - sourceTag, golden default и проверки repoint.
+- [Template reconciler](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/template_reconciler.go) - подготовка golden baseline и status.
+- [Tag workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go) - reservation, copy, pending и delete.
+- [Rolling upgrade](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md) - безопасное разделение serving pools и dataplane versions.

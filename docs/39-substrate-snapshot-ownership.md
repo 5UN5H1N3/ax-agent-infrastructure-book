@@ -104,7 +104,7 @@ Atelet загружает snapshot payload files, затем `manifest.json`. Ma
 | Filesystem | Image digest, rootfs delta, volumes и mount paths | Процесс получает не те данные или layout |
 | Application | Версия state schema и ожидаемые invariants harness | Технически успешный boot продолжает работу неверно |
 
-ActorTemplate immutable; смена ссылки Actor допускается только suspended и при ограничениях на SandboxConfig, volumes и storage location. Если записанный template UID external snapshot отличается, resume workflow запрашивает Data restore и свежий запуск вместо прежнего memory image. Это защитное понижение, а не автоматическая migration файлов: новый код обязан понимать восстановленные данные.
+ActorTemplate immutable для клиентов; смена ссылки Actor допускается только в `SUSPENDED`. При существующем старом template проверяются одинаковый SandboxConfig, равные volumes и mounts общих containers. Отдельного запрета на смену `storageLocation` в исполняемом UpdateActor этого среза нет: прежний snapshot URI остаётся в status, а будущие записи могут идти под новым prefix. Доступ и retention нужно согласовать для обоих мест. Если записанный template UID external snapshot отличается, resume workflow запрашивает Data restore и свежий запуск вместо прежнего memory image. Это защитное понижение, а не автоматическая migration файлов: новый код обязан понимать восстановленные данные.
 
 После repoint Tag, снятый со старого snapshot, сохраняет identity template, под которым guest state действительно был создан, а не просто текущую ссылку Actor. Иначе clone получил бы старую RAM под видом новой среды. В incident inventory фиксируйте оба значения и не исправляйте provenance вручную.
 
