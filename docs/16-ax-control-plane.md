@@ -1,228 +1,266 @@
 # AX control plane: от декларации к Actor и граница с Substrate
 
+У `review-42` из главы 15 появился пользовательский интерфейс. Инженер больше не хочет вручную создавать ActorTemplate, искать Worker и собирать описание рабочей среды. Он хочет сказать платформе: «Вот задача ревью, вот её checkout и команда; сохрани описание, запусти по запросу и покажи, что происходит». Эту продуктовую роль выполняет AX поверх Substrate.
+
+Но скрыть детали исполнения - не значит устранить их. Пользователь получает timeout при resume, а Actor уже работает. Task показывает Running, но репозиторий ещё не подготовлен. `/healthz` отвечает 200, хотя запись в Redis не проходит. Чтобы разбирать такие случаи, нужно знать, что каждый слой считает своим состоянием и где заканчивается его обещание.
+
 **Статус:** `AX · ac233282` · `DIRECT RECONCILIATION` · `ROADMAP SEPARATED`
 
-В главах 12-15 мы смотрели на Agent Substrate снизу: как Actor получает Worker, как сохраняется его состояние и как трафик находит Actor после suspend/resume. Теперь поднимемся на продуктовый уровень. Инженеру редко хочется вручную создавать ActorTemplate, передавать в него описание workspace, управлять Actor и переводить его runtime states. Ему нужна более понятная декларация: вот задача, вот рабочая среда, вот модель, запусти это безопасно и покажи состояние.
+Конкретный путь этой главы относится к AX [ac233282](https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e). Здесь reconciliation вызывается внутри lifecycle RPC `ax-server`; отдельного фонового `ax-controller` нет. Это описание закреплённой реализации, не гарантия любой версии AX и не доказанная совместимость лабораторной пары AX/Substrate.
 
-Именно эту роль выполняет AX. Он не заменяет Substrate и не является ещё одним sandbox runtime. AX принимает продуктовый intent в виде `Task`, `Workspace` и `Model`, а затем переводит его в lifecycle operations Substrate. Полезная аналогия: AX отвечает за язык платформы и orchestration конкретной agent workload, Substrate - за надёжное выполнение stateful Actor на кластере.
+## Что читатель сможет сделать после главы
 
-Но аналогия с Kubernetes легко вводит в заблуждение. AX использует Kubernetes-подобные manifests и команды `apply`, `get`, `watch`, `delete`, однако его ресурсы не являются Kubernetes CRD. Они обслуживаются собственным gRPC API и хранятся в Redis. Более того, на закреплённом срезе `ac233282` reconciliation выполняется прямо внутри запроса `ax-server`. Отдельного работающего `ax-controller` в этой версии нет.
+- Разделить продуктовый API, запуск runtime и полезный результат агента.
+- Проследить apply, create, resume и delete по реальным границам записи.
+- Объяснить, почему phase, readiness и успешный RPC могут расходиться.
+- Составить безопасный план после частичного сбоя без создания дубликата.
+- Оценить ограничения Redis lock, watch и прямого reconciliation.
+- Выбрать, достаточно ли текущего AX или нужен другой слой хранения и выполнения операций.
 
-## Что читатель должен унести из главы
+## Control plane управляет работой но не выполняет её
 
-- какую проблему решает AX поверх Substrate и почему эти слои нельзя смешивать;
-- где находятся API contract, desired state, observed status и runtime state;
-- как create, resume, suspend, delete и watch проходят через `ax-server`;
-- почему package `internal/controller` не означает отдельный controller process;
-- зачем AX выбрал Redis вместо Task CRD и какую цену платит за этот выбор;
-- какие сбои оставляют Redis и Substrate в разных состояниях;
-- почему текущая direct-execution схема удобна для ранней версии, но ограничивает масштабирование;
-- что уже реализовано, а что пока существует только в roadmap.
+Control plane - управляющая часть системы: принимает описания, проверяет их, хранит записи и вызывает операции исполнения. Data plane - путь самой работы и её трафика. В AX пользователь обращается к управляющему API, а команда агента выполняется внутри Actor. Один и тот же `ax-server` не должен считаться одновременно agent harness, sandbox и model server.
+
+AX добавляет язык продуктовых ресурсов. `Task` описывает выполняемый экземпляр, `Workspace` - подготовку рабочей среды, `Model` - конфигурацию вызова model provider для соответствующего платформенного клиента. В этом API Task не имеет ссылки на Model. Нельзя создать Model и заключить, что всякая Task автоматически использует его параметры или credentials.
+
+Substrate, напротив, отвечает за Actor, его placement, sandbox, lifecycle и поддерживаемые snapshot/network пути. Он не знает, что для продукта означает «ревью готово к публикации». Runner внутри Actor подготавливает workspace и запускает command; harness управляет agent loop. Успех каждого из этих этапов имеет собственный смысл.
+
+| Слой | Его авторитетное описание | Чего оно не доказывает |
+| --- | --- | --- |
+| AX resource store | Task spec, Workspace/Model records и последний записанный Task status | Текущее состояние процесса и готовность внешнего результата |
+| AX translation | Как текущий RPC переводит Task и найденные Workspaces в Substrate calls | Постоянное наблюдение за всеми Task |
+| Substrate control plane | Actor identity, state и текущий assignment | Смысл Task для пользователя и завершение ревью |
+| Actor storage и приложение | Сохранённые данные, execution и прикладной журнал | Наличие корректного AX record и пользовательского права доступа |
+
+Эти слои полезно сопоставлять, а не назначать один из них «единственной истиной» для всего. Redis может правильно хранить последнее известное AX состояние, пока Actor уже изменился. Snapshot может существовать, когда продуктовая запись Task потеряна. А опубликованное ревью остаётся во внешнем сервисе независимо от suspend или удаления Actor.
 
 ![AX Task: фактический путь в срезе ac233282](.gitbook/assets/diagrams/16-15.png)  
 *AX Task: фактический путь в срезе ac233282*
 
-## Сначала разделим три контракта
+Схема показывает wiring прямого пути. Стрелка к Redis и стрелка к Substrate не являются одной атомарной транзакцией. В следующих разделах разберём именно промежутки между ними.
 
-Сложность этой архитектуры возникает не из количества компонентов, а из того, что одно слово «задача» означает разные сущности на разных слоях.
+## Кто работает в каждом процессе
 
-| Контракт | Что он описывает | Кто владеет |
-| --- | --- | --- |
-| AX resource contract | `Task`, ссылки на `Workspace`, image, command, env, поле resources, debug и status; наличие resources не доказывает runtime enforcement | AX API и Redis |
-| Translation contract | Как Task превращается в Atespace, ActorTemplate, Actor и lifecycle calls | `TaskReconciler` внутри AX |
-| Runtime contract | Placement, Worker assignment, sandbox, durable volume, snapshot, suspend/resume и network path | Agent Substrate |
+CLI `ax` читает manifest и вызывает typed gRPC methods: server получает protobuf resource, не исходный multi-document YAML. `ax-server` проверяет запрос, берёт lock, читает и пишет Redis и вызывает `TaskReconciler` как зависимость в том же процессе. Redis обслуживает resource records, индексы, locks и уведомления watch. Runner работает уже внутри Actor, за границей управляющего API.
 
-AX может сказать: «эта Task должна использовать такой image и такие workspaces». Он не выбирает Worker и не восстанавливает snapshot самостоятельно. Substrate умеет запустить Actor, но не знает, что для продукта означают `WorkspaceReady`, цель workspace или пользовательская команда `ax watch`. Граница проходит не между двумя наборами процессов, а между двумя моделями ответственности.
+Имя Go package `internal/controller` легко принять за отдельный service. Deployment topology подтверждает entrypoint: в `cmd/ax-server/main.go` создаются Redis store, Redis locker, Substrate client и reconciler, затем передаются в API server. Там нет подключения durable queue и запуска отдельного worker, который бесконечно перечисляет Task.
 
-> **Практическое правило.** Если решение связано с продуктовым intent агента, его API и статусом - это AX. Если решение связано с безопасным размещением, остановкой, восстановлением и адресацией sandbox - это Substrate.
+Reconciliation означает «сопоставить требуемое действие и наблюдаемое исполнение, выполнить нужные шаги». Само слово не обещает непрерывный loop. Здесь оно относится к процедуре, вызванной конкретным request. Если процедура закончилась, AX не продолжает автоматически следить за этой Task только потому, что в коде класс называется reconciler.
 
-## Компоненты среза ac233282
+## Что apply означает для разных ресурсов
 
-| Компонент | Фактическая роль | Чего он не делает |
-| --- | --- | --- |
-| `ax` | Читает YAML, преобразует документы в typed protobuf calls, выполняет get/watch/lifecycle команды и настраивает доступ к cluster endpoint | Не пишет CRD и не создаёт Actor напрямую |
-| `ax-server` | Обслуживает gRPC и `/healthz`, валидирует ресурсы, берёт locks, пишет Redis и синхронно вызывает reconciler | Не выполняет agent command |
-| Redis | Хранит AX resources, индексы, distributed locks и Pub/Sub notifications для watch | Не является источником runtime placement и snapshots |
-| `internal/controller` | Go package с `TaskReconciler`, включённый в процесс `ax-server` | Не отдельный deployment и не непрерывный queue consumer |
-| Substrate Control API | Создаёт Atespace, ActorTemplate и Actor, выполняет resume/suspend/delete и возвращает Worker assignment | Не интерпретирует AX Workspace как продуктовую сущность |
-| `ax-task-runner` | Работает внутри Actor, материализует workspaces, публикует readiness и запускает workload | Не является control plane |
+В текущем CLI `ax apply` обрабатывает документы последовательно. Для Task это `CreateTask`: существующий Task с тем же `atespace/name` даёт `FailedPrecondition`, даже если новый manifest такой же. Task immutable после создания. Для Workspace и Model используются Update RPC с возможностью create/update.
 
-Название package `controller` здесь описывает паттерн кода, а не topology. Это важная инженерная привычка: архитектуру нельзя выводить из имени каталога. Нужно проследить wiring в `cmd/ax-server/main.go`. Именно там создаются Redis store, Redis locker, Substrate client и `TaskReconciler`, после чего reconciler передаётся API server как обычная зависимость.
+Это важнее сходства команды с `kubectl apply`. AX не сохраняет YAML одним атомарным batch и не выстраивает dependency graph. Первые документы могут примениться, а следующий завершиться ошибкой. Нужные Workspaces следует создать и проверить до Task, а повторный create не использовать вместо resume.
 
-## Что происходит при `ax apply`
+Atespace задаёт scope имени; пустое значение server заменяет на `default`. В продуктовой конфигурации лучше указывать scope явно. Это не автоматически настроенная tenant authorization: переданный atespace выбирает ресурс, но сам не доказывает право caller на этот ресурс.
 
-CLI разбирает manifest локально. Raw YAML не отправляется в server: клиент вызывает typed RPC для соответствующего kind. Для Task это `CreateTask`, потому что Task в текущем API immutable после создания. Workspace и Model используют update semantics.
+### Путь CreateTask
 
-1. **Validation.** Server проверяет имя и atespace как RFC 1123 labels, а также корректность workspace bindings и mount paths.
-2. **Serialization per object.** Для ключа `task/<atespace>/<name>` берётся distributed lock. Параллельные create/resume/delete одной Task не должны менять lifecycle одновременно.
-3. **Existence check.** Если Task уже есть, create завершается `FailedPrecondition`. Изменить immutable Task повторным apply нельзя.
-4. **Первичная запись.** Task получает timestamp, status и phase `Suspended`, затем сохраняется в Redis.
-5. **Разрешение ссылок.** Server читает из Redis перечисленные в Task объекты Workspace и передаёт их reconciler.
-6. **Direct reconcile.** В том же RPC context AX вызывает Substrate, создаёт необходимые runtime resources и приводит Actor в suspended state.
-7. **Status update.** Полученный status снова записывается в Redis и публикуется подписчикам watch.
+Server валидирует Task, захватывает lock её ключа и проверяет отсутствие записи. Затем сохраняет в Redis spec и начальную phase Suspended. Только после этой записи он читает Workspaces и вызывает reconciler. При configured reconciler процедура создаёт или получает Atespace, ActorTemplate и Actor, затем выполняет ветку suspended и записывает полученный status.
 
-Неожиданный, но принципиальный вывод: успешный `CreateTask` означает не только «spec принят». Request уже прошёл часть runtime provisioning. Поэтому latency и availability Substrate входят в latency и availability AX API. Это проще понимать и отлаживать, но оно связывает два control planes во времени.
+Между шагами есть наблюдаемые окна. Если процесс остановился после SaveTask, запись уже существует, а Actor может ещё отсутствовать. Если runtime изменился и последующая запись status не удалась, Substrate впереди Redis. При возвращённой ошибке reconcile server пытается записать Failed, но ошибка этой дополнительной записи игнорируется; при настоящем падении процесса этот участок вообще не выполняется.
 
-## Внутри TaskReconciler
+Поэтому ответ create error не означает «ничего не создано». А успешный ответ при наличии обычного reconciler означает прохождение его ветки, не доказательство полезной работы агента. Новая Task по замыслу остаётся suspended до явного resume. Отдельные деградации реализации, разобранные ниже, не позволяют считать даже успешную ветку строгой гарантией состояния Actor.
 
-Reconciler сначала гарантирует существование Substrate Atespace. Имя Actor всегда равно имени Task; это упрощает маршрутизацию и диагностику. Затем он формирует launch configuration: image, пользовательские env, сериализованный Task в `AX_TASK_YAML` и multi-document Workspace YAML в `AX_WORKSPACES_YAML`.
+## Launch configuration и граница существующего Actor
 
-Для отличающейся конфигурации создаётся per-task ActorTemplate. Его имя включает короткий digest image и environment. Status исключён из digest, иначе каждое изменение phase создавало бы новую template и новый golden snapshot. После этого AX выполняет idempotent `EnsureActor`. Если Actor уже существует, client получает его; crashed Actor пытается revert к snapshot, а Actor в deleting state получает короткое окно на завершение удаления.
+Reconciler использует имя Task как имя Actor. В environment шаблона попадают пользовательские env, `AX_TASK_YAML` и найденные Workspace specs в `AX_WORKSPACES_YAML`. Status исключается из сериализованного launch Task: его изменение не должно создавать новый template digest. Per-task ActorTemplate получает имя с коротким digest image и environment.
 
-Для новой Task desired phase равен `Suspended`, поэтому созданный Actor сразу переводится в suspended state. Команда `ax resume` меняет desired phase на `Running` и снова вызывает тот же reconciler. Substrate назначает Worker и возвращает его address, а AX временно опрашивает `/readyz?check=workspace` внутри Actor. Сначала используется прямой Worker address, при наличии настройки возможен путь через atenet router.
+Digest - способ различать launch configuration, не криптографическое доказательство полной совместимости state. Кроме того, возвращённый существующий Actor не означает автоматическую замену его template на только что рассчитанный. Изменённый Workspace, новый secret или mutable image tag не обязаны обновить уже работающий процесс. Для воспроизводимости нужны закреплённые inputs и понятная стратегия новой Task либо migration, а не надежда на имя template.
 
-По умолчанию readiness polling ограничен 15 секундами. Если workspace готов, AX устанавливает `WorkspaceReady=True` и `Ready=True`. Если нет, Task остаётся в phase `Running`, но обе conditions объясняют, что initialization продолжается. Это важнее простой строки phase: запущенный Actor ещё не обязательно готов выполнять пользовательскую работу.
+TaskSpec имеет `resources`, но наличия CPU/memory fields недостаточно для вывода об enforcement: inspected translation не переносит эти значения как универсальные runtime limits. Подробная матрица полей находится в главе 17. Для каждого обещания полезен один вопрос: какой код применяет поле и в какой момент?
 
-### Где заканчивается reconciliation
+Есть и неочевидная зависимость workspace. `fetchWorkspaces` пропускает отсутствующие или не прочитанные bindings, не превращая каждый такой случай в ошибку create. Runner может получить меньше объектов, чем ожидал пользователь. «В spec написано имя repository» и «Actor действительно получил нужный checkout» - отдельные результаты.
 
-В проверенной версии нет фонового worker, который постоянно сравнивает Redis с Substrate. Polling выполняется только во время конкретного lifecycle RPC. Если workspace стал готов после 15-секундного окна, сам по себе Redis status не обязан обновиться немедленно: нужен следующий вызов, который снова запустит reconciliation, либо будущий механизм постоянного наблюдения.
+## Resume использует phase как вход процедуры
 
-Поэтому слово reconcile здесь следует понимать узко: это idempotent translation procedure, вызванная API operation, а не бесконечный Kubernetes-style loop. Для пользователя разница проявляется в status freshness, а для оператора - в recovery после частичного сбоя.
+У TaskSpec этого среза нет отдельного поля desiredPhase. Handler `ResumeTask` читает Task, меняет `task.Status.Phase` на Running *в памяти request* и передаёт объект reconciler. Обновлённый status сохраняется в Redis после завершения процедуры. `SuspendTask` аналогично задаёт Suspended в локальном объекте.
 
-## Desired, observed и runtime state
+В этом пути status.phase одновременно используется как управляющий вход и как последнее сохранённое сообщение пользователю. Это не полноценная модель «durable desired state отдельно, observed state отдельно». Если server остановился после ResumeActor, но до UpdateTaskStatus, persisted Task не обязан отражать уже выполненную просьбу. Фоновый worker не восстановит intent только на основании незаписанного значения из памяти погибшего request.
 
-| Данные | Где живут | Что потеря означает |
-| --- | --- | --- |
-| Task/Workspace/Model spec | Redis | AX теряет продуктовый intent и ссылки, даже если Actor ещё существует |
-| Task phase/conditions/actor/workerIP | Redis | CLI видит устаревшую или отсутствующую картину |
-| Actor/ActorTemplate/Atespace | Substrate control plane | Нельзя управлять runtime по одному Redis spec |
-| Placement и Worker assignment | Substrate | AX не должен считать cached workerIP авторитетным |
-| Durable filesystem и snapshot | Substrate storage path | Spec сохраняется, но продолжить работу с прежнего состояния нельзя |
-| Workspace setup result | Actor volume плюс AX condition | Filesystem и отображаемый status могут временно расходиться |
+Такое разделение объясняет timeout из начала главы. Клиент ждёт ответ своего RPC, control plane Substrate выполняет операцию, Redis получает запись позже. Отмена или потеря ответа не откатывает автоматически runtime и тем более внешнюю публикацию ревью. Сначала выясните фактический результат, затем выбирайте следующий lifecycle call.
 
-Redis здесь не является единственным source of truth для всей системы. Он авторитетен для AX resource record. Substrate авторитетен для runtime existence и placement. Durable storage авторитетен для содержимого state. Production runbook обязан проверять все три слоя, иначе «Task Running» легко принять за доказательство, которого оно не даёт.
+## Readiness показывает ограниченное наблюдение
 
-## Почему Redis, а не CRD на каждую Task
+После успешного resume AX получает Worker address и, пока WorkspaceReady не True, опрашивает `/readyz?check=workspace`. Default окно - 15 секунд, interval 500 ms, отдельный HTTP request ограничен 2 секундами и общим контекстом. Сначала пробуется direct Worker path; при `ATENET_ROUTER_ADDR` доступен fallback через actor-aware router.
 
-DESIGN.md объясняет выбор ожидаемыми миллионами короткоживущих Tasks. Kubernetes API и etcd превосходны как control plane для относительно небольшого количества декларативных infrastructure objects. Высокочастотный application state с быстрым churn создаёт другой профиль: много записей status, большие индексы, watchers, compaction и давление на общий cluster control plane.
+Если проверка не дала успех до окончания окна, handler может вернуть Task с phase Running и Ready=False/WorkspaceReady=False. Это не обязательно ошибка runtime: setup может закончиться позже, либо direct probe не достигает runner. Но после завершения RPC нет постоянного poll, который сам обновит Redis в момент готовности. Watch тоже не запускает reconciliation.
 
-Redis позволяет AX выбрать собственный key model, TTL для Tasks, sorted-set indexes и дешёвый Pub/Sub. В текущей реализации Task хранится отдельным JSON value, глобальный и per-atespace indexes - в sorted sets, а status update перезаписывает Task и публикует notification. Workspace и Model хранятся без TTL; Task TTL настраивается опционально и по умолчанию не задан.
+WorkspaceReady здесь сохраняется как признак однажды завершённого setup и может оставаться True через suspend/resume. При следующем resume такой флаг позволяет пропустить новую workspace probe; он не является постоянно обновляемым health signal. CreateTask также не очищает целиком входной status, нормализуя прежде всего phase. Не используйте клиентские или сохранённые conditions как самостоятельное основание выдачи привилегий.
 
-Цена решения тоже реальна. CRD бесплатно получили бы Kubernetes authentication, RBAC, admission, resourceVersion, durable watch semantics, audit integration и зрелые backup procedures. Собственный API обязан реализовать или компенсировать это сам. Выбор Redis оправдан не потому, что он «быстрее вообще», а когда churn и требуемая cardinality действительно делают Kubernetes API неподходящим data path.
+Более глубокий предел разбирает глава 17: runner readiness не подтверждает все Git, bootstrap, MCP и tool postconditions. Нужен свой acceptance: ожидаемый commit checkout, доступный tool, минимальный разрешённый model request и возможность обработать безопасную операцию. Простой Ready=True не заменяет эту проверку.
 
-## Watch не равен durable event log
+Не путайте её и с завершением command. Runner может продолжать обслуживать metadata после выхода child process; стандартный wiring `ax-task-runner` не превращает этот exit автоматически в записанный Redis phase Completed. Для «ревью выполнено и результат проверен» требуется прикладное доказательство, а не только существование Task или живой metadata listener.
 
-`WatchTask` подписывается на Redis Pub/Sub channel конкретной Task, затем отправляет клиенту initial snapshot из Redis и последующие `MODIFIED` messages. Pub/Sub удобен для live UI, но сообщения не сохраняются. При разрыве соединения события между disconnect и reconnect будут пропущены; новый initial snapshot восстанавливает текущее состояние, но не историю переходов.
+## Три деградации которые меняют смысл успеха
 
-Следовательно, watch подходит для «покажи, где Task сейчас», но не заменяет audit log. Если важны доказательство approvals, расход токенов, lifecycle history или расследование инцидента, события нужно отдельно писать в durable journal с idempotency key и retention policy.
+### Server без reconciler
 
-## Locks, idempotency и граница транзакции
+В entrypoint ошибка инициализации Substrate client приводит к warning и запуску API без reconciler. Например, причиной может быть непригодный CA file. Create/resume тогда могут сохранять record/phase без операций с Substrate. Недоступность API после успешного создания client - другой случай: gRPC client сам по себе не является health probe.
 
-Redis lock сериализует операции одной AX resource. Substrate methods стараются быть idempotent: Atespace и ActorTemplate допускают AlreadyExists, EnsureActor возвращает существующий Actor, delete отсутствующего Actor считается успехом. Эти механизмы уменьшают риск duplicate resources при retry.
+`/healthz` `ax-server` просто отвечает 200 на соответствующий path. Он не выполняет Redis ping и не проверяет наличие reconciler или возможность resume. Этот endpoint показывает жизнь listener, не готовность всего control plane. Проверяйте deployment logs и безопасный синтетический lifecycle на отдельном canary, если продукт обещает runtime provisioning.
 
-Но distributed lock не превращает Redis и Substrate в одну транзакцию. Между сохранением Task и созданием Actor процесс может упасть. Actor может быть создан, а status update в Redis - не выполниться. Delete может удалить Actor, но не успеть удалить Redis record. Это нормальная проблема dual-write, и её нельзя исправить более длинным timeout.
+### Ошибка suspend становится warning
+
+Suspended branch reconciler вызывает SuspendActor, но его error только логирует. Затем очищает workerIP, ставит phase Suspended/Ready=False и возвращает success. AX Task поэтому может выглядеть suspended, пока Actor всё ещё исполняется.
+
+Это не повод перестать использовать AX; это повод не строить на данном status обещание «нет CPU cost» или «код точно больше не работает». Для подтверждения остановки прочитайте текущий Actor state и завершение нужной операции Substrate. В слоях 14-15 уже есть инструменты, чтобы отличить незавершённый lifecycle от успеха.
+
+### Fallback template и пересоздание после crash
+
+Ошибка custom ActorTemplate также может стать warning с fallback на default template. Следующий Actor способен получить другой image/environment, чем ожидал пользователь. Нужны наблюдение выбранного template и явная политика fail closed для workload, где такой fallback недопустим.
+
+`EnsureActor` не является безусловно безопасным повтором. Для crashed Actor client сначала пытается Revert; если он не удался, code path удаляет Actor и создаёт заново. Имя сохраняется, UID и судьба старого state могут измениться. Поэтому рекомендация «повторить reconciliation» требует сначала проверить Actor, snapshot и допустимость такого recovery. Название Ensure не обещает сохранение индивидуальных данных при любой ошибке.
+
+## Практический пример двух независимых записей
+
+`examples/ch16_dual_write_demo.py` моделирует окно после resume, до записи status. Это две локальные SQLite базы, Python 3.10+ и стандартная библиотека. Имена полей и records упрощены; AX, Redis, Substrate, network и реальные processes не запускаются.
+
+В начале Task record содержит Suspended, соответствующий Actor record - Suspended с UID `actor-u1`. Fixture задаёт approved launch marker. Модель resume меняет локальный объект Task на Running, фиксирует Running в runtime database и выбрасывает SimulatedCrash до записи Task. Затем соединения закрываются и открываются снова.
+
+После reopening Task всё ещё Suspended, Actor уже Running. Попытка create существующей Task отклоняется. Read-only planner сравнивает resource key, ожидаемый UID, request launch и runtime launch; он предлагает проверить существующий Actor перед resume, но ничего не ремонтирует автоматически. Для Actor с новым UID возвращает STOP\_IDENTITY\_CHANGED.
 
 ```
-possible partial states:
-  Redis Task exists, Substrate Actor missing
-  Redis says Suspended, Actor is Running
-  Actor exists, Redis Task missing
-  Actor deleted, Task remains Terminating
-  WorkspaceReady=False, workspace already initialized
+python3 examples/ch16_dual_write_demo.py
+python3 -m unittest discover -s examples -p 'test_ch16*.py'
 ```
 
-В зрелой схеме recovery выполняет постоянный reconciler: он перечисляет desired resources, сверяет observed runtime, повторяет idempotent steps и обрабатывает orphans по явной policy. Текущий direct path частично восстанавливается при повторной lifecycle operation, но не гарантирует автоматическую convergence без внешнего сигнала.
+Решение planner сохраняет неизвестные или несовместимые состояния для разбора:
 
-## Failure matrix
+```
+def recovery_plan(task, actor, *, expected_uid, requested_launch):
+    if task is None:
+        return "STOP_ORPHAN_REVIEW" if actor else "NO_RESOURCES"
+    if task["launch"] != requested_launch:
+        return "STOP_REQUEST_CHANGED"
+    if actor is None:
+        return "STOP_RUNTIME_MISSING"
+    if not expected_uid:
+        return "STOP_MISSING_PROVENANCE"
+    if actor["key"] != task["key"] or actor["uid"] != expected_uid:
+        return "STOP_IDENTITY_CHANGED"
+    if actor["launch"] != task["launch"]:
+        return "STOP_LAUNCH_CHANGED"
+    if actor["state"] not in {"Running", "Suspended"}:
+        return "STOP_LIFECYCLE_REVIEW"
+    return "REVIEW_EXISTING_BEFORE_RESUME"
+```
 
-| Сбой | Что увидит клиент | Что проверить | Безопасное восстановление |
-| --- | --- | --- | --- |
-| `ax-server` недоступен | Все gRPC operations недоступны; Actors могут продолжать работать | Pod readiness, listener, Redis и Substrate connectivity | Перезапустить server, не удаляя Actors |
-| Redis недоступен | Create/get/watch и locks падают | Persistence, replication, memory pressure, latency | Восстановить Redis, затем inventory diff с Substrate |
-| Substrate API недоступен | Lifecycle RPC завершается error после записи или чтения Redis | TLS, token, service endpoint, Substrate health | Восстановить API и повторить idempotent operation |
-| Server упал после CreateActor | Client видит error, Actor может существовать | Task record и Actor с тем же atespace/name | Не создавать вручную второй Actor; повторить reconcile path |
-| Workspace readiness timeout | Phase Running, Ready False | Runner logs, Worker route, `/readyz?check=workspace` | Исправить setup и инициировать новый lifecycle check |
-| Delete прерван | Task может остаться Terminating | Actor, templates и Redis record отдельно | Продолжить idempotent cleanup по UID/name policy |
+### Чтение результата
 
-## Масштабирование direct-execution архитектуры
+Полный вывод demo:
 
-API replica одновременно является lifecycle worker. Slow Substrate call, workspace readiness polling и delete wait удерживают request и goroutine. Добавление replicas увеличивает concurrency, но каждый replica должен иметь одинаковый доступ к Redis locks, Kubernetes Secrets и Substrate Control API. Балансировщик не решает contention одной Task: lock намеренно оставляет один active lifecycle operation.
+```
+{
+  "source": "two_local_sqlite_records",
+  "ax_and_substrate_contacted": false,
+  "reopened": {
+    "task_phase": "Suspended",
+    "actor_state": "Running"
+  },
+  "retry_create": "REJECTED_IMMUTABLE",
+  "plan": "REVIEW_EXISTING_BEFORE_RESUME",
+  "planner_mutated_records": false,
+  "changed_uid_plan": "STOP_IDENTITY_CHANGED",
+  "task_records": 1,
+  "actor_records": 1
+}
+```
 
-Пропускную способность нужно считать не только в requests per second. Для AX важны create latency, concurrent readiness polls, длительность suspend/resume, количество locks в ожидании, Substrate API saturation и Redis write latency. Если средний resume занимает 5 секунд, сотня HTTP workers не превращает один Substrate cluster в бесконечную capacity.
+Исключение не отменяет уже committed запись другого store. Повторный create не решает расхождение и не является lifecycle repair. Даже разумный plan не меняет record: дальнейшее действие требует проверок и полномочий оператора. Это и есть переносимый урок dual-write, записи одного логического изменения в независимые системы.
 
-Переход к отдельному asynchronous controller имеет смысл, когда требуется durable work queue, controlled concurrency, retries после падения API process и rate limiting к Substrate. Но он приносит eventual consistency, queue lag, deduplication и отдельную эксплуатацию. Выбирать его нужно по измеренному demand и recovery objectives, а не потому, что «так делает Kubernetes».
+`expected_uid` и launch marker - входы учебной модели, не поля AX TaskSpec. В ObjectMeta AX нет UID; TaskStatus.id также не является Actor UID. В реальной системе provenance исполнения нужно записывать отдельно или получать из достоверного inventory/history. Модель сравнивает только заданные markers, не доказывает совместимость image, environment, snapshot и workspace.
 
-## Security boundary и текущие ограничения
+Закрытие и reopening SQLite подтверждают конкретный fixture state, не испытание power loss, Redis persistence, распределённой транзакции или реального restart AX. Здесь нет leases, конкуренции handlers и фонового convergence. Для стенда нужны controlled fault points между runtime call и status commit, корректный read-only inventory и проверки всех разрешённых recovery веток.
 
-Substrate client поддерживает TLS, отдельный authority, CA bundle и bearer token file. Это защищает AX -> Substrate path при корректной конфигурации. На стороне пользовательского API current server создаёт обычный gRPC server без видимых authentication/RBAC interceptors и может обслуживать unencrypted HTTP/2. Следовательно, endpoint нельзя публиковать в недоверенную сеть без внешнего authenticated gateway, mTLS или эквивалентного enforcement layer.
+## Lease уменьшает конфликты но не создаёт транзакцию
 
-Есть и более тонкая граница. Current reconciler помещает Gemini API key из Kubernetes Secret или server environment в ActorTemplate env. Для прототипа это работает, но secret доступен Actor и может попасть в runtime state. Production target главы 15 остаётся прежним: выдавать credential на egress gateway, не помещая его в sandbox. Roadmap AX также обещает least-privilege policies и более строгие security profiles.
+Redis lock использует `SET NX` с уникальным token и TTL. Он помогает удерживать одну операцию ключа `lock:task:<atespace>:<name>`; release Lua script удаляет запись только при совпадении token. Pub/Sub будит waiters после освобождения, fallback retry помогает пережить потерю notification.
 
-Ещё один компромисс: если создание custom ActorTemplate не удалось, reconciler логирует warning и может перейти на default template. В production silent degradation опасна: Task способна стартовать с неожиданным image или environment. Платформе нужен alert на такой fallback, а для security-sensitive workloads лучше fail closed.
+В этом коде default TTL - 30 секунд; renewal/heartbeat отсутствует. Если первый handler всё ещё выполняет slow Substrate call после истечения lease, второй может получить тот же lock. Проверка token при unlock не отменяет старую работу и не запрещает её поздний status write. Она защищает запись lock нового владельца от чужого release, не все downstream side effects.
 
-## Что реализовано, а что пока обещано
+Поэтому строгая сериализация ограничена жизнью lease и условиями Redis. Task lock также не блокирует обновление referenced Workspace/Model и не превращает две системы в атомарный commit. Увеличение TTL уменьшает часть вероятности overlap, но увеличивает ожидание после падения и не решает проблему неограниченно долгого RPC.
 
-| Возможность | Статус в закреплённом срезе `ac233282` |
-| --- | --- |
-| Typed gRPC API, Redis store, Redis locks | Реализовано |
-| Direct Task reconciliation с Substrate | Реализовано внутри `ax-server` |
-| Task create/suspend/resume/delete/watch | Реализовано |
-| Workspace readiness conditions | Реализован bounded poll во время reconcile |
-| Отдельный `ax-controller` и durable queue | Не обнаружены в проверенной tree |
-| Постоянный background convergence loop | Не обнаружен |
-| Разделение workspace setup и task runtime на разные Actors | Roadmap |
-| Автоматический suspend по idleness | Roadmap |
-| Task branching, SPIFFE identity, telemetry trajectories | Roadmap |
-| Стабильные specs и production governance | Roadmap; API имеет `v1alpha1` |
+Когда требуется сильнее, проектируют bounded execution, lease renewal и fencing: downstream должен отвергать действие старого владельца по поколению, а не просто надеяться, что тот остановился. Эти свойства не следует приписывать текущему AX. Подробный lifecycle разбор продолжает глава 19.
 
-Книга фиксирует source snapshot, а не брендовый narrative. AX прямо предупреждает, что проект активно меняется и до stable release возможны breaking changes. Перед внедрением следует повторить проверку wiring, proto и roadmap на выбранном commit.
+## Watch удобен для интерфейса но не для аудита
 
-## Как диагностировать Task по слоям
+AX WatchTask сначала подписывается на Redis Pub/Sub, затем читает record и отправляет INITIAL, после чего пересылает MODIFIED. [Redis Pub/Sub](https://redis.io/docs/latest/develop/pubsub/) не хранит уведомления для replay после disconnect. Новый snapshot помогает увидеть record сейчас, но не восстанавливает все пропущенные переходы.
 
-1. **API.** Доступен ли `/healthz`, проходит ли gRPC, какой exact error code вернулся?
-2. **AX record.** Есть ли Task в Redis, каковы phase, conditions, actor и workerIP?
-3. **Lock.** Не зависла ли конкурирующая lifecycle operation для того же atespace/name?
-4. **Translation.** Какую ActorTemplate выбрал reconciler, не было ли fallback на default?
-5. **Substrate.** Существуют ли Atespace, ActorTemplate и Actor, каков Actor state и assignment?
-6. **Runner.** Отвечает ли workspace ready probe, что говорят setup logs?
-7. **Storage.** Существует ли durable volume/snapshot, если Task должна пережить suspend?
-8. **Network.** Работает ли actor-aware route, не используется ли устаревший workerIP?
+Кроме того, snapshot и подписка не являются versioned event log: API не даёт resume cursor или resourceVersion для восстановления строгой последовательности. Не используйте последний увиденный message как криптографическое доказательство актуальности. Для действия после reconnect перечитайте resource и сопоставьте runtime; для approvals, использования бюджета и расследования храните durable audit с identity и retention.
 
-Такой порядок не даёт перескочить сразу к Worker logs, когда на самом деле Task не прошла validation, и не заставляет чинить Redis, когда проблема в runner readiness.
+Наличие Redis transaction pipeline для записи record, индексов и publish не добавляет atomicity внешнему Substrate. Уведомление о Failed/Completed может завершить текущий watch, но сам observer не выполняет command и не определяет бизнес-результат. Интерфейс наблюдения и механизм восстановления - разные функции.
 
-## Антипаттерны
+## Как восстановиться после частичного сбоя
 
-- **Называть package отдельным service.** Deployment topology проверяется по entrypoint и manifests.
-- **Считать успешную запись в Redis запущенной Task.** Runtime provisioning может ещё не завершиться.
-- **Считать phase Running готовностью.** Для работы нужно `Ready=True`, а не только назначенный Worker.
-- **Использовать watch как audit log.** Redis Pub/Sub не хранит пропущенные события.
-- **Backup только Redis.** Spec без Actor state и snapshot не восстанавливает работу.
-- **Backup только Substrate.** Runtime без AX intent превращается в orphan.
-- **Retry create новым именем.** Сначала нужно проверить, не создался ли Actor при partial failure.
-- **Публиковать gRPC endpoint напрямую.** Внешний authentication и authorization должны быть явными.
-- **Принимать roadmap за текущую гарантию.** План не является implementation contract.
+Начните с evidence, не с новой Task: timestamp, atespace/name, exact RPC error, AX record, Actor UID/state/template/assignment и нужная durable точка. Не сохраняйте в отчёт literal credentials или полный environment. Отдельно найдите journal внешней операции ревью, если её результат неизвестен.
 
-## Production checklist control plane
+| Наблюдение | Возможное объяснение | Следующее безопасное действие |
+| --- | --- | --- |
+| Task существует, Actor не найден | Запись AX опередила provisioning либо runtime удалён | Проверить intent, inputs, storage и допустимость новой activation |
+| Task Suspended, Actor Running | Resume впереди status либо suspend warning path | Сверить последнюю операцию и решить, нужно продолжить или остановить |
+| Task Running/Ready=True, useful probe не проходит | Устаревшая condition, неполный setup либо другая проблема исполнения | Проверить real runner/workspace/application, не объявлять бизнес-успех |
+| Actor есть, Task нет | Потеря/TTL AX record либо отдельное создание runtime | Сохранить state и разобрать ownership; не удалять orphan по одному имени |
+| Task Terminating, Actor исчез | Runtime cleanup завершён, Redis delete ещё не выполнен | Продолжить разрешённый delete path после проверки references |
 
-- Версия AX закреплена commit или release, а расхождения с docs задокументированы.
-- Проверено, direct или asynchronous reconciliation используется именно в этой версии.
-- Redis имеет persistence, backup, restore test, memory limits и alerting.
-- Есть inventory reconciliation между Redis Tasks и Substrate Actors.
-- Partial create/delete scenarios проверены fault injection.
-- gRPC endpoint защищён authentication, authorization и transport security.
-- Substrate TLS authority, CA и token rotation протестированы.
-- Readiness SLO отделён от API acceptance и Actor phase.
-- Watch дополняется durable audit trail, если история является требованием.
-- Fallback на default ActorTemplate наблюдаем или запрещён.
-- Secrets не передаются в Actor env для недоверенного workload.
-- Capacity plan учитывает длительные lifecycle RPC и readiness polling.
-- DR exercise восстанавливает Redis, Substrate metadata и snapshots как разные слои.
+Create уже существующей immutable Task не запустит reconciliation. Для существующей Task lifecycle RPC выбирается по нужному действию и фактическому runtime состоянию; crashed branch с возможным recreate требует отдельного решения. Для отсутствующей Task нельзя автоматически присвоить себе любой совпавший по имени Actor.
 
-## Итог
+DeleteTask сначала сохраняет Terminating, затем удаляет Actor и только потом запись Redis. Substrate DeleteActor считает отсутствие Actor успехом; AX DeleteTask при отсутствии самой Task возвращает NotFound. Cleanup per-task templates является best effort: warning не обязательно удержит Task record. Удалённая Task поэтому не доказывает отсутствие всех templates и не отменяет опубликованное ревью.
 
-AX превращает удобный для инженера agent intent в конкретный runtime lifecycle. Его ценность не в том, что он скрывает Substrate, а в том, что он добавляет продуктовый API и переводит Task и связанные Workspace specs в Atespace, ActorTemplate и Actor. Model хранится отдельно для платформенного client и не выбирается ссылкой из Task. На проверенной версии этот перевод выполняется синхронно внутри `ax-server`; Redis хранит AX records и live notifications, а Substrate остаётся владельцем placement, sandbox, suspend/resume и snapshot lifecycle.
+Практический recovery считается законченным, когда intent, runtime и пользовательский результат объяснимо согласованы. Одна зелёная phase, исчезнувшая ошибка CLI или повторное создание listener недостаточны.
 
-Эта граница позволяет правильно выбирать инструмент. Если нужна изоляция и stateful runtime - смотрим на Substrate. Если нужен декларативный интерфейс для agent workloads и их product semantics - добавляем AX. Если нужны durable retries, автоматическая convergence и большая независимая controller capacity - проверяем, реализованы ли они в выбранной версии, либо проектируем этот слой отдельно.
+## Как выбирать архитектуру хранения и выполнения
 
-В следующей главе мы разберём сами AX primitives: почему Task специально остаётся маленькой, что Workspace материализует внутри sandbox, какую роль играет Model и как не превратить эти ресурсы в неуправляемый универсальный manifest.
+AX DESIGN объясняет Redis ожидаемым количеством короткоживущих Task. Это мотивировка, не benchmark миллионов Task данного release. Redis позволяет использовать собственные records, sorted-set indexes и live notifications; фактический предел нужно измерять вместе с долгими lifecycle calls и runtime capacity.
+
+Task TTL поддерживается store option, но стандартный entrypoint создаёт store с пустыми options и без заданного Task TTL. Даже включённый TTL удаляет запись, а не запускает автоматический DeleteActor. Persistence, backup и restore Redis также нужно настраивать: store name не обещает подходящий RPO сам по себе.
+
+CRD в Kubernetes дают API conventions, resourceVersion/watch и интеграцию с authn/authz/admission при соответствующей конфигурации. Они не дают бесплатно прикладной controller, бессрочную историю watch или exactly-once внешнего вызова. База с транзакционным operation log тоже не делает внешний runtime участником того же commit автоматически.
+
+| Требование | Какой вариант рассматривать | Обязательное дополнение |
+| --- | --- | --- |
+| Небольшой проверенный direct lifecycle с допустимыми ограничениями | AX direct path на закреплённой версии | Защита API, bounded RPC, inventory и явная recovery policy |
+| Много частых product records и свой API contract | Собственное хранилище и API, в AX это Redis | Persistence, индексы, авторизация и испытание failure windows |
+| Управление сравнительно редкими cluster configuration objects | Kubernetes API/CRD | Controller и контроль нагрузки, не Task на каждое событие по умолчанию |
+| Принятый intent должен пережить падение API process | Durable operation log/queue и workers | Повторы, lease/fencing, дедупликация и терминальная verification |
+
+Асинхронный controller имеет смысл, когда API должен быстро зафиксировать intent и ответить, а исполнение продолжится отдельно с ограниченной concurrency. Но очередь должна быть durable, worker - уметь безопасно повторить шаг, а status - объяснять queue lag и неизвестные исходы. «Вынести reconciler в другой process» без этих contracts ещё не даёт автоматическую convergence.
+
+Для выбора измеряйте create/resume end-to-end latency, lock wait, длительность RPC, readiness polling, Redis write latency и Substrate saturation. Добавление API replicas не создаёт Workers и может увеличить давление на runtime. Сначала найдите bottleneck, затем выбирайте concurrency и архитектуру.
+
+## Security связывает API runtime и внешний результат
+
+Пользовательский server в этом wiring создаёт обычный gRPC server и допускает unencrypted HTTP/2. Защита AX → Substrate может включать TLS authority, CA и bearer token file, но она не является caller authorization пользовательского API. Endpoint для недоверенных клиентов требует отдельной аутентификации, проверки доступа к atespace/Task и защищённого transport. mTLS без соответствующей policy тоже не отвечает на вопрос, какое действие этому caller разрешено.
+
+Reconciler может прочитать Gemini API key из Kubernetes Secret в atespace или fallback server environment и передать его в ActorTemplate env. Secret тогда доступен недоверенному workload и может войти в runtime state/snapshot. Это конкретное поведение среза, не безопасное brokering Model по ссылке из Task.
+
+Для production требование «credential не входит в Actor» выбирайте поддерживаемый broker/egress injection и проверяйте весь путь из главы 15: dataplane, provider, mandatory behavior и допустимые origins. Нельзя заменить env одним effects field и объявить защиту готовой. API lock, шаблон и сеть также не заменяют ограничение полномочий самого review API или tool.
+
+Roadmap AX содержит отдельный setup Actor, least-privilege policies, idleness suspension, branching и расширенную telemetry/governance. Это направления развития, а не включённые возможности ac233282. Для покупки времени инженера важнее проверенный необходимый contract, чем количество знакомых названий в roadmap.
+
+## Практика для самостоятельного решения
+
+В примере замените Actor UID, launch marker, runtime state на Crashed и наличие Task record. Объясните, почему planner останавливается, а не автоматически создаёт или удаляет ресурс. Где в вашей системе хранится достоверная связь Task с incarnation Actor?
+
+Составьте timeline handler, который выполняется 35 секунд при lock TTL 30 секунд. Что предотвращает release с чужим token, а чего он не предотвращает? Где должен проверяться fencing, если поздний старый handler ещё способен писать status или вызывать runtime?
+
+Для `review-42` выпишите четыре проверки: API listener жив, runtime действительно восстановлен, workspace соответствует ожидаемым inputs, ревью опубликовано и сверено. Какие records и probes отвечают на каждый вопрос? Как изменится recovery, если client timeout наступил между двумя записями или watch был отключён?
+
+Наконец, определите продуктовый contract create: синхронно закончить provisioning или durable принять intent для последующего исполнения. Для второго варианта перечислите недостающие operation state, queue/retry, ownership, audit и verification; не приписывайте их текущему server автоматически.
+
+## Итоги главы
+
+AX даёт продуктовый API поверх runtime, но не объединяет Redis, Substrate и внешний результат в одну транзакцию. В ac233282 lifecycle выполняется прямо в API request; phase используется как вход процедуры и сохранённый status, а не как отдельный durable desired-state contract.
+
+Инженеру важно проверять смысл успеха: наличие reconciler, результат suspend, выбранный template, Actor incarnation, реальную readiness и пользовательский outcome. Lease, watch и Ensure уменьшают часть проблем, но каждое имя скрывает собственные ограничения. Безопасное восстановление начинается с сопоставления records, не с безусловного retry или нового имени Task.
+
+Глава 17 продолжит язык Task, Workspace и Model: какие поля кто применяет, как versioning рабочей среды влияет на уже созданные Task и почему schema нужно читать вместе с execution path. Runner и точные lifecycle ветки подробнее разберут главы 18 и 19.
 
 ### Источники и дальнейшее чтение
 
-- [AX README and operational overview](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md)
-- [AX design and API reference](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/DESIGN.md)
-- [ax-server dependency wiring](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go)
-- [AX gRPC lifecycle implementation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go)
-- [TaskReconciler implementation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go)
-- [Redis resource and watch store](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/store/redis/store.go)
-- [AX to Substrate client](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go)
-- [AX roadmap](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md)
+- [AX design](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/DESIGN.md), [entrypoint](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go) и [server handlers](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go): direct execution, записи и degraded mode.
+- [TaskReconciler](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go) и [Substrate client](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go): suspend warning, readiness latch, templates и recreate после crash.
+- [AX protobuf](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto) и [CLI apply](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax/main.go): API kinds, immutable Task и отсутствие desiredPhase/metadata UID.
+- [Redis store](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/store/redis/store.go), [lock implementation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/lock/lock.go), [Redis Pub/Sub](https://redis.io/docs/latest/develop/pubsub/) и [Redis lease patterns](https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/): границы сохранения и взаимного исключения.
+- [Runner](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go), [runner entrypoint](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-task-runner/main.go) и [roadmap](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md): выполнение command и граница будущих возможностей.
