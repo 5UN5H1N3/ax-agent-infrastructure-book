@@ -2,258 +2,222 @@
 
 **Статус:** `AX · ac233282` · `PROCESS LIFECYCLE` · `READINESS SEMANTICS`
 
-В главе 17 мы разделили Task, Workspace и Model и увидели, что декларация сама по себе ничего не исполняет. Между manifest и пользовательским агентом нужен компонент, который превратит данные control plane в работающий процесс внутри sandbox. В AX эту роль выполняет runner.
+Допустим, мы поручили агенту разобрать сервис выставления счетов. Он должен прочитать код, найти места, где обработка ошибок требует внимания, и сохранить отчёт для инженера. Harness из предыдущих глав умеет вести такое исследование: обращаться к модели, читать файлы, запускать тесты. Чтобы начать, ему нужны каталог проекта, установленный Python, доступные инструменты и команда запуска.
 
-Runner легко принять за тонкую shell-обёртку: прочитать команду, запустить её и ждать. Но в AX он одновременно является PID 1 контейнера, подготавливает Workspace, держит metadata surface, сообщает readiness, включает debug services и завершает process tree при suspend. Ошибка в этой точке искажает состояние сразу для трёх наблюдателей: Substrate, AX и самого agent harness.
+В главе 17 мы описали эту среду через Task и Workspace. Теперь проследим, как описание превращается в работающую программу. Внутри sandbox эту работу выполняет runner. Он подготавливает рабочие каталоги, запускает команду harness и остаётся рядом с ней: обслуживает HTTP-запросы платформы, получает статус завершения процесса, участвует в остановке.
 
-Поэтому runner полезно рассматривать не как вспомогательный binary, а как платформенный адаптер. Сверху он получает декларативные контракты Task и Workspace, снизу работает с Unix processes и durable filesystem, а наружу выдаёт минимальный протокол здоровья и управления.
+К концу главы вы сможете подключить собственный harness к стандартному runner, объяснить последовательность запуска и выбрать способ сохранения результата. Затем разберём, когда стандартного runner достаточно, а когда требуется изменить управление процессами. Поведение AX рассматривается по исходникам версии `ac233282`; локальный пример позволяет воспроизвести отдельные шаги без развёртывания платформы.
 
-## Что читатель должен унести из главы
+## Зачем между платформой и harness нужен runner
 
-- зачем платформе отдельный runner, если у container image уже есть ENTRYPOINT;
-- почему AX всегда запускает `/usr/local/bin/ax-task-runner`, а `spec.command` становится child process;
-- какие обязанности возникают у PID 1 и какие из них default runner не решает как полноценная init-system;
-- чем различаются container health, workspace readiness и liveness самого agent process;
-- почему успешный выход child не завершает Task и не попадает в AX status;
-- как runner обрабатывает `SIGTERM`, process group и 10-секундный grace period;
-- что именно переживает suspend/resume, а что должно быть восстановлено harness;
-- когда достаточно расширить default image, а когда нужен embedded или custom runner;
-- как проверить runner до запуска production workload.
+У нашей задачи есть две группы обязанностей. Первая относится к выполнению исследования: какие файлы читать, как сформулировать запрос модели, как проверить выводы, что включить в отчёт. Вторая относится к среде исполнения: куда положить файлы, какой процесс запустить, как сообщить о готовности каталога и как закончить работу при остановке sandbox.
+
+Harness берёт на себя первую группу. Runner — вторую. Это разделение позволяет менять способ исследования, сохраняя знакомый платформе способ запуска. Сегодня команда использует Python и один агентный цикл, завтра — другой framework. Пока обе команды принимают нужную конфигурацию, работают в подготовленном каталоге и сохраняют результат, платформенный запуск может оставаться прежним.
+
+Для нашего сервиса распределение работы выглядит так. Runner подготавливает `/workspace`, выбирает его рабочим каталогом и запускает команду исследования. Harness читает код, собирает наблюдения, создаёт `report.md` и записывает сведения о завершении. Runner получает exit code команды и продолжает обслуживать среду, пока её явно не остановят. Инженер в это время может забрать отчёт и изучить логи.
 
 ![Runner contract: граница между AX, sandbox и agent process](.gitbook/assets/diagrams/18-16.png)  
 *Runner contract: граница между AX, sandbox и agent process*
 
-## Зачем runner существует отдельно от harness
+На схеме связь start/wait означает запуск команды и ожидание её завершения. Metadata даёт программе доступ к переданной конфигурации Task и Workspace. Guest services — дополнительный интерфейс работы с процессами и файлами; AX включает его при `debug=true` и успешной инициализации сервиса. Для обычного запуска команды достаточно основного runner.
 
-Agent harness отвечает за model loop, tools, memory, budgets и прикладную остановку. Runner решает другой класс задач: получить launch configuration от платформы, подготовить среду, запустить harness как процесс и удерживать management surface sandbox. Смешивать эти роли можно, но тогда обновление agent logic начинает менять платформенный lifecycle, а изменение probes или signal handling требует пересборки всего приложения.
+## Что подготовить для запуска своего harness
 
-Отдельный runner даёт AX устойчивый внутренний protocol. Control plane не обязан знать, написан агент на Python, Go или TypeScript, является ли он ReAct loop, supervisor или обычным shell script. Для платформы важны фиксированный executable, port 80, readiness и корректное завершение.
+Начнём с трёх конкретных вещей: исполняемой команды, рабочего каталога и способа получить результат.
 
-| Слой | Главная обязанность | Чего он не должен угадывать |
-| --- | --- | --- |
-| AX/Substrate | Создать sandbox, передать specs, volume и probes | Как работает agent loop и что означает бизнес-успех |
-| Runner | Материализовать Workspace, запустить и остановить process tree, держать management API | Правильность решения задачи агентом |
-| Harness | Выполнять agent logic, сохранять checkpoints и публиковать application state | Как control plane создаёт Actor и восстанавливает filesystem |
-
-## Launch envelope: что AX передаёт в container
-
-В срезе `ac233282` reconciler строит ActorTemplate так, чтобы container всегда стартовал с командой `/usr/local/bin/ax-task-runner`. Пользовательский `spec.command` не становится OCI command. Он сериализуется внутри `AX_TASK_YAML`, а runner позднее запускает его через `os/exec`.
-
-| Вход | Значение | Практическое следствие |
-| --- | --- | --- |
-| Image | `spec.image` или default runner image | Custom image обязан содержать совместимый executable по фиксированному пути |
-| Container command | `/usr/local/bin/ax-task-runner` | ENTRYPOINT исходного image не определяет lifecycle AX |
-| `AX_TASK_YAML` | Task без status | Runner получает launch spec, но не authoritative control-plane state |
-| `AX_WORKSPACES_YAML` | Найденные Workspace resources в binding order | Отсутствующий resource может не попасть в stream |
-| Task env | Literal `spec.env` плюс platform-provided values | Переменные доступны и runner, и child process |
-| Volume | Durable directory at `/workspace` | Предусмотренные файлы восстанавливаются из пригодной точки. Data не сохраняет индивидуальную RAM; boot source может быть общим golden, а не новым PID 1 из image |
-| Ready probe | `GET /readyz` on port 80 | Custom runner обязан занять этот port и реализовать protocol |
-
-> **Главный compatibility test.** Custom image считается AX-compatible не потому, что внутри есть ваш agent binary. Она совместима, если platform entrypoint существует и соблюдает runner contract.
-
-## Boot sequence по шагам
-
-Порядок операций важен для диагностики. Одни failures происходят до появления health endpoint, другие оставляют container живым, но неготовым, третьи вообще не отражаются в AX status.
-
-1. **Parse configuration.** Binary читает Task из `AX_TASK_YAML`, Workspaces из multi-document `AX_WORKSPACES_YAML` и подписывается на `SIGTERM`/`Interrupt`. Invalid YAML является fatal error: runner завершается до старта server.
-2. **Resolve mounts.** Bindings сопоставляются с Workspace по name. Если resource не передан, binding всё равно превращается в mount с пустым Workspace.
-3. **Start metadata server.** HTTP server начинает слушать до Workspace setup. С этого момента `/healthz` отвечает 200, а `/readyz` ещё 503.
-4. **Prepare Workspaces.** Setup выполняется последовательно в declaration order. При отсутствии bindings создаётся default `/workspace`.
-5. **Mark ready.** Только если каждый вызов `SetupWorkspace` вернул nil, metadata server переключает workspace readiness в true.
-6. **Start command.** Runner выбирает первый Workspace как working directory, собирает environment и запускает `spec.command` в отдельной process group.
-7. **Supervise until stop.** Runner ждёт либо завершения direct child, либо отмены context. После выхода child он продолжает обслуживать server до внешнего stop/suspend.
-
-Неочевидный момент: ошибка Workspace setup выставляет внутренний `ready=false`, но current `runner.Run` всё равно переходит к запуску command. Это может быть полезно для debug или self-repair, но application не должна считать наличие процесса доказательством готовой среды.
+Команду AX runner получает как список аргументов. Например, если в образ заранее установлен наш модуль исследования, значение `spec.command` может быть таким:
 
 ```
-parse specs
-  -> start metadata server       health=200, ready=503
-  -> setup workspaces in order
-       -> all returned nil       ready=200
-       -> any returned error     ready stays 503
-  -> start child command         happens in both cases
-  -> child exits                 runner stays alive
-  -> SIGTERM to runner           terminate process group, then exit
+["python3", "-m", "review_agent", "--input", ".", "--output", "report.md"]
 ```
 
-## PID 1: особая роль, но не магия
+Здесь `review_agent` — условный модуль нашего приложения, который команда должна добавить в образ. Runner запускает executable `python3` с указанными аргументами через Go `exec.Command`. Такой запуск удобен тем, что границы аргументов явные: путь с пробелом остаётся одним аргументом. Если нужен shell pipeline, например обработка вывода через несколько утилит, shell задают отдельной командой с `-c` и продумывают экранирование её строки.
 
-В Linux PID 1 внутри PID namespace определяет lifetime container: пока этот process жив, container считается работающим. Он получает stop signal от runtime и становится родителем для orphaned descendants. Поэтому обычное приложение, случайно поставленное PID 1, часто неправильно обрабатывает signals или накапливает zombie processes.
+Рабочий каталог выбирается по первому Workspace binding. Если он указывает на `/workspace`, аргумент `--input .` относится к этому каталогу. Остальные bindings runner тоже подготавливает, в порядке объявления. Так harness получает предсказуемую точку входа: исходники лежат по известному пути, а дополнительные данные доступны в других объявленных каталогах. Без bindings используется `/workspace`.
 
-Default AX runner решает основную часть lifecycle для одного foreground command. Он подписывается на `SIGTERM`, запускает direct child через `exec.Cmd`, помещает его в отдельную process group и обязательно вызывает `Wait` для этого child. Но в inspected code нет общего `SIGCHLD`/`wait4` loop или subreaper behavior для произвольно осиротевших grandchildren.
+Результат тоже стоит определить до запуска. В нашем случае это текст отчёта и небольшая запись о завершении. В записи удобно хранить путь к отчёту, идентификатор задания и выполненный этап. Другой сервис сможет найти артефакт, а инженер — понять, какую именно работу он представляет. Для долгой задачи рядом сохраняют промежуточный checkpoint: например, список уже разобранных файлов.
 
-Отсюда инженерное ограничение: agent command должен оставаться foreground supervisor своего дерева. Если библиотека делает double-fork, вызывает `setsid` и отдаёт процессы PID 1, default runner может не вести их как полноценная init-system. Для сложного service tree используйте собственный supervisor внутри command либо custom runner с явным reaping.
+AX создаёт контейнер с фиксированной командой `/usr/local/bin/ax-task-runner`. Описание Task передаётся runner через `AX_TASK_YAML`, найденные Workspace — через `AX_WORKSPACES_YAML`. Поэтому образ для нашего агента должен содержать и совместимый AX runner по ожидаемому пути, и Python с модулем `review_agent`. Обычный способ — расширить проверенный образ runner и установить в него зависимости приложения. Собственный `ENTRYPOINT` образа не заменяет команду, указанную в AX ActorTemplate.
 
-| Обязанность PID 1 | Default runner | Ограничение |
-| --- | --- | --- |
-| Получить stop signal | Да, `signal.NotifyContext` | Обрабатываются Interrupt и SIGTERM |
-| Остановить process tree | Signal всей исходной process group | Process, ушедший в другую session/group, может избежать сигнала |
-| Дождаться direct child | Да, через `cmd.Wait()` | Это не универсальный reaper всех orphaned descendants |
-| Держать container после child exit | Да | Container alive больше не означает workload alive |
-| Сообщить exit code control plane | Только log/callback | AX status его сейчас не получает |
+Это продолжение выбора template из глав 16–17. Перед запуском проверяют фактически выбранный образ, переменные среды и mapping volumes: provisioning может использовать fallback template. Для результата, который должен переживать сохранение Task, выбирают включённый в snapshot volume. В рассматриваемом BuildActorTemplate `/workspace` относится к такому volume; для другого каталога mapping задают и проверяют отдельно.
 
-## Три сигнала здоровья, которые нельзя смешивать
+## Запуск по шагам
 
-Слово ready звучит однозначно, но в этой системе у него несколько уровней. Если dashboard показывает только один зелёный индикатор, оператор не понимает, какой именно факт подтверждён.
+Проследим нормальный запуск исследования. Сначала default binary читает YAML-конфигурацию из environment или файлов. Флаги `--task-file` и `--workspace-file` позволяют передать описания из файлов. Ошибка чтения или некорректный YAML завершает этот этап с ошибкой. Binary также поддерживает запуск без описания Task — он полезен для работы с пустой средой, но нашему исследованию нужна Task с командой.
 
-| Сигнал | Что он доказывает | Чего он не доказывает |
-| --- | --- | --- |
-| `/healthz = 200` | Metadata server жив и принимает HTTP | Workspace готов, child запущен или agent полезен |
-| `/readyz = 200` | Все вызовы Workspace setup завершились без возвращённой ошибки | Goal postconditions, toolchain и business dependencies реально работают |
-| Task phase `Running` | Actor resumed и получил Worker | WorkspaceReady или живой child process |
-| `WorkspaceReady=True` | AX однажды увидел runner readiness | Текущий child после resume выполняется успешно |
-| Application heartbeat | Harness выполняет ожидаемый loop/checkpoint | Полная готовность внешних tools без отдельных probes |
+Затем runner открывает HTTP listener. Он нужен уже во время подготовки: платформа может проверить, что runner отвечает, пока checkout ещё создаётся. После открытия listener runner последовательно вызывает подготовку Workspace bindings. Когда все вызовы вернулись без ошибки, он устанавливает признак готовности среды.
 
-AX опрашивает `/readyz` примерно каждые 500 ms, но только в ограниченном окне, по умолчанию до 15 секунд. Если setup дольше, Task остаётся `Running` с `WorkspaceReady=False`; следующий lifecycle RPC может снова запустить reconciliation. После того как условие стало True, current reconciler сохраняет его через suspend/resume и больше не опрашивает runner для этого condition.
+Теперь можно создать дочерний процесс. Runner задаёт ему рабочий каталог, передаёт окружение и связывает стандартные потоки ввода и вывода со своими. Поэтому сообщения harness попадают в обычный поток логов запуска. В окружении команды доступен `AX_METADATA_URL`: по нему приложение может прочитать стартовое описание Task и Workspace.
 
-С другой стороны, Agent Substrate использует container readiness probe на том же endpoint. Значит, HTTP readiness остаётся полезной runtime guard, даже если AX status уже содержит старое True. Но ни один из этих механизмов не наблюдает child process напрямую.
-
-## Metadata server и debug surface
-
-Runner поднимает один listener. Обычные HTTP/1.1 requests обслуживают health, readiness и metadata. Когда `spec.debug=true`, незашифрованный HTTP/2 traffic с `Content-Type: application/grpc` передаётся guest gRPC server через h2c.
-
-| Endpoint/service | Назначение | Risk |
-| --- | --- | --- |
-| `/metadata/v1alpha1/ax/task` | Task launch configuration как YAML | Включает literal env из spec; не считайте endpoint public |
-| `/metadata/v1alpha1/ax/workspaces` | Найденные Workspace resources в binding order | Это configuration, а не доказательство materialization |
-| Guest process service | Запуск, inspection, output и kill процессов | Arbitrary process execution внутри sandbox |
-| Guest filesystem service | Streaming read/write файлов | Доступ к durable Workspace и его artifacts |
-
-`AX_METADATA_URL` указывает child на loopback address runner, обычно `http://127.0.0.1:80`. Это удобный self-introspection contract без SDK. Но metadata не должна становиться скрытым secret delivery channel: Task env возвращается почти в исходном виде.
-
-Debug выключен по умолчанию правильно. Его включение меняет не удобство логирования, а attack surface sandbox. Production policy должна ограничивать, кто может создать Task с debug, кто может вызвать `ax ssh` и как такой доступ попадает в audit log.
-
-## Child process: что означает exit
-
-Runner запускает command с inherited stdin/stdout/stderr и environment, где есть runner env, `AX_METADATA_URL` и `spec.env`. Working directory берётся из первого Workspace binding. Это делает порядок bindings частью runtime contract, а не косметикой manifest.
-
-После `cmd.Start()` отдельная goroutine вызывает `cmd.Wait()`. Exit code записывается в log и передаётся optional `OnCommandExit` callback, если runner package встроен в custom binary. Default `ax-task-runner` callback не задаёт. Control plane не читает этот результат и не переводит Task в Completed или Failed.
-
-Для long-running agent service такое поведение удобно: после crash можно зайти через debug surface, прочитать files и решить, перезапускать ли workload. Для one-shot automation оно опасно: exit 0 выглядит почти так же, как exit 2, если оператор смотрит только на Task phase.
-
-| Workload | Рекомендуемый completion contract |
-| --- | --- |
-| Long-running agent | Heartbeat + last successful loop + restart policy вне одного Task status |
-| One-shot analysis | Atomic result file/status record и explicit completion event до выхода |
-| Code-changing agent | Commit/PR identity, test result и durable operation ledger |
-| Infrastructure action | Approved operation id, before/after evidence и verification result |
-
-> **Task не равен Job.** Пока AX не отражает child exit в resource status, терминальный успех должен жить в application protocol, а не выводиться из container health.
-
-## SIGTERM, process group и 10 секунд на остановку
-
-Когда sandbox останавливается или suspend инициирует shutdown, runtime доставляет `SIGTERM` PID 1. Runner отменяет context и отправляет `SIGTERM` отрицательному PID child, то есть всей process group. Затем ждёт до 10 секунд. Если direct child не завершился, runner посылает group `SIGKILL` и всё равно ждёт `cmd.Wait()`.
+Последовательность в нашем сценарии:
 
 ```
-Substrate stop/suspend
-  -> SIGTERM to runner (PID 1)
-  -> SIGTERM to child process group
-  -> wait up to 10 seconds
-       -> child exits: record result
-       -> timeout: SIGKILL process group, then wait
-  -> stop metadata server
-  -> runner exits
-  -> container stops
+Runner читает описание Task
+  → открывает HTTP listener
+  → подготавливает /workspace
+  → отмечает готовность среды
+  → запускает review_agent в /workspace
+  → получает exit code после завершения исследования
+  → обслуживает среду до запроса остановки
 ```
 
-Эти 10 секунд жёстко заданы в current package. Task manifest не содержит termination grace setting. Harness должен либо укладываться в этот budget, либо заранее continuously сохранять state, а не пытаться записать всё при shutdown.
+Во время подготовки `/healthz` отвечает 200, а `/readyz` — 503. После успешного возврата всех вызовов подготовки `/readyz` отвечает 200. Это позволяет отличить запущенный runner от подготовленной им среды. В AX по умолчанию используется порт 80; флаг binary `--port` меняет локальный listener, но платформенный template и его probe должны быть настроены согласованно.
 
-Process group лучше сигнала одному PID: shell, tool process и их обычные descendants получают одинаковый request на завершение. Но это не security boundary. Процесс может создать новую session/group, зависнуть в uninterruptible kernel wait или уже выполнить внешний side effect. `SIGKILL` останавливает вычисление, но не откатывает Git push, ticket update или network change.
+Нужные самому агенту проверки выполняют в начале команды: например, читают обязательный файл конфигурации, сверяют checkout и проверяют наличие тестового инструмента. Это особенно важно в рассматриваемой реализации: возвращённая ошибка подготовки оставляет ready=false, но command всё равно может стартовать; часть ошибок подготовки логируется внутри Workspace setup. Для нашего исследования при недостающих исходниках команда должна закончиться с понятной ошибкой, а не отправить модели пустой каталог. Подробности материализации Workspace остаются в главе 17.
 
-## Что переживает suspend/resume
+## Как runner связан с процессами
 
-Ответ зависит от состава snapshot и политики resume, а не от одного имени команды. `Full` может продолжить захваченное исполнение при совместимом runtime. `Data` сохраняет snapshot-capable volumes без индивидуальной памяти процесса; при `COLD_BOOT` containers запускаются из OCI image, при `GOLDEN` восстановленные данные объединяются с общим подготовленным guest state.
+Когда runner запускает harness, операционная система создаёт дочерний процесс. У каждого процесса есть PID — его номер. PPID — номер родителя. Родитель получает возможность дождаться завершения ребёнка и прочитать его exit status. В AX эту работу выполняет `cmd.Wait()`.
 
-В [BuildActorTemplate AX ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) выбраны Data для pause/commit и `RESUME_SOURCE_GOLDEN` для Data resume. Значит, нельзя ни обещать продолжение индивидуального heap агента, ни утверждать, что каждый resume всегда создаёт новый PID 1 из image. Если Task использует другой базовый ActorTemplate, прочитайте его фактическую policy.
+Номера в следующем примере условные. Если runner запущен первым процессом в отдельном Linux PID namespace, картина может выглядеть так:
 
-| Состояние | После resume | Кто отвечает |
+```
+PID 1   ax-task-runner
+  └─ PID 24  python3 -m review_agent
+       └─ PID 31  pytest
+```
+
+Здесь runner ждёт процесс 24. Harness запустил тесты и отвечает за процесс 31: должен прочитать их вывод, дождаться завершения и включить результат проверки в отчёт. Такое распределение естественно для задачи: harness знает, зачем нужны тесты и когда их можно прекратить.
+
+После завершения ребёнка родитель собирает его exit status вызовом Wait. До этого в системе сохраняется запись о завершившемся процессе, называемая zombie. Сам процесс уже не вычисляет; запись нужна родителю для получения результата. Поэтому работа с дочерними утилитами включает и запуск, и ожидание.
+
+PID 1 имеет особую роль: это init данного namespace. При его завершении Linux прекращает остальные процессы namespace. К нему также могут переподчиняться осиротевшие потомки, если их не принимает более близкий subreaper. Так называют процесс, настроенный принимать осиротевших потомков и собирать их статусы. Выбор главного процесса влияет на срок жизни всей среды, поэтому в названии главы он назван платформенным контрактом.
+
+Стандартный AX runner ждёт свою прямую command. Для harness, который сам аккуратно управляет тестами и утилитами, это понятная модель. Если приложение оставляет фоновые службы после собственного выхода, нужен supervisor, который учитывает их жизненный цикл и выполняет ожидание. В проверенном runner общего цикла сбора статусов произвольных потомков нет.
+
+## Небольшой запуск, который можно повторить
+
+В учебном примере сохраним описанный порядок и упростим само исследование. Вместо модели программа найдёт строки `TODO:` в файле. Так видно, какие обязанности относятся к запуску, а какие — к содержанию работы. Затем эту команду можно заменить своим harness, оставив те же шаги подготовки и получения результата.
+
+Пример состоит из локального runner с HTTP endpoints и отдельной рабочей команды. Он создаёт временный каталог, кладёт туда файл сервиса, отмечает готовность и запускает дочерний процесс с этим каталогом в качестве cwd. Команда пишет `report.txt` и `result.json`. После её выхода runner продолжает отвечать на HTTP-запросы; в конце пример явно закрывает его и удаляет временную среду.
+
+Запустите из корня репозитория:
+
+```
+python3 examples/ch18_runner_observation.py
+python3 -m unittest discover -s examples -p 'test_ch18_runner_observation.py'
+```
+
+Рабочая часть программы:
+
+```
+def build_report(workspace: Path) -> dict:
+    lines = (workspace / 'service.txt').read_text(encoding='utf-8').splitlines()
+    findings = [f'{number}: {line.strip()}'
+                for number, line in enumerate(lines, 1) if 'TODO:' in line]
+    (workspace / 'report.txt').write_text('\n'.join(findings) + '\n', encoding='utf-8')
+    result = {'stage': 'completed', 'report': 'report.txt', 'items': len(findings)}
+    temporary = workspace / 'result.tmp'
+    temporary.write_text(json.dumps(result), encoding='utf-8')
+    os.replace(temporary, workspace / 'result.json')
+    return result
+```
+
+Функция сначала читает вход, затем создаёт отчёт, после этого записывает сведения о завершении. Временный файл и `os.replace` позволяют заменить запись результата целиком. Это простая защита от чтения частично записанного JSON; сохранность при отключении питания требует отдельной работы с файловой системой и синхронизацией данных. В промышленной версии запись также связывают с идентификатором конкретного запуска, чтобы отличать её от артефактов прошлого задания.
+
+Вывод примера:
+
+```
+{
+  "before_setup": {
+    "health": 200,
+    "ready": 503
+  },
+  "after_command": {
+    "health": 200,
+    "ready": 200,
+    "exit_code": 0
+  },
+  "result": {
+    "stage": "completed",
+    "report": "report.txt",
+    "items": 2
+  },
+  "report_lines": [
+    "2: TODO: add retry test",
+    "3: TODO: document timeout"
+  ],
+  "runner_closed": true
+}
+```
+
+Первая пара значений относится к подготовке. Вторая получена после выхода рабочей команды. Между этими наблюдениями создан результат: два пункта отчёта и запись `completed`. Для реального исследования инженер дополнительно проверит содержимое отчёта — например, есть ли ссылки на код и воспроизводимые объяснения найденных проблем. Exit code помогает обнаружить ошибку выполнения программы, а качество исследования оценивают по её артефакту.
+
+Это локальная Python-модель отдельных механизмов: HTTP, cwd, запуск собственного процесса, ожидание и остановка. Она слушает только loopback и создаёт отдельную session/process group через `start_new_session`; Go runner AX создаёт новую process group через `Setpgid`. Пример не развёртывает AX/Substrate и не проверяет PID namespace или восстановление snapshot.
+
+## Зачем runner живёт после завершения команды
+
+Исследование закончилось, и мы хотим прочитать отчёт, посмотреть файлы или запустить дополнительную диагностику в подготовленной среде. Для этого удобно сохранить sandbox доступным. Доступ к процессам и файлам через guest services требует включённого debug; основной HTTP metadata остаётся доступным и без него. Стандартный AX runner после выхода command сообщает её exit через предусмотренный callback, если он задан, и ждёт отмены своего context. HTTP продолжает обслуживаться.
+
+Получается два отдельных события: закончилась рабочая команда; остановлена среда. Их полезно хранить и наблюдать раздельно. `/healthz` сообщает, что HTTP runner отвечает. `/readyz` отражает признак подготовки Workspace. Запись результата относится к выполненной работе. Стандартный runner сам не переводит AX Task в прикладной статус Completed.
+
+Если вы строите очередь исследований, задайте отдельный протокол получения результата: кто читает запись завершения, как проверяет артефакт и когда останавливает Task. Для интерактивной среды эту остановку может запросить инженер после осмотра файлов. Для автоматического задания её инициирует сервис после получения и сохранения результата. Так срок хранения среды становится осознанным выбором, а не побочным эффектом выхода Python.
+
+## Как остановить работу посередине
+
+Представим, что исследование занимает час, но Task нужно остановить через двадцать минут. Полезный исход — сохранить уже разобранные файлы и продолжить позже. Для этого harness записывает checkpoint по ходу работы: какие файлы обработаны, где лежат наблюдения, какую операцию он выполняет сейчас. Обработчик остановки завершает ближайший безопасный шаг и сохраняет обновлённый checkpoint.
+
+Когда default binary получает SIGTERM или interrupt, он отменяет context runner. Если command ещё работает, runner посылает SIGTERM её process group. Это группа процессов, которым можно адресовать общий сигнал. AX создаёт для command новую группу; обычные дочерние утилиты наследуют её. Поэтому запрос остановки может получить и harness, и запущенный им тестовый процесс.
+
+Harness должен координировать этот выход: прекратить запуск новых действий, дождаться обязательных детей, сохранить состояние и завершиться. Runner ждёт прямую command до десяти секунд. Если она не завершилась, он отправляет группе SIGKILL. SIGTERM даёт приложению возможность отреагировать; SIGKILL принудительно прекращает процесс, и обработчик сохранения при нём не выполняется.
+
+Process group полезна для доставки сигнала, а supervisor — для согласованного завершения работы. Потомок может создать другую группу или session, и тогда групповой сигнал его не охватит. Кроме того, стандартный runner завершает ожидание после выхода прямой command: оставшихся членов группы он отдельно не проверяет. Если command вышла ещё до отмены context, этот путь групповой остановки вообще не вызывается. Поэтому harness удобно держать foreground-процессом, который завершится после своих обязательных детей.
+
+При расчёте времени сохранения оставляйте запас. Десять секунд — grace ожидания command в этой ветке, а не общий deadline остановки runner. После SIGKILL Go-код снова ждёт Wait без второго timeout; callback и остановка HTTP также могут занять время. Внешний runtime имеет собственную политику прекращения среды. Если checkpoint требует долгой записи, лучше сохранять его малыми порциями во время работы.
+
+Для внешних действий, например отправки patch, в checkpoint сохраняют идентификатор операции. При следующем запуске harness проверит её исход во внешней системе. Это позволяет продолжить работу после потери подтверждения, не отправляя одно действие повторно вслепую.
+
+## Продолжение из сохранённого состояния
+
+В BuildActorTemplate рассматриваемой версии AX используется Data для сохранения и `RESUME_SOURCE_GOLDEN` для восстановления. Data сохраняет предусмотренные данные, а GOLDEN предоставляет общий подготовленный guest state. Индивидуальную память конкретного harness Data не сохраняет. Поэтому прогресс исследования удобно выражать через файлы и записи, которые harness умеет перечитать.
+
+Например, в checkpoint указано, что разобраны 18 из 50 файлов. В сохранённом каталоге лежат наблюдения по этим файлам. После восстановления harness проверяет входные данные, читает checkpoint и выбирает следующий файл. Если там отмечена начатая внешняя операция, сначала выясняет её исход. Такой способ продолжения объясним и при восстановлении платформой, и при обычном повторном запуске приложения.
+
+Конкретный template определяет состав сохранения и путь resume. Для другого template или режима Full проверяют его policy и совместимость runtime. Поведение процессов при восстановлении следует из этого пути; универсального обещания «всегда новый PID 1» здесь нет. Состав и ownership snapshots подробно разобраны в [главе 39](39-substrate-snapshot-ownership.md).
+
+## Что harness получает через metadata
+
+Metadata помогает приложению прочитать описания, с которыми оно было запущено. Адрес передаётся через `AX_METADATA_URL`; default использует loopback URL на порт runner. По пути `/metadata/v1alpha1/ax/task` приложение получает Task в YAML, а по `/metadata/v1alpha1/ax/workspaces` — переданные Workspace в multi-document YAML. Это удобно, когда harness нужны параметры Task или имена Workspace bindings. В обычном пути runner отдаёт стартовую конфигурацию: живая подписка на изменения AX API в Run не подключена.
+
+При настройке доступа учитывайте содержимое ответа: в Task могут находиться literal env. HTTP metadata handlers не имеют встроенной проверки caller, а listener bind выполняется на `:<port>`, то есть на всех интерфейсах. Сетевые правила должны разрешать только нужные маршруты к этому порту. Debug расширяет набор сервисов, но основные metadata доступны и с выключенным debug.
+
+В собственных конфигурациях удобно зарезервировать платформенные имена переменных, включая `AX_METADATA_URL`: Task env может перекрыть этот адрес. Так пользовательские настройки приложения и настройки runner останутся различимыми. Если нужны debug guest services, отдельно проверяют успешную инициализацию и допустимый доступ: HTTP и незашифрованный HTTP/2 с gRPC обслуживаются одним listener.
+
+## Как выбрать способ подключения
+
+Для нашего одиночного harness начните с расширения образа. Он выполняет работу в foreground, сам ждёт тестовые утилиты, пишет отчёт и умеет сохранять промежуточное состояние. Стандартный lifecycle подходит этой задаче, а зависимости приложения можно обновлять в образе.
+
+| Задача | Подход | Что предстоит поддерживать |
 | --- | --- | --- |
-| Файлы в durable Workspace | Восстанавливаются из пригодного snapshot; расположение вне включённых volumes меняет гарантию | Substrate snapshot/storage |
-| Workspace initialization marker | Может позволить пропустить повторный setup, но не доказывает актуальность среды | Runner/setup logic |
-| Индивидуальная память и goroutines | Не входят в Data; golden хранит общий baseline, не историю этого агента. Full требует отдельной проверки совместимости | Harness checkpoint и выбранный runtime |
-| Sockets, sessions и credentials | Не считать пригодными без перепроверки; нужен reconnect и проверка текущих прав | Client и identity logic |
-| Tool operation in progress | Исход не устанавливается по одному snapshot | Operation ledger и внешняя система |
-| AX WorkspaceReady condition | Может остаться True; это сохранённый результат bootstrap, не свежий acceptance test | Control-plane stored status |
+| Добавить Python, CLI и собственный harness | Расширить совместимый образ AX runner | Пакеты, их версии, image digest и код приложения |
+| Добавить небольшую интеграцию при выходе command | Встроить Go runner package | Собственный binary, чтение конфигурации и обработку callback |
+| Управлять несколькими службами с общей остановкой и сбором статусов | Спроектировать собственный runner или согласованную supervision-обвязку | Родительство процессов, readiness, signals, ожидание и платформенные интерфейсы |
 
-Marker защищает изменённый checkout от повторной подготовки, но не возвращает прикладной прогресс. После запуска или восстановления harness читает logical checkpoint, сверяет незавершённые operation IDs с внешними системами и только затем продолжает loop. Состав snapshot и зависимость от golden подробно разбирает [39. Substrate snapshots: ownership, storage и совместимость](39-substrate-snapshot-ownership.md).
+Embedding уместен, например, для короткой отправки записи о завершении в вашу систему наблюдения. Callback выполняется синхронно, поэтому его работа должна иметь собственное ограничение времени и обработку ошибок. В default binary такой callback не задан. Для прикладного отчёта по-прежнему удобен протокол результатов в harness.
 
-## Как выбирать уровень customization
+Собственный runner выбирают, когда меняется сам порядок исполнения: несколько обязательных служб, другая политика restart, общий сбор статусов потомков. В этом случае сначала описывают процессную модель и последовательность stop, затем согласуют executable, port и endpoints с AX template. Цена решения — постоянная поддержка этой интеграции, включая сценарии отказа. Отсутствующая библиотека в Python обычно решается гораздо проще, на уровне образа.
 
-Документация AX предлагает три уровня. Правильный выбор определяется не языком agent framework, а тем, насколько вы хотите менять lifecycle contract.
+## Если запуск пошёл иначе
 
-| Вариант | Когда выбирать | Что вы поддерживаете |
-| --- | --- | --- |
-| Extend default image | Нужны дополнительные compilers, CLI, SDK или agent binary | Toolchain и supply chain image; runner остаётся upstream |
-| Embed Go `runner` package | Нужны hooks, например artifact upload через `OnCommandExit` | Свой binary и version compatibility package |
-| Custom runner | Нужен другой supervisor, workspace layout, init/reaping или protocol extension | Весь platform contract: specs, server, probes, signals, debug и tests |
+Удобнее искать сбой по последнему завершённому шагу. Если HTTP не появился, проверьте чтение YAML, наличие executable и ошибку открытия listener. Если health отвечает, но ready остаётся 503, изучите подготовку Workspace и файлы в рабочем каталоге. Если command вышла с ошибкой, нужны её логи и фактические аргументы запуска. Если exit code равен нулю, а отчёта нет, проверьте путь записи и протокол завершения приложения.
 
-Для большинства команд первый вариант дешевле и безопаснее. Если проблема только в отсутствии Node.js или вашего CLI, не переписывайте PID 1. Embedded package оправдан, когда требуется небольшая интеграция на границе exit/setup. Полный runner нужен лишь тогда, когда стандартный lifecycle принципиально не подходит.
+В локальных тестах рядом с успешным примером оставлены три полезных ситуации: выход с ненулевым кодом, мягкая остановка с checkpoint и команда, игнорирующая SIGTERM. Можно воспроизвести их и сравнить с нормальным запуском. Для native AX потребуются отдельные интеграционные проверки выбранного template; в этой главе они не выполнялись.
 
-## Локальная и end-to-end проверка runner
+Для самостоятельной работы добавьте в учебный отчёт идентификатор задания и проверку, что запись результата относится к текущему запуску. Затем опишите checkpoint для настоящего исследователя кода: что он сохранит после каждого файла и как выберет следующий. Наконец, перечислите дочерние утилиты вашего harness и укажите, кто ждёт их выхода при остановке.
 
-Default binary умеет читать specs из files, поэтому basic contract проверяется без кластера:
+## Итоги главы
 
-```
-ax-task-runner \
-  --task-file task.yaml \
-  --workspace-file code.yaml \
-  --port 8080
+Теперь путь от Task к отчёту можно проследить целиком. Платформа запускает runner; runner читает конфигурацию и подготавливает Workspace; harness выполняет исследование и сохраняет результат. После выхода harness среда остаётся доступной для осмотра до отдельного запроса остановки.
 
-curl -i http://127.0.0.1:8080/healthz
-curl -i http://127.0.0.1:8080/readyz
-curl -s http://127.0.0.1:8080/metadata/v1alpha1/ax/task
-```
-
-Но local test не проверяет Substrate signal delivery, restored volume и routing. Минимальная acceptance matrix должна включать:
-
-| Сценарий | Ожидаемый результат |
-| --- | --- |
-| Slow Workspace setup | health=200, ready=503, command behavior соответствует вашему policy |
-| Command exit 0/не 0 | Runner остаётся жив, exit виден в application telemetry |
-| Child с descendants | SIGTERM доходит всей foreground process group |
-| Child игнорирует SIGTERM | После 10 секунд применяется SIGKILL |
-| Suspend during tool call | После resume operation ledger предотвращает duplicate effect |
-| Resume from changed Workspace | Проверена marker/version strategy, нет скрытой повторной initialization |
-| Debug off/on | `ax ssh` запрещён/разрешён ожидаемо и audit-visible |
-
-## Антипаттерны
-
-- **Считать runner обычным ENTRYPOINT.** Он реализует protocol с control plane и Substrate.
-- **Считать Running доказательством живого агента.** Runner может жить после exit child.
-- **Перезапускать container из-за каждого exit.** Сначала решите, является workload Job, service или inspectable session.
-- **Писать весь state только на SIGTERM.** Hardcoded grace period равен 10 секундам.
-- **Daemonize agent process.** Foreground supervisor лучше согласуется с process-group shutdown и observability.
-- **Считать readyz application probe.** Он отражает Workspace setup, а не model/tools/business readiness.
-- **Включать debug постоянно.** Guest services дают process и filesystem access.
-- **Переписывать runner ради пакета или CLI.** Чаще достаточно расширить default image.
-
-## Production checklist runner
-
-- Custom image содержит executable `/usr/local/bin/ax-task-runner`.
-- Runner contract и image закреплены digest, а не mutable tag.
-- Invalid specs, bind failure port 80 и command start failure наблюдаемы отдельно.
-- Health, Workspace readiness и application heartbeat имеют разные metrics.
-- Command работает foreground и не теряет descendants за новой process session.
-- Exit code и completion result сохраняются вне runner logs.
-- Checkpoint interval короче ожидаемого shutdown budget.
-- Tool side effects используют idempotency key и durable operation ledger.
-- Resume path протестирован как новый process с restored filesystem.
-
-## Итог
-
-Runner делает AX Task управляемой sandbox session: принимает specs, подготавливает filesystem, запускает command, отвечает на probes и корректно завершает process group. Его позиция PID 1 нужна не для «агентной магии», а потому, что именно этот process связывает lifetime container с lifecycle workload.
-
-Но default runner сознательно не превращает Task в batch Job или полноценную init-system. Он не публикует child exit в AX status, не доказывает application readiness и не восстанавливает in-memory progress. Эти обязанности остаются у harness и platform design вокруг него.
-
-В следующей главе мы проследим полный lifecycle Task: от `ax apply` и Redis record до Actor resume, runner readiness, suspend и delete. После этой главы уже можно будет чётко отделить control-plane state transition от того, что реально происходит с процессом внутри sandbox.
+Для подключения своего агента сначала определяют команду, рабочие пути и формат результата. Затем выбирают образ и проверяют подготовку. Для длинной работы добавляют checkpoint и управляемый выход. Изменять runner стоит тогда, когда задача требует другого управления процессами. В следующей главе рассмотрим те же события со стороны AX: Create, resume, suspend и delete.
 
 ### Источники и дальнейшее чтение
 
-- [AX runner contract](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/runner.md)
-- [Default runner implementation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go)
-- [ax-task-runner entrypoint and signal context](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-task-runner/main.go)
-- [Metadata, readiness and guest service server](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/metadata/server.go)
-- [Task reconciliation and WorkspaceReady polling](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go)
-- [Inside the AX sandbox](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/sandbox.md)
-- [Linux PID namespaces and PID 1 behavior](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html)
-- [Linux wait and zombie process semantics](https://man7.org/linux/man-pages/man2/waitpid.2.html)
+- [Default runner](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go): Run, Wait, callbacks и stopCommand.
+- [Entrypoint](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-task-runner/main.go): specs и signal context.
+- [Metadata server](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/metadata/server.go): listener, handlers и Shutdown.
+- [Workspace setup](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/workspace/setup.go): подготовка файлов и checkout.
+- [Task reconciler](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/controller/reconciler.go): readiness polling и conditions.
+- [BuildActorTemplate](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go): launch и Data/GOLDEN policy.
+- [Runner documentation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/runner.md) и [sandbox documentation](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/sandbox.md).
+- [Linux PID namespaces](https://man7.org/linux/man-pages/man7/pid_namespaces.7.html), [kill](https://man7.org/linux/man-pages/man2/kill.2.html) и [wait](https://man7.org/linux/man-pages/man2/waitpid.2.html): init, групповые сигналы и ожидание процессов.
