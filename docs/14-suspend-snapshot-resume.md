@@ -1,302 +1,340 @@
 # Lifecycle stateful Actor: pause, suspend, resume и восстановление
 
-**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Конкретные поля, компоненты и lifecycle этой главы относятся к этому commit. Общая actor model и инженерные требования не означают, что любой runtime реализует их полностью; experimental authz из главы 24 относится к другому профилю.
+Мы подготовили `review-42` к эксплуатации: выбрали версию среды, WorkerPool и место хранения её состояния. Пользователь получил результат ревью и ушёл обсуждать его с коллегой. Нужно ли всё это время держать sandbox в памяти? А если пользователь вернётся завтра, что именно мы обязаны ему вернуть: файлы, прежний процесс или подтверждённое состояние его задачи?
 
-**Статус:** `STATE MACHINE` · `DURABILITY BOUNDARY` · `FAILURE SEMANTICS`
+Так начинается выбор lifecycle policy. Он не сводится к команде «усыпить Actor». Можно освободить Worker, оставив checkpoint на node, или записать переносимую точку в object storage. Можно сохранить индивидуальную память программы или только данные, из которых она умеет стартовать заново. Можно вернуться к прошлой точке, но нельзя заставить уже опубликованный внешний результат исчезнуть вместе с откатом памяти.
 
-В главе 13 мы собрали ресурсную модель Substrate: Actor получает identity, ActorTemplate задаёт исполняемую среду, WorkerPool предоставляет capacity, а snapshot всегда имеет конкретного владельца. Теперь разберём главное следствие этой модели: что происходит с Actor между запросами и где проходит граница долговечности.
+**Срез реализации Substrate:** [v0.3.0 · ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Поля, переходы и окна ошибок ниже относятся к этому commit. Прикладной журнал ревью - контракт нашего приложения, а не встроенный workflow Substrate. Experimental authz главы 24 относится к другому профилю.
 
-Фраза «поставить процесс на паузу и потом продолжить» слишком проста для production. Нужно различать checkpoint на локальном диске node, durable snapshot в object storage, cold boot из image, восстановление process memory и откат к последней подтверждённой точке. Эти пути имеют разную стоимость и разные последствия при отказе.
+## Что читатель сможет сделать после главы
 
-## Что читатель должен унести из главы
+- Выбрать между pause и suspend по сроку ожидания и требованиям к восстановлению.
+- Разделить место хранения checkpoint и состав его Full/Data state.
+- Найти подтверждённую external точку после timeout или потери node.
+- Объяснить, когда повтор продолжает workflow, а когда требуется решение о rollback.
+- Восстановить незавершённое прикладное действие по operation ID, не повторяя его вслепую.
+- Проверять стоимость, совместимость и реальную пригодность restore, а не только наличие snapshot URI.
 
-- чем `PauseActor` отличается от `SuspendActor` и когда выбирать каждый путь;
-- как `Full` и `Data` scopes меняют resume semantics;
-- как выбирается источник resume: local, external, golden snapshot или cold boot;
-- почему checkpoint не делает TCP sessions, leases и external volumes транзакционными;
-- как `RevertActor` восстанавливает доступность ценой отката;
-- какие метрики и fault-injection tests нужны до aggressive hibernation.
+## Три состояния одной сессии
 
-## Lifecycle - это state machine, а не набор команд
+В сессии ревью есть исполняемая среда: процессы, heap, файлы и подключённые volumes. Heap - динамическая память программы, где могут находиться текущий план, объекты клиентов и ещё не записанный результат. Отдельно существует запись Actor в control plane: lifecycle, assignment и ссылки на checkpoints. Ещё дальше находится внешний мир: опубликованный patch, комментарий в системе ревью или запись в другой базе.
 
-Control plane фиксирует переходное состояние до дорогой операции. Благодаря этому повторный вызов может продолжить workflow после timeout или restart. Клиенту важно перечитывать `Actor.status`, а не считать сетевой ответ единственной правдой.
+Эти слои могут соответствовать разным моментам времени. Snapshot сохранил память до отправки комментария, внешний сервис уже принял комментарий, а клиент не успел записать квитанцию. Restore возвращает старое локальное знание, не старое состояние внешнего сервиса. Поэтому восстановление среды и восстановление смысла работы - разные задачи.
 
-| Состояние | Смысл | Обычное действие |
+| Вопрос | Где искать ответ | Чего ответ не доказывает |
 | --- | --- | --- |
-| `SUSPENDED` | Actor не выполняется; durable snapshot готов или Actor ещё не запускался | Resume, update, delete |
-| `RESUMING` | Выбирается Worker, подключаются volumes, выполняется restore/boot | Ждать или повторить resume |
-| `RUNNING` | Sandbox активен и обслуживает трафик | Работа, pause, suspend, revert |
-| `PAUSING` | Создаётся node-local checkpoint | Ждать или повторить pause |
-| `PAUSED` | Checkpoint хранится на node, worker assignment освобождён | Resume на той же node или suspend |
-| `SUSPENDING` | Checkpoint создаётся или загружается в object storage | Ждать или повторить suspend |
-| `CRASHED` | Текущая execution потеряна или wake workflow завершился ошибкой | Revert, затем resume |
-| `REVERTING` | Уничтожается текущий sandbox и partial state | Ждать или повторить revert |
-| `DELETING` | Удаляются runtime, volumes и owned snapshots | Повторить delete с guards |
+| Где Actor исполняется сейчас | Status и Worker assignment | Что приложение обслуживает запрос правильно |
+| Из чего вернуть его среду | Local/external snapshot, scope, template provenance | Что внешний эффект не произошёл после capture |
+| Как продолжить ревью | Прикладные данные, журнал и квитанции сервиса | Что любой старый клиент или lease ещё действителен |
 
-Стабильные состояния - `SUSPENDED`, `PAUSED`, `RUNNING` и `CRASHED`. Остальные описывают workflow. Если Actor долго остаётся в переходе, не редактируйте status вручную: определите незавершённый шаг и повторите публичную операцию либо выполните контролируемый revert.
+Из главы 13 мы уже знаем, кто владеет snapshot. Здесь добавляем время: какая точка завершена, какие изменения появились после неё и какую работу придётся повторить или сверить.
 
-### Как выбрать операцию
+## Pause и suspend сохраняют в разные места
 
-| Задача | Операция | Состояние хранится | Компромисс |
-| --- | --- | --- | --- |
-| Коротко освободить Worker и быстро вернуться | `PauseActor` | На node | Быстро, но не durable |
-| Пережить потерю Worker/node | `SuspendActor` | В object storage | Upload/download и I/O |
-| Запустить из последней точки | `ResumeActor` | Local, external, golden или none | Путь зависит от scope |
-| Отбросить ошибочную execution | `RevertActor` | Последний completed external snapshot | Изменения после него теряются |
-| Удержать точку дольше следующего suspend | `CreateTag` | Отдельная tag-owned копия | Хранение и отдельный owner |
+`PauseActor` создаёт checkpoint на диске node. После успешного завершения Worker assignment освобождён, а status хранит имя checkpoint и node, где он находится. Для короткого ожидания это позволяет не отправлять большие данные в object storage. Однако место на диске и зависимость от node остаются. Pause не делает всё состояние «бесплатным».
 
-## Что именно попадает в snapshot
+`SuspendActor` создаёт external snapshot в object storage, либо загружает уже сделанный local checkpoint. После завершения Actor не удерживает Worker и имеет external точку для следующего запуска. Он может быть размещён на другом совместимом Worker, если выполнены требования к class, capacity, assets, данным и доступу к storage.
 
-Scope отвечает за состав checkpoint, а операция - за место хранения. Pause оставляет файлы на node, suspend загружает их в object storage.
+Разница проявляется при отказе. Если вместе с node потеряны local bytes, самый свежий pause не помогает. Нужна предыдущая пригодная external точка. Если её никогда не было, «восстановимся из последнего pause» уже не является планом. Если node жива, но на ней нет подходящего Worker, local snapshot может существовать, а resume пока не иметь места.
 
-| Scope | Что сохраняется | Resume | Когда выбирать |
-| --- | --- | --- | --- |
-| `Full` | Process memory, writable rootfs delta и `DurableDir` | Продолжение memory state | Дорогая инициализация, in-memory progress |
-| `Data` | Snapshot-capable volumes, прежде всего `DurableDir` | Восстановленные данные + cold boot либо общий golden guest state; индивидуальная RAM не сохранена | Restartable process и меньший snapshot |
+### Когда полезна двухступенчатая политика
 
-`snapshotConfig.onPause` задаёт scope локального checkpoint, `onCommit` - durable snapshot. `onCommit` обязан быть подмножеством `onPause`:
+После короткого idle можно сделать Full pause и удержать шанс на быстрый возврат на той же node. Если пользователь не вернулся, позже выполнить suspend, в том числе с Data scope при соответствующей policy. Так мы платим цену durable upload не за каждую короткую паузу.
+
+Эта политика требует исправного пути upload и сохранности local checkpoint до его завершения. Она не равна правилу «через пять минут память автоматически становится durable». В template задаются scopes; решение, когда вызывать операции, принимает ваша orchestration. Если бизнес допускает потерю не более минуты изменений, десять минут только local pause не обеспечивают эту цель при потере node.
+
+| Потребность | Вариант | Что проверить перед выбором |
+| --- | --- | --- |
+| Быстро вернуться после короткого idle | Pause на node | Диск, пригодный Worker на этой node, допустимость потери local state |
+| Пережить потерю текущей node | Завершённый suspend | Доступность external bytes и проверенный restore |
+| Не отправлять большой snapshot после каждой паузы | Pause, затем suspend | Scope conversion, upload failures и окно потери данных |
+| Удержать особую точку дольше следующего suspend | Tag из suspended Actor | Отдельную copy и зависимости из главы 13 |
+
+## Full и Data отвечают на вопрос о содержимом
+
+Место хранения и состав snapshot - две независимые оси. Full может быть local или external. Data тоже может быть local или external. Слово Full не означает «переживает потерю node», а слово Data не означает «обязательно новый холодный процесс».
+
+Full сохраняет поддерживаемый guest state, включая индивидуальную память, изменения writable rootfs и DurableDir. Writable rootfs - изменяемая часть файловой системы контейнера вне специально выделенных mounts. Data сохраняет поддерживаемые durable данные, прежде всего DurableDir, но не индивидуальную RAM и rootfs delta.
+
+Если важный patch лежит только в `/tmp` на writable rootfs, нельзя рассчитывать вернуть его обычным Data restore. Приложение должно знать, какой каталог является DurableDir, и писать необходимый state туда. Название `/workspace` само по себе ничего не гарантирует: нужна соответствующая конфигурация mount.
+
+### Как выбирается guest для Data
+
+Data возвращает индивидуальные файлы, но гостевую среду надо получить отдельно. `onResume.fromData` выбирает `RESUME_SOURCE_COLD_BOOT` либо `RESUME_SOURCE_GOLDEN`. В первом случае containers стартуют из image с восстановленными данными; во втором общая память и файловая среда берутся из golden baseline, а индивидуальные данные - из Data snapshot.
+
+Golden не возвращает heap нашей сессии в момент suspend. Он возвращает общий подготовленный старт. У приложения всё равно должен быть путь чтения индивидуального workspace и журнала после восстановления. Для Data-on-golden нужны оба пригодных источника: individual data и golden Tag текущего template. Удаление baseline может сломать этот путь даже после собственного suspend Actor.
+
+Ниже фрагмент policy для restartable приложения, не полный ActorTemplate:
 
 ```
-onPause=Full, onCommit=Full  -> hot local и hot durable resume
-onPause=Full, onCommit=Data  -> hot pause, дешёвый durable suspend
-onPause=Data, onCommit=Data  -> Data restore; boot source выбирает onResume.fromData
+snapshotConfig:
+  onPause: SNAPSHOT_CONTENT_SCOPE_FULL
+  onCommit: SNAPSHOT_CONTENT_SCOPE_DATA
+  onResume:
+    fromData: RESUME_SOURCE_COLD_BOOT
 ```
 
-`onPause=Data, onCommit=Full` невозможен: после Data pause память уже не сохранена. Если Actor paused с Data checkpoint, Full commit отклоняется до изменения состояния, чтобы Actor оставался resumable.
+Policy даёт Full local pause и Data durable suspend с холодным guest. Если выбрать GOLDEN, изменится источник guest, не факт сохранения индивидуальной памяти. В выбранном срезе default fromData - COLD\_BOOT; предпочтение должно быть осмысленным и проверенным, а не выводиться из слова Data.
 
-### Full или Data
+### Почему нельзя увеличить scope после pause
 
-Full оправдан, если память содержит дорогое состояние: загруженную модель, compiled graph, interpreter session или agent loop. Но он больше, сильнее связан с runtime и template UID и создаёт I/O burst. Data лучше, когда entrypoint умеет реконструировать execution из файлов и durable records. Такой контракт проще тестировать.
+`onCommit` должен быть подмножеством `onPause`. Из Full capture можно выделить Data; из Data capture нельзя получить уже не сохранённую RAM. Поэтому Data/Full отклоняется. Дополнительно running workflow проверяет реальный scope paused snapshot до перехода в SUSPENDING: недопустимое повышение не должно лишить Actor возможности resume.
 
-`Full` не обещает перенос GPU memory, открытых соединений или любого device state. Возможность capture/restore зависит от sandbox backend, аппаратуры и snapshot compatibility; память общего inference-сервиса находится вне Actor. Для Data отдельно проверьте `onResume.fromData`: общий golden baseline не возвращает индивидуальный heap на момент suspend.
+Понижение Full до Data тоже требует, чтобы в capture были нужные durable files. Atelet проверяет наличие durable-dir archive; Full snapshot без durable данных не превращается в полезный Data upload только от переключения enum. До применения tiered policy проверьте mounts и backend на своём workload.
 
-> **Правило.** Начинайте с Data, если есть хороший restart protocol. Выбирайте Full, когда измеренная цена повторной инициализации или потери in-memory progress оправдывает более тяжёлый snapshot.
+### Когда Full оправдан
 
-## Golden snapshot: оптимизация первого запуска
+Представим тяжёлый language server, который долго индексирует проект. Если повторная подготовка среды занимает значимую часть времени ответа, Full способен сохранить дорогой прогресс. Но snapshot может стать большим, restore создаст I/O burst, а перенос будет связан с совместимостью runtime и CPU features.
 
-Golden snapshot - published Tag, созданный один раз для ActorTemplate. Controller запускает временный Actor в `ate-golden`, ждёт готовности, делает Full suspend, копирует snapshot в tag-owned storage и записывает ссылку в template status.
+Когда агент умеет реконструировать состояние из небольшого журнала и быстро стартует, Data часто проще: меньше индивидуальной памяти в storage и меньше зависимости от старого heap. Это не универсальная рекомендация для любого backend. Сравните реальную цену capture, upload, download и повторной инициализации, а также результат восстановления приложения.
 
-1. Cold boot digest-pinned image с выбранным SandboxConfig.
-2. Общая инициализация: libraries, read-only assets, runtime caches.
-3. Ожидание `wakeupProbe`; если probe есть не у всех containers, применяется warm-up interval.
-4. Full checkpoint независимо от обычного `onCommit`.
-5. Создание published Tag, удаление временного Actor, Ready status.
+Full не обещает перенос GPU memory, любого device state и живого внешнего TCP-сеанса. Память отдельного inference-сервиса вообще находится вне Actor. Не сохраняйте огромный heap только потому, что системе можно передать enum Full: сначала найдите конкретный дорогой ресурс, который это экономит.
 
-Actor, созданный до готовности golden tag, может получить пустой `externalSnapshot` и впервые пойти через cold boot. Позднее появление golden snapshot не перепривязывает его автоматически. Поэтому Ready должен быть deployment gate.
+## Lifecycle хранит прогресс операции
 
-В golden snapshot безопасно помещать общие libraries и read-only assets. Per-Actor secrets, tenant identity, уникальные leases и живые внешние соединения должны появляться после clone/resume. Иначе все клоны получат одну замороженную identity или протухший credential.
+Статус Actor нужен не только для красивого dashboard. Перед дорогим действием control plane фиксирует переход и сведения, по которым последующая попытка может найти незавершённую работу. Но re-entrant workflow не означает, что любой повтор любого RPC безопасен при любом state.
 
-## Resume: четыре источника одного перехода
+| State | Что он означает для оператора | Следующая проверка |
+| --- | --- | --- |
+| SUSPENDED | Нет текущего исполнения; external source может существовать либо отсутствовать | Пригодность source и constraints перед resume |
+| RUNNING | Wake-up завершён по инфраструктурному контракту | Прикладной результат и актуальная health, не только state |
+| PAUSED | Status указывает local checkpoint | Node, bytes, scope и место для resume |
+| CRASHED | Выполнение или lifecycle шаг завершились ошибкой | Crash details, последнюю пригодную external точку и цену rollback |
+| RESUMING, PAUSING, SUSPENDING | Операция ещё не финализирована | Сохранённые fields и незавершённый шаг именно этой операции |
+| REVERTING, DELETING | Идёт отказ от исполнения или удаление ресурса | Progress cleanup и guards, а не запись status вручную |
+
+RUNNING не является непрерывным health check. Уже работающий Actor может пройти fast path ResumeActor без новой probe. Не превращайте эту запись в доказательство, что HTTP request завершился или patch был принят.
+
+### Какие повторы различаются
+
+Pause начинается из RUNNING, продолжается из PAUSING, а для уже PAUSED возвращает завершённый результат. Suspend начинается из RUNNING или PAUSED, продолжается из SUSPENDING; уже SUSPENDED является no-op. Resume имеет свой путь из suspended/paused и продолжения RESUMING; CRASHED не лечится обычным resume.
+
+Revert принимается из RUNNING, PAUSED и CRASHED, продолжение возможно из REVERTING. Он не является универсальной кнопкой выхода из любого переходного state. В частности, SUSPENDING не входит в список новых revert starts, а повтор после завершения revert в SUSPENDED не следует считать тем же no-op, что SuspendActor.
+
+Поэтому после timeout сначала перечитайте Actor. Найдите state, UID/version, assignment, external/local source и in-progress destination. Если workflow ещё идёт, не запускайте конкурирующее «исправление». Если он завершён, не выполняйте повторную работу по одному лишь отсутствию клиентского ответа. Если он crashed, решение уже включает rollback и возможную потерю state.
+
+## Resume возвращает среду по выбранному источнику
 
 ![Resume on demand: запрос может разбудить suspended actor](.gitbook/assets/diagrams/14-14.png)  
 *Resume on demand: запрос может разбудить suspended actor*
 
-`ResumeActor` переводит Actor в `RUNNING`, но внутри это разные пути. Control plane читает status/template, подготавливает external volumes и выбирает Worker. Claim резервирует ресурсы; затем сохраняются `RESUMING` и `workerAssignment` ещё до restore. После подключения volumes и восстановления workload проходят объявленные probes, и status становится `RUNNING`. Наличие assignment само по себе не доказывает завершённый wake-up.
+Схема показывает путь запроса к восстановленной среде. На ней assignment и restore - разные этапы. При настоящем wake-up control plane подготавливает volumes, выбирает Worker и резервирует место. RESUMING и workerAssignment сохраняются до restore; RUNNING появляется после запуска/восстановления и объявленных probes. Не принимайте ранний assignment за готовое приложение.
 
-| Источник | Когда | Фактический запуск |
+Local checkpoint имеет приоритет и требует размещения на подходящей node. Если local source задан, но потерян, эта ветка не выбирает молча старую external точку. Ошибка выбранного Restore RPC ведёт к crash path. Возврат к предыдущей external точке после потери local state требует осмысленного отказа от текущего исполнения, а не скрытого fallback.
+
+Для external snapshot учитываются scope и template UID. Совпадающий валидный Full source используется как собственный guest state. Data использует policy из предыдущего раздела. При разрешённой смене template старую индивидуальную RAM нельзя передать новому коду как совместимую: restore запрашивает Data и свежий guest. Это не миграция формата workspace; новый entrypoint обязан понимать его данные.
+
+Если source отсутствует, возможен cold boot. Если source указан, но его bytes удалены или manifest непригоден, это другой случай. Не подменяйте потерянный workspace новым пустым процессом и не называйте это восстановлением прежней задачи.
+
+### Что должна проверять wakeup probe
+
+Настроенная probe конкретного container ждёт HTTP 200; отсутствие probe не доказывает его готовность. Это разовый gate запуска, не постоянный мониторинг и не проверка всей бизнес-операции. Для review-42 endpoint должен означать, что локальная среда восстановила нужные данные и может безопасно принять запрос данного типа.
+
+Если endpoint возвращает 200 раньше чтения журнала, запрос может попасть в старое или пустое прикладное состояние. Если же probe без необходимости ждёт всю цепочку внешних систем, краткая недоступность одной зависимости может сорвать resume. Выберите точный контракт endpoint и проверьте его отрицательные случаи. Подробный путь исходного HTTP-запроса, parking и tunnel остаётся главе 15.
+
+## Suspend имеет две границы завершения
+
+Первая граница - пригодный набор bytes в object storage. Atelet отправляет snapshot files и затем manifest. Manifest перечисляет файлы и metadata; он загружается последним как маркер завершённой записи. Наличие нескольких больших objects до manifest ещё не делает snapshot завершённым.
+
+Вторая граница - фиксация новой текущей точки в Actor status. До неё externalSnapshot остаётся прежней подтверждённой ссылкой, а inProgressSnapshotUri обозначает destination незавершённой операции. Нельзя считать один prefix в status подтверждением durable commit.
+
+### Порядок running и paused путей
+
+Для RUNNING workflow записывает SUSPENDING и destination, вызывает checkpoint текущего workload, затем отсоединяет external volumes. Для PAUSED workload уже не исполняется: atelet загружает local checkpoint с node, при допустимом выборе сужая Full до Data. Потеря соединения с atelet до Upload RPC может оставить операцию retryable; ошибка самого вызванного RPC в рассматриваемой ветке помечает Actor CRASHED.
+
+После успешного capture/upload и detach финализация освобождает assignment и записывает новый externalSnapshot вместе с SUSPENDED, очищая local/in-progress references. Только затем best-effort собираются прежние actor-owned bytes. Borrowed Tag при такой замене не удаляют: его владелец другой.
+
+Сбой между завершённой записью bytes и финализацией БД особенно неприятен. Новая копия может уже существовать, но current status ещё старый. Для paused-origin upload есть отдельная проверка уже загруженного remote manifest, когда local копия исчезла. Это конкретный путь восстановления прогресса, не общая exactly-once гарантия любого повторного Checkpoint.
+
+### Почему одинаковый destination недостаточен
+
+Persisted URI позволяет повтору находить ту же попытку. Детерминированные object names помогают не создавать новый набор имён на каждый retry. Но running-origin checkpoint включает действия sandbox; повторяемость всего пути зависит и от dataplane. В исходниках этого среза остаётся явно обозначенный reentrancy seam Checkpoint, поэтому «RPC можно безусловно повторять до успеха» является слишком сильным обещанием.
+
+Для клиента практический алгоритм короче: перечитать status, найти этап и ошибку, продолжать публичную операцию только из допустимого состояния. Если Checkpoint или UploadPausedCheckpoint вернул ошибку и Actor уже CRASHED, новый SuspendActor не является продолжением SUSPENDING. Перед revert определите, к какой пригодной точке он вернёт сессию и какие изменения будут потеряны.
+
+### Успешный suspend не означает отсутствие мусора
+
+После записи нового current snapshot уборка прежних owned bytes может не удаться. Новая точка остаётся текущей, а старые objects - остатком cleanup. Не считайте их поддерживаемой историей восстановления и не превращайте cleanup warning в утверждение, что новый commit не состоялся. Проверяйте эти два результата отдельно. Если нужно удержать старую точку намеренно, используйте Tag по правилам главы 13.
+
+## Revert отказывается от исполнения
+
+Revert не восстанавливает process. Он уничтожает или освобождает текущий runtime, отсоединяет нужные volumes, удаляет незавершённые external objects по сохранённому destination и возвращает Actor в SUSPENDED. Последняя completed external ссылка остаётся для последующего resume.
+
+Local snapshot references в status очищаются, но это нельзя выдавать за доказательство физического удаления всех local checkpoint files: в workflow этого среза pruning таких файлов отдельно отмечен как незавершённый шаг. Потеря ссылки и полная уборка диска - разные результаты.
+
+Revert тоже не чинит deleted snapshot bytes. Если последняя external ссылка указывает на недоступный объект, Actor может стать SUSPENDED, а следующий restore снова отказать. Сначала установите пригодность точки и возможность вернуть доступ или данные из backup. Successful lifecycle cleanup не является successful disaster recovery.
+
+### Какую цену имеет rollback
+
+Все нужные изменения, которые остались только в отброшенном heap/rootfs/local checkpoint после последней пригодной external точки, могут потеряться. Но внешний комментарий или публикация patch не откатываются. То же относится к external CSI volume и отдельной базе: прошлый process может встретить более новые данные.
+
+Для такого случая нужен reconciliation по стабильному operation ID. Не генерируйте новый ID потому, что в восстановленном журнале нет result. Сохранённый intent должен описывать прежнее действие и его payload, а найденная квитанция - подтверждать именно его. Если outcome пока неизвестен, конфликтующие writes остаются закрытыми, как в главах 4 и 10.
+
+## Практический разбор потерянной квитанции
+
+Пусть агент собирается опубликовать результат ревью. В durable данных уже лежит intent `review-42/publish-1` с payload `patch-sha-demo`; result ещё отсутствует. В этот момент сохранена external точка. Затем сервис принимает действие, но ответ теряется до записи квитанции агентом. После отказа у нас снова старые файлы с pending intent, а у сервиса уже есть выполненное действие.
+
+Здесь Full возвращает память, где программа ждала receipt. Data с холодным guest возвращает entrypoint, который читает журнал. Обе среды видят незавершённый intent. Ни одна не может по отсутствующему local result заключить, что сервис ничего не сделал.
+
+### Что выполняет программа
+
+`examples/ch14_recovery_receipt_demo.py` работает на Python 3.10+ со стандартной библиотекой. Сервис в примере - отдельная локальная SQLite база: «публикация» создаёт строку с operation ID, payload и receipt. Snapshot Actor - глубокая копия Python values, не checkpoint реального процесса. База сервиса не копируется и не откатывается вместе с этими values.
+
+Программа создаёт две точки с одинаковыми данными: Full сохраняет заданное поле heap phase, Data его не сохраняет. Затем сервис записывает одну квитанцию; его соединение закрывается и открывается снова. Из каждой точки восстанавливается прикладное представление, которое сверяет intent с сервисом. Всё происходит локально во временном каталоге; ни Kubernetes, ни Substrate, ни настоящий сервис ревью не вызываются.
+
+```
+python3 examples/ch14_recovery_receipt_demo.py
+python3 -m unittest discover -s examples -p 'test_ch14*.py'
+```
+
+Функция восстановления результата не вызывает publish:
+
+```
+def reconcile(view, service):
+    """Look up a pending intent; never publish another effect automatically."""
+    intent = view["data"].get("pending")
+    if intent is None:
+        return "NO_PENDING_INTENT"
+    try:
+        receipt = service.lookup(intent["operation_id"])
+    except LookupUnavailable:
+        return "OUTCOME_UNKNOWN"
+    if receipt is None:
+        return "REQUIRES_DECISION"
+    if receipt["payload"] != intent["payload"]:
+        return "PAYLOAD_CONFLICT"
+    view["data"]["result"] = receipt["receipt"]
+    view["data"]["pending"] = None
+    return "CONFIRMED_FROM_SERVICE"
+```
+
+Три отрицательных результата имеют разный смысл. Недоступный lookup сохраняет неопределённость. Отсутствующая квитанция требует отдельного решения, а не автоматического нового write. Несовпадающий payload показывает, что найденный ID нельзя использовать как подтверждение данного intent. Ни один из этих исходов не очищает pending запись.
+
+### Чтение вывода
+
+Полный вывод demo:
+
+```
+{
+  "source": "local_toy_service_and_value_copies",
+  "substrate_contacted": false,
+  "recovered": [
+    {
+      "scope": "FULL",
+      "heap_phase": "WAITING_FOR_RECEIPT",
+      "outcome": "CONFIRMED_FROM_SERVICE",
+      "receipt": "receipt-1",
+      "service_effects": 1
+    },
+    {
+      "scope": "DATA",
+      "heap_phase": "ENTRYPOINT",
+      "outcome": "CONFIRMED_FROM_SERVICE",
+      "receipt": "receipt-1",
+      "service_effects": 1
+    }
+  ],
+  "lookup_unavailable": {
+    "outcome": "OUTCOME_UNKNOWN",
+    "pending_preserved": true,
+    "service_effects": 1
+  },
+  "supplied_node_loss_window_s": 300
+}
+```
+
+Full и Data имеют разные heap phase, но находят одну квитанцию. `service_effects=1` считает строки учебного сервиса, не реальную публикацию patch. Когда lookup отключён, pending intent остаётся, а число строк не увеличивается. Это наблюдаемый результат программы, не обещание exactly-once любого внешнего API.
+
+### Где заканчивается доказательство примера
+
+Учебный сервис хранит все свои receipts, привязывает ID к payload и работает последовательно. У реального provider нужно проверить scope и срок retention idempotency records, полноту lookup, авторизацию и гонки. Receipt также должен подтверждать нужный бизнес-результат, не только факт приёма запроса.
+
+Копирование Python dict не проверяет gVisor или microVM restore, filesystems, process tree, совместимость памяти и Full/Data conversion. Закрытие и повторное открытие SQLite не является испытанием внезапной потери node или питания. DATA в demo моделирует только fresh entrypoint; Data-on-golden здесь не реализован. Для проверки Substrate понадобились бы отдельные интеграционные испытания на закреплённой сборке.
+
+Важна именно переносимая мысль: журнал должен позволять найти прежнюю операцию после возврата к старым данным. Сохранять полный heap вместо такого журнала недостаточно. Если intent появился только после последнего completed snapshot и больше нигде не сохранён, rollback может потерять даже operation ID. Проектируйте порядок durable записи intent до внешнего действия и отдельный recovery store, если требования не допускают эту потерю.
+
+## RPO задаёт цену допустимого отката
+
+RPO - цель по допустимому окну потери изменений, а не timeout команды suspend. Чтобы обещать RPO, нужны пригодные согласованные точки с нужной частотой и проверенный restore. Самая свежая дата upload одного файла ещё не доказывает согласованное состояние сессии, её журнала и зависимостей.
+
+В demo используются заданные секунды: последняя completed external точка - 120, отказ - 420. Разность 300 секунд показывает возраст этой точки. Более свежий local pause, например в момент 360, не уменьшает окно при потере node и local bytes. Это потенциальное окно возврата к старому state, не измеренный объём потерянной работы и не доказанный RPO системы.
+
+Если external точка отсутствует, калькулятор возвращает null, а не нулевую потерю. Cold boot может запустить новый процесс, но не создаёт пропавшие индивидуальные данные. Если независимый прикладной журнал сохранил более свежую информацию, часть работы можно восстановить из него; это другой источник с собственной политикой и проверкой.
+
+### Частота записи и цена простоя
+
+Более частые snapshots сокращают возраст точки, но расходуют I/O и storage, могут останавливать полезную работу и создавать одновременный burst для множества Actors. В нашем срезе suspend заканчивается освобождением исполнения: это не незаметный continuous backup работающего агента. Для задачи, которая должна долго оставаться RUNNING, нужны прикладные checkpoints и продуманные моменты lifecycle commits.
+
+Решение о Full/Data нельзя принимать только по размеру одного удачного snapshot. Рассчитайте частоту возвратов пользователей, стоимость тёплой capacity, размер и длительность upload, restore peaks, время чтения journal и предел параллельных восстановлений. Затем проверьте плохие случаи: почти заполненный pool, потерю Worker, холодный cache и недоступный source.
+
+### Graceful eviction не является backup policy
+
+В выбранном коде бюджет graceful drain workload равен 30 минутам. Worker Pod имеет отдельный termination grace 3600 секунд; это не дополнительный час работы Actor. Ожидание незавершённых RPC и обработка SIGTERM расходуют общий workload budget. Поэтому «у приложения всегда есть полчаса после сигнала» тоже может быть неверной оценкой оставшегося времени.
+
+Graceful drain позволяет workload попытаться завершить suspend, но не создаёт snapshot сам по себе. Чистый exit процесса без durable фиксации не возвращает его in-memory progress. При внезапной потере node такого окна может вообще не быть. Допустимый RPO должен обеспечиваться до отказа, а не надеждой успеть сделать последнюю запись в shutdown hook.
+
+## Как выбрать стратегию восстановления
+
+Начните с вопроса, из чего приложение может восстановить полезную работу. Если из малого набора durable records, restartable service или job проще окружения с сохранённым heap. Если важна дорогая подготовка отдельного sandbox и возврат к сессии после долгого ожидания, Substrate может убирать этот повторный труд. При этом журнал внешних действий остаётся нужен обоим вариантам.
+
+| Характер state | Что рассмотреть | Основная граница |
 | --- | --- | --- |
-| Node-local snapshot | `PAUSED`, local checkpoint имеет приоритет | Restore на node snapshot |
-| Actor external snapshot | Есть собственный suspend | Full restore либо Data с источником COLD\_BOOT/GOLDEN по policy |
-| Borrowed Tag/golden | Actor создан из Tag или template golden | Restore общей immutable точки |
-| Snapshot отсутствует | Golden не был готов или source не задан | Cold boot из image |
+| Небольшой план и проверяемые step results | Data и entrypoint восстановления | Все нужные файлы и format compatibility |
+| Дорогая индивидуальная подготовка памяти | Full | Bytes, runtime/CPU compatibility и цена restore |
+| Дорогая общая подготовка многих сессий | Golden baseline с individual Data | Общая identity без secrets, доступность обоих sources |
+| Долгое ожидание внешнего события | Durable workflow или job model | History, activities и повторы; не замена sandbox isolation |
+| Внешнее действие с высоким риском | Независимый journal, receipt lookup, idempotency | Scope/retention provider и разрешение unknown outcome |
 
-### Пошаговый resume
+Эти варианты решают разные задачи. Workflow runtime хранит историю шагов, но не автоматически все файлы sandbox. Full snapshot переносит поддерживаемое состояние среды, но не делает внешнюю транзакцию. Tag удерживает конкретную точку, но не создаёт бесконечную историю. Хорошая архитектура может сочетать их, если границы явно названы.
 
-1. Если Actor уже `RUNNING`, вызов является no-op и возвращает `resumed=false`.
-2. Lease сериализует lifecycle, чтобы два запроса не назначили два Workers.
-3. Выбираются source, scope и совместимость template UID.
-4. Создаются или проверяются external volumes до назначения Worker.
-5. Пересекаются sandbox class, selectors, node locality и свободные CPU/RAM/slots; claim резервирует место, сохраняются `RESUMING` и `workerAssignment`.
-6. Volumes подключаются, atelet выполняет restore либо cold boot.
-7. Все объявленные wakeup probes должны вернуть HTTP 200.
-8. Status становится `RUNNING`; ранее сохранённый `workerAssignment` остаётся назначением этого Actor.
+### Что мерить до выбора
 
-Если snapshot создан под другим ActorTemplate UID, memory image нельзя считать совместимой. При разрешённом update Substrate может восстановить durable data, но запустить guest заново. Это migration path, а не hot resume; SLO должен различать эти случаи.
+Разделяйте local restore, external Full, Data cold boot и Data-on-golden: у них разные источники затрат. В traces сохраняйте Actor UID, template UID, snapshot source/scope, assignment и этап ошибки. Для storage нужны bytes, upload/download duration и cleanup warnings; для приложения - время чтения журнала и фактический результат.
 
-### Wakeup probe определяет смысл «готов»
+Не складывайте независимые p95 фаз как точный p95 общего wake-up. Замеряйте весь путь запроса, включая ожидание места, restore, probes и доставку приложению. Отдельно измеряйте время возврата к полезной работе после failure и окно согласованного rollback. Быстрый resume с неверным result не является хорошим восстановлением.
 
-Без probe успешный resume означает, что container process запущен, но application может ещё не слушать порт. С probe RPC ждёт HTTP 200 от каждого container с probe. Default timeout - 30 секунд. Ошибка переводит Actor в `CRASHED`; перед следующим resume нужен revert.
+## Безопасный разбор незавершённого lifecycle
 
-Probe является one-shot gate, а не постоянной readiness check. Он должен проверять локальную готовность, не весь downstream graph. Иначе сбой внешней базы превратит готовые Actors в crashed.
+Сначала сохраните evidence: resource UID/version, state, crash message, assignment и snapshot references. Установите последний completed source, текущий in-progress destination и наличие local bytes. Не очищайте эти сведения рестартом или ручной записью status до расследования.
 
-### Request parking скрывает wake latency, но не отменяет её
+Если RPC потерял ответ, перечитайте state и прогресс. SUSPENDED после suspend отличается от SUSPENDING в середине upload и CRASHED после Checkpoint error. Если операция ещё имеет допустимый путь продолжения, используйте тот же публичный lifecycle RPC. Не меняйте её destination вручную ради нового «чистого» retry.
 
-Router может удерживать первый запрос и объединять несколько конкурентных запросов вокруг одного in-flight resume. Но assignment, download, restore, probe и tunnel всё равно входят в latency budget. Подробности routing будут в следующей главе.
+Если нужен revert, сначала согласуйте цену возврата к external точке и проверьте её пригодность. После отказа от исполнения сделайте resume выбранным источником, обновите credentials и соединения, проверьте журнал и reconcile pending intents. Только после этого приложение открывает необходимые write gates. Если restore source недоступен или исход внешней операции неизвестен, действие остаётся остановленным, а не переименовывается в успех.
 
-## Pause: быстрый checkpoint с node affinity
+### Что проверять отдельными испытаниями
 
-`PauseActor` создаёт checkpoint локально на node. После завершения assignment очищается, volumes отсоединяются, а status хранит `localSnapshot` с node и snapshot name. Следующий resume возвращается к этой node.
+Проверка должна включать больше, чем «API вернул RUNNING». На выбранном backend потеряйте клиентский ответ lifecycle, остановите control plane между status и dataplane шагом, прервите upload, потеряйте node с local checkpoint и восстановите external source. Сверяйте реальный результат приложения, а не только enum state.
 
-Pause экономит object-storage upload и полезен для короткого idle interval. Но это performance tier, не durability tier. Потеря node или очистка локального диска уничтожают точку. Recovery тогда опирается на предыдущий external snapshot через revert, а всё после него теряется.
+Отдельно проверьте явную ошибку Restore и отсутствие source: они не должны сливаться в один незаметный cold boot. Для смены template убедитесь, что новый код читает старые durable данные, а не старую несовместимую RAM. Для внешнего volume проверьте более новое содержимое после rollback. Для внешнего сервиса сохраните подтверждённый effect при потерянной local receipt и убедитесь, что recovery не выполняет второй logical write.
 
-| Свойство | Pause | Suspend |
-| --- | --- | --- |
-| Хранение | Node-local | Object storage |
-| Placement | Snapshot node | Любой совместимый Worker |
-| Потеря node | Не переживает | Переживает |
-| Цена | Локальный checkpoint | Checkpoint + upload/download |
-| Idle horizon | Короткий | Долгий/неопределённый |
+Это план интеграционных испытаний, не результат запуска данной редакции. Offline пример проверяет прикладную идею сверки; он не заменяет эти tests и не доказывает совместимость лабораторной пары AX/Substrate.
 
-### Pause, затем suspend
+## Практика для самостоятельного решения
 
-Paused Actor можно suspend'ить без повторного запуска. Control plane загружает local snapshot и при необходимости сужает Full до Data:
+В toy demo после capture отправьте действие под другим operation ID. Почему восстановленный intent не находит его и требует решения? Затем оставьте прежний ID, но поменяйте payload. Почему найденная receipt уже не подтверждает намерение checkpoint?
 
-```
-RUNNING
-  -> short idle: PauseActor (Full, local)
-  -> idle continues: SuspendActor (Data, external)
-  -> later ResumeActor: fresh process + restored DurableDir
-```
+Отключите lookup и объясните, какое evidence нужно для продолжения. Почему новый operation ID не является безопасным способом «разблокировать» pending запись? Включите lookup обратно и убедитесь, что результат можно сверить без второго effect.
 
-Такой tiered policy даёт быстрый возврат в первые минуты, но не хранит memory image для сессий, которые не вернулись.
+Для сессии review-42 сравните Full local pause, Data external suspend и Data-on-golden. Назовите место хранения, индивидуальные данные и источник guest в каждом варианте. Что будет после потери node? Что будет после удаления golden Tag? Где находятся operation IDs, позволяющие восстановить бизнес-результат?
 
-## Suspend: durable commit и освобождение Worker
+Наконец спроектируйте policy для двух требований: быстрый возврат через минуту и допустимая потеря не более минуты после любой node failure. Может ли их одновременно выполнить только local pause? Если нет, какие дополнительные durable записи и проверки нужны и во что они обойдутся?
 
-`SuspendActor` принимается из `RUNNING` и `PAUSED`. В первом случае Worker создаёт checkpoint и отправляет его в actor-owned URI. Во втором готовый local checkpoint загружается в object storage.
+## Итоги главы
 
-1. Зафиксировать `SUSPENDING` и `inProgressSnapshotUri`.
-2. Создать checkpoint или взять local snapshot.
-3. Записать manifest и objects в storage.
-4. Отсоединить volumes и освободить Worker.
-5. Сделать новый snapshot текущим, очистить in-progress fields, перейти в `SUSPENDED`.
-6. Освободить предыдущий actor-owned snapshot; borrowed Tag не удалять.
+Pause освобождает Worker и оставляет local зависимость от node. Suspend завершает external запись и делает её текущей точкой Actor. Full/Data задают содержимое, а onResume policy - источник guest для Data. Resume возвращает среду; revert отказывается от текущего исполнения, не чинит потерянные bytes и не откатывает внешний мир.
 
-Actor владеет одним текущим external snapshot. Следующий успешный suspend заменяет его. Если точка должна жить дольше, пока Actor suspended создают Tag.
+Хорошая политика отвечает на три вопроса: что допустимо потерять, из какой согласованной точки восстановиться и как установить outcome внешнего действия. Память экономит повторную подготовку, durable данные возвращают индивидуальное состояние, journal и квитанции помогают не принять старое знание за новый факт.
 
-### Зачем status показывает in-progress URI
-
-Upload может оборваться после записи части objects. Persisted destination делает retry re-entrant: workflow продолжает тот же URI, а revert удаляет partial snapshot. Предыдущий `externalSnapshot` остаётся последней подтверждённой точкой, пока commit не завершён. После timeout перечитайте Actor: операция могла успешно завершиться или остаться в переходе.
-
-## Revert: доступность ценой отката
-
-`RevertActor` принимается из `RUNNING`, `PAUSED` и `CRASHED`. Он уничтожает текущий sandbox, освобождает Worker, отбрасывает local и partial snapshots, сохраняя последний completed external snapshot. Итог - `SUSPENDED`.
-
-```
-CRASHED / RUNNING / PAUSED
-  -> RevertActor
-  -> discard current execution and partial checkpoint
-  -> keep last completed external snapshot
-  -> SUSPENDED -> ResumeActor
-```
-
-Revert - controlled rollback. Если durable commit был час назад, час изменений process memory/rootfs потеряется. Automation может делать revert автоматически только при явно принятом RPO.
-
-### External volumes не откатываются
-
-External CSI volumes не входят в Actor snapshot. После revert память/rootfs могут вернуться в прошлое, а volume или database остаться в будущем. Нужны idempotency keys, versioned records, transactional outbox или reconciliation. Substrate checkpoint не является распределённой транзакцией.
-
-## Что snapshot не обещает сохранить
-
-### TCP sessions
-
-Memory image может содержать file descriptor, но remote endpoint не обязан сохранять соединение. NAT, load balancer и server timeout могли истечь. После resume приложение должно переподключиться.
-
-### Credentials, DNS и leases
-
-Token может протухнуть, DNS answer измениться, lease перейти другому владельцу. После resume обновляйте credentials и перепроверяйте ownership.
-
-### External side effects
-
-Crash между внешним действием и checkpoint создаёт неопределённость. Повтор после revert способен выполнить действие дважды. Нужны idempotency key, deduplication record и reconcile по external operation ID.
-
-## Eviction и окно потери данных
-
-При удалении Worker Pod текущий graceful path посылает Actor `SIGTERM` и оставляет до 30 минут для suspend. Если commit не завершён, Actor становится `CRASHED`, а всё после предыдущего external snapshot теряется. Это grace period, не гарантия: node может исчезнуть сразу.
-
-RPO — допустимое временное окно потери изменений перед отказом; его задают как цель восстановления. Частота durable snapshots и возраст последней пригодной точки определяют, удаётся ли эту цель выдержать. Если Actor работает несколько часов без нового commit, потеря node может отбросить состояние на несколько часов, даже если штатно Actor suspend'ится в конце задачи. Проверяйте согласованность всей recovery point, а не только свежесть одного файла.
-
-| Workload | Подход | Почему |
-| --- | --- | --- |
-| Короткая сессия | Suspend в конце | Повтор работы приемлем |
-| Долгий agent job | Application checkpoints + lifecycle commits | Ограничивает RPO |
-| Финансовое действие | External log + idempotency | Snapshot не доказывает external commit |
-| Warmed model | Golden Full + Data commits | Общий warm state, меньше durable memory |
-
-## AX nuance: workspace durable, process reconstructable
-
-В AX runner восстановление `/workspace` не гарантирует продолжение того же process tree. Task должен иметь явные checkpoints: plan, tool results, patch state и finalization marker. Хороший agent пишет durable intent до внешнего действия и result после него.
-
-```
-step-042.intent.json -> operation_id и ожидаемое действие
-step-042.result.json -> подтверждённый результат/reference
-checkpoint.json      -> последний завершённый step
-
-resume: read checkpoint -> reconcile dangling intents -> continue
-```
-
-Этот protocol полезен и при Full snapshot: memory ускоряет happy path, журнал защищает от eviction, migration и revert.
-
-## Сквозной сценарий: coding Actor
-
-1. Golden snapshot содержит language server и общие tool binaries.
-2. Первый request делает Full resume из golden.
-3. После короткого idle Actor уходит в Full pause на node.
-4. Если idle продолжается, paused Actor suspend'ится с Data scope: workspace durable, memory отброшена.
-5. Через сутки fresh process восстанавливает workspace и читает journal.
-6. После crash revert возвращает последний Data snapshot, journal помогает reconcile tool calls.
-
-Golden решает цену первого boot, pause - короткий idle, suspend - durability, journal - business correctness, revert - recovery.
-
-## Observability: измерять путь, а не одну latency
-
-| Сигнал | Что показывает |
-| --- | --- |
-| Actors по state и возрасту | Застрявшие transitions и crash rate |
-| Resume latency по source/scope | Local, Full, Data и cold boot |
-| Snapshot bytes/upload duration | I/O cost и storage pressure |
-| Probe timeout | Startup failure или плохой readiness contract |
-| Revert count/rollback age | Частота восстановления и фактическое окно потери |
-| Cold boot despite golden | Проблемы Ready gate или IAM |
-
-```
-wake_latency = parking + lease_wait + assignment + volume_attach
-             + download_or_boot + restore + probe + tunnel
-```
-
-## Fault-injection plan
-
-1. Оборвать RPC во время resume и доказать отсутствие второго assignment.
-2. Убить control plane после записи in-progress URI и повторить suspend.
-3. Прервать upload, затем revert и проверить cleanup.
-4. Потерять node с paused Actor и восстановиться из external snapshot.
-5. Дать probe timeout, увидеть `CRASHED`, выполнить revert/resume.
-6. Сменить совместимый template и проверить Data fallback вместо memory restore.
-7. Проверить external volume после revert на temporal mismatch.
-
-## Антипаттерны
-
-- **Pause считать durable.** Node-local checkpoint не переживает потерю node.
-- **Full считать транзакцией.** External systems остаются снаружи.
-- **Retry без чтения status.** Timeout мог скрыть успех.
-- **Probe всей системы.** Downstream outage создаёт crashed Actors.
-- **Долгий RUNNING без commits.** Eviction grace не задаёт RPO.
-- **Обновлять template и ждать hot restore.** Другой UID меняет compatibility path.
-- **Хранить per-Actor secret в golden.** Клоны разделят credential.
-
-## Production checklist lifecycle
-
-- Для template выбраны `onPause`/`onCommit` и объяснён выбор.
-- Измерены size, upload, restore и cold boot.
-- Определены idle horizons RUNNING -> PAUSED -> SUSPENDED.
-- Template Ready является gate для CreateActor.
-- Probe проверяет локальную готовность.
-- Приложение переподключает clients и обновляет credentials.
-- External side effects имеют idempotency/reconciliation.
-- RPO задаётся требованиями к потере данных; частота durable checkpoints и проверенный restore должны обеспечивать эту цель.
-- Dashboards разделяют local, Full, Data, golden и cold boot.
-- Fault injection покрывает restart, потерю node и partial upload.
-
-## Итог
-
-Pause быстро освобождает Worker, но привязывает Actor к node-local checkpoint. Suspend создаёт переносимую durable точку. Resume выбирает local, actor-owned, borrowed golden snapshot или cold boot. Revert возвращает последнюю подтверждённую точку, но не откатывает внешний мир.
-
-Инженер выбирает consistency model: что можно потерять, как долго хранить memory, где проходит idempotency boundary и какой latency budget доступен первому запросу. В следующей главе проследим этот запрос через routing, request parking, mTLS tunnel и egress.
+В следующей главе доведём пользовательский запрос до этой среды: разберём routing key, parking, Worker tunnel и egress. Успех lifecycle остаётся только частью этого пути, а не доказательством результата HTTP или полномочия caller.
 
 ### Источники и дальнейшее чтение
 
-- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md)
-- [Agent Substrate architecture](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md)
-- [Agent Substrate glossary](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/glossary.md)
-- [Request parking design](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/request-parking.md)
-- [Rolling upgrade runbook](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md)
-- [ate API lifecycle definitions](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto)
+- [Ate API schema](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto) - states и snapshot policy.
+- [Pause workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_pause.go) - local capture и finalization.
+- [Suspend workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_suspend.go) - destination, running/paused paths и cleanup.
+- [Resume workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_resume.go) - приоритет source и restore scope.
+- [Revert workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_revert.go) - допустимые starts и сохранение external source.
+- [Atelet capture/upload/restore](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/main.go) - manifest и границы dataplane.
+- [gVisor worker shutdown](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateom-gvisor/main.go) и [microVM shutdown](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateom-microvm/shutdown.go) - общий drain budget.
+- [Rolling upgrade](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/upgrade.md) - штатный suspend до потери Worker.
+- [Глава 39](39-substrate-snapshot-ownership.md) - ownership и согласованное восстановление графа snapshots.
