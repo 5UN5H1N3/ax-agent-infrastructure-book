@@ -8549,94 +8549,245 @@ python3 -m unittest discover -s examples -p 'test_ch27_recovery_plan.py'
 <li style="margin:.3mm 0">Средства и ограничения: <a href="https://www.postgresql.org/docs/current/continuous-archiving.html">PostgreSQL PITR</a>, <a href="https://pgbackrest.org/user-guide.html">pgBackRest</a>, <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis persistence</a>, <a href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/">distributed locks</a>, <a href="https://velero.io/docs/main/backup-reference/">Velero</a>. Версии инструментов, форматы и проверенные переходы закрепляют в эксплуатационном паспорте.</li>
 </ul>
 </div></section><section class="chapter" id="ch-28"><div class="chapter-num">Глава 28</div><h1>Performance и scaling: как найти bottleneck и доказать capacity</h1>
-<p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-10</strong>. Числа из README, demo и issues ниже отделены от измерений вашей системы. Оба проекта pre-1.0, поэтому performance contract нужно перепроверять для каждой закреплённой версии.</p>
-<p>После главы о HA возникает естественный соблазн: добавить replicas, включить autoscaling и считать задачу закрытой. Но производительность распределённой agent platform определяется не количеством Pods, а самой медленной стадией полезного пути. AX может быстро принять Task и медленно reconcile'ить его. WorkerPool может иметь свободные Pods, пока object store ограничивает одновременный restore. Model endpoint может отвечать быстро, но агент делает вдвое больше шагов из-за неудачного routing.</p>
-<p>Цель performance engineering - не получить максимальное число в синтетическом тесте. Нужно доказать, какую полезную нагрузку система выдерживает при заданных SLO, качестве результата и сценарии отказа, где находится saturation knee и как система ведёт себя за ним.</p>
-
-
-
-<h2>Сначала определите, что именно считается производительностью</h2>
-<p>У слова «быстро» нет инженерного смысла без outcome и границы измерения. Для этой платформы нужны как минимум пять разных понятий.</p>
-<table><thead><tr><th>Понятие</th><th>Что означает</th><th>Типичная ошибка</th></tr></thead><tbody><tr><td>Latency</td><td>Время одного результата: Task accepted, Actor ready, первый полезный ответ, завершённая задача</td><td>Смешать queue wait, resume и execution в один average</td></tr><tr><td>Throughput</td><td>Сколько операций система завершает за единицу времени</td><td>Считать все HTTP 200, включая бесполезные или повторные результаты</td></tr><tr><td>Goodput</td><td>Сколько корректных результатов выполнено в пределах SLO без запрещённых side effects</td><td>Оптимизировать requests/s при падении качества и росте retries</td></tr><tr><td>Capacity</td><td>Максимальная устойчивая нагрузка при заданном workload mix и SLO</td><td>Назвать capacity числом созданных Actors</td></tr><tr><td>Headroom</td><td>Резерв для burst, rollout и потери части инфраструктуры</td><td>Считать 100% utilization нормальным рабочим режимом</td></tr></tbody></table>
-<p>Главная метрика agent platform - <strong>goodput</strong>. Быстро созданный Task, который застрял в readiness, выполнил tool дважды или не уложился в пользовательский deadline, не увеличивает полезную пропускную способность.</p>
-
-<h2>Workload model: переведите «N агентов» в нагрузку</h2>
-<p>Число зарегистрированных агентов почти ничего не говорит о capacity. Один агент может ждать человека сутки, другой непрерывно компилировать проект, третий создавать десять child Tasks и одновременно обращаться к модели. До benchmark зафиксируйте распределения, а не один «типичный» пример.</p>
-<table><thead><tr><th>Ось</th><th>Что измерить</th><th>Почему влияет</th></tr></thead><tbody><tr><td>Arrival</td><td>tasks/s, wakeups/s, burst size, суточный профиль</td><td>Определяет queue и скорость scale-up</td></tr><tr><td>Duty cycle</td><td>доля времени Actor действительно занимает Worker</td><td>Определяет реальную ценность oversubscription</td></tr><tr><td>Session shape</td><td>число steps, tool/model calls, think gaps, fan-out</td><td>Один Task порождает много внутренних операций</td></tr><tr><td>State</td><td>RAM, writable data, dirty pages, snapshot p50/p95/max</td><td>Меняет suspend/resume time и storage traffic</td></tr><tr><td>Sandbox work</td><td>CPU, RAM peak, filesystem, network, file descriptors</td><td>Определяет Worker packing и noisy-neighbor risk</td></tr><tr><td>Dependency mix</td><td>model route, tool latency, egress destinations</td><td>Внешняя очередь может стать end-to-end bottleneck</td></tr><tr><td>Priority</td><td>interactive, background, maintenance</td><td>Классы требуют разных deadline и admission policy</td></tr></tbody></table>
-<p>Для первичной оценки полезны две формулы. Если средняя скорость прихода задач равна <code>λtask</code>, то внутренняя нагрузка приблизительно равна:</p>
-<p><code>λoperation = λtask × E[operations per task]</code></p>
-<p>Operations здесь нужно считать раздельно: AX lifecycle RPC, Actor wakeups, snapshot bytes, model calls и tool calls имеют разные service stations.</p>
-<p>В устойчивом режиме закон Литтла даёт:</p>
-<p><code>среднее число работ в системе = arrival rate × среднее время в системе</code></p>
-<p>Если приходит 4 wakeups/s, а wake вместе с ожиданием занимает в среднем 1,5 s, одновременно в этом пути находится около 6 операций. Это не sizing formula для p99: она не учитывает burst, корреляцию и тяжёлый хвост. Но она быстро выявляет невозможные ожидания.</p>
-
-<h2>Oversubscription работает только при правильном duty cycle</h2>
-<p><code>logical actors / physical workers</code> - коэффициент oversubscription, а не коэффициент ускорения. Он экономит ресурсы, когда Actors большую часть времени suspended или idle вне Worker. Для постоянно активных coding jobs десятикратный oversubscription превращается в queue, parking wait или <code>ResourceExhausted</code>.</p>
-<p>Грубая оценка при независимой активности выглядит так:</p>
-<p><code>expected active actors ≈ logical actors × active duty cycle</code></p>
-<p>Если 1000 Actors активны в среднем 2% времени, математическое ожидание равно 20. Это не означает, что достаточно ровно 20 slots. Пользовательские события, cron, coordinator fan-out и восстановление после outage делают wakeups коррелированными. Нужен запас, рассчитанный по наблюдаемому burst distribution, а не по среднему duty cycle.</p>
-<p>Substrate README на выбранном снимке заявляет 10x density, sub-500ms resume и более 500 activations/s, а demo показывает около 250 Actors на 8 Pods. Это <strong>PROJECT CLAIM и демонстрационный результат</strong>, не capacity contract. Architecture document отдельно предупреждает, что значительная часть дизайна aspirational. Переносить эти числа на большой repository, другой sandbox, cold object cache и свой failure domain нельзя.</p>
-
-<h2>Разложите end-to-end latency по критическому пути</h2>
-<p>Task latency - не сумма времени всех компонентов. Последовательные этапы складываются, а параллельная ветка добавляет максимум своего критического пути плюс coordination overhead:</p>
-<p><code>Ttask = Σ Tsequential + max(Tparallel branches) + Tcoordination</code></p>
-<p>Для первого запуска полезно измерять timestamps как отдельные milestones:</p>
-<ol><li>client send → вход в lifecycle handler AX;</li><li>ожидание resource lock и чтение/запись control record;</li><li>direct reconcile → Substrate Actor created/selected;</li><li>resume requested → Worker assigned;</li><li>snapshot lookup/download/restore;</li><li>runner доступен → <code>/readyz</code> подтверждён;</li><li>запись итогового status → ответ lifecycle RPC;</li><li>первый tool/model call → первый полезный результат.</li></ol>
-<p>Так становится видно, что «Task создаётся 18 секунд» может включать 20 ms проверки запроса, 15 s readiness polling и 3 s restore внутри синхронного пути. Сначала выясните, какая стадия занимает время; дополнительные replicas API сами по себе не сокращают restore одного Actor.</p>
-<p>Не ограничивайтесь average. Coordinator, который ждёт завершения десяти children, чувствителен к самому медленному child. Даже умеренная вероятность tail event усиливается fan-out: чем больше параллельных ветвей требуется дождаться, тем чаще одна из них попадёт в p99.</p>
-
-<h2>Карта bottlenecks и правильные scaling knobs</h2>
-<table><thead><tr><th>Plane</th><th>Признак насыщения</th><th>Что измерять</th><th>Что масштабировать после доказательства</th></tr></thead><tbody><tr><td>Ingress / atenet</td><td>parking wait и 503 растут, Workers освобождаются слишком медленно</td><td>parked requests, retry budget, route latency, deadline</td><td>warm capacity, admission, routing; не бесконечный parking</td></tr><tr><td>AX API/store</td><td>API latency, Redis lag/QPS или lock wait растут</td><td>RPC latency, resource lock wait, store RTT, errors</td><td>API replicas и production store - только с проверенной concurrency semantics</td></tr><tr><td>AX direct reconciliation</td><td>Lifecycle RPC медленные при свободных Workers</td><td>Время handler, lock contention, Substrate RPC и readiness wait</td><td>Admission и RPC concurrency; replicas только после проверки resource locking и recovery</td></tr><tr><td>Substrate control plane</td><td>lifecycle RPC и placement замедляются</td><td>RPC phase latency, DB latency, operation state, workqueue</td><td>API/controller/store capacity с сохранением ordering</td></tr><tr><td>WorkerPool</td><td>at-capacity workers, pending placement, CPU/RAM pressure</td><td>assigned/full/idle workers, resource headroom, OOM/throttle</td><td>replicas, nodes, pool segmentation, Actor right-sizing</td></tr><tr><td>Snapshot store</td><td>suspend/resume tail растёт при concurrency</td><td>bytes, IOPS, RTT, cache state, concurrent transfers, errors</td><td>bandwidth/IOPS, locality, snapshot policy; не только Workers</td></tr><tr><td>Tools/model</td><td>sandboxes idle, но Tasks не завершаются</td><td>queue, TTFT, tool latency, retries, rate limits</td><td>endpoint capacity, routing, caching, workload reduction</td></tr></tbody></table>
-<p>Эффективная capacity цепочки приблизительно равна минимуму capacity её обязательных стадий. Scale-out одного plane может даже ухудшить систему: больше Workers одновременно начнут restore и перегрузят object store; больше параллельных lifecycle RPC создадут давление на Redis/Substrate и увеличат конкуренцию за блокировки.</p>
-
-<h2>AX direct path и пределы параллелизма</h2>
-<p>В AX <code>ac233282</code> нет отдельного <code>ax-controller</code> и Redis Streams очереди lifecycle. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">Handler ax-server</a> берёт resource lock, сохраняет запись, вызывает reconciliation с Substrate и обновляет status. Поэтому свободный WorkerPool ещё не доказывает, что создание Tasks быстро: задержка может возникнуть в lock, store, Substrate RPC или readiness.</p>
-<p>Сравните независимые Tasks и конкурирующие операции над одним Task. В первом опыте измеряется полезный параллелизм; во втором — сериализация ресурса и корректность отказов. В каждом прогоне сохраняйте число принятых и завершённых операций, ошибки, p95/p99 RPC, lock wait и фазовые задержки Substrate. Истории о serial controller throughput в issues относятся к прежней архитектуре и не являются benchmark этого direct path.</p>
-<p>Увеличивайте concurrency только вместе с ограничением допуска, общим deadline и проверкой cancellation. После остановки <code>ax-server</code> посреди RPC перечитайте AX record и Actor: внешний шаг мог завершиться до записи status. Отсутствие очереди не даёт автоматического replay после restart. Проверяйте безопасное восстановление частичной операции, а не ACK или возраст несуществующего lifecycle event.</p>
-<h2>WorkerPool capacity: replicas недостаточно</h2>
-<p>Substrate API guide описывает WorkerPool как физическую warm capacity. Placement учитывает объявленные Actor resource limits и оставшийся budget Worker; отдельно действует actor limit процесса. Практически pool ограничивается первым исчерпанным ресурсом: CPU, RAM, actor slots, file descriptors, sandbox/runtime overhead или node capacity.</p>
-<p>Документация на выбранном снимке требует внимательного чтения. API guide уже описывает shared budget и <code>--max-actors</code>, но autoscaled WorkerPool demo предупреждает: его сигнал «число полных workers» отражает utilization только пока Worker фактически держит одного Actor. Когда packing меняется, прежняя метрика перестаёт означать процент заполнения. Значит autoscaling policy должна быть привязана к semantics конкретной версии, а не к знакомому имени metric.</p>
-<p>Разделяйте pools по workload class, если они конкурируют за разные ресурсы: interactive small Actors, memory-heavy coding workspaces, microVM и background jobs. Общий pool повышает среднюю utilization, но может создать head-of-line blocking: крупный Actor не помещается, хотя суммарно свободной памяти в кластере много.</p>
-
-<h2>Snapshot path имеет собственную capacity</h2>
-<p>Нижняя оценка времени передачи snapshot проста:</p>
-<p><code>Ttransfer ≥ snapshot bytes / effective bandwidth</code></p>
-<p>Реальный resume добавляет metadata lookup, object-store RTT, decompression, sandbox restore, lazy page faults и readiness. При <code>k</code> одновременных restores каждый не получает полную номинальную полосу: общий network path, storage IOPS и CPU decompression становятся shared resources.</p>
-<p>Тестируйте как минимум четыре состояния: golden/warm cache, Actor-owned warm cache, cold object cache и restore storm после node loss. Отдельно измеряйте первый полезный filesystem/RAM access после ответа Resume: lazy restore может сделать RPC быстрым, перенёсши задержку в первую команду пользователя.</p>
-
-<h2>Autoscaling - запаздывающий control loop</h2>
-<p>CPU HPA отвечает на вопрос «насколько заняты уже запущенные Pods». Он может не увидеть ожидающие wakeups, исчерпанные Actor slots или pressure object store. Для queue-like workload полезнее backlog, age oldest work, parking wait, available slots или другой custom/external metric, который уменьшается при добавлении replicas.</p>
-<p>В pinned Substrate demo HPA получает через Prometheus adapter число Workers в состоянии <code>at_capacity</code>. Target <code>AverageValue</code> задаёт желаемое число полных Workers на replica: например 0,7 оставляет около 30% idle headroom в assumptions demo. Scale-up там агрессивный, а scale-down имеет 300 s stabilization. Документ одновременно предупреждает, что demo поддержан только на kind и его signal зависит от текущей модели one-Actor-per-Worker.</p>
-<p>Для interactive workload автоскейлер часто опаздывает: metric scrape, HPA sync, scheduling, image pull и Worker readiness длиннее пользовательского deadline. Поэтому production policy сочетает:</p>
-<ul><li>минимальную warm reserve для ожидаемого burst;</li><li>admission и priority, чтобы сохранить interactive SLO;</li><li>предиктивное увеличение capacity для известных событий;</li><li>реактивный autoscaling для устойчивого роста;</li><li>медленный scale-down, чтобы не получить oscillation и snapshot storm.</li></ul>
-
-<h2>Benchmark protocol: от гипотезы к capacity envelope</h2>
-<ol><li><strong>Зафиксируйте contract.</strong> Workload mix, SLO, correctness checks, отказ и допустимый error rate.</li><li><strong>Закрепите среду.</strong> Commit/digest AX, Substrate, sandbox assets, images, Kubernetes, node type, store topology и network path.</li><li><strong>Проверьте telemetry.</strong> Все milestones и errors должны быть видны до нагрузки. Генератор тоже может стать bottleneck.</li><li><strong>Соберите representative dataset.</strong> p50/p95/max snapshots, реальные repository sizes, think gaps, tool/model distributions без секретов.</li><li><strong>Отделите cache states.</strong> Cold и warm tests запускаются и помечаются отдельно.</li><li><strong>Выполните load sweep.</strong> Повышайте arrival/concurrency ступенями, удерживая каждую достаточно долго для steady state.</li><li><strong>Найдите saturation knee.</strong> Точку, после которой queue/tail быстро растут, а goodput почти не увеличивается.</li><li><strong>Проверьте overload.</strong> Burst выше capacity должен вызвать bounded queue/load shedding и затем восстановление, а не бесконечный хвост.</li><li><strong>Повторите с отказом.</strong> Потеря Worker/node, controller restart, storage throttling и rollout показывают usable capacity, а не лабораторный максимум.</li><li><strong>Повторите прогоны.</strong> Сохраняйте raw per-request results, percentiles, failures, versions и variance.</li></ol>
-
-<h3>Минимальная матрица</h3>
-<table><thead><tr><th>Ось</th><th>Минимальные значения</th></tr></thead><tbody><tr><td>Lifecycle</td><td>cold create, golden restore, Actor-owned resume, warm request</td></tr><tr><td>Snapshot</td><td>small, p50, p95, max credible; warm/cold cache</td></tr><tr><td>Load</td><td>1, expected, burst, saturation, beyond saturation</td></tr><tr><td>Pool</td><td>50%, 80%, 95% utilization и одна потерянная replica/node</td></tr><tr><td>Arrival</td><td>steady, jittered, coordinator fan-out, recovery storm</td></tr><tr><td>Result</td><td>latency distribution, goodput, errors, queue, recovery time, resource cost</td></tr></tbody></table>
-
-<h2>Используйте готовые Substrate scenarios, но не путайте их с вашим acceptance test</h2>
-<p>На снимке <code>df788825</code> repository уже содержит nascent Locust-based suite. Она полезна как строительный блок:</p>
-<ul><li><strong>DurDir</strong> измеряет запись, suspend/resume и первый read после restore с разными durable/full profiles;</li><li><strong>SWE-Perf replay</strong> добавляет реалистичные execution cycles и разделяет RPC, RTT и wall clock;</li><li><strong>Agent-Session</strong> моделирует coding session с think gaps, suspend между шагами, CPU/RAM/disk/network operations и user-visible <code>WakeFirstTouch</code>;</li><li><strong>Spawn</strong> измеряет batch create-to-first-ping, readiness percentiles и <code>TimeToAllReady</code>;</li><li>результаты сохраняют Locust CSV, failures, traces, server telemetry и density facts.</li></ul>
-<p>Это сильнее игрушечного counter, потому что workload явно описывает state и операции. Но suite сама названа nascent, а synthetic script остаётся моделью. Адаптируйте scripts и acceptance thresholds под свои repositories, language toolchains, model think time и policy. Проверяйте известные caveats конкретного test: например, документация Spawn прямо предупреждает, что некоторые общие <code>actors_per_*</code> ratios для него используют неподходящий denominator.</p>
-
-<h2>Как оформить capacity envelope</h2>
-<p>Финальный результат benchmark должен быть проверяемым утверждением, а не «кластер выдержал 500 агентов»:</p>
-<blockquote><p>При workload mix X, snapshot p95 Y и warm reserve Z система выдерживает λ wakeups/s и burst B, сохраняя Actor-ready p95, Task goodput и error budget в пределах SLO. При потере одной Worker node admission отклоняет background class, interactive class восстанавливается за R секунд. Следующий bottleneck - object-store bandwidth.</p></blockquote>
-<p>К envelope приложите manifest/digests, генератор, raw data, dashboards/traces, cache state, стоимость и точку saturation. Отдельно запишите overload behavior. Capacity без описания поведения за пределом опасна: система может стабильно выполнять 100 tasks/min и катастрофически зависать на 105.</p>
-
-<h2>Что оптимизировать и в каком порядке</h2>
-<ol><li><strong>Уберите лишнюю работу.</strong> Дубликаты reconcile, ненужные snapshots, лишние agent steps и повторные tool calls дешевле любого scale-out.</li><li><strong>Ограничьте перегрузку.</strong> Bounded queues, deadlines, cancellation, retry budget и load shedding сохраняют goodput.</li><li><strong>Исправьте самый узкий stage.</strong> Используйте trace и load sweep, а не CPU dashboard одного Pod.</li><li><strong>Добавьте параллелизм с invariants.</strong> Ordering per Task/Actor, idempotency и store semantics важнее headline tasks/s.</li><li><strong>Добавьте capacity и locality.</strong> Workers, storage или model replicas только там, где измерения показывают дефицит.</li><li><strong>Повторите benchmark.</strong> Оптимизация считается успешной, если envelope расширился без ухудшения correctness, tail и recovery.</li></ol>
-
-<h2>Антипаттерны</h2>
-<ul><li><strong>Capacity равна числу Actors.</strong> Не указаны duty cycle, state и arrival rate.</li><li><strong>Тест concurrency 1 и линейная экстраполяция.</strong> Queue, locks, cache и storage contention нелинейны.</li><li><strong>Только average latency.</strong> Tail определяет fan-out и пользовательский outcome.</li><li><strong>Cold и warm samples в одной выборке.</strong> Число невозможно интерпретировать.</li><li><strong>Scale по CPU при исчерпанных slots.</strong> Signal не связан с добавляемой capacity.</li><li><strong>Бесконечный parking/retry.</strong> Явный отказ превращается в длинный отказ и retry storm.</li><li><strong>Больше controller replicas без проверки ordering.</strong> Throughput покупается гонками.</li><li><strong>Benchmark без correctness.</strong> Быстрый duplicate side effect считается успехом.</li><li><strong>Нагрузка без recovery phase.</strong> Не видно, очищается ли queue после burst.</li><li><strong>PROJECT CLAIM как SLO.</strong> Чужая topology и workload выдаются за гарантию.</li></ul>
-
+<p style="break-inside:avoid-page"><strong>Профиль главы на 16.10.2026:</strong> AX <code>ac233282</code> и Substrate <code>df788825</code>, полные SHA - в паспорте главы 26. Описание direct reconciliation, WorkerPool и upstream benchmark относится к этим ревизиям. Учебные расчёты ниже выполняются без стенда и не измеряют производительность этой пары.</p>
+<p style="break-inside:avoid-page">После восстановления из главы 27 сервис <code>billing</code> снова работает. Теперь утром несколько команд одновременно возвращаются к своим сессиям: открывают репозиторий, запускают проверку и ждут результата. Одиночный запрос проходит быстро, общий запуск заметно медленнее. На dashboard CPU выглядит свободным. Дежурный предлагает добавить Workers; коллега подозревает model endpoint. Как выбрать действие, которое действительно сократит ожидание?</p>
+<p style="break-inside:avoid-page">Начнём с того, что должен получить пользователь. Затем проследим один запрос и разберём маленькую модель, в которой Workers ждут общий сервис восстановления. На ней можно проверить рассуждение до покупки ресурсов. После этого составим опыт для настоящей платформы и определим, какие выводы он позволит сделать.</p>
+<h2>1. Определить полезный результат и время ожидания</h2>
+<p style="break-inside:avoid-page">Утренний запрос в нашем примере должен продолжить сессию и вернуть результат проверки репозитория. Время считаем от отправки запроса клиентом до получения и проверки полного ответа. Готовность Actor и успешный lifecycle RPC будут промежуточными отметками. Пользователь ещё ждёт, пока восстановленная программа прочитает файлы и выполнит команду.</p>
+<p style="break-inside:avoid-page">Примем учебную цель: не менее 99% всех предложенных запросов должны дать корректный результат за 2500 ms. Отклонённый запрос остаётся в знаменателе. Дубликат внешней записи запрещён отдельным условием безопасности; быстрая повторная публикация не компенсируется хорошей задержкой остальных операций. Значения и классы нагрузки команда согласует для своего сервиса. Здесь они нужны, чтобы решения можно было сравнить.</p>
+<p style="break-inside:avoid-page"><strong>Latency</strong>, задержка, - время выбранного запроса или этапа. <strong>Throughput</strong>, пропускная способность, - число завершений за единицу времени. Для <strong>goodput</strong> считаем только полезные завершения: корректные, вовремя и с соблюдением условий безопасности. Если harness повторил один логический запрос трижды, инфраструктура обслужила три attempts, а пользователь по-прежнему ждёт один результат. В журнале нужны обе единицы и связь между ними.</p>
+<p style="break-inside:avoid-page"><strong>Capacity</strong>, ёмкость сервиса, отвечает на следующий вопрос: какой поток такой работы он устойчиво обслуживает при оговорённых целях? Важны также состав запросов, состояние кэша и доступные зависимости. Полезный результат измерений выглядит так: «при такой смеси запросов и таком запасе ресурсов сервис выдерживает заданный поток; при потере одной node действует другая граница». Эту область условий далее будем называть <strong>capacity envelope</strong>.</p>
+<p style="break-inside:avoid-page">Из главы 21 здесь пригодятся определения latency, goodput и окна наблюдения. Но теперь измеряется весь путь сессии. Быстрый model call помогает лишь той части задачи, которая действительно ждёт модель.</p>
+<h2>2. Перевести число агентов в поток работы</h2>
+<p style="break-inside:avoid-page">Фраза «нужна поддержка тысячи агентов» оставляет слишком много неизвестного. Тысяча сессий может ждать человека, одновременно компилировать код или проснуться после общего уведомления. Для начала опишите один рабочий день сервиса: когда приходят запросы, какие действия они вызывают и сколько состояния возвращают.</p>
+<p style="break-inside:avoid-page">Для <code>billing</code> заведём три класса: интерактивная проверка файла, длительная сборка и фоновое обслуживание сессий. Для каждого нужны частота поступления, число model/tool calls, размеры изменяемых данных, время удержания Worker и допустимый срок ожидания. Длинная сборка может занять память на минуты, а короткая проверка - выполнить много мелких обращений к storage. Средний запрос смешивает эти причины нагрузки.</p>
+<p style="break-inside:avoid-page">Если одна прикладная задача в среднем вызывает четыре обращения к модели, поток <code>2 задачи/s</code> создаёт около <code>8 model calls/s</code>. Если лишь четверть задач требует resume, тот же поток создаёт в среднем <code>0.5 resume/s</code>. Повторы и fan-out увеличивают соответствующие потоки. Сначала переводим каждый ресурс в свою единицу работы, затем сравниваем спрос с его возможностями.</p>
+<p style="break-inside:avoid-page">В устойчивом потоке полезен закон Литтла: среднее число работ внутри выбранной границы равно средней скорости их поступления, умноженной на среднее время внутри неё. При <code>2 запроса/s</code> и среднем времени <code>1.5 s</code> в системе в среднем находятся три запроса. Очередь входит в это время, если входит в выбранную границу. Растущая без ограничения очередь не описывается таким установившимся средним.</p>
+<p style="break-inside:avoid-page">Эта оценка помогает проверить здравый смысл: если каждый запрос полторы секунды удерживает Worker slot, двух slots для такого потока недостаточно. Но три slots, равные среднему спросу, ещё не дают запаса на всплеск. Размер и длительность всплеска задают отдельно: например, двадцать почти одновременных возвращений пользователей или поток с заданными интервалами. Они создают разные очереди при одинаковом числе сессий.</p>
+<h2>3. Найти участок ожидания внутри одного запроса</h2>
+<p style="break-inside:avoid-page">Рассмотрим путь: клиент отправляет запрос, AX принимает lifecycle-операцию, Substrate выбирает Worker и восстанавливает Actor, runner отвечает на readiness, программа читает состояние и выполняет проверку. Для запроса к уже работающей сессии часть пути исчезнет. Для resume с ленивой загрузкой часть чтения snapshot проявится только при первом обращении программы к памяти или файлу.</p>
+<p style="break-inside:avoid-page">Запишите начало и конец каждого наблюдаемого участка. Внутри процесса длительности измеряют монотонными часами; события разных машин связывают trace. Простое вычитание несогласованных календарных отметок способно показать очередь, которой не было. В искусственном примере дальше все времена принадлежат одним условным часам.</p>
+<p style="break-inside:avoid-page">В AX выбранной ревизии handler берёт resource lock, записывает Task и непосредственно вызывает reconciliation с Substrate. Отдельной lifecycle-очереди Redis Streams здесь нет. Поэтому длительный CreateTask или ResumeTask исследуют по ожиданию lock, store, Substrate RPC и readiness. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">Исходник handler</a> показывает эту последовательность. Увеличение числа API replicas требует отдельной проверки области действия locking и concurrent writes; локальная блокировка одного процесса не становится межпроцессной от увеличения Deployment.</p>
+<p style="break-inside:avoid-page">В trace полезно различать ожидание Worker, ожидание доступа к восстановлению, само восстановление и выполнение команды. CPU может быть свободен именно потому, что процесс ждёт I/O. Если очередь появляется перед назначением Worker, это ещё не доказывает нехватку вычислений: имеющиеся Workers могут быть заняты ожиданием того же storage.</p>
+<p style="break-inside:avoid-page">Для последовательных неперекрывающихся этапов складываются длительности одного и того же запроса. Когда coordinator ждёт всех children, ветка завершится по самому позднему из них. Сложение p95 разных этапов не даёт p95 всего пути: в хвост могут попадать разные запросы. Считайте итоговую задержку по связанным наблюдениям, а этапы используйте для объяснения.</p>
+<p style="break-inside:avoid-page">Fan-out усиливает вероятность долгого ожидания. Если у каждой из десяти независимых ветвей вероятность превысить некоторый порог равна 1%, хотя бы одна превысит его с вероятностью <code>1 - 0.99^10</code>, около 9.6%. При общей зависимости независимость нарушается, и такая арифметика уже не описывает реальное распределение. Она объясняет, почему «все компоненты почти всегда быстрые» недостаточно для общего обещания.</p>
+<h2>4. Разобрать очередь на воспроизводимом примере</h2>
+<p style="break-inside:avoid-page">В <code>examples/ch28_capacity_model.py</code> есть модель двух ресурсов. Запрос получает Worker slot, ждёт свободный канал восстановления, восстанавливается и выполняет короткую команду. Worker удерживается от назначения до конца команды, в том числе во время ожидания канала. Под каналом понимается независимая единица обслуживающей мощности с фиксированным временем; это условность модели, а не объект API Substrate.</p>
+<p style="break-inside:avoid-page">Зададим четыре Worker slots, один канал восстановления длительностью 1000 ms и выполнение команды за 500 ms. Двадцать запросов приходят каждые 500 ms: в моменты <code>0, 500, ..., 9500 ms</code>. Каждый требует восстановления. Порядок FIFO, то есть в порядке поступления; нет сети, retries, batching, отмены и изменения скорости storage от конкуренции.</p>
+<p style="break-inside:avoid-page">Первые четыре запроса позволяют разобрать всю причину задержки:</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Запрос</th>
+<th>Отправлен, ms</th>
+<th>Начало restore, ms</th>
+<th>Завершён, ms</th>
+<th>Полное ожидание, ms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>r1</td>
+<td>0</td>
+<td>0</td>
+<td>1500</td>
+<td>1500</td>
+</tr>
+<tr>
+<td>r2</td>
+<td>500</td>
+<td>1000</td>
+<td>2500</td>
+<td>2000</td>
+</tr>
+<tr>
+<td>r3</td>
+<td>1000</td>
+<td>2000</td>
+<td>3500</td>
+<td>2500</td>
+</tr>
+<tr>
+<td>r4</td>
+<td>1500</td>
+<td>3000</td>
+<td>4500</td>
+<td>3000</td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">Работа каждого запроса осталась прежней. Но новый запрос приходит раз в полсекунды, а общий канал начинает обслуживать лишь один в секунду. Ожидание накапливается. Общий канал стал <strong>узким местом</strong>, bottleneck: его обслуживающая мощность ограничивает поток всей этой работы. Потом занятыми оказываются и Workers: часть из них держит назначение, пока ждёт восстановления. Добавление Workers перед этим каналом меняет место ожидания, но не скорость завершения. После расширения канала узким местом может стать другой ресурс, поэтому диагноз относится к конкретной нагрузке и конфигурации.</p>
+<p style="break-inside:avoid-page">В простом конвейере верхнюю оценку потока можно получить по самому ограниченному ресурсу, переведя всё в завершения одинаковых запросов в секунду. Здесь один канал даёт <code>1 / 1 s = 1 запрос/s</code>. Четыре Workers при минимальном удержании <code>1.5 s</code> дали бы до <code>4 / 1.5</code>, около <code>2.67 запроса/s</code>, если бы не ожидание канала. Поток <code>2 запроса/s</code> превышает первую границу. Это объясняет поведение модели; для настоящей платформы времена обслуживания зависят от нагрузки и требуют измерения.</p>
+<p style="break-inside:avoid-page">Программа сравнивает несколько вмешательств. Во всех строках следующей таблицы подача идёт в окне <code>0 &lt;= t &lt; 10 s</code>, а наблюдение - до <code>24 s</code>, чтобы вся группа успела завершиться или получить отказ. Goodput делится на одинаковые 24 секунды, включая завершение оставшихся запросов после подачи, <strong>drain</strong>. Это итог конечной группы, не оценка установившейся capacity.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Сценарий</th>
+<th>Завершено</th>
+<th>Отказано</th>
+<th>Корректно за 2500 ms</th>
+<th>p95 завершённых, ms</th>
+<th>Goodput, запрос/s</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>baseline</td>
+<td>20</td>
+<td>0</td>
+<td>3</td>
+<td>10500</td>
+<td>0.125</td>
+</tr>
+<tr>
+<td>more_workers</td>
+<td>20</td>
+<td>0</td>
+<td>3</td>
+<td>10500</td>
+<td>0.125</td>
+</tr>
+<tr>
+<td>more_restore_capacity</td>
+<td>20</td>
+<td>0</td>
+<td>20</td>
+<td>1500</td>
+<td>0.833</td>
+</tr>
+<tr>
+<td>bounded_admission</td>
+<td>11</td>
+<td>9</td>
+<td>11</td>
+<td>2000</td>
+<td>0.458</td>
+</tr>
+<tr>
+<td>fast_but_invalid</td>
+<td>20</td>
+<td>0</td>
+<td>19</td>
+<td>1500</td>
+<td>0.792</td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">В <code>more_workers</code> slots стало восемь, общий канал не изменился. В <code>more_restore_capacity</code> два независимых канала имеют прежнюю скорость каждый: суммарная обслуживающая мощность действительно удвоилась. В настоящем object store увеличение числа параллельных downloads само по себе такой мощности не создаёт. Оно может только разделить ту же полосу между большим числом запросов.</p>
+<p style="break-inside:avoid-page"><code>bounded_admission</code> допускает не более двух незавершённых запросов, остальные сразу отклоняет. Принятые успевают, но полезный ответ получают лишь <code>11 / 20 = 55%</code> всей группы. Ограничение защищает сервис от длинной очереди; цель 99% для всех обращений оно здесь не выполняет. В <code>fast_but_invalid</code> одна проверка заранее помечена неверной. Задержка остаётся хорошей, useful count снижается. Этот флаг - вход упражнения; программа не проверяет настоящий репозиторий или правильность решения агента.</p>
+<p style="break-inside:avoid-page">Запуск из корня книги:</p>
+<pre><code>python3 examples/ch28_capacity_model.py
+python3 -m unittest discover -s examples -p 'test_ch28_capacity_model.py'
+</code></pre>
+<p style="break-inside:avoid-page">Сама арифметика одного принятого запроса читается так; функция совпадает с исполняемым примером:</p>
+<pre><code class="language-python">def phase_times(trace):
+    return {
+        'worker_wait_ms': trace.assigned_ms - trace.sent_ms,
+        'restore_wait_ms': trace.restore_started_ms - trace.assigned_ms,
+        'restore_ms': trace.restored_ms - trace.restore_started_ms,
+        'execute_ms': trace.ended_ms - trace.restored_ms,
+        'e2e_ms': trace.ended_ms - trace.sent_ms,
+    }
+</code></pre>
+<p style="break-inside:avoid-page">Сводка также показывает <code>cut_at_10s</code>. Если оборвать наблюдение в момент окончания подачи, завершены только девять запросов, ещё одиннадцать ожидают или выполняются. p95 завершённых равен 5500 ms, хотя у полной группы он 10500 ms. Семь незавершённых уже превысили deadline, у четырёх срок ещё не истёк. Их будущий результат пока неизвестен. Сохраняйте незавершённые обращения и область percentile: график только быстрых завершений легко скрывает растущий хвост.</p>
+<p style="break-inside:avoid-page">У модели фиксированы времена и порядок, а число slots не вычисляется по RAM/CPU. Она не моделирует реальный scheduler, отмену просроченной работы или HPA. Во всех результатах сохранены <code>live_benchmark_executed=false</code> и <code>production_capacity_proven=false</code>. Двадцать искусственных запросов учат проверять механизм; они не доказывают обещание 99% на длительном потоке.</p>
+<h2>5. Выбрать инструмент под проверяемую причину</h2>
+<p style="break-inside:avoid-page">После модели у нас есть гипотеза для <code>billing</code>: общий путь восстановления ограничивает поток, а занятость Workers является следствием ожидания. На реальной системе гипотезу нужно отличить от конкурентов: нехватки подходящих slots, долгого bootstrap, model queue или lock contention. Начните с одного связанного trace, затем проверьте, повторяется ли картина у группы медленных запросов.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Вопрос</th>
+<th>Подходящий инструмент</th>
+<th>Что останется за его границей</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Где потрачено время одного запроса</td>
+<td>Связанные spans AX, Substrate, runner и клиента</td>
+<td>Trace показывает причинный путь лишь при достаточной инструментированности; выборка может пропустить редкий случай</td>
+</tr>
+<tr>
+<td>Совпадает ли рост очереди с насыщением ресурса</td>
+<td>Prometheus и dashboard с фазами, ошибками, storage traffic и Worker budgets</td>
+<td>Корреляция двух линий ещё не устанавливает причину</td>
+</tr>
+<tr>
+<td>Как ведёт себя вход при заданной частоте новых обращений</td>
+<td>k6 с arrival-rate executor и прикладной проверкой ответа</td>
+<td>Итерация сценария не обязательно равна одному HTTP-запросу или одной задаче</td>
+</tr>
+<tr>
+<td>Как воспроизвести сессию со state, think gaps и suspend/resume</td>
+<td>Сценарий Substrate suite на Locust/boomer, адаптированный под workload</td>
+<td>Сценарий ядра runtime не охватывает автоматически AX, harness, model и бизнес-результат</td>
+</tr>
+<tr>
+<td>Как проверить расчёт и учёт незавершённых запросов</td>
+<td>Локальная Python-модель и unit tests этой главы</td>
+<td>Они проверяют заданные предпосылки, а не действующую инфраструктуру</td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">Чтобы проверить причину, меняйте по одному фактору. Для storage-гипотезы сравните одинаковую подачу и один dataset при разных доступной полосе или locality; считайте bytes, время восстановления и первый полезный read. Для Worker-гипотезы сохраните storage, увеличьте подходящую warm capacity и проверьте, сократилось ли ожидание назначения. Если оба ресурса поменялись одновременно, удачный результат не объяснит, за что стоит платить.</p>
+<p style="break-inside:avoid-page">У профиля CPU другая задача: он показывает, на какие функции процесс тратит вычислительное время. Он полезен при вычислительном насыщении, но поток, ожидающий storage или lock, требует измерения ожиданий. Разделение труда инструментов позволяет начать с малого: trace для места задержки, метрики для масштаба, управляемый нагрузочный опыт для проверки причины. Перенос части метрик в более дорогую систему сам по себе не увеличивает достоверность опыта.</p>
+<h2>6. Описать реальную ёмкость WorkerPool</h2>
+<p style="break-inside:avoid-page">WorkerPool предоставляет подготовленные Worker Pods. Но один Pod не равен одному произвольному Actor. В API guide закреплённой ревизии capacity Worker берётся из ресурсов контейнера <code>ateom</code>; размещённые Actors расходуют общий budget своими объявленными limits. Есть также ограничение числа Actors через <code>--max-actors</code>. Первым может закончиться CPU budget, RAM или число slots; вне этой проверки остаётся достаточность реальных node resources и накладных расходов runtime. Если CPU или memory limit Worker не задан, scheduler считает соответствующее измерение неограниченным. Это отсутствие ограничения в placement, а не бесконечная физическая ёмкость.</p>
+<p style="break-inside:avoid-page">Представим четыре Workers с остатками памяти <code>2, 2, 2, 2 GiB</code>. Всего свободно 8 GiB, однако Actor, которому нужно 3 GiB на одном Worker, не помещается никуда. Это фрагментация capacity. Добавление такого же маленького Worker не создаст нужного места. Нужны больший подходящий Worker, меньший обоснованный размер Actor или иной состав размещения. Selectors, sandbox class и version eligibility дополнительно сужают выбор; арифметика по всей памяти кластера эти условия теряет.</p>
+<p style="break-inside:avoid-page">Увеличение мощности одного Worker называют вертикальным масштабированием, scale-up; увеличение числа Workers - горизонтальным, scale-out. Первое может дать место крупному Actor, второе - больше одновременно подходящих мест. Выбор определяется ограничением и возможностью делить работу: один последовательный этап сессии не ускорится только от появления ещё одного Worker.</p>
+<p style="break-inside:avoid-page">Разделение pools полезно, когда интерактивные небольшие сессии конкурируют с крупными сборками. Отдельный pool позволяет удерживать запас для быстрых обращений и независимо выбирать размер Workers. Цена - часть свободных ресурсов одного pool не поможет другому. Сравните стоимость этого резерва с последствиями очереди; дробление на множество почти пустых pools тоже расходует capacity.</p>
+<p style="break-inside:avoid-page"><strong>Oversubscription</strong> означает, что логических сессий больше, чем одновременно доступных вычислительных мест. Экономия возникает, когда ожидающая сессия действительно освобождает Worker. Низкий CPU duty cycle сам по себе этого не доказывает: Actor может ждать модель и продолжать удерживать память и assignment. Время «не вычисляет» и время «не занимает Worker» измеряются отдельно.</p>
+<p style="break-inside:avoid-page">Если тысяча Actors занимает Worker лишь 2% времени, среднее число занимающих его Actors равно двадцати. Это среднее по данной модели активности. Утреннее уведомление способно разбудить сотню сразу; на этот период нужны запас, очередь с ограничением или отказ по приоритетам. Уменьшение model latency тоже меняет расчёт: агент быстрее возвращается к tools и чаще занимает Worker. Ускорение одной зависимости иногда увеличивает нагрузку на другую.</p>
+<p style="break-inside:avoid-page">README Substrate приводит высокую плотность и быстрое resume, а architecture document предупреждает об aspirational частях дизайна. Числа из демонстрации не задают размер нашего pool: workload, runtime, состояние кэша и границы измерения нужно сопоставлять отдельно. Отношение всех существующих Actors к Pods не показывает ни частоту пробуждений, ни качество обслуживания всплеска.</p>
+<h2>7. Выбрать способ ускорения восстановления</h2>
+<p style="break-inside:avoid-page">У snapshot есть собственная стоимость. Передача <code>D bytes</code> по доступной полезной полосе <code>B bytes/s</code> занимает не меньше <code>D / B</code> секунд. К ней добавляются metadata lookup, storage RTT, обработка данных и восстановление runtime. При ленивой загрузке полный размер snapshot не обязательно передаётся до ответа Resume; задержка может перейти в первый доступ к нужным страницам. Поэтому RPC и первая полезная команда измеряются вместе, с указанием реально прочитанных bytes.</p>
+<p style="break-inside:avoid-page">Допустим, для полного чтения нужны 256 MiB, а полезная полоса - 128 MiB/s. Уже передача требует не меньше двух секунд. При четырёх таких восстановлениях и той же суммарной полосе нужно передать 1024 MiB, то есть не меньше восьми секунд суммарного интервала передачи. Как распределится ожидание отдельных запросов, зависит от scheduler и разделения полосы. Четыре параллельных downloads могут завершиться поздно все сразу.</p>
+<p style="break-inside:avoid-page">Выбор изменения зависит от причины. Если передаётся слишком много ненужного состояния, проверьте размер workspace и политику checkpoint. Если повторно читаются одни bytes, поможет проверенная locality или кэш, но результат тёплого прогона нужно отделить от холодного. Если ограничена полоса общего пути, дополнительные Workers в том же пути её не расширят. Если ограничен CPU обработки snapshot, изменение storage может почти ничего не дать.</p>
+<p style="break-inside:avoid-page">Golden snapshot подходит для новой сессии с общей подготовленной средой; Actor-owned snapshot нужен для продолжения конкретной сессии. Подмена второго первым ускорит старт ценой потери пользовательского состояния. Выбор durable-only или полного memory snapshot также меняет то, что программа должна восстановить сама. Здесь требуется контракт приложения из глав 5 и 14, а не только сравнение секунд.</p>
+<p style="break-inside:avoid-page">Для проверки нужны разные опыты: тёплое повторное обращение, обычный resume, холодный кэш и массовое восстановление после потери node. Последний случай связывает главу с DR: запас вычислений бесполезен, если все возвращаемые сессии одновременно насытят общий storage. Разнесите чтения во времени или ограничьте их concurrency, если это подтверждённо сохраняет полезный поток. Такой limiter требует собственного места в измеряемом пути.</p>
+<h2>8. Настроить autoscaling с учётом времени реакции</h2>
+<p style="break-inside:avoid-page">Автоскейлер наблюдает сигнал, вычисляет нужное число replicas и ждёт их появления. После наблюдения ещё проходят доставка метрики, управляющий цикл, размещение Pod, загрузка image и готовность Worker. Если весь путь занимает тридцать секунд, он не спасёт первые запросы с deadline 2.5 секунды. Реактивный scaling полезен для продолжительного роста, а короткий ожидаемый всплеск обслуживают заранее подготовленным резервом или явно ограничивают.</p>
+<p style="break-inside:avoid-page">Сигнал должен описывать дефицит того ресурса, который добавляет действие. CPU HPA полезен, когда дополнительные replicas делят вычислительную нагрузку. При исчерпанной памяти или ожидании storage низкий CPU не опровергает насыщения. Очередь и возраст работы показывают спрос, но если она растёт у общего model endpoint, увеличение Workers эту очередь не обслужит. После пробного увеличения проверьте, уменьшился ли исходный дефицит и не возник ли новый.</p>
+<p style="break-inside:avoid-page">В <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/autoscaled-workerpool/README.md">Substrate demo</a> HPA получает через Prometheus adapter внешний сигнал числа полных Workers. Для <code>AverageValue=0.7</code> и семи полных Workers идеальная рекомендация равна <code>ceil(7 / 0.7) = 10 replicas</code>. Число <code>0.7</code> означает full-workers-per-replica, а не целевые 70% CPU. Реальный результат ограничен настройками HPA и доступностью инфраструктуры.</p>
+<p style="break-inside:avoid-page">Документ demo поддержан для kind и связывает смысл такого сигнала с режимом one-Actor-per-Worker. API guide того же commit уже описывает shared budget и packing. Поэтому счётчик полных Workers нельзя без проверки трактовать как процент занятых CPU, памяти или slots. Восемь Workers с фрагментированной памятью и восемь Workers с подходящим свободным budget требуют разных решений, даже если одно агрегированное число выглядит одинаково.</p>
+<p style="break-inside:avoid-page"><strong>Headroom</strong>, запас, нужен на период до появления новой capacity и на потерю части действующей. Для interactive класса задайте минимальный тёплый резерв, для background - отдельную политику допуска. Известное массовое событие позволяет поднять reserve заранее. Scale-down делайте с учётом освобождения Actors и стоимости suspend: быстрое удаление резерва способно вызвать новый всплеск restore сразу после экономии.</p>
+<p style="break-inside:avoid-page">В demo downscale stabilization равна 300 s. В Kubernetes stabilization выбирает консервативную рекомендацию из окна, а rate policies ограничивают темп изменения. Это разные механизмы. Они сглаживают колебания, но не подтверждают безопасность выселения текущей работы; порядок drain и сохранения состояния остаётся задачей эксплуатации из главы 27.</p>
+<h2>9. Подать нагрузку так, чтобы замедление было видно</h2>
+<p style="break-inside:avoid-page">Вернёмся к утренним пользователям. Если генератор держит десять клиентов и каждый посылает следующий запрос после ответа, при замедлении новых запросов станет меньше. Это <strong>закрытая модель нагрузки</strong>. Она подходит для конечного числа сессий с таким поведением: например, пользователь действительно ждёт предыдущий шаг. Однако она может скрыть перегрузку сервиса, к которому независимо продолжают приходить новые задачи.</p>
+<p style="break-inside:avoid-page">В <strong>открытой модели</strong> расписание новых обращений не зависит от скорости ответов. В k6 для этого есть arrival-rate executors. Если вы задали две итерации в секунду, а итерация делает три HTTP-запроса, это не две операции API в секунду. Определите единицу сценария, а затем сохраните плановые arrivals и фактические отправки. Длинная итерация требует больше одновременно активных виртуальных пользователей.</p>
+<p style="break-inside:avoid-page">Сам генератор имеет предел. При нехватке свободных VUs k6 записывает <code>dropped_iterations</code>: часть запланированных итераций не стартовала. Эти обращения не являются отказами сервера, который их не видел, но и заданный спрос не был предъявлен. Проверяйте генератор и отдельно учитывайте пропуски. Закрытый тест, который сам замедлился вместе с сервисом, тоже не подтверждает прохождение заданного входного потока. Такое сокрытие ожиданий часто обсуждают как coordinated omission.</p>
+<p style="break-inside:avoid-page">Locust удобен для программируемых сессий и уже используется suite Substrate. Обычный User исполняет task, затем ждёт <code>wait_time</code>. Даже <code>constant_throughput</code> ограничивает темп, но не создаёт бесконечно новые Users, чтобы компенсировать замедление. Выбор инструмента не отменяет выбор модели arrivals. Для <code>billing</code> нужны оба вида: длительные сессии с think gaps и независимый поток пробуждений для проверки очереди.</p>
+<p style="break-inside:avoid-page">Перед нагрузкой проверьте один запрос, разрешения и прикладной результат. Записи во внешние системы направляйте в отдельно согласованный тестовый target, а не в настоящий канал публикации. Синтетическое исправление файла и настоящее принятие изменения имеют разные последствия. Прикладная проверка результата нужна и для быстрого, и для медленного ответа.</p>
+<h2>10. Использовать upstream suite с правильными границами</h2>
+<p style="break-inside:avoid-page">В выбранной ревизии Substrate уже есть <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/benchmarking/README.md">benchmarking suite</a>. <strong>DurDir</strong> подходит для гипотезы о записи и чтении durable state после resume. <strong>SWE-Perf replay</strong> воспроизводит execution cycles; его wall clock и время выполнения команд имеют разные границы. <strong>Agent-Session</strong> задаёт шаги, think gaps и suspend между ними; отдельная метрика <code>WakeFirstTouch</code> показывает пользовательское ожидание пробуждения. <strong>Spawn</strong> нужен для группы новых Actors и времени до первого успешного ping.</p>
+<p style="break-inside:avoid-page">Для нашего расследования начните с DurDir, если медленен первый read, или Agent-Session, если проблема возникает после пауз. Spawn отвечает на другой вопрос: как быстро поднимается новая группа. Прогон одного сценария не проверяет остальные пути. Документация называет suite nascent; сохраняйте её commit и фактические параметры вместе с результатом.</p>
+<p style="break-inside:avoid-page">У вывода есть важные ограничения. Для Spawn README прямо отмечает неверный denominator общих <code>actors_per_*</code> ratios. В других сценариях derived density может соединять пиковое число виртуальных пользователей с размером кластера, прочитанным после опыта. При autoscaling это разные моменты. Отсутствующие server metrics записываются как <code>null</code>, и сам прогон при этом может успешно завершиться. Поэтому сначала убедитесь, что нужное поле действительно измерено и соответствует вашему окну, затем используйте его для решения.</p>
+<p style="break-inside:avoid-page">Client latency показывает опыт клиента; histogram сервера - распределение конкретного серверного этапа. Их percentiles нельзя усреднять между replicas или подменять друг другом. Для общего percentile нужны совместимые buckets либо исходные observations одной популяции, одного периода и одних единиц. Укажите метод расчёта: в модели этой главы используется nearest rank по сырым значениям; histogram обычно даёт оценку внутри bucket. Небольшой набор из двадцати запросов особенно плохо описывает редкие хвостовые события.</p>
+<h2>11. Провести опыт и сформулировать границу обслуживания</h2>
+<p style="break-inside:avoid-page">План настоящего опыта для <code>billing</code> начнём с гипотезы: «при росте частоты resume увеличивается ожидание общего восстановления; увеличение подходящих Worker slots без изменения storage существенно не улучшит полезный поток». Она даёт различающее предсказание. Альтернатива про нехватку slots должна предсказать улучшение именно от Workers при прежних остальных условиях.</p>
+<p style="break-inside:avoid-page">Зафиксируйте паспорт среды из главы 26: commits, images и runtime assets, размеры Actors, Workers и nodes, storage topology и сетевой путь. Dataset должен включать реальные размеры repository и состояния без секретов. Обычные и крупные сессии обозначьте разными классами. Одинаковое название image без digest не фиксирует одинаковую среду.</p>
+<p style="break-inside:avoid-page">Подавайте несколько уровней нагрузки, включая ожидаемый поток и всплеск. Каждый уровень держите достаточно долго, чтобы увидеть поведение очереди, кэша и управляющих циклов; если backlog продолжает расти, это уже признак неустойчивого режима, а не готовое steady-state measurement. Резкий изгиб кривой, где хвост и очередь начинают расти быстрее полезных завершений, называют <strong>saturation knee</strong>. Рабочую границу выбирают с запасом до него и с учётом SLO, а не автоматически в точке максимального throughput.</p>
+<p style="break-inside:avoid-page">Сначала сравните базовый режим и одно вмешательство, затем повторите прогоны в сопоставимых условиях. В каждом сохраните arrivals, фактические отправки, принятые, отклонённые, завершённые, неверные и незавершённые результаты. Укажите окна подачи, измерения и drain; разделите cold и warm. Не усредняйте p95 отдельных прогонов как общий p95. При сравнении стоимости считайте полезный результат за тот же период, включая оплаченный idle reserve и зависимости.</p>
+<p style="break-inside:avoid-page">Отдельный согласованный опыт должен проверить краткий overload и возврат к норме: ограничена ли очередь, прекратились ли лишние retries, освободились ли ресурсы отменённой работы. Отказ одной node, storage throttling и rollout требуют отдельных безопасных сценариев с восстановлением. Эти испытания способны затронуть данные и доступность; успешный обычный прогон не заменяет их.</p>
+<p style="break-inside:avoid-page">Для эксплуатации оформите результат как короткую запись: workload и доли классов; поддержанный поток и форма burst; цель и фактическая доля полезных ответов; фазовые задержки и backlog; допустимая ошибка; reserve и стоимость; поведение при overload; условия кэша и отказа. Приложите raw data и версии. Если отказ не испытывали, граница действует только для проверенного здорового режима.</p>
+<p style="break-inside:avoid-page">Инженерный итог для нашего искусственного случая уже можно сформулировать: дополнительные Workers оставили 3 полезных ответа из 20, дополнительная независимая мощность восстановления дала 20, а ограничение допуска защитило принятые запросы ценой девяти отказов. Следующее решение для настоящего сервиса - измерить, существует ли именно такой общий предел и чем он вызван. Покупка ресурсов становится обоснованной после этой проверки.</p>
 <h2>Итог</h2>
-<p>Performance AX/Substrate - это задача о цепочке очередей, stateful transitions и внешних dependencies. Начните с workload model и goodput, разложите critical path, измерьте каждый service station, найдите saturation knee и только потом выбирайте scaling knob. Oversubscription приносит пользу только при низком и некоррелированном duty cycle; autoscaling требует signal, связанный с добавляемой capacity; storage и model/tool endpoints остаются частью end-to-end SLO.</p>
-<p>Следующая глава превращает эти измерения в troubleshooting handbook. Когда Task медленный или застрял, мы будем искать не «медленный компонент вообще», а конкретный слой, queue и переход состояния, на котором перестал выполняться проверенный contract.</p>
-
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">Substrate README: project claims, multiplexing и demos на снимке df788825</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture и aspirational warning на снимке df788825</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide: WorkerPool resource budget и placement</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/benchmarking/README.md">Substrate benchmarking suite: DurDir, SWE-Perf, Agent-Session и Spawn</a></li><li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/autoscaled-workerpool/README.md">Substrate autoscaled WorkerPool demo и ограничения scaling signal</a></li><li><a href="https://github.com/google/ax/issues/384">AX issue #384: serial reconcile и prototype benchmark с caveats</a></li><li><a href="https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/">Kubernetes Horizontal Pod Autoscaling: algorithm, metrics и behavior</a></li></ul></div></section><section class="chapter" id="ch-29"><div class="chapter-num">Глава 29</div><h1>Failure modes и troubleshooting: как локализовать нарушенный контракт</h1>
+<p style="break-inside:avoid-page">Производительность начинается с результата, которого ждёт человек, и времени, которое он готов ждать. Затем инженер переводит этот спрос в работу для отдельных ресурсов, находит ожидание на связанном пути и проверяет одно объяснение управляемым изменением. Workers, storage и model endpoint масштабируют разные части этого пути; admission и reserve помогают пережить период дефицита, но имеют собственную цену для пользователя.</p>
+<p style="break-inside:avoid-page">Попробуйте объяснить результаты модели без названий метрик: почему восемь Workers не ускорили группу, что именно пришлось удвоить в другом опыте и кому не помогло ограничение допуска. Если ответ опирается на движение запросов и занятие ресурсов, вы сможете выбрать измерение и для незнакомой платформы. Следующая глава применит этот способ рассуждения к конкретным симптомам и восстановлению нарушенного контракта.</p>
+<div class="sources" style="margin-top:3mm;padding:2mm 3mm;font-size:8.4pt;line-height:1.27"><h3 style="margin-top:0">Источники и дальнейшее чтение</h3>
+<ul>
+<li style="margin:.3mm 0"><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX direct lifecycle handler на закреплённой ревизии</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md">Substrate API guide о Worker capacity и placement</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">Substrate README с project claims</a> и <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">architecture с предупреждением о состоянии дизайна</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/benchmarking/README.md">Benchmarking suite и ограничения вывода</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/autoscaled-workerpool/README.md">Autoscaled WorkerPool demo</a></li>
+<li style="margin:.3mm 0"><a href="https://kubernetes.io/docs/concepts/workloads/autoscaling/horizontal-pod-autoscale/">Kubernetes HPA algorithm и behavior</a></li>
+<li style="margin:.3mm 0"><a href="https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/open-vs-closed/">Grafana k6 об открытой и закрытой модели</a> и <a href="https://grafana.com/docs/k6/latest/using-k6/scenarios/concepts/dropped-iterations/">пропущенных итерациях</a></li>
+<li style="margin:.3mm 0"><a href="https://docs.locust.io/en/stable/writing-a-locustfile.html#wait-time-attribute">Locust User и wait time</a></li>
+<li style="margin:.3mm 0"><a href="https://prometheus.io/docs/practices/histograms/">Prometheus о histograms и summaries</a></li>
+<li style="margin:.3mm 0"><a href="https://sre.google/sre-book/handling-overload/">Google SRE о защите от перегрузки</a></li>
+</ul>
+</div></section><section class="chapter" id="ch-29"><div class="chapter-num">Глава 29</div><h1>Failure modes и troubleshooting: как локализовать нарушенный контракт</h1>
 
 <p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-10</strong>. Команды и поля status относятся к этим снимкам и должны сверяться с закреплённой версией deployment. Issues ниже - наблюдения из конкретных окружений, а не доказательство, что любой похожий симптом имеет ту же причину.</p>
 
