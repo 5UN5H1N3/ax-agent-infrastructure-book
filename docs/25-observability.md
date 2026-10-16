@@ -1,365 +1,260 @@
 # Observability: от user goal до подтверждённого результата
 
-> Снимок главы: **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-08**. Реализованные возможности и целевая архитектура ниже разделены явно.
+> Снимок главы: **AX `ac233282` · Substrate `df788825` · повторная сверка 16.10.2026**. Это закреплённые снимки, не текущий `main`. Реализованные сигналы runtime, предлагаемый контракт приложения и ограничения учебного примера разделены.
 
-Пользователь пишет: «агент завис». На одном dashboard CPU свободен. В логах модели последний запрос завершился успешно. Actor числится `RUNNING`. Инструмент вернул HTTP 200. Каждая подсистема по отдельности выглядит здоровой, но результата нет.
+Алиса возвращается к задаче `billing` из главы 24: «Борис подтвердил публикацию. Почему ветка всё ещё старая?» Дежурный открывает dashboard: CPU свободен, Actor работает, последний запрос к модели успешен. Publisher записал `HTTP 200`. По отдельности компоненты выглядят исправными, но ответить Алисе пока нечего.
 
-Причина может находиться где угодно в причинной цепочке. Task ждёт approval, запрос припаркован из-за заполненного WorkerPool, model gateway держит очередь, tool ответил до фактического применения изменения, verification читает устаревшую replica, а дочерний Task завершился без передачи результата родителю. Набор разрозненных графиков не отвечает, какой из этих сценариев произошёл.
+Возможно, согласование относится к другому кандидату. Возможно, publisher принял команду, но ещё не выполнил запись. Или запись произошла, ответ потерялся, а verification не запустилась после перезапуска. Наконец, работа могла закончиться правильно, а событие об этом не дошло до хранилища логов. Для каждого случая требуется своё следующее действие.
 
-**Observability — способность восстановить внутреннее состояние и причинный путь системы по её внешним сигналам.** Monitoring проверяет заранее известные условия: «очередь выше порога», «p95 превысил цель». Observability нужна для вопроса, который заранее не был записан в alert rule: «почему именно этот user goal не дошёл до подтверждённого outcome?»
+**Наблюдаемость, observability, - возможность объяснять поведение системы по доступным сигналам и проверяемому состоянию.** Она помогает двигаться от пользовательского симптома к конкретному участку работы, отличать установленный факт от гипотезы и понимать, каких данных не хватает. Monitoring обычно проверяет заранее выбранные условия: растёт очередь, увеличилась доля ошибок, заканчивается место. Эти подходы дополняют друг друга: alert сообщает о проблеме, а наблюдаемость помогает её исследовать.
+
+В этой главе спроектируем путь расследования одной публикации, выберем сигналы и инструменты, а затем испортим доставку событий в локальной программе. Нас интересует инженерный результат: сможет ли дежурный обосновать вывод и выбрать безопасное действие, когда часть картины потеряна.
 
 ![Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals](.gitbook/assets/diagrams/25-23.png)  
 *Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals*
 
-Главная идея главы проста: метрики, логи и traces становятся полезными только после того, как система договорилась об identity, событиях и критерии результата. Сначала проектируют **telemetry contract**, затем выбирают backend.
+## Сначала договоримся, что считается результатом
 
-## Что именно требуется наблюдать
+У задачи `billing` есть несколько разных успехов. Модель сформировала предложение. Человек подтвердил определённый переход. Publisher принял запрос. Целевая система обновила ссылку. Verifier прочитал её состояние и сопоставил с согласованным кандидатом. Успешный ответ на одном шаге ничего не говорит о завершении остальных без явного контракта.
 
-У agent system есть четыре технических слоя и одна сквозная плоскость результата.
+В нашем сценарии пользовательский результат - **подтверждённая публикация согласованного кандидата в нужную ветку**. Для другого workflow определение будет другим: доставленный ответ, принятая заявка или проверенное изменение конфигурации. Его задают до выбора dashboard, иначе удобная метрика незаметно заменит цель работы.
 
-| Слой | Что происходит | Главный вопрос | Примеры сигналов |
+Затем определяют источники истины. Workflow store хранит состояние задачи и ожидания. Approval service - решение человека и его актуальность. Журнал попыток publisher - claim и известность внешнего результата. Целевая система - собственное состояние и доступный receipt. Verification связывает наблюдаемое состояние с критерием результата. Telemetry backend помогает найти эти факты и понять причинный путь, но не становится автоматически главным хранилищем каждого из них.
+
+Например, запись `tool.verified` в diagnostic log удобна для поиска. Если она потерялась, устойчиво сохранённый результат verification продолжает существовать. Если запись пришла от недоверенного workload, одного её имени недостаточно, чтобы считать изменение проверенным. Нужно знать, кто её выпустил, на каком основании и через какой доверенный путь она попала к читателю.
+
+Отсюда первое правило расследования: **отсутствие события означает отсутствие наблюдения, пока не доказана полнота соответствующего канала**. Оно может объясняться потерей, sampling, задержкой, retention или тем, что событие вообще не было сформировано. Отсутствие `tool.sent` не даёт права безопасно повторить запись. Состояние `uncertain` из главы 24 требует reconciliation с target, а не догадки по логам.
+
+## Какие сигналы отвечают на разные вопросы
+
+Представим, что за час поступило сто задач. По каждой читать полный журнал неудобно. Но и один процент успешных запросов не объяснит судьбу конкретной публикации. Поэтому сигналы имеют разное назначение.
+
+| Сигнал | На какой вопрос отвечает | Что полезно для `billing` | Предел вывода |
 | --- | --- | --- | --- |
-| Infrastructure | Nodes, Pods, сеть, storage, GPU, Redis/PostgreSQL/object store | Есть ли физический или платформенный bottleneck? | CPU throttling, memory pressure, disk latency, packet drops, GPU memory, workqueue depth |
-| Runtime / Substrate | Actor назначается Worker, запускается, suspend/resume, checkpoint/restore, request parking | Где находится логический Actor и почему он не исполняется? | actor state, WorkerPool saturation, resume phases, snapshot size, parked requests |
-| Agent / harness | Goal превращается в план, шаги, delegation, approvals, tools и verification | Какое решение принял orchestrator и на каком переходе остановился workflow? | step events, policy decision, approval state, retry, child Task, tool outcome |
-| LLM / inference | Request попадает в gateway, очередь и model server | Сколько времени и ресурсов ушло на inference и чем закончился вызов? | queue time, TTFT, inter-token latency, tokens, cache hit, error class, cost estimate |
-| Outcome | Внешнее состояние изменилось или проверяемый ответ доставлен пользователю | Получил ли пользователь требуемый результат, а не просто успешный RPC? | verified outcome, end-to-end latency, manual recovery, unsafe side effects |
+| Metrics | Насколько широко и долго проявляется проблема? | Доля результатов в срок, возраст ожидающих задач, длительность записи | Агрегат не объясняет конкретную задачу |
+| Structured logs / events | Какой наблюдаемый факт записал компонент? | Claim approval, отправка запроса, timeout, результат verification | Запись может отсутствовать, повторяться или содержать ошибочное утверждение |
+| Traces | Какие операции связаны и где прошло время? | Gateway → publisher → target, отдельная verification | Неполная instrumentation и sampling оставляют пробелы |
+| Profiles | На что процесс тратит CPU или память? | Горячий участок publisher либо collector | Не объясняют, почему задача ждёт человека |
 
-Outcome — не «пятый dashboard». Это верхняя плоскость, которая связывает остальные. Если tool process завершился с `exit_code=0`, но требуемый route не появился в authoritative control plane, tool execution успешен технически, а outcome не достигнут.
+Metric - измерение с определённой семантикой и единицей. Counter считает накопленные события, gauge показывает текущее значение, histogram хранит распределение наблюдений. Structured event описывает факт вроде «запрос принят» или «попытка получила timeout». Он может передаваться как log record; отдельный транспорт для каждого слова «event» не обязателен. Span описывает одну операцию со временем начала/окончания, атрибутами и связями. Trace объединяет связанные spans.
 
-## Три сигнала и два вида доказательств
+**Audit evidence имеет отдельные требования.** Если организация должна установить, кто разрешил изменение и что именно исполнили, нужны защищённые записи с установленным происхождением, сроком хранения и правилами доступа. Длинный retention обычных логов не обеспечивает ни полноту, ни неизменность. Для критического действия заранее решают, где admission зависит от сохранения evidence, как устроены транзакция/outbox и восстановление. Очередь OpenTelemetry сама по себе этой обязанности не выполняет.
 
-Разные сигналы отвечают на разные вопросы. Попытка складывать всё в один «лог агента» быстро создаёт дорогой архив, в котором трудно расследовать инцидент.
+В результате можно иметь быстрый диагностический канал с допустимыми потерями и устойчивый журнал значимых переходов. Это не обязательно две дорогие платформы: различаются прежде всего контракт записи, доступ и режим отказа. Дежурный должен понимать, какой именно источник он сейчас читает.
 
-| Сигнал | Для чего он нужен | Что в нём хранить | Чего в нём не должно быть |
-| --- | --- | --- | --- |
-| Metrics | агрегаты, тенденции, SLI и alerts | bounded labels, counts, histograms, gauges | Task ID, Actor UID, prompt, URL с параметрами, user ID |
-| Logs / events | точные факты с высокой cardinality | event name, identity, state transition, reason, error, sanitized details | secrets, raw credentials, скрытый chain-of-thought |
-| Traces | причинный путь и разложение latency | spans, parent/child relations, links, status, bounded attributes | один span длиной в дни, полный prompt по умолчанию |
+## Как найти одну работу после retries и resume
 
-Profiles полезны для CPU и memory hotspots, но не заменяют эти три сигнала. Они объяснят, где process тратит время, но не покажут, почему policy отправила действие на approval.
+Для истории Алисы нужен устойчивый `root_job_id`. Он связывает пользовательскую цель с Tasks и не меняется при переносе на другой Worker. У дочерней задачи собственный `task_id` и ссылка на родителя. Actor UID идентифицирует runtime-объект, activation/epoch - период исполнения после запуска или восстановления. Попытка обращения к инструменту получает отдельный `attempt_id` или `tool_call_id`.
 
-Нужно также разделить **diagnostic telemetry** и **audit evidence**. Диагностические логи могут сэмплироваться, теряться при backpressure и удаляться по короткому retention. Audit trail должен доказывать, кто инициировал действие, какая policy сработала, что именно было разрешено, какой executor применил side effect и чем закончилась verification. Он требует другой целостности, доступа и срока хранения. Копия обычных application logs не становится аудитом только из-за долгого retention.
+Эти идентификаторы отвечают на разные вопросы. Root говорит «для какой цели?», Task - «какая подзадача?», Actor - «какая исполняемая сущность?», activation и attempt - «какой проход?». Pod и node добавляют физическое размещение. Если после resume искать только прежний Pod, история закончится посередине. Если повторно созданный Actor с тем же именем склеить по имени, в историю попадёт другая сущность.
 
-## Как связать события одной задачи
+Idempotency key тоже имеет отдельную роль: он связывает повторные отправки одной логической операции там, где target поддерживает такую семантику. Новый trace не должен автоматически менять этот key; одинаковый trace не даёт права повторно применить запись. Связи между Task и Actor нужно сохранять как данные приложения. Их нельзя восстановить надёжно одним совпадением timestamps.
 
-Фраза «добавим `trace_id`» недостаточна. В agent workflow несколько временных масштабов: пользовательская цель живёт часы, Task — дни, Actor переживает много activations, RPC — миллисекунды, а external operation может продолжаться после timeout клиента. Один identifier не выражает все эти отношения.
+Полезный **telemetry contract** описывает имена полей, владельцев, единицы, допустимые значения, происхождение и совместимость версий. Например, gateway добавляет root и subject из доверенного контекста, runtime - Actor UID, publisher - ID внешней попытки. Содержимое запроса модели не должно переписывать эти поля. Инициатор и actor из главы 24 остаются разными участниками; поле `trace_id` не заменяет ни одного из них.
 
-Практический correlation contract разделяет четыре класса identity.
+### Как проходит context между сервисами
 
-| Класс | Примеры | Жизненный цикл |
-| --- | --- | --- |
-| Логическая цель | `root_job_id`, `session_id_hash`, `task_id`, `parent_task_id` | от постановки цели до terminal outcome |
-| Исполняемая сущность | `ate.atespace`, `ate.actor.uid`, `ate.actor.name`, template | Actor UID стабилен в течение жизни Actor |
-| Попытка | `activation_id`/epoch, `step_id`, `attempt`, `tool_call_id`, `approval_id`, `model_request_id` | один resume, шаг или внешний вызов |
-| Физическое размещение | `service.instance.id`, cluster, Pod, Worker, node, sandbox class | меняется при relocation и restart |
+При обычном HTTP/gRPC-вызове отправитель создаёт client span, внедряет context в metadata, а принимающая instrumentation извлекает его и создаёт server span. W3C Trace Context определяет `traceparent`/`tracestate` для переносимой correlation. При очереди context должен попасть в envelope сообщения; из наличия HTTP middleware это не следует. Также propagation необходимо проверить у MCP/tool adapter и при создании child Task. [W3C Trace Context](https://www.w3.org/TR/trace-context/)
 
-У каждого класса своя роль. `task_id` отвечает «какая работа?», `actor.uid` — «какой логический runtime?», activation/epoch — «какая попытка исполнения?», Pod и Worker — «где она выполнялась в этот момент?». Pod name нельзя использовать как основную identity: после suspend/resume история распадётся на несколько машин. Actor name тоже недостаточен без atespace, а повторно созданный объект нельзя смешивать с прежним — для этого нужен server-assigned UID.
+Входной trace context - данные вызывающего, а не authentication. На внешней границе можно начать собственный trace и связать его с входным, сохранив полезную correlation без доверия к чужой identity. Произвольный baggage не следует копировать во все запросы: он способен разнести чувствительные сведения и лишние атрибуты по внешним сервисам.
 
-`trace_id` связывает операции внутри конкретного причинного графа, но не должен подменять resource ID или idempotency key. Повтор команды может получить новый trace и сохранить тот же idempotency key. Новый Actor может получить прежнее имя, но обязан иметь другой UID.
+Доступ к самой истории тоже требует authorization. Знание `root_job_id` или `trace_id` не должно открывать чужой tenant: backend и интерфейс проверяют права читателя, включая drill-down и ссылки на evidence. Ingestion также разделяет доверенные platform records и workload assertions. Иначе тщательно ограниченный gateway может раскрыть закрытый diff через общий log store или принять подложное событие от Actor за решение control plane.
 
-### Минимальный propagation contract
+В асинхронном workflow логическая цель может ждать час, а активная работа занимать секунды. Держать один незавершённый span на весь час часто неудобно: данные буферизуются до завершения, процесс может исчезнуть, sampling и поиск усложняются. Это инженерный выбор, не запрет спецификации на длинные spans. Обычно удобнее закончить trace постановки задачи, сохранить context и открыть следующий активный участок при resume.
 
-На каждой границе — gRPC/HTTP, queue, child Task, model gateway, MCP/tool executor — передаются:
+OpenTelemetry позволяет связать spans через parent и links, в том числе между traces. Parent подходит для одного непосредственного причинного предшественника; links полезны для fan-in, возобновления и нескольких причин. Добавлять известные links лучше при создании span, чтобы sampler мог их учесть. Новая activation не обязана всегда создавать новый trace: важнее явно выбрать правило и сохранить связь с root job и предыдущей работой. [OpenTelemetry tracing API](https://opentelemetry.io/docs/specs/otel/trace/api/)
 
-- W3C `traceparent` и при необходимости `tracestate`;
-- `root_job_id`, `task_id`, `parent_task_id` как явно определённые application attributes;
-- Actor identity, которую authoritative runtime добавляет сам;
-- operation-specific ID: `tool_call_id`, `model_request_id`, `approval_id` или external request ID.
+### Время на диаграмме требует интерпретации
 
-Не доверяйте workload самостоятельно присвоить себе platform identity. Substrate резервирует namespace `ate.*` и отбрасывает такие ключи из actor output: иначе workload мог бы выдать себя за другой Actor. Тот же принцип нужен AX и tool gateway — authoritative identity добавляется на доверенной границе.
+Если reviewer и tester работают параллельно 4 и 6 секунд, их общий участок занимает примерно 6 секунд плюс coordination, а не 10. Parent span уже включает время дочерних вызовов; складывать его duration с durations children тоже нельзя. Для длительности пользовательского пути ищут critical path и интервалы ожидания, а для потребления ресурсов могут понадобиться другие суммы.
 
-## Trace не должен жить столько же, сколько Task
+Wall-clock timestamps нужны для сопоставления компонентов, но часы разных hosts могут расходиться. Внутри процесса длительность измеряют подходящими monotonic часами; причинные ссылки и sequence/version помогают интерпретировать порядок. При этом sequence одного producer не упорядочивает всю распределённую систему. После потери событий «последнее по времени в backend» не становится доказанным текущим состоянием.
 
-Долгий agent workflow не следует представлять одним незавершённым span. Span, открытый на часы или дни, плохо экспортируется, неудобен для sampling и может исчезнуть при crash. Parent span также не всегда охватывает асинхронного потомка по времени.
+## Наблюдаемая публикация по шагам
 
-Лучше использовать короткие traces по активным участкам и связывать их:
+У принятой цели сначала появляется запись о приёме и критерии результата. Согласование описывается как ожидание с ID и deadline, а не как долгий tool call с неизвестной причиной паузы. После approval publisher сохраняет claim и связывает попытку с digest согласованной операции. Diagnostic events отражают эти переходы, не управляя ими.
 
-1. Входной request создаёт trace для принятия goal и создания Task.
-2. Resume или новая activation создаёт новый trace, связанный с root job и предыдущей attempt.
-3. Producer span заканчивается после постановки работы в queue; consumer span описывает фактическое выполнение.
-4. Child Task получает собственный trace и `parent_task_id`; scatter/gather связывает результаты через span links.
-5. Tool и model requests создают отдельные client spans, а gateway/server — соответствующие server spans.
+При обращении к target полезно различать `request_sent`, protocol response и verification. `HTTP 200` может означать окончательный результат либо лишь приём команды - это определяет API. Называть любую такую запись `executed` без уточнения опасно: дежурный должен увидеть, что известно о внешнем эффекте. В нашем приложении protocol-успех и подтверждение результата имеют разные события.
 
-OpenTelemetry links предназначены именно для причинных отношений, которые не укладываются в одного parent. Они особенно полезны после suspend/resume, retries, fan-out и при пересечении trust boundary, где входной trace сознательно заменяется новым. Для расследования сохраняется link, но входной `traceparent` не принимается как доверенная identity пользователя.
-
-## События агента: фиксируйте переходы, а не внутренний монолог
-
-Agent observability не требует сохранять chain-of-thought. Скрытое reasoning нестабильно как interface, может содержать чувствительные данные и не является надёжным доказательством принятого решения. Нужен структурированный журнал **наблюдаемых решений и действий**.
-
-Полезный минимальный словарь событий:
-
-- `agent.task.created`, `agent.task.completed`, `agent.task.failed`;
-- `agent.step.started`, `agent.step.completed`;
-- `agent.route.selected`, `agent.child.created`, `agent.child.result_received`;
-- `agent.tool.proposed`, `agent.tool.authorized`, `agent.tool.executed`, `agent.tool.verified`;
-- `agent.approval.requested`, `agent.approval.granted`, `agent.approval.expired`;
-- `agent.model.requested`, `agent.model.completed`;
-- `agent.outcome.verified`.
-
-Событие должно быть машинно разбираемым и версионированным. Свободный текст остаётся для человека, но не несёт единственную копию semantics.
+Минимальный диагностический record может выглядеть так:
 
 ```
 {
-  "event.name": "agent.tool.verified",
-  "event.schema.version": "1.0",
-  "timestamp": "2026-10-08T10:41:12.381Z",
+  "schema": 1,
+  "event": "tool.protocol_ok",
+  "root_job_id": "billing-742",
+  "task_id": "publisher-7",
+  "activation_id": "activation-2",
+  "attempt_id": "attempt-3",
+  "producer": "publisher",
+  "source_event_id": "publisher-event-981",
   "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
-  "root_job_id": "job-8041",
-  "task_id": "task-net-17",
-  "step_id": "step-06",
-  "tool_call_id": "tool-923",
-  "tool.name": "network.apply_prefix_list",
-  "action.class": "write",
-  "policy.decision_id": "dec-118",
-  "approval.id": "apr-551",
-  "outcome": "verified",
-  "verification.source": "network-controller",
-  "duration_ms": 842
+  "span_id": "00f067aa0ba902b7",
+  "operation_id": "target-op-81",
+  "result": "accepted"
 }
 ```
 
-Этот record не содержит raw token, prompt или полный tool payload. Если для forensic analysis нужен payload, храните его в отдельном зашифрованном evidence store, а в событии — digest, classification и access-controlled reference.
+Это schema нашего приложения, не новая OpenTelemetry semantic convention. SDK/adapter сопоставляет её с соответствующими полями выбранного формата. В настоящий контракт добавляют время события, время наблюдения, тип ошибки и необходимые ссылки на approval/операцию. Sensitive payload хранится отдельно, если для него есть обоснование и разрешение. Локальный опыт ниже намеренно использует меньшую схему.
 
-### Tool call — не одно событие
+Затем verifier получает данные через предусмотренный read path и сохраняет, что именно проверено: target, ожидаемый кандидат, наблюдаемая версия, источник и время чтения. Совпадение конечного значения может подтвердить критерий цели, но не всегда докажет, какая попытка его установила. Для attribution могут потребоваться receipt и журнал target. Эта граница важна при потерянном ответе и нескольких writers.
 
-Для write operation различайте минимум четыре момента:
+Чтобы получить полезный dashboard, нужны и ожидающие задачи. Панель «100% успешных завершений» может выглядеть отлично, когда половина принятых целей навсегда осталась в очереди. Поэтому покажем отдельно достигнутые результаты, просроченные цели, backlog по состояниям и возраст самого старого ожидания. Если включаем ожидание человека в пользовательское время, так и называем SLI; техническое время без approval можно измерять вторым показателем с явными границами.
 
-1. **Proposed** — модель или rule предложили typed action.
-2. **Authorized** — PDP/approval разрешили конкретный digest действия.
-3. **Executed** — executor отправил downstream request и получил protocol result.
-4. **Verified** — authoritative source подтвердил ожидаемое состояние.
+## Metrics: сначала семантика и бюджет размерностей
 
-Если записать только `tool.success=true`, невозможно понять, было ли действие разрешено, применилось ли оно и не относится ли ответ к повторной попытке. Та же модель полезна для read: request, response classification, freshness и provenance.
+Предположим, у counter есть `stage` из трёх значений и `result` из четырёх. Полный набор даёт до 12 комбинаций на один набор остальных dimensions. Добавим 10 000 `task_id` - получим до 120 000 комбинаций; replicas, environments и другие labels умножат число дальше. Не все сочетания обязательно возникнут, но архитектура должна учитывать возможный рост и churn. [Prometheus: labels](https://prometheus.io/docs/practices/naming/)
 
-## Metrics: cardinality — часть архитектуры
+Высокая cardinality сама по себе не делает данные бесполезными. ID нужны для поиска в events и traces, однако там они тоже стоят денег: влияют на индексы, объём и доступ. Практический выбор - bounded labels для агрегатов и контролируемый поиск по IDs для расследования. Exemplar может связать измерение с trace без превращения `trace_id` в label; он не обеспечивает полную выборку всех задач.
 
-Metric backend создаёт отдельную time series для каждой комбинации labels. Если добавить `task_id` или `actor.uid`, число series растёт вместе с числом задач и может превратить observability в причину отказа.
+Counter `tool_requests_total` должен иметь однозначную единицу учёта: логическая операция, отправленная попытка или protocol response. Retry увеличит число попыток, но не количество принятых целей. Для длительности задают секунды либо другую явно указанную единицу и проверяют преобразование на границе OTLP/Prometheus. Успех и отказ можно наблюдать в одной histogram с bounded outcome, если эта семантика осмысленна для запроса.
 
-**Подходящие labels ограничены известным набором:**
+Для вопроса «какая доля укладывается в 30 секунд?» bucket на этом пороге часто полезнее приблизительного p99. У classic histogram число series включает buckets, count и sum; увеличение числа buckets тоже имеет цену. Quantiles отдельных replicas нельзя просто усреднить и назвать общим p95: распределения сначала агрегируют совместимым способом. При использовании native histogram учитывают поддержку выбранного backend и тип данных. [Prometheus: histograms](https://prometheus.io/docs/practices/histograms/)
 
-- `service.name`, environment, region;
-- model provider и model family/revision;
-- tool class, а не произвольный command;
-- outcome и документированный `error.type`;
-- Substrate template, WorkerPool, sandbox class;
-- bounded policy/result class.
+Данные о ресурсах требуют своей семантики. Отсутствующее measurement означает «не измерено», пока источник не определил иное. Накопительный CPU counter читают как прирост в рамках соответствующего epoch, учитывая reset; складывать все накопленные readings нельзя. По этой причине в контракт входят не только названия полей, но и источник, units и жизненный цикл счётчика.
 
-**Высокая cardinality уходит в logs, events и traces:** Task ID, Actor UID, user/session, repository URL, prompt digest, external operation ID. В metric exemplar можно оставить ссылку на конкретный trace, не превращая trace ID в label.
+## SLI: как не потерять зависшие задачи в знаменателе
 
-В Substrate это уже сделано намеренно: агрегированные `ate.actor.stats.*` metrics используют bounded template/pool dimensions, а per-actor measurements идут как events. Не создавайте поверх них log-based metric с label `ate.actor.uid` — это вернёт ту же проблему под другим названием.
+**SLI** - определённый показатель качества, **SLO** - согласованная цель для него на заданном окне. Для `billing` выберем учебный показатель: доля принятых целей, результат которых подтверждён не позднее индивидуального deadline. Плановое ожидание approval входит в это время. Смена такой политики требует новой явной версии измерения, а не исключения неудобных задач задним числом.
 
-Метрика должна сохранять смысл. Например, `atenet.router.parking.wait.duration` различает `served`, `budget_exhausted`, `canceled`, `timeout` и `error`. `budget_exhausted` означает, что бюджет закончился при retryable условии, а не обычную application error. По последнему gRPC code нужно различать дефицит capacity, lifecycle contention и control-plane outage. Один counter `requests_failed_total` стёр бы эти различия и направил расследование не туда.
+Берём cohort по времени принятия `[start, end)`. На момент наблюдения `now` в denominator включаем все eligible цели этого cohort, чей deadline уже наступил. Good - verification зафиксирована к этому deadline. Просроченное ожидание и неизвестный результат учитываются как bad для данного обязательства; они не обязаны быть terminal в workflow. Цели, чей deadline впереди, показываются отдельно как `not_due`. Поздний успех полезен пользователю, но не исправляет факт нарушения срока.
 
-## Что уже даёт Substrate
+Это один конкретный deadline-based SLI, не универсальная формула надёжности. Для непрерывной отчётности можно группировать по наступлению deadlines или использовать другое документированное правило окна. Главное - сохранить учёт принятых работ, явно определить исключения, запаздывание данных и пересчёт. Пустой denominator означает «нет наблюдений», а не 100% успеха. Общий подход к определению пользовательских SLIs и SLOs изложен в [Google SRE Workbook](https://sre.google/workbook/implementing-slos/).
 
-На снимке `df788825` Substrate реализует существенно больше, чем было видно из краткой версии этой главы:
+Источник population должен быть полным настолько, насколько требует измерение. Даже unsampled events могут потеряться, продублироваться или не быть записаны при аварии. Для точного расчёта нужны устойчивые acceptance records, дедупликация и проверка полноты, например сверка с workflow store. При недоступном источнике показатель становится неизвестным или помечается неполным; исчезновение источника нельзя интерпретировать как отсутствие ошибок.
 
-- оборачивает stdout/stderr контейнеров в structured JSON и добавляет `ate.actor.*`, atespace, template и container metadata;
-- позволяет смотреть текущий Actor через `kubectl ate logs actors ... --atespace ...`; для истории через migration/resume нужен central log backend;
-- при `--follow` способен продолжить stream после migration Actor;
-- экспортирует foundational OTLP metrics и on-demand distributed traces;
-- выдаёт authoritative lifecycle events `ate.actor.state_changed`, `ate.actor.crashed` и `ate.actor.usage_sampled`;
-- фиксирует per-restore timing breakdown и actor usage без добавления Actor UID в metric labels;
-- имеет metric registry и event registry, проверяемые CI;
-- предоставляет request-parking metrics и `/statusz` для capacity diagnosis.
+## Локальный опыт: сломаем доставку, сохранив смысл результата
 
-Есть важные ограничения.
+`examples/ch25_observability_contract.py` - программа на стандартной библиотеке Python. Сеть, OTel SDK, collector service, модель и AX/Substrate не используются. `Goal` и ledger - **доверенные fixtures состояния**, а не реализация устойчивого хранилища. Программа не публикует кандидатов; она рассматривает заранее заданные результаты работы.
 
-**Во-первых, lifecycle stream нельзя сэмплировать.** `ate.actor.state_changed` записывается после committed state transition. Consumer, строящий derived state, принимает последнее событие для Actor UID; потеря одного record создаёт тихо устаревшее состояние. Current state всё равно следует запрашивать у control plane: event stream — история переходов, а не гарантированная база текущего состояния.
+У пяти целей acceptance time равен 0, deadline - 50; шестая принята в 45 и имеет deadline 95. Смотрим cohort `[0, 50)` при `now=60`. Все числа - условные единицы времени, а не реальная длительность запуска. `happy` проверена в 20, `telemetry_lost` - в 30, `late_verified` - в 55. Две другие старые цели ещё ждут approval либо выяснения результата записи.
 
-**Во-вторых, container line получает trace context только тогда, когда actor SDK сам его эмитирует.** Runtime не может достоверно определить, какому concurrent request относится строка общего stdout. Component records имеют `trace_id`, `span_id`, `trace_flags`, но полная actor-level correlation остаётся частично roadmap.
+Diagnostic collector имеет очередь вместимостью один record. В опыте `telemetry_lost` она занята записью приёма, поэтому событие verification отбрасывается. Сам результат verification остаётся в ledger. Другая запись доставляется повторно, а старое событие `tool.sent` приходит последним с более поздним wall-clock timestamp, имитируя рассогласование часов. Collector считает потери и дубликаты; в пределах одного producer/activation выбирает событие по sequence.
 
-**В-третьих, доставка имеет failure modes.** OTLP processor может потерять records при заполненной queue, недоступном collector или завершении process до flush. Режим `otlp,console` создаёт резервную stdout-копию, но при одновременном сборе stdout и OTLP способен дать duplicates. Pipeline должен выбрать одну authoritative ingestion path или дедуплицировать по event identity.
+Запуск из корня репозитория:
 
-**В-четвёртых, ресурсные события и metrics имеют разную semantics.** `ate.actor.usage_sampled` несёт Actor identity и epoch; CPU counter может сброситься при новой activation. Отрицательная дельта означает reset, а не отрицательное потребление. Отсутствующее измерение означает «не измерено», а не ноль.
+```
+python3 examples/ch25_observability_contract.py
+python3 -m unittest discover -s examples -p 'test_ch25*.py' -v
+```
 
-## Что реально есть в AX, а что ещё предстоит
+Функция расчёта SLI намеренно вообще не принимает diagnostic events:
 
-На снимке AX `ac233282` control plane и runner используют стандартный Go `slog`. Сообщения содержат полезные отдельные поля: Task name, atespace, Actor name, image, PID, command и exit code. Они помогают локальной диагностике, но это ещё не end-to-end observability contract:
+```
+def outcome_sli(goals, start, end, now):
+    """Deadline-matured acceptance cohort; diagnostics are deliberately absent."""
+    if not start < end <= now:
+        raise ValueError("invalid observation window")
+    if len({g.job for g in goals}) != len(goals):
+        raise ValueError("duplicate goal")
+    if any(g.deadline < g.accepted_at or (g.verified_at is not None and
+           not g.accepted_at <= g.verified_at <= now) for g in goals):
+        raise ValueError("invalid goal time")
+    cohort = [g for g in goals if g.eligible and start <= g.accepted_at < end]
+    due = [g for g in cohort if g.deadline <= now]
+    good = sum(g.verified_at is not None and g.verified_at <= g.deadline for g in due)
+    return {"eligible": len(cohort), "due": len(due), "not_due": len(cohort) - len(due),
+            "good": good, "bad": len(due) - good,
+            "ratio": good / len(due) if due else None}
+```
 
-- `ax-server` и `ax-task-runner` настраивают text handler в stdout;
-- gRPC server создаётся без OpenTelemetry interceptors;
-- нет общей propagation цепочки Task → Actor → runner → model/tool;
-- нет стандартной schema событий agent steps, policy, approval и verification;
-- Telemetry and Trajectory Collection прямо указана в AX roadmap как будущая работа.
+`investigate` выбирает следующую проверку по доверенному состоянию, а events использует для обнаружения расхождения наблюдений. Она не исправляет workflow и не повторяет side effect. Результат получается таким:
 
-Поэтому корректная архитектура сейчас — не утверждать, что AX уже экспортирует полную trajectory, а поставить **telemetry adapter на границах, которыми вы управляете**:
+| Цель | Состояние по ledger | Следующая проверка | Результат по deadline |
+| --- | --- | --- | --- |
+| `happy` | `verified` | `none` | `good` |
+| `approval_wait` | `approval` | `check_approval_deadline` | `bad` |
+| `reply_lost` | `uncertain` | `reconcile_target` | `bad` |
+| `telemetry_lost` | `verified` | `inspect_telemetry` | `good` |
+| `late_verified` | `verified` | `none` | `bad` |
+| `young` | `running` | `follow_activation` | `not_due` |
 
-1. instrument AX API/gRPC и reconciler;
-2. передавать Task/root identity в runner как отдельный доверенный context;
-3. instrument agent harness, model gateway и tool gateway;
-4. принимать authoritative Actor metadata от Substrate;
-5. нормализовать всё в версионированную schema в collector;
-6. проверять propagation и redaction integration tests.
+По выбранному SLI good = 2, due = 5, ratio = **40%**; одна цель ещё не созрела для оценки. Если оставить только три завершившиеся verification, получится 2/3, около **66,7%**. Разница вызвана знаменателем, а не улучшением системы. Отбрасывание ещё и позднего результата исказило бы картину сильнее.
 
-Когда AX добавит native trajectory export, adapter можно заменить, сохранив contract и backend queries.
+В диагностическом канале 11 предложенных к доставке records: один потерян из-за очереди, одна повторная копия удалена при дедупликации, сохранено девять уникальных записей. Последним по sequence для `happy` остаётся `tool.verified`, хотя старое событие пришло позже и имеет больший timestamp. Это правило действует только в отдельном stream; программа не строит глобальные распределённые часы.
 
-## LLM telemetry без утечки данных
+Попробуйте мысленно удалить все diagnostics для `happy`. По ledger цель останется verified, но потребуется исследовать instrumentation или доставку. Теперь сделайте ledger недоступным: результат расследования должен стать `unknown`, даже если в diagnostics есть `tool.verified`. Эти два случая включены в тесты и показывают, почему источники имеют разный вес.
 
-Для model request полезно разложить end-to-end latency:
+В примере также проверяются bounded metric labels и allowlist атрибутов. Данные `Authorization`, prompt, произвольные strings и попытки подменить identity не попадают в диагностические атрибуты. Это конечная учебная schema, не универсальное DLP: доверенные Context и хранилище не аутентифицированы, строки IDs сами требуют защиты, а допустимые числа могут быть covert channel. Очередь ограничена, но история records хранится без retention в памяти. Нет disk buffer, реального sampling, OTLP propagation, span links и устойчивости после рестарта. Тесты этих преобразований не заменяют интеграцию.
 
-`agent wait → gateway queue → provider/network → model queue → time to first token → generation → post-processing`
+## Как выбирать инструменты под получившийся контракт
 
-Минимальный набор attributes:
+Теперь понятно, какие обязанности распределять между инструментами. Instrumentation рождает сигналы в контролируемых сервисах. Collector принимает и преобразует их. Backend хранит и ищет. UI помогает переходить от агрегата к конкретной истории. Ни один слой автоматически не реализует остальные.
 
-- provider, model name и revision;
-- operation (`chat`, `generate_content`, `embeddings` и аналогичная stable class);
-- input/output token counts, cache read/write tokens;
-- queue duration, TTFT, generation duration, inter-token latency, total duration;
-- finish reason, retry count, throttling и bounded error type;
-- provider request ID в trace/log, но не в metric label;
-- estimated cost с явно указанной версией pricing table.
-
-OpenTelemetry GenAI semantic conventions уже определяют общие `gen_ai.*` names и операции, включая `execute_tool` и `invoke_agent`, но многие conventions ещё имеют development status. Зафиксируйте используемую версию schema и план migration.
-
-Prompt, completion, tool arguments и results могут содержать secrets и PII. Их запись должна быть **opt-in**, redacted, ограничена по размеру и доступна меньшему кругу людей, чем обычные latency metrics. Для production диагностики чаще достаточно token counts, digests, content class, policy flags и защищённой ссылки на отдельно сохранённый sample. Никогда не записывайте hidden reasoning как обязательный telemetry field.
-
-## SLI и SLO: измеряйте пользовательский результат
-
-SLO — не список красивых percentiles. Для каждого SLI задайте:
-
-- измеряемую population и источник истины;
-- good/bad event и исключения;
-- окно и objective;
-- owner и действие при расходовании error budget.
-
-Например:
-
-`verified outcome ratio = verified terminal goals / eligible terminal goals`
-
-В denominator нельзя молча исключать timeout, manual abort или задачи, потерянные при restart. Exclusion policy должна быть явной. Sampled traces нельзя использовать как точный denominator — SLI считается по unsampled metric/event stream.
-
-Практический набор для agent platform:
-
-| SLI | Что защищает | Примечание |
+| Потребность | Подходящий класс инструмента | Что проверить при выборе |
 | --- | --- | --- |
-| Verified outcome ratio | полезный результат | определяется отдельно для каждого класса задач |
-| End-to-end outcome latency | ожидание пользователя | от accepted goal до verified outcome, а не до model response |
-| Time to first useful action | отзывчивость | «полезное» задаётся наблюдаемым событием, не первым token |
-| Manual recovery ratio | автономность | отделять плановый approval от аварийного вмешательства |
-| Unsafe/unauthorized side effects | safety guardrail | абсолютный count может быть важнее процента |
-| Task ready / resume latency | runtime readiness | разделять cold boot, restore и queue/parking |
-| Tool verified success ratio | надёжность действий | protocol success не считается verification |
-| Model TTFT и request success | inference health | не подменяет end-to-end outcome |
+| Единая schema и перенос context между сервисами | OpenTelemetry SDK и instrumentation библиотек | Поддержку используемых протоколов, async context, версию conventions и реальную полноту hooks |
+| Приём, redaction, batch и маршрутизация сигналов | OpenTelemetry Collector | Пропускную способность, queue/retry/storage, безопасность входов и наблюдаемость потерь |
+| Агрегаты и alerts по bounded dimensions | Prometheus-совместимый metrics backend | Series budget, retention, histogram support, полноту ingestion и стоимость эксплуатации |
+| Поиск по job/attempt и просмотр причинного пути | Log store и trace backend, например Jaeger | Индексацию IDs, доступ, links, sampling, retention и переходы из metrics |
 
-Tokens/s, GPU utilization и cache hit — важные engineering metrics, но сами по себе не SLO продукта. Высокий throughput не помогает пользователю, если agent циклически повторяет бесполезный tool call.
+Для небольшой системы можно начать с одного instrumented gateway, структурированных logs и понятной метрики принятия/результата. Дополнительный collector оправдан, когда нужны общая обработка, несколько экспортёров и контроль pipeline. Отдельный trace backend полезен, когда ручное соединение операций уже мешает расследованию. UI вроде Grafana объединяет views, но не создаёт отсутствующие causal links или недостающие acceptance records.
 
-## Sampling и надёжность telemetry pipeline
+Проверяйте выбор на своём отказном сценарии: можно ли найти `billing-742`, увидеть ожидание approval, перейти к конкретной попытке после resume и отличить потерянный response от неподтверждённого результата? Это более содержательный acceptance test, чем количество встроенных dashboards. Для tracing и поиска первичны [документация Jaeger](https://www.jaegertracing.io/docs/) и возможности конкретного backend; для обработки доставки - [Collector resiliency](https://opentelemetry.io/docs/collector/resiliency/).
 
-Цена хранения контролируется не одинаковым sampling для всех данных, а их критичностью:
+### LLM telemetry как часть этого пути
 
-- SLI metrics и counters — не сэмплировать;
-- lifecycle, authorization, approval, execution и verified outcome — не сэмплировать;
-- error и high-impact traces — сохранять полностью;
-- normal traces — head sampling для бюджета и tail sampling по latency/outcome;
-- verbose model/tool content — opt-in sampling с redaction и коротким retention;
-- actor usage events — можно снижать по документированному правилу, если они не являются billing evidence.
+Модель - один из участников workflow. Её request нужно связать с Task и попыткой, а latency разделить по реально наблюдаемым границам. TTFT со стороны клиента уже может включать сеть и очередь provider. Server-side queue time и prefill duration имеют другую точку отсчёта; суммировать всё без определения интервалов нельзя. Подробные измерения inference разобраны в главе 21.
 
-Collector — часть production path наблюдаемости и сам требует metrics: accepted, dropped, refused, queue size, retry и export latency. При его отказе приложение не должно бесконечно блокировать user request, но критическое evidence не должно тихо исчезать. Используйте bounded queue, disk buffer там, где он оправдан, flush budget, drop counters и отдельный канал для audit events.
+Для штатной диагностики обычно достаточно operation/model identifiers, token counts, finish/error class и измеренных durations. Provider request ID полезен для расследования, но не для metric label. Если оценивается стоимость, сохраняют версию pricing и различают оценку от итогового bill. Качество ответа или корректность изменения измеряются отдельно: быстрый `finish_reason` ещё не подтверждает пользовательский outcome.
 
-Проверьте clock synchronization. Trace UI может нарисовать невозможный порядок, если часы Worker и gateway расходятся. Для causal order важны parent/link relations и monotonic duration внутри process, а wall-clock timestamp требует синхронизированных hosts.
+GenAI semantic conventions помогают согласовать имена spans, metrics и events, но версию нужно закрепить вместе с instrumentation. При сверке этой редакции прежний раздел сайта OTel уже перенаправляет к отдельному [репозиторию GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai). Поэтому в книге не следует обещать, что произвольный набор `gen_ai.*` универсально стабилен или что смена SDK автоматически мигрирует старые queries.
 
-## Security telemetry
+Prompt, completion, tool arguments и results собирают только при понятной необходимости, с разрешением, ограничениями размера, доступом и retention. Лучше не собирать содержимое по умолчанию, чем надеяться удалить всё секретное одной regex. В частности, скрытый reasoning не нужен для обычного incident timeline: используйте наблюдаемые операции и подтверждённые решения.
 
-Observability backend видит topology, identities, error details и иногда содержимое запросов. Это высокоценный control-plane asset.
+## Что произойдёт при отказе самой телеметрии
 
-Минимальные controls:
+Collector и exporter имеют очереди, пределы памяти, retry и shutdown. При переполнении данные могут быть отброшены; crash до flush тоже оставляет пробел. Для важного потока нужен подходящий persistent buffer, но и он ограничен размером диска и отказным доменом. Retry может дать повторную доставку. Формулировка «у нас OTLP» не задаёт end-to-end exactly-once и не доказывает полноту audit. [OpenTelemetry Collector resiliency](https://opentelemetry.io/docs/collector/resiliency/)
 
-- tenant isolation и field-level access для sensitive payload;
-- encryption in transit/at rest и отдельная workload identity exporters;
-- redaction до выхода из trust boundary;
-- allowlist полей вместо попытки найти все возможные secrets regex-ами;
-- retention по типу сигнала, а не один срок на всё;
-- integrity и append-only guarantees для audit trail;
-- журнал доступа к evidence;
-- запрет workload подменять reserved platform attributes.
+В модели дедупликация использует `(producer, source_event_id)` и сравнивает содержимое повторов. В настоящем приложении нужно определить уникальность, срок хранения ключа и поведение при конфликте. Не всякая native log-запись уже имеет такой ID. Если source их не предоставляет, произвольный хеш текста не всегда отличит дубль от двух действительно одинаковых событий.
 
-`root_job_id` и Task ID тоже могут раскрывать business context, поэтому публичный dashboard не должен превращаться в directory активных целей. User identity лучше хранить как scoped pseudonymous reference и разрешать обратное сопоставление только уполномоченному incident/audit process.
+Sampling выбирает часть диагностических данных ради стоимости. Head sampling принимает решение рано и ещё не знает, произойдёт ли ошибка позже. Tail sampling может учитывать пришедшие spans, но не вернёт уже отброшенное на входе. Чтобы обещать сохранение всех ошибок, нужно обеспечить полный вход нужного класса, маршрутизацию связанных spans, достаточный буфер и обработку поздних данных; даже тогда доставка имеет свои ограничения. Комбинировать head/tail можно, но обещание относится только к реально дошедшей population. [OpenTelemetry: sampling](https://opentelemetry.io/docs/concepts/sampling/)
 
-## Dashboards и alerts, которыми можно пользоваться
+Критичные audit/state records не следует намеренно сэмплировать. Но отсутствие sampling не равно гарантированной доставке. Если диагностический pipeline недоступен, обычный запрос не должен зависать бесконечно. Если отсутствует обязательное audit evidence, поведение критической записи определяется policy главы 24: остановить admission, использовать предусмотренный устойчивый путь или перейти к явно разрешённой аварийной процедуре. Это разные режимы, а не один глобальный `fail open`.
 
-Один огромный dashboard создаёт иллюзию полноты. Разделите views по вопросу:
+У pipeline должны быть собственные наблюдаемые счётчики: принято, отказано, потеряно, повторено, заполнение очереди и возраст старейшей записи. Их проверяют независимым от этого же канала способом, где это оправдано. «В логах collector нет ошибок» ничего не доказывает, если его logs уходят через тот же отказавший exporter.
 
-1. **Outcome:** verified success, end-to-end latency, manual recovery, safety guardrails.
-2. **Agent:** active Tasks, steps, retry loops, approvals, tool verification, child fan-out.
-3. **Runtime:** Actor states, restore phases, WorkerPool saturation, parking outcomes, crashes.
-4. **Inference:** request/queue latency, TTFT, tokens, cache, throttling, GPU saturation.
-5. **Infrastructure:** nodes, network, storage, databases, collector health.
+## Что дают закреплённые AX и Substrate
 
-Каждый верхнеуровневый panel должен вести к traces/events с тем же time range и dimensions. Dashboard без drill-down отвечает «плохо», но не помогает дежурному найти причинный путь.
+### AX: полезные локальные записи и работа для adapter
 
-Page должен приходить по пользовательскому симптому или быстрому расходованию error budget. Cause alerts вроде «CPU 82%» полезны как diagnostic signals, но часто не требуют ночного звонка. Multi-window burn-rate alert различает быстрый catastrophic burn и медленное устойчивое ухудшение. У alert должны быть owner, impact, ссылка на runbook и несколько первых запросов, которые подтверждают или опровергают гипотезу.
+На снимке AX `ac233282` стандартные `ax-server` и `ax-task-runner` настраивают `slog.NewTextHandler` в stdout. Стандартный `grpcServer()` создаёт `grpc.NewServer()` без OTel interceptors. В roadmap автоматический сбор OpenTelemetry trajectory на runner layer обозначен будущей работой. Это подтверждает отсутствие такого готового пути в проверенных точках входа, но не запрещает внешнюю instrumentation в конкретном deployment. [AX: server entry point](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go), [runner entry point](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-task-runner/main.go), [roadmap](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md)
 
-## Разбор инцидента «агент завис»
+Практический путь - инструментировать границы, которыми владеет приложение: приём goal, mapping Task/Actor, harness, model gateway и publisher. Если downstream trace context не переносится, adapter сохраняет хотя бы явную связь job/attempt и описывает этот пробел. Установка collector возле AX не создаст отсутствующие spans внутри runner и не определит verification за автора приложения.
 
-Рабочий runbook идёт сверху вниз, сохраняя correlation identity.
+### Substrate: runtime-события с известными ограничениями
 
-1. Найти `root_job_id` и определить terminal/expected outcome. Goal ещё исполняется, ждёт человека или уже завершён без verification?
-2. По `task_id` проверить последний committed agent event. Если это `approval.requested`, искать approval ID и deadline, а не CPU.
-3. По Actor UID запросить current state у Substrate и сравнить его с lifecycle history. Не принимать последний log event за authoritative current state.
-4. Если Actor ждёт resume, разложить route/parking/restore latency. При `budget_exhausted` бюджет исчерпан на retryable условии: по последнему gRPC code различать дефицит capacity, lifecycle contention и control-plane outage. `timeout` относится к deadline ожидания caller, `error` — к non-retryable failure.
-5. Для работающей activation перейти по trace link к model/tool spans. Отделить gateway queue, provider latency и tool execution.
-6. Для write tool сопоставить proposed → authorized → executed → verified. HTTP 200 без verification не закрывает инцидент.
-7. Если сигнал обрывается, проверить сам telemetry pipeline: dropped records, collector queue, duplicate ingestion и clock skew.
+В `df788825` есть собственные metadata `ate.*`, JSON-обёртка container output, actor-aware CLI logs, метрики и traces компонентов. Три native event names - `ate.actor.state_changed`, `ate.actor.crashed`, `ate.actor.usage_sampled` - присутствуют в коде `actorevent` и registry. Runtime attribution помогает связать смену Worker, restore и измерения, а бизнес-цель `billing` и критерий её успеха добавляет приложение. [Substrate: observability](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md), [actorevent](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/actorevent/actorevent.go)
 
-Такой путь превращает фразу «завис» в проверяемую последовательность гипотез. Без общей identity команда прыгает между пятью dashboards и вручную сравнивает timestamps.
+По документированному контракту `ateapi` пишет state transition после commit. Событие свидетельствует о состоявшемся переходе при доверенном происхождении, но потерянный следующий record оставит derived view устаревшим. Для current state обращаются к control plane. `otlp,console` даёт две копии и может помочь пережить отказ одного пути, но общий отказный домен и duplicate ingestion остаются. CLI stream также не заменяет central history после migration.
 
-## Минимальный план внедрения
+Container stdout получает runtime metadata, но trace context конкретного concurrent request должен прийти из actor SDK: forwarder общего потока не может достоверно угадать, какой запрос породил строку. Для прямого OTLP-export из Actor в этом снимке требуется отдельный egress path; stdout проходит через worker другим путём. Наличие логов поэтому не доказывает, что traces и metrics SDK из sandbox доходят до collector.
 
-Не начинайте с покупки observability platform. Начните с контракта и одного end-to-end сценария.
+Особенно важно происхождение metadata. В коде `otlprelay` allowlist по `service.name` прямо назван protocol contract, а не security boundary: имя задаёт клиент, скомпрометированный процесс может заявить разрешённое. Поэтому `service.name=ateapi` или `ateom-gvisor` не является криптографическим доказательством отправителя. Для доверенного attribution нужны защищённый ingress, проверенная workload identity и контролируемое добавление reserved fields. Это продолжение модели прав из главы 24, а не свойство одной строки в record. [Substrate: relay source gate](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/otlprelay/relay.go)
 
-### Этап 1. Identity и schema
+В диагностике ожидания полезна семантика request parking. `budget_exhausted` означает исчерпание бюджета при retryable условии, а не обязательно нехватку Worker: возможны lifecycle contention или недоступность control plane. Значение `served` означает, что запрос маршрутизирован к Worker; оно не подтверждает завершение бизнес-задачи. Аналогично фазы restore могут перекрываться, а разные usage formats иметь разные units/epochs. Перед запросом к backend проверяют registry и источник измерения, а не угадывают смысл по похожим названиям. [Substrate: request parking](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md)
 
-- определить root, Task, Actor, activation, step, tool/model IDs;
-- зафиксировать reserved namespaces и owners полей;
-- версионировать event schemas;
-- описать redaction и cardinality budgets.
+## Как этим пользоваться дежурному
 
-### Этап 2. Один golden path
+Вернёмся к вопросу Алисы. Найдите job и сохранённый критерий результата. Если workflow ждёт approval, сверьте его ID, кандидат и deadline; свободный CPU здесь ожидаем. Если попытка помечена `uncertain`, найдите operation ID и выполните предусмотренную проверку target. Если ledger уже хранит verified outcome, а UI его не показывает, исследуйте projection и доставку, не публикуйте изменение повторно ради появления зелёной строки.
 
-Instrument путь `CreateTask → ResumeActor → model request → read-only tool → verified answer`. Для него должны работать log-to-trace переходы и поиск от user goal до каждого слоя.
+Если активная работа действительно выполняется, переходите к текущей activation и связанным model/tool spans. Найдите интервал, на котором прошло время: orchestration queue, Actor resume, модель или запись. Затем смотрите runtime и infrastructure metrics этого участка. Причинность требует проверки: совпадение высокой CPU и долгого ответа - повод для гипотезы, не доказательство bottleneck без дальнейших наблюдений.
 
-### Этап 3. Failure paths
-
-Добавить approval timeout, tool retry, WorkerPool saturation, suspend/resume, child Task, collector outage и external operation, завершившуюся после client timeout.
-
-### Этап 4. SLO и alerts
-
-Сначала определить outcome SLI и denominator, затем platform decomposition и burn-rate alerts. Не выводить reliability из sampled traces.
-
-### Этап 5. Проверка контрактов
-
-Автоматические tests должны ловить:
-
-- потерю `traceparent` на HTTP/gRPC/queue boundary;
-- отсутствие span link после resume или delegation;
-- попадание Task/Actor IDs в metric labels;
-- secret/PII в events и model content;
-- sampling lifecycle/audit events;
-- duplicates при одновременном OTLP и stdout ingestion;
-- неверный порядок из-за clock skew;
-- незаметную потерю данных при backpressure/collector outage;
-- расхождение event registry и реально эмитируемого кода.
+Alert для ночного дежурства должен выражать impact и требуемое действие: растёт число просроченных целей, потеряна возможность проверить результат либо быстро расходуется согласованный error budget. Порог CPU может быть полезным диагностическим alert, но сам по себе не определяет срочность. Уведомление должно вести к population, affected jobs, состоянию pipeline и первым проверкам; при малом трафике смотрят и абсолютное число затронутых целей. [SRE Workbook: alerting](https://sre.google/workbook/alerting-on-slos/)
 
 ## Итог
 
-Наблюдаемость agent infrastructure начинается не с dashboard и не с полного сохранения мыслей модели. Она начинается с точной причинной модели: user goal порождает Task, Task исполняется через Actor activations, agent принимает наблюдаемые решения, policy разрешает конкретное действие, executor выполняет его, а verification подтверждает внешний outcome.
+Хорошая наблюдаемость позволяет сказать: «эта цель ждёт решения до такого-то срока», «эта запись могла произойти, нужен reconciliation» или «результат подтверждён, но диагностика неполна». Эти ответы помогают продолжить работу и оставляют неопределённость видимой.
 
-Metrics показывают масштаб и тенденции, events — конкретные переходы, traces — причинный путь. Stable logical IDs переживают relocation, attempt IDs различают retries, а physical IDs объясняют, где возник bottleneck. Lifecycle и audit evidence не сэмплируются; высококардинальные identity не попадают в metric labels; чувствительное содержимое не собирается по умолчанию.
-
-Substrate уже предоставляет прочную runtime-базу, но её semantics и ограничения нужно учитывать. Текущий AX ещё не реализует целостную OpenTelemetry trajectory, поэтому эту связность сегодня строят на контролируемых границах harness, gateway и runner. В следующей главе мы развернём учебный стенд и сразу заложим минимальный telemetry path, чтобы последующие эксперименты измерялись, а не оценивались на глаз.
+Для этого нужны критерий результата, надёжный учёт принятых целей, идентификаторы разных масштабов и согласованный смысл сигналов. SDK, collector и backend выбирают под этот контракт, проверяя propagation, cardinality, потери и безопасность ingestion на одном сквозном сценарии. Следующая глава переносит инженерную проверку в Proxmox/KVM-лабораторию. Здесь мы подготовили вопросы и критерии наблюдения; сам стенд не запускали и совместимость закреплённой пары AX/Substrate этим опытом не доказывали.
 
 ### Источники и дальнейшее чтение
 
-- [Substrate observability на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md)
-- [Substrate request parking на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md)
-- [Substrate metric registry на снимке df788825](https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/metrics/registry)
-- [AX server на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go)
-- [AX runner на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go)
-- [AX roadmap: Telemetry and Trajectory Collection](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md)
-- [OpenTelemetry logs и correlation](https://opentelemetry.io/docs/specs/otel/logs/)
-- [OpenTelemetry tracing API и span links](https://opentelemetry.io/docs/specs/otel/trace/api/)
-- [OpenTelemetry GenAI semantic conventions](https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/)
-- [W3C Trace Context](https://www.w3.org/TR/trace-context/)
-- [Google SRE Workbook: alerting on SLOs](https://sre.google/workbook/alerting-on-slos/)
+- [W3C Trace Context](https://www.w3.org/TR/trace-context/) · [OTel tracing API](https://opentelemetry.io/docs/specs/otel/trace/api/)
+- [Prometheus: labels](https://prometheus.io/docs/practices/naming/) · [histograms](https://prometheus.io/docs/practices/histograms/)
+- [OTel sampling](https://opentelemetry.io/docs/concepts/sampling/) · [Collector resiliency](https://opentelemetry.io/docs/collector/resiliency/)
+- [SRE Workbook: SLIs/SLOs](https://sre.google/workbook/implementing-slos/) · [alerts](https://sre.google/workbook/alerting-on-slos/)
+- [GenAI conventions](https://github.com/open-telemetry/semantic-conventions-genai) · [Jaeger docs](https://www.jaegertracing.io/docs/)
+- [AX ac233282: server](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go) · [roadmap](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md)
+- [Substrate df788825: observability](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md) · [parking](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md)
+- [Substrate: actorevent](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/actorevent/actorevent.go) · [event registry](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/metrics/registry/events.yaml) · [relay](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/otlprelay/relay.go)

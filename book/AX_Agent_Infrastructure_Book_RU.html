@@ -7744,659 +7744,548 @@ python3 -m unittest discover -s examples -p 'test_ch24*.py' -v
 <li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/interceptor.go">Substrate: authz interceptor</a> · <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/registry.go">registry</a> · <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/model.fga">model</a></li>
 <li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/authentication.md">Substrate: authentication docs</a> · <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/egress-credential-injection.md">credential injection</a></li>
 </ul>
-</div></section><section class="chapter" id="ch-25"><div class="chapter-num">Глава 25</div><h1>Observability: от user goal до подтверждённого результата</h1><blockquote>
-<p>Снимок главы: <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-08</strong>. Реализованные возможности и целевая архитектура ниже разделены явно.</p>
+</div></section><section class="chapter" id="ch-25"><div class="chapter-num">Глава 25</div><h1>Observability: от user goal до подтверждённого результата</h1>
+<blockquote>
+<p>Снимок главы: <strong>AX <code>ac233282</code> · Substrate <code>df788825</code> · повторная сверка 16.10.2026</strong>. Это закреплённые снимки, не текущий <code>main</code>. Реализованные сигналы runtime, предлагаемый контракт приложения и ограничения учебного примера разделены.</p>
 </blockquote>
-<p>Пользователь пишет: «агент завис». На одном dashboard CPU свободен. В логах модели последний запрос завершился успешно. Actor числится <code>RUNNING</code>. Инструмент вернул HTTP 200. Каждая подсистема по отдельности выглядит здоровой, но результата нет.</p>
-<p>Причина может находиться где угодно в причинной цепочке. Task ждёт approval, запрос припаркован из-за заполненного WorkerPool, model gateway держит очередь, tool ответил до фактического применения изменения, verification читает устаревшую replica, а дочерний Task завершился без передачи результата родителю. Набор разрозненных графиков не отвечает, какой из этих сценариев произошёл.</p>
-<p><strong>Observability — способность восстановить внутреннее состояние и причинный путь системы по её внешним сигналам.</strong> Monitoring проверяет заранее известные условия: «очередь выше порога», «p95 превысил цель». Observability нужна для вопроса, который заранее не был записан в alert rule: «почему именно этот user goal не дошёл до подтверждённого outcome?»</p>
-<figure><figcaption>Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals</figcaption><svg class="diagram" viewBox="0 0 1100 430" role="img" aria-label="Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs>
-<line x1="170" y1="70" x2="215" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="192" y="61" text-anchor="middle" font-size="10" fill="#5c6875">создаёт</text>
-<line x1="360" y1="70" x2="405" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="382" y="61" text-anchor="middle" font-size="10" fill="#5c6875">исполняется</text>
-<line x1="550" y1="70" x2="595" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="572" y="61" text-anchor="middle" font-size="10" fill="#5c6875">вызывает</text>
-<line x1="740" y1="70" x2="785" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="762" y="61" text-anchor="middle" font-size="10" fill="#5c6875">изменяет</text>
-<line x1="930" y1="70" x2="975" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="952" y="61" text-anchor="middle" font-size="10" fill="#5c6875">verify</text>
-<line x1="285" y1="105" x2="190" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="230" y="143" text-anchor="middle" font-size="10" fill="#5c6875">decisions</text>
-<line x1="475" y1="105" x2="430" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="447" y="143" text-anchor="middle" font-size="10" fill="#5c6875">lifecycle</text>
-<line x1="665" y1="105" x2="670" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="655" y="143" text-anchor="middle" font-size="10" fill="#5c6875">latency</text>
-<line x1="855" y1="105" x2="910" y2="190" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="872" y="143" text-anchor="middle" font-size="10" fill="#5c6875">platform</text>
-<line x1="190" y1="260" x2="475" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="325" y="287" text-anchor="middle" font-size="10" fill="#5c6875">events</text>
-<line x1="430" y1="260" x2="510" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="455" y="287" text-anchor="middle" font-size="10" fill="#5c6875">logs + traces</text>
-<line x1="670" y1="260" x2="590" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="630" y="287" text-anchor="middle" font-size="10" fill="#5c6875">traces + metrics</text>
-<line x1="910" y1="260" x2="625" y2="330" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)"/><text x="770" y="287" text-anchor="middle" font-size="10" fill="#5c6875">metrics</text>
-<rect x="25" y="35" rx="12" ry="12" width="145" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="97" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">User goal</text><text x="97" y="82" text-anchor="middle" font-size="11" fill="#465569">root_job_id</text>
-<rect x="215" y="35" rx="12" ry="12" width="145" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="287" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX Task</text><text x="287" y="82" text-anchor="middle" font-size="11" fill="#465569">task_id · step_id</text>
-<rect x="405" y="35" rx="12" ry="12" width="145" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="477" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Actor activation</text><text x="477" y="82" text-anchor="middle" font-size="11" fill="#465569">UID · epoch</text>
-<rect x="595" y="35" rx="12" ry="12" width="145" height="70" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="667" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Model / Tool</text><text x="667" y="82" text-anchor="middle" font-size="11" fill="#465569">request · call ID</text>
-<rect x="785" y="35" rx="12" ry="12" width="145" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="857" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">External state</text><text x="857" y="82" text-anchor="middle" font-size="11" fill="#465569">authoritative source</text>
-<rect x="975" y="35" rx="12" ry="12" width="100" height="70" fill="#e9f7ef" stroke="#1f7a4d" stroke-width="1.5"/><text x="1025" y="60" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Outcome</text><text x="1025" y="82" text-anchor="middle" font-size="11" fill="#465569">verified</text>
-<rect x="95" y="190" rx="12" ry="12" width="190" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="190" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Agent events</text><text x="190" y="237" text-anchor="middle" font-size="11" fill="#465569">policy · approval · step</text>
-<rect x="335" y="190" rx="12" ry="12" width="190" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="430" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Runtime signals</text><text x="430" y="237" text-anchor="middle" font-size="11" fill="#465569">state · resume · parking</text>
-<rect x="575" y="190" rx="12" ry="12" width="190" height="70" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="670" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Inference signals</text><text x="670" y="237" text-anchor="middle" font-size="11" fill="#465569">queue · TTFT · tokens</text>
-<rect x="815" y="190" rx="12" ry="12" width="190" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="910" y="215" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Infrastructure</text><text x="910" y="237" text-anchor="middle" font-size="11" fill="#465569">node · network · storage</text>
-<rect x="390" y="330" rx="12" ry="12" width="320" height="72" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.8"/><text x="550" y="355" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Telemetry contract + collector</text><text x="550" y="377" text-anchor="middle" font-size="11" fill="#465569">metrics · events · traces · audit evidence</text>
+<p>Алиса возвращается к задаче <code>billing</code> из главы 24: «Борис подтвердил публикацию. Почему ветка всё ещё старая?» Дежурный открывает dashboard: CPU свободен, Actor работает, последний запрос к модели успешен. Publisher записал <code>HTTP 200</code>. По отдельности компоненты выглядят исправными, но ответить Алисе пока нечего.</p>
+<p>Возможно, согласование относится к другому кандидату. Возможно, publisher принял команду, но ещё не выполнил запись. Или запись произошла, ответ потерялся, а verification не запустилась после перезапуска. Наконец, работа могла закончиться правильно, а событие об этом не дошло до хранилища логов. Для каждого случая требуется своё следующее действие.</p>
+<p><strong>Наблюдаемость, observability, - возможность объяснять поведение системы по доступным сигналам и проверяемому состоянию.</strong> Она помогает двигаться от пользовательского симптома к конкретному участку работы, отличать установленный факт от гипотезы и понимать, каких данных не хватает. Monitoring обычно проверяет заранее выбранные условия: растёт очередь, увеличилась доля ошибок, заканчивается место. Эти подходы дополняют друг друга: alert сообщает о проблеме, а наблюдаемость помогает её исследовать.</p>
+<p>В этой главе спроектируем путь расследования одной публикации, выберем сигналы и инструменты, а затем испортим доставку событий в локальной программе. Нас интересует инженерный результат: сможет ли дежурный обосновать вывод и выбрать безопасное действие, когда часть картины потеряна.</p>
+<figure><figcaption>Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals</figcaption><svg aria-label="Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals" class="diagram" role="img" viewbox="0 0 1100 430"><defs><marker id="arrow" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="170" x2="215" y1="70" y2="70"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="192" y="61">создаёт</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="360" x2="405" y1="70" y2="70"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="382" y="61">исполняется</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="550" x2="595" y1="70" y2="70"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="572" y="61">вызывает</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="740" x2="785" y1="70" y2="70"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="762" y="61">изменяет</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="930" x2="975" y1="70" y2="70"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="952" y="61">verify</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="285" x2="190" y1="105" y2="190"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="230" y="143">decisions</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="475" x2="430" y1="105" y2="190"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="447" y="143">lifecycle</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="665" x2="670" y1="105" y2="190"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="655" y="143">latency</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="855" x2="910" y1="105" y2="190"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="872" y="143">platform</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="190" x2="475" y1="260" y2="330"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="325" y="287">events</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="430" x2="510" y1="260" y2="330"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="455" y="287">logs + traces</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="670" x2="590" y1="260" y2="330"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="630" y="287">traces + metrics</text>
+<line marker-end="url(#arrow)" stroke="#53657a" stroke-width="2" x1="910" x2="625" y1="260" y2="330"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="770" y="287">metrics</text>
+<rect fill="#edf4ff" height="70" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="145" x="25" y="35"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="97" y="60">User goal</text><text fill="#465569" font-size="11" text-anchor="middle" x="97" y="82">root_job_id</text>
+<rect fill="#f8efff" height="70" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="145" x="215" y="35"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="287" y="60">AX Task</text><text fill="#465569" font-size="11" text-anchor="middle" x="287" y="82">task_id · step_id</text>
+<rect fill="#fff7e8" height="70" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="145" x="405" y="35"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="477" y="60">Actor activation</text><text fill="#465569" font-size="11" text-anchor="middle" x="477" y="82">UID · epoch</text>
+<rect fill="#fff0f0" height="70" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="145" x="595" y="35"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="667" y="60">Model / Tool</text><text fill="#465569" font-size="11" text-anchor="middle" x="667" y="82">request · call ID</text>
+<rect fill="#eefaf3" height="70" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="145" x="785" y="35"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="857" y="60">External state</text><text fill="#465569" font-size="11" text-anchor="middle" x="857" y="82">authoritative source</text>
+<rect fill="#e9f7ef" height="70" rx="12" ry="12" stroke="#1f7a4d" stroke-width="1.5" width="100" x="975" y="35"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="1025" y="60">Outcome</text><text fill="#465569" font-size="11" text-anchor="middle" x="1025" y="82">verified</text>
+<rect fill="#f8efff" height="70" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="190" x="95" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="190" y="215">Agent events</text><text fill="#465569" font-size="11" text-anchor="middle" x="190" y="237">policy · approval · step</text>
+<rect fill="#fff7e8" height="70" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="190" x="335" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="430" y="215">Runtime signals</text><text fill="#465569" font-size="11" text-anchor="middle" x="430" y="237">state · resume · parking</text>
+<rect fill="#fff0f0" height="70" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="190" x="575" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="670" y="215">Inference signals</text><text fill="#465569" font-size="11" text-anchor="middle" x="670" y="237">queue · TTFT · tokens</text>
+<rect fill="#f3f5f7" height="70" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="190" x="815" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="910" y="215">Infrastructure</text><text fill="#465569" font-size="11" text-anchor="middle" x="910" y="237">node · network · storage</text>
+<rect fill="#edf4ff" height="72" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.8" width="320" x="390" y="330"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="550" y="355">Telemetry contract + collector</text><text fill="#465569" font-size="11" text-anchor="middle" x="550" y="377">metrics · events · traces · audit evidence</text>
 </svg></figure>
-<p>Главная идея главы проста: метрики, логи и traces становятся полезными только после того, как система договорилась об identity, событиях и критерии результата. Сначала проектируют <strong>telemetry contract</strong>, затем выбирают backend.</p>
-<h2>Что именно требуется наблюдать</h2>
-<p>У agent system есть четыре технических слоя и одна сквозная плоскость результата.</p>
-<table>
-<thead>
-<tr>
-<th>Слой</th>
-<th>Что происходит</th>
-<th>Главный вопрос</th>
-<th>Примеры сигналов</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Infrastructure</td>
-<td>Nodes, Pods, сеть, storage, GPU, Redis/PostgreSQL/object store</td>
-<td>Есть ли физический или платформенный bottleneck?</td>
-<td>CPU throttling, memory pressure, disk latency, packet drops, GPU memory, workqueue depth</td>
-</tr>
-<tr>
-<td>Runtime / Substrate</td>
-<td>Actor назначается Worker, запускается, suspend/resume, checkpoint/restore, request parking</td>
-<td>Где находится логический Actor и почему он не исполняется?</td>
-<td>actor state, WorkerPool saturation, resume phases, snapshot size, parked requests</td>
-</tr>
-<tr>
-<td>Agent / harness</td>
-<td>Goal превращается в план, шаги, delegation, approvals, tools и verification</td>
-<td>Какое решение принял orchestrator и на каком переходе остановился workflow?</td>
-<td>step events, policy decision, approval state, retry, child Task, tool outcome</td>
-</tr>
-<tr>
-<td>LLM / inference</td>
-<td>Request попадает в gateway, очередь и model server</td>
-<td>Сколько времени и ресурсов ушло на inference и чем закончился вызов?</td>
-<td>queue time, TTFT, inter-token latency, tokens, cache hit, error class, cost estimate</td>
-</tr>
-<tr>
-<td>Outcome</td>
-<td>Внешнее состояние изменилось или проверяемый ответ доставлен пользователю</td>
-<td>Получил ли пользователь требуемый результат, а не просто успешный RPC?</td>
-<td>verified outcome, end-to-end latency, manual recovery, unsafe side effects</td>
-</tr>
-</tbody>
-</table>
-<p>Outcome — не «пятый dashboard». Это верхняя плоскость, которая связывает остальные. Если tool process завершился с <code>exit_code=0</code>, но требуемый route не появился в authoritative control plane, tool execution успешен технически, а outcome не достигнут.</p>
-<h2>Три сигнала и два вида доказательств</h2>
-<p>Разные сигналы отвечают на разные вопросы. Попытка складывать всё в один «лог агента» быстро создаёт дорогой архив, в котором трудно расследовать инцидент.</p>
-<table>
+<h2>Сначала договоримся, что считается результатом</h2>
+<p>У задачи <code>billing</code> есть несколько разных успехов. Модель сформировала предложение. Человек подтвердил определённый переход. Publisher принял запрос. Целевая система обновила ссылку. Verifier прочитал её состояние и сопоставил с согласованным кандидатом. Успешный ответ на одном шаге ничего не говорит о завершении остальных без явного контракта.</p>
+<p>В нашем сценарии пользовательский результат - <strong>подтверждённая публикация согласованного кандидата в нужную ветку</strong>. Для другого workflow определение будет другим: доставленный ответ, принятая заявка или проверенное изменение конфигурации. Его задают до выбора dashboard, иначе удобная метрика незаметно заменит цель работы.</p>
+<p>Затем определяют источники истины. Workflow store хранит состояние задачи и ожидания. Approval service - решение человека и его актуальность. Журнал попыток publisher - claim и известность внешнего результата. Целевая система - собственное состояние и доступный receipt. Verification связывает наблюдаемое состояние с критерием результата. Telemetry backend помогает найти эти факты и понять причинный путь, но не становится автоматически главным хранилищем каждого из них.</p>
+<p>Например, запись <code>tool.verified</code> в diagnostic log удобна для поиска. Если она потерялась, устойчиво сохранённый результат verification продолжает существовать. Если запись пришла от недоверенного workload, одного её имени недостаточно, чтобы считать изменение проверенным. Нужно знать, кто её выпустил, на каком основании и через какой доверенный путь она попала к читателю.</p>
+<p>Отсюда первое правило расследования: <strong>отсутствие события означает отсутствие наблюдения, пока не доказана полнота соответствующего канала</strong>. Оно может объясняться потерей, sampling, задержкой, retention или тем, что событие вообще не было сформировано. Отсутствие <code>tool.sent</code> не даёт права безопасно повторить запись. Состояние <code>uncertain</code> из главы 24 требует reconciliation с target, а не догадки по логам.</p>
+<h2>Какие сигналы отвечают на разные вопросы</h2>
+<p>Представим, что за час поступило сто задач. По каждой читать полный журнал неудобно. Но и один процент успешных запросов не объяснит судьбу конкретной публикации. Поэтому сигналы имеют разное назначение.</p>
+<table style="break-inside:avoid-page">
 <thead>
 <tr>
 <th>Сигнал</th>
-<th>Для чего он нужен</th>
-<th>Что в нём хранить</th>
-<th>Чего в нём не должно быть</th>
+<th>На какой вопрос отвечает</th>
+<th>Что полезно для <code>billing</code></th>
+<th>Предел вывода</th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Metrics</td>
-<td>агрегаты, тенденции, SLI и alerts</td>
-<td>bounded labels, counts, histograms, gauges</td>
-<td>Task ID, Actor UID, prompt, URL с параметрами, user ID</td>
+<td>Насколько широко и долго проявляется проблема?</td>
+<td>Доля результатов в срок, возраст ожидающих задач, длительность записи</td>
+<td>Агрегат не объясняет конкретную задачу</td>
 </tr>
 <tr>
-<td>Logs / events</td>
-<td>точные факты с высокой cardinality</td>
-<td>event name, identity, state transition, reason, error, sanitized details</td>
-<td>secrets, raw credentials, скрытый chain-of-thought</td>
+<td>Structured logs / events</td>
+<td>Какой наблюдаемый факт записал компонент?</td>
+<td>Claim approval, отправка запроса, timeout, результат verification</td>
+<td>Запись может отсутствовать, повторяться или содержать ошибочное утверждение</td>
 </tr>
 <tr>
 <td>Traces</td>
-<td>причинный путь и разложение latency</td>
-<td>spans, parent/child relations, links, status, bounded attributes</td>
-<td>один span длиной в дни, полный prompt по умолчанию</td>
+<td>Какие операции связаны и где прошло время?</td>
+<td>Gateway → publisher → target, отдельная verification</td>
+<td>Неполная instrumentation и sampling оставляют пробелы</td>
+</tr>
+<tr>
+<td>Profiles</td>
+<td>На что процесс тратит CPU или память?</td>
+<td>Горячий участок publisher либо collector</td>
+<td>Не объясняют, почему задача ждёт человека</td>
 </tr>
 </tbody>
 </table>
-<p>Profiles полезны для CPU и memory hotspots, но не заменяют эти три сигнала. Они объяснят, где process тратит время, но не покажут, почему policy отправила действие на approval.</p>
-<p>Нужно также разделить <strong>diagnostic telemetry</strong> и <strong>audit evidence</strong>. Диагностические логи могут сэмплироваться, теряться при backpressure и удаляться по короткому retention. Audit trail должен доказывать, кто инициировал действие, какая policy сработала, что именно было разрешено, какой executor применил side effect и чем закончилась verification. Он требует другой целостности, доступа и срока хранения. Копия обычных application logs не становится аудитом только из-за долгого retention.</p>
-<h2>Как связать события одной задачи</h2>
-<p>Фраза «добавим <code>trace_id</code>» недостаточна. В agent workflow несколько временных масштабов: пользовательская цель живёт часы, Task — дни, Actor переживает много activations, RPC — миллисекунды, а external operation может продолжаться после timeout клиента. Один identifier не выражает все эти отношения.</p>
-<p>Практический correlation contract разделяет четыре класса identity.</p>
-<table>
-<thead>
-<tr>
-<th>Класс</th>
-<th>Примеры</th>
-<th>Жизненный цикл</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Логическая цель</td>
-<td><code>root_job_id</code>, <code>session_id_hash</code>, <code>task_id</code>, <code>parent_task_id</code></td>
-<td>от постановки цели до terminal outcome</td>
-</tr>
-<tr>
-<td>Исполняемая сущность</td>
-<td><code>ate.atespace</code>, <code>ate.actor.uid</code>, <code>ate.actor.name</code>, template</td>
-<td>Actor UID стабилен в течение жизни Actor</td>
-</tr>
-<tr>
-<td>Попытка</td>
-<td><code>activation_id</code>/epoch, <code>step_id</code>, <code>attempt</code>, <code>tool_call_id</code>, <code>approval_id</code>, <code>model_request_id</code></td>
-<td>один resume, шаг или внешний вызов</td>
-</tr>
-<tr>
-<td>Физическое размещение</td>
-<td><code>service.instance.id</code>, cluster, Pod, Worker, node, sandbox class</td>
-<td>меняется при relocation и restart</td>
-</tr>
-</tbody>
-</table>
-<p>У каждого класса своя роль. <code>task_id</code> отвечает «какая работа?», <code>actor.uid</code> — «какой логический runtime?», activation/epoch — «какая попытка исполнения?», Pod и Worker — «где она выполнялась в этот момент?». Pod name нельзя использовать как основную identity: после suspend/resume история распадётся на несколько машин. Actor name тоже недостаточен без atespace, а повторно созданный объект нельзя смешивать с прежним — для этого нужен server-assigned UID.</p>
-<p><code>trace_id</code> связывает операции внутри конкретного причинного графа, но не должен подменять resource ID или idempotency key. Повтор команды может получить новый trace и сохранить тот же idempotency key. Новый Actor может получить прежнее имя, но обязан иметь другой UID.</p>
-<h3>Минимальный propagation contract</h3>
-<p>На каждой границе — gRPC/HTTP, queue, child Task, model gateway, MCP/tool executor — передаются:</p>
-<ul>
-<li>W3C <code>traceparent</code> и при необходимости <code>tracestate</code>;</li>
-<li><code>root_job_id</code>, <code>task_id</code>, <code>parent_task_id</code> как явно определённые application attributes;</li>
-<li>Actor identity, которую authoritative runtime добавляет сам;</li>
-<li>operation-specific ID: <code>tool_call_id</code>, <code>model_request_id</code>, <code>approval_id</code> или external request ID.</li>
-</ul>
-<p>Не доверяйте workload самостоятельно присвоить себе platform identity. Substrate резервирует namespace <code>ate.*</code> и отбрасывает такие ключи из actor output: иначе workload мог бы выдать себя за другой Actor. Тот же принцип нужен AX и tool gateway — authoritative identity добавляется на доверенной границе.</p>
-<h2>Trace не должен жить столько же, сколько Task</h2>
-<p>Долгий agent workflow не следует представлять одним незавершённым span. Span, открытый на часы или дни, плохо экспортируется, неудобен для sampling и может исчезнуть при crash. Parent span также не всегда охватывает асинхронного потомка по времени.</p>
-<p>Лучше использовать короткие traces по активным участкам и связывать их:</p>
-<ol>
-<li>Входной request создаёт trace для принятия goal и создания Task.</li>
-<li>Resume или новая activation создаёт новый trace, связанный с root job и предыдущей attempt.</li>
-<li>Producer span заканчивается после постановки работы в queue; consumer span описывает фактическое выполнение.</li>
-<li>Child Task получает собственный trace и <code>parent_task_id</code>; scatter/gather связывает результаты через span links.</li>
-<li>Tool и model requests создают отдельные client spans, а gateway/server — соответствующие server spans.</li>
-</ol>
-<p>OpenTelemetry links предназначены именно для причинных отношений, которые не укладываются в одного parent. Они особенно полезны после suspend/resume, retries, fan-out и при пересечении trust boundary, где входной trace сознательно заменяется новым. Для расследования сохраняется link, но входной <code>traceparent</code> не принимается как доверенная identity пользователя.</p>
-<h2>События агента: фиксируйте переходы, а не внутренний монолог</h2>
-<p>Agent observability не требует сохранять chain-of-thought. Скрытое reasoning нестабильно как interface, может содержать чувствительные данные и не является надёжным доказательством принятого решения. Нужен структурированный журнал <strong>наблюдаемых решений и действий</strong>.</p>
-<p>Полезный минимальный словарь событий:</p>
-<ul>
-<li><code>agent.task.created</code>, <code>agent.task.completed</code>, <code>agent.task.failed</code>;</li>
-<li><code>agent.step.started</code>, <code>agent.step.completed</code>;</li>
-<li><code>agent.route.selected</code>, <code>agent.child.created</code>, <code>agent.child.result_received</code>;</li>
-<li><code>agent.tool.proposed</code>, <code>agent.tool.authorized</code>, <code>agent.tool.executed</code>, <code>agent.tool.verified</code>;</li>
-<li><code>agent.approval.requested</code>, <code>agent.approval.granted</code>, <code>agent.approval.expired</code>;</li>
-<li><code>agent.model.requested</code>, <code>agent.model.completed</code>;</li>
-<li><code>agent.outcome.verified</code>.</li>
-</ul>
-<p>Событие должно быть машинно разбираемым и версионированным. Свободный текст остаётся для человека, но не несёт единственную копию semantics.</p>
+<p>Metric - измерение с определённой семантикой и единицей. Counter считает накопленные события, gauge показывает текущее значение, histogram хранит распределение наблюдений. Structured event описывает факт вроде «запрос принят» или «попытка получила timeout». Он может передаваться как log record; отдельный транспорт для каждого слова «event» не обязателен. Span описывает одну операцию со временем начала/окончания, атрибутами и связями. Trace объединяет связанные spans.</p>
+<p><strong>Audit evidence имеет отдельные требования.</strong> Если организация должна установить, кто разрешил изменение и что именно исполнили, нужны защищённые записи с установленным происхождением, сроком хранения и правилами доступа. Длинный retention обычных логов не обеспечивает ни полноту, ни неизменность. Для критического действия заранее решают, где admission зависит от сохранения evidence, как устроены транзакция/outbox и восстановление. Очередь OpenTelemetry сама по себе этой обязанности не выполняет.</p>
+<p>В результате можно иметь быстрый диагностический канал с допустимыми потерями и устойчивый журнал значимых переходов. Это не обязательно две дорогие платформы: различаются прежде всего контракт записи, доступ и режим отказа. Дежурный должен понимать, какой именно источник он сейчас читает.</p>
+<h2>Как найти одну работу после retries и resume</h2>
+<p>Для истории Алисы нужен устойчивый <code>root_job_id</code>. Он связывает пользовательскую цель с Tasks и не меняется при переносе на другой Worker. У дочерней задачи собственный <code>task_id</code> и ссылка на родителя. Actor UID идентифицирует runtime-объект, activation/epoch - период исполнения после запуска или восстановления. Попытка обращения к инструменту получает отдельный <code>attempt_id</code> или <code>tool_call_id</code>.</p>
+<p>Эти идентификаторы отвечают на разные вопросы. Root говорит «для какой цели?», Task - «какая подзадача?», Actor - «какая исполняемая сущность?», activation и attempt - «какой проход?». Pod и node добавляют физическое размещение. Если после resume искать только прежний Pod, история закончится посередине. Если повторно созданный Actor с тем же именем склеить по имени, в историю попадёт другая сущность.</p>
+<p>Idempotency key тоже имеет отдельную роль: он связывает повторные отправки одной логической операции там, где target поддерживает такую семантику. Новый trace не должен автоматически менять этот key; одинаковый trace не даёт права повторно применить запись. Связи между Task и Actor нужно сохранять как данные приложения. Их нельзя восстановить надёжно одним совпадением timestamps.</p>
+<p>Полезный <strong>telemetry contract</strong> описывает имена полей, владельцев, единицы, допустимые значения, происхождение и совместимость версий. Например, gateway добавляет root и subject из доверенного контекста, runtime - Actor UID, publisher - ID внешней попытки. Содержимое запроса модели не должно переписывать эти поля. Инициатор и actor из главы 24 остаются разными участниками; поле <code>trace_id</code> не заменяет ни одного из них.</p>
+<h3>Как проходит context между сервисами</h3>
+<p>При обычном HTTP/gRPC-вызове отправитель создаёт client span, внедряет context в metadata, а принимающая instrumentation извлекает его и создаёт server span. W3C Trace Context определяет <code>traceparent</code>/<code>tracestate</code> для переносимой correlation. При очереди context должен попасть в envelope сообщения; из наличия HTTP middleware это не следует. Также propagation необходимо проверить у MCP/tool adapter и при создании child Task. <a href="https://www.w3.org/TR/trace-context/">W3C Trace Context</a></p>
+<p>Входной trace context - данные вызывающего, а не authentication. На внешней границе можно начать собственный trace и связать его с входным, сохранив полезную correlation без доверия к чужой identity. Произвольный baggage не следует копировать во все запросы: он способен разнести чувствительные сведения и лишние атрибуты по внешним сервисам.</p>
+<p>Доступ к самой истории тоже требует authorization. Знание <code>root_job_id</code> или <code>trace_id</code> не должно открывать чужой tenant: backend и интерфейс проверяют права читателя, включая drill-down и ссылки на evidence. Ingestion также разделяет доверенные platform records и workload assertions. Иначе тщательно ограниченный gateway может раскрыть закрытый diff через общий log store или принять подложное событие от Actor за решение control plane.</p>
+<p>В асинхронном workflow логическая цель может ждать час, а активная работа занимать секунды. Держать один незавершённый span на весь час часто неудобно: данные буферизуются до завершения, процесс может исчезнуть, sampling и поиск усложняются. Это инженерный выбор, не запрет спецификации на длинные spans. Обычно удобнее закончить trace постановки задачи, сохранить context и открыть следующий активный участок при resume.</p>
+<p>OpenTelemetry позволяет связать spans через parent и links, в том числе между traces. Parent подходит для одного непосредственного причинного предшественника; links полезны для fan-in, возобновления и нескольких причин. Добавлять известные links лучше при создании span, чтобы sampler мог их учесть. Новая activation не обязана всегда создавать новый trace: важнее явно выбрать правило и сохранить связь с root job и предыдущей работой. <a href="https://opentelemetry.io/docs/specs/otel/trace/api/">OpenTelemetry tracing API</a></p>
+<h3>Время на диаграмме требует интерпретации</h3>
+<p>Если reviewer и tester работают параллельно 4 и 6 секунд, их общий участок занимает примерно 6 секунд плюс coordination, а не 10. Parent span уже включает время дочерних вызовов; складывать его duration с durations children тоже нельзя. Для длительности пользовательского пути ищут critical path и интервалы ожидания, а для потребления ресурсов могут понадобиться другие суммы.</p>
+<p>Wall-clock timestamps нужны для сопоставления компонентов, но часы разных hosts могут расходиться. Внутри процесса длительность измеряют подходящими monotonic часами; причинные ссылки и sequence/version помогают интерпретировать порядок. При этом sequence одного producer не упорядочивает всю распределённую систему. После потери событий «последнее по времени в backend» не становится доказанным текущим состоянием.</p>
+<h2>Наблюдаемая публикация по шагам</h2>
+<p>У принятой цели сначала появляется запись о приёме и критерии результата. Согласование описывается как ожидание с ID и deadline, а не как долгий tool call с неизвестной причиной паузы. После approval publisher сохраняет claim и связывает попытку с digest согласованной операции. Diagnostic events отражают эти переходы, не управляя ими.</p>
+<p>При обращении к target полезно различать <code>request_sent</code>, protocol response и verification. <code>HTTP 200</code> может означать окончательный результат либо лишь приём команды - это определяет API. Называть любую такую запись <code>executed</code> без уточнения опасно: дежурный должен увидеть, что известно о внешнем эффекте. В нашем приложении protocol-успех и подтверждение результата имеют разные события.</p>
+<p>Минимальный диагностический record может выглядеть так:</p>
 <pre><code class="language-json">{
-  &quot;event.name&quot;: &quot;agent.tool.verified&quot;,
-  &quot;event.schema.version&quot;: &quot;1.0&quot;,
-  &quot;timestamp&quot;: &quot;2026-10-08T10:41:12.381Z&quot;,
+  &quot;schema&quot;: 1,
+  &quot;event&quot;: &quot;tool.protocol_ok&quot;,
+  &quot;root_job_id&quot;: &quot;billing-742&quot;,
+  &quot;task_id&quot;: &quot;publisher-7&quot;,
+  &quot;activation_id&quot;: &quot;activation-2&quot;,
+  &quot;attempt_id&quot;: &quot;attempt-3&quot;,
+  &quot;producer&quot;: &quot;publisher&quot;,
+  &quot;source_event_id&quot;: &quot;publisher-event-981&quot;,
   &quot;trace_id&quot;: &quot;4bf92f3577b34da6a3ce929d0e0e4736&quot;,
-  &quot;root_job_id&quot;: &quot;job-8041&quot;,
-  &quot;task_id&quot;: &quot;task-net-17&quot;,
-  &quot;step_id&quot;: &quot;step-06&quot;,
-  &quot;tool_call_id&quot;: &quot;tool-923&quot;,
-  &quot;tool.name&quot;: &quot;network.apply_prefix_list&quot;,
-  &quot;action.class&quot;: &quot;write&quot;,
-  &quot;policy.decision_id&quot;: &quot;dec-118&quot;,
-  &quot;approval.id&quot;: &quot;apr-551&quot;,
-  &quot;outcome&quot;: &quot;verified&quot;,
-  &quot;verification.source&quot;: &quot;network-controller&quot;,
-  &quot;duration_ms&quot;: 842
+  &quot;span_id&quot;: &quot;00f067aa0ba902b7&quot;,
+  &quot;operation_id&quot;: &quot;target-op-81&quot;,
+  &quot;result&quot;: &quot;accepted&quot;
 }
 </code></pre>
-<p>Этот record не содержит raw token, prompt или полный tool payload. Если для forensic analysis нужен payload, храните его в отдельном зашифрованном evidence store, а в событии — digest, classification и access-controlled reference.</p>
-<h3>Tool call — не одно событие</h3>
-<p>Для write operation различайте минимум четыре момента:</p>
-<ol>
-<li><strong>Proposed</strong> — модель или rule предложили typed action.</li>
-<li><strong>Authorized</strong> — PDP/approval разрешили конкретный digest действия.</li>
-<li><strong>Executed</strong> — executor отправил downstream request и получил protocol result.</li>
-<li><strong>Verified</strong> — authoritative source подтвердил ожидаемое состояние.</li>
-</ol>
-<p>Если записать только <code>tool.success=true</code>, невозможно понять, было ли действие разрешено, применилось ли оно и не относится ли ответ к повторной попытке. Та же модель полезна для read: request, response classification, freshness и provenance.</p>
-<h2>Metrics: cardinality — часть архитектуры</h2>
-<p>Metric backend создаёт отдельную time series для каждой комбинации labels. Если добавить <code>task_id</code> или <code>actor.uid</code>, число series растёт вместе с числом задач и может превратить observability в причину отказа.</p>
-<p><strong>Подходящие labels ограничены известным набором:</strong></p>
-<ul>
-<li><code>service.name</code>, environment, region;</li>
-<li>model provider и model family/revision;</li>
-<li>tool class, а не произвольный command;</li>
-<li>outcome и документированный <code>error.type</code>;</li>
-<li>Substrate template, WorkerPool, sandbox class;</li>
-<li>bounded policy/result class.</li>
-</ul>
-<p><strong>Высокая cardinality уходит в logs, events и traces:</strong> Task ID, Actor UID, user/session, repository URL, prompt digest, external operation ID. В metric exemplar можно оставить ссылку на конкретный trace, не превращая trace ID в label.</p>
-<p>В Substrate это уже сделано намеренно: агрегированные <code>ate.actor.stats.*</code> metrics используют bounded template/pool dimensions, а per-actor measurements идут как events. Не создавайте поверх них log-based metric с label <code>ate.actor.uid</code> — это вернёт ту же проблему под другим названием.</p>
-<p>Метрика должна сохранять смысл. Например, <code>atenet.router.parking.wait.duration</code> различает <code>served</code>, <code>budget_exhausted</code>, <code>canceled</code>, <code>timeout</code> и <code>error</code>. <code>budget_exhausted</code> означает, что бюджет закончился при retryable условии, а не обычную application error. По последнему gRPC code нужно различать дефицит capacity, lifecycle contention и control-plane outage. Один counter <code>requests_failed_total</code> стёр бы эти различия и направил расследование не туда.</p>
-<h2>Что уже даёт Substrate</h2>
-<p>На снимке <code>df788825</code> Substrate реализует существенно больше, чем было видно из краткой версии этой главы:</p>
-<ul>
-<li>оборачивает stdout/stderr контейнеров в structured JSON и добавляет <code>ate.actor.*</code>, atespace, template и container metadata;</li>
-<li>позволяет смотреть текущий Actor через <code>kubectl ate logs actors ... --atespace ...</code>; для истории через migration/resume нужен central log backend;</li>
-<li>при <code>--follow</code> способен продолжить stream после migration Actor;</li>
-<li>экспортирует foundational OTLP metrics и on-demand distributed traces;</li>
-<li>выдаёт authoritative lifecycle events <code>ate.actor.state_changed</code>, <code>ate.actor.crashed</code> и <code>ate.actor.usage_sampled</code>;</li>
-<li>фиксирует per-restore timing breakdown и actor usage без добавления Actor UID в metric labels;</li>
-<li>имеет metric registry и event registry, проверяемые CI;</li>
-<li>предоставляет request-parking metrics и <code>/statusz</code> для capacity diagnosis.</li>
-</ul>
-<p>Есть важные ограничения.</p>
-<p><strong>Во-первых, lifecycle stream нельзя сэмплировать.</strong> <code>ate.actor.state_changed</code> записывается после committed state transition. Consumer, строящий derived state, принимает последнее событие для Actor UID; потеря одного record создаёт тихо устаревшее состояние. Current state всё равно следует запрашивать у control plane: event stream — история переходов, а не гарантированная база текущего состояния.</p>
-<p><strong>Во-вторых, container line получает trace context только тогда, когда actor SDK сам его эмитирует.</strong> Runtime не может достоверно определить, какому concurrent request относится строка общего stdout. Component records имеют <code>trace_id</code>, <code>span_id</code>, <code>trace_flags</code>, но полная actor-level correlation остаётся частично roadmap.</p>
-<p><strong>В-третьих, доставка имеет failure modes.</strong> OTLP processor может потерять records при заполненной queue, недоступном collector или завершении process до flush. Режим <code>otlp,console</code> создаёт резервную stdout-копию, но при одновременном сборе stdout и OTLP способен дать duplicates. Pipeline должен выбрать одну authoritative ingestion path или дедуплицировать по event identity.</p>
-<p><strong>В-четвёртых, ресурсные события и metrics имеют разную semantics.</strong> <code>ate.actor.usage_sampled</code> несёт Actor identity и epoch; CPU counter может сброситься при новой activation. Отрицательная дельта означает reset, а не отрицательное потребление. Отсутствующее измерение означает «не измерено», а не ноль.</p>
-<h2>Что реально есть в AX, а что ещё предстоит</h2>
-<p>На снимке AX <code>ac233282</code> control plane и runner используют стандартный Go <code>slog</code>. Сообщения содержат полезные отдельные поля: Task name, atespace, Actor name, image, PID, command и exit code. Они помогают локальной диагностике, но это ещё не end-to-end observability contract:</p>
-<ul>
-<li><code>ax-server</code> и <code>ax-task-runner</code> настраивают text handler в stdout;</li>
-<li>gRPC server создаётся без OpenTelemetry interceptors;</li>
-<li>нет общей propagation цепочки Task → Actor → runner → model/tool;</li>
-<li>нет стандартной schema событий agent steps, policy, approval и verification;</li>
-<li>Telemetry and Trajectory Collection прямо указана в AX roadmap как будущая работа.</li>
-</ul>
-<p>Поэтому корректная архитектура сейчас — не утверждать, что AX уже экспортирует полную trajectory, а поставить <strong>telemetry adapter на границах, которыми вы управляете</strong>:</p>
-<ol>
-<li>instrument AX API/gRPC и reconciler;</li>
-<li>передавать Task/root identity в runner как отдельный доверенный context;</li>
-<li>instrument agent harness, model gateway и tool gateway;</li>
-<li>принимать authoritative Actor metadata от Substrate;</li>
-<li>нормализовать всё в версионированную schema в collector;</li>
-<li>проверять propagation и redaction integration tests.</li>
-</ol>
-<p>Когда AX добавит native trajectory export, adapter можно заменить, сохранив contract и backend queries.</p>
-<h2>LLM telemetry без утечки данных</h2>
-<p>Для model request полезно разложить end-to-end latency:</p>
-<p><code>agent wait → gateway queue → provider/network → model queue → time to first token → generation → post-processing</code></p>
-<p>Минимальный набор attributes:</p>
-<ul>
-<li>provider, model name и revision;</li>
-<li>operation (<code>chat</code>, <code>generate_content</code>, <code>embeddings</code> и аналогичная stable class);</li>
-<li>input/output token counts, cache read/write tokens;</li>
-<li>queue duration, TTFT, generation duration, inter-token latency, total duration;</li>
-<li>finish reason, retry count, throttling и bounded error type;</li>
-<li>provider request ID в trace/log, но не в metric label;</li>
-<li>estimated cost с явно указанной версией pricing table.</li>
-</ul>
-<p>OpenTelemetry GenAI semantic conventions уже определяют общие <code>gen_ai.*</code> names и операции, включая <code>execute_tool</code> и <code>invoke_agent</code>, но многие conventions ещё имеют development status. Зафиксируйте используемую версию schema и план migration.</p>
-<p>Prompt, completion, tool arguments и results могут содержать secrets и PII. Их запись должна быть <strong>opt-in</strong>, redacted, ограничена по размеру и доступна меньшему кругу людей, чем обычные latency metrics. Для production диагностики чаще достаточно token counts, digests, content class, policy flags и защищённой ссылки на отдельно сохранённый sample. Никогда не записывайте hidden reasoning как обязательный telemetry field.</p>
-<h2>SLI и SLO: измеряйте пользовательский результат</h2>
-<p>SLO — не список красивых percentiles. Для каждого SLI задайте:</p>
-<ul>
-<li>измеряемую population и источник истины;</li>
-<li>good/bad event и исключения;</li>
-<li>окно и objective;</li>
-<li>owner и действие при расходовании error budget.</li>
-</ul>
-<p>Например:</p>
-<p><code>verified outcome ratio = verified terminal goals / eligible terminal goals</code></p>
-<p>В denominator нельзя молча исключать timeout, manual abort или задачи, потерянные при restart. Exclusion policy должна быть явной. Sampled traces нельзя использовать как точный denominator — SLI считается по unsampled metric/event stream.</p>
-<p>Практический набор для agent platform:</p>
-<table>
+<p>Это schema нашего приложения, не новая OpenTelemetry semantic convention. SDK/adapter сопоставляет её с соответствующими полями выбранного формата. В настоящий контракт добавляют время события, время наблюдения, тип ошибки и необходимые ссылки на approval/операцию. Sensitive payload хранится отдельно, если для него есть обоснование и разрешение. Локальный опыт ниже намеренно использует меньшую схему.</p>
+<p>Затем verifier получает данные через предусмотренный read path и сохраняет, что именно проверено: target, ожидаемый кандидат, наблюдаемая версия, источник и время чтения. Совпадение конечного значения может подтвердить критерий цели, но не всегда докажет, какая попытка его установила. Для attribution могут потребоваться receipt и журнал target. Эта граница важна при потерянном ответе и нескольких writers.</p>
+<p>Чтобы получить полезный dashboard, нужны и ожидающие задачи. Панель «100% успешных завершений» может выглядеть отлично, когда половина принятых целей навсегда осталась в очереди. Поэтому покажем отдельно достигнутые результаты, просроченные цели, backlog по состояниям и возраст самого старого ожидания. Если включаем ожидание человека в пользовательское время, так и называем SLI; техническое время без approval можно измерять вторым показателем с явными границами.</p>
+<h2>Metrics: сначала семантика и бюджет размерностей</h2>
+<p>Предположим, у counter есть <code>stage</code> из трёх значений и <code>result</code> из четырёх. Полный набор даёт до 12 комбинаций на один набор остальных dimensions. Добавим 10 000 <code>task_id</code> - получим до 120 000 комбинаций; replicas, environments и другие labels умножат число дальше. Не все сочетания обязательно возникнут, но архитектура должна учитывать возможный рост и churn. <a href="https://prometheus.io/docs/practices/naming/">Prometheus: labels</a></p>
+<p>Высокая cardinality сама по себе не делает данные бесполезными. ID нужны для поиска в events и traces, однако там они тоже стоят денег: влияют на индексы, объём и доступ. Практический выбор - bounded labels для агрегатов и контролируемый поиск по IDs для расследования. Exemplar может связать измерение с trace без превращения <code>trace_id</code> в label; он не обеспечивает полную выборку всех задач.</p>
+<p>Counter <code>tool_requests_total</code> должен иметь однозначную единицу учёта: логическая операция, отправленная попытка или protocol response. Retry увеличит число попыток, но не количество принятых целей. Для длительности задают секунды либо другую явно указанную единицу и проверяют преобразование на границе OTLP/Prometheus. Успех и отказ можно наблюдать в одной histogram с bounded outcome, если эта семантика осмысленна для запроса.</p>
+<p>Для вопроса «какая доля укладывается в 30 секунд?» bucket на этом пороге часто полезнее приблизительного p99. У classic histogram число series включает buckets, count и sum; увеличение числа buckets тоже имеет цену. Quantiles отдельных replicas нельзя просто усреднить и назвать общим p95: распределения сначала агрегируют совместимым способом. При использовании native histogram учитывают поддержку выбранного backend и тип данных. <a href="https://prometheus.io/docs/practices/histograms/">Prometheus: histograms</a></p>
+<p>Данные о ресурсах требуют своей семантики. Отсутствующее measurement означает «не измерено», пока источник не определил иное. Накопительный CPU counter читают как прирост в рамках соответствующего epoch, учитывая reset; складывать все накопленные readings нельзя. По этой причине в контракт входят не только названия полей, но и источник, units и жизненный цикл счётчика.</p>
+<h2>SLI: как не потерять зависшие задачи в знаменателе</h2>
+<p><strong>SLI</strong> - определённый показатель качества, <strong>SLO</strong> - согласованная цель для него на заданном окне. Для <code>billing</code> выберем учебный показатель: доля принятых целей, результат которых подтверждён не позднее индивидуального deadline. Плановое ожидание approval входит в это время. Смена такой политики требует новой явной версии измерения, а не исключения неудобных задач задним числом.</p>
+<p>Берём cohort по времени принятия <code>[start, end)</code>. На момент наблюдения <code>now</code> в denominator включаем все eligible цели этого cohort, чей deadline уже наступил. Good - verification зафиксирована к этому deadline. Просроченное ожидание и неизвестный результат учитываются как bad для данного обязательства; они не обязаны быть terminal в workflow. Цели, чей deadline впереди, показываются отдельно как <code>not_due</code>. Поздний успех полезен пользователю, но не исправляет факт нарушения срока.</p>
+<p>Это один конкретный deadline-based SLI, не универсальная формула надёжности. Для непрерывной отчётности можно группировать по наступлению deadlines или использовать другое документированное правило окна. Главное - сохранить учёт принятых работ, явно определить исключения, запаздывание данных и пересчёт. Пустой denominator означает «нет наблюдений», а не 100% успеха. Общий подход к определению пользовательских SLIs и SLOs изложен в <a href="https://sre.google/workbook/implementing-slos/">Google SRE Workbook</a>.</p>
+<p>Источник population должен быть полным настолько, насколько требует измерение. Даже unsampled events могут потеряться, продублироваться или не быть записаны при аварии. Для точного расчёта нужны устойчивые acceptance records, дедупликация и проверка полноты, например сверка с workflow store. При недоступном источнике показатель становится неизвестным или помечается неполным; исчезновение источника нельзя интерпретировать как отсутствие ошибок.</p>
+<h2>Локальный опыт: сломаем доставку, сохранив смысл результата</h2>
+<p><code>examples/ch25_observability_contract.py</code> - программа на стандартной библиотеке Python. Сеть, OTel SDK, collector service, модель и AX/Substrate не используются. <code>Goal</code> и ledger - <strong>доверенные fixtures состояния</strong>, а не реализация устойчивого хранилища. Программа не публикует кандидатов; она рассматривает заранее заданные результаты работы.</p>
+<p>У пяти целей acceptance time равен 0, deadline - 50; шестая принята в 45 и имеет deadline 95. Смотрим cohort <code>[0, 50)</code> при <code>now=60</code>. Все числа - условные единицы времени, а не реальная длительность запуска. <code>happy</code> проверена в 20, <code>telemetry_lost</code> - в 30, <code>late_verified</code> - в 55. Две другие старые цели ещё ждут approval либо выяснения результата записи.</p>
+<p>Diagnostic collector имеет очередь вместимостью один record. В опыте <code>telemetry_lost</code> она занята записью приёма, поэтому событие verification отбрасывается. Сам результат verification остаётся в ledger. Другая запись доставляется повторно, а старое событие <code>tool.sent</code> приходит последним с более поздним wall-clock timestamp, имитируя рассогласование часов. Collector считает потери и дубликаты; в пределах одного producer/activation выбирает событие по sequence.</p>
+<p style="break-inside:avoid-page;break-after:avoid-page">Запуск из корня репозитория:</p>
+<pre><code class="language-sh">python3 examples/ch25_observability_contract.py
+python3 -m unittest discover -s examples -p 'test_ch25*.py' -v
+</code></pre>
+<p>Функция расчёта SLI намеренно вообще не принимает diagnostic events:</p>
+<pre><code class="language-python">def outcome_sli(goals, start, end, now):
+    &quot;&quot;&quot;Deadline-matured acceptance cohort; diagnostics are deliberately absent.&quot;&quot;&quot;
+    if not start &lt; end &lt;= now:
+        raise ValueError(&quot;invalid observation window&quot;)
+    if len({g.job for g in goals}) != len(goals):
+        raise ValueError(&quot;duplicate goal&quot;)
+    if any(g.deadline &lt; g.accepted_at or (g.verified_at is not None and
+           not g.accepted_at &lt;= g.verified_at &lt;= now) for g in goals):
+        raise ValueError(&quot;invalid goal time&quot;)
+    cohort = [g for g in goals if g.eligible and start &lt;= g.accepted_at &lt; end]
+    due = [g for g in cohort if g.deadline &lt;= now]
+    good = sum(g.verified_at is not None and g.verified_at &lt;= g.deadline for g in due)
+    return {&quot;eligible&quot;: len(cohort), &quot;due&quot;: len(due), &quot;not_due&quot;: len(cohort) - len(due),
+            &quot;good&quot;: good, &quot;bad&quot;: len(due) - good,
+            &quot;ratio&quot;: good / len(due) if due else None}
+</code></pre>
+<p><code>investigate</code> выбирает следующую проверку по доверенному состоянию, а events использует для обнаружения расхождения наблюдений. Она не исправляет workflow и не повторяет side effect. Результат получается таким:</p>
+<table style="break-inside:avoid-page">
 <thead>
 <tr>
-<th>SLI</th>
-<th>Что защищает</th>
-<th>Примечание</th>
+<th>Цель</th>
+<th>Состояние по ledger</th>
+<th>Следующая проверка</th>
+<th>Результат по deadline</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Verified outcome ratio</td>
-<td>полезный результат</td>
-<td>определяется отдельно для каждого класса задач</td>
+<td><code>happy</code></td>
+<td><code>verified</code></td>
+<td><code>none</code></td>
+<td><code>good</code></td>
 </tr>
 <tr>
-<td>End-to-end outcome latency</td>
-<td>ожидание пользователя</td>
-<td>от accepted goal до verified outcome, а не до model response</td>
+<td><code>approval_wait</code></td>
+<td><code>approval</code></td>
+<td><code>check_approval_deadline</code></td>
+<td><code>bad</code></td>
 </tr>
 <tr>
-<td>Time to first useful action</td>
-<td>отзывчивость</td>
-<td>«полезное» задаётся наблюдаемым событием, не первым token</td>
+<td><code>reply_lost</code></td>
+<td><code>uncertain</code></td>
+<td><code>reconcile_target</code></td>
+<td><code>bad</code></td>
 </tr>
 <tr>
-<td>Manual recovery ratio</td>
-<td>автономность</td>
-<td>отделять плановый approval от аварийного вмешательства</td>
+<td><code>telemetry_lost</code></td>
+<td><code>verified</code></td>
+<td><code>inspect_telemetry</code></td>
+<td><code>good</code></td>
 </tr>
 <tr>
-<td>Unsafe/unauthorized side effects</td>
-<td>safety guardrail</td>
-<td>абсолютный count может быть важнее процента</td>
+<td><code>late_verified</code></td>
+<td><code>verified</code></td>
+<td><code>none</code></td>
+<td><code>bad</code></td>
 </tr>
 <tr>
-<td>Task ready / resume latency</td>
-<td>runtime readiness</td>
-<td>разделять cold boot, restore и queue/parking</td>
-</tr>
-<tr>
-<td>Tool verified success ratio</td>
-<td>надёжность действий</td>
-<td>protocol success не считается verification</td>
-</tr>
-<tr>
-<td>Model TTFT и request success</td>
-<td>inference health</td>
-<td>не подменяет end-to-end outcome</td>
+<td><code>young</code></td>
+<td><code>running</code></td>
+<td><code>follow_activation</code></td>
+<td><code>not_due</code></td>
 </tr>
 </tbody>
 </table>
-<p>Tokens/s, GPU utilization и cache hit — важные engineering metrics, но сами по себе не SLO продукта. Высокий throughput не помогает пользователю, если agent циклически повторяет бесполезный tool call.</p>
-<h2>Sampling и надёжность telemetry pipeline</h2>
-<p>Цена хранения контролируется не одинаковым sampling для всех данных, а их критичностью:</p>
-<ul>
-<li>SLI metrics и counters — не сэмплировать;</li>
-<li>lifecycle, authorization, approval, execution и verified outcome — не сэмплировать;</li>
-<li>error и high-impact traces — сохранять полностью;</li>
-<li>normal traces — head sampling для бюджета и tail sampling по latency/outcome;</li>
-<li>verbose model/tool content — opt-in sampling с redaction и коротким retention;</li>
-<li>actor usage events — можно снижать по документированному правилу, если они не являются billing evidence.</li>
-</ul>
-<p>Collector — часть production path наблюдаемости и сам требует metrics: accepted, dropped, refused, queue size, retry и export latency. При его отказе приложение не должно бесконечно блокировать user request, но критическое evidence не должно тихо исчезать. Используйте bounded queue, disk buffer там, где он оправдан, flush budget, drop counters и отдельный канал для audit events.</p>
-<p>Проверьте clock synchronization. Trace UI может нарисовать невозможный порядок, если часы Worker и gateway расходятся. Для causal order важны parent/link relations и monotonic duration внутри process, а wall-clock timestamp требует синхронизированных hosts.</p>
-<h2>Security telemetry</h2>
-<p>Observability backend видит topology, identities, error details и иногда содержимое запросов. Это высокоценный control-plane asset.</p>
-<p>Минимальные controls:</p>
-<ul>
-<li>tenant isolation и field-level access для sensitive payload;</li>
-<li>encryption in transit/at rest и отдельная workload identity exporters;</li>
-<li>redaction до выхода из trust boundary;</li>
-<li>allowlist полей вместо попытки найти все возможные secrets regex-ами;</li>
-<li>retention по типу сигнала, а не один срок на всё;</li>
-<li>integrity и append-only guarantees для audit trail;</li>
-<li>журнал доступа к evidence;</li>
-<li>запрет workload подменять reserved platform attributes.</li>
-</ul>
-<p><code>root_job_id</code> и Task ID тоже могут раскрывать business context, поэтому публичный dashboard не должен превращаться в directory активных целей. User identity лучше хранить как scoped pseudonymous reference и разрешать обратное сопоставление только уполномоченному incident/audit process.</p>
-<h2>Dashboards и alerts, которыми можно пользоваться</h2>
-<p>Один огромный dashboard создаёт иллюзию полноты. Разделите views по вопросу:</p>
-<ol>
-<li><strong>Outcome:</strong> verified success, end-to-end latency, manual recovery, safety guardrails.</li>
-<li><strong>Agent:</strong> active Tasks, steps, retry loops, approvals, tool verification, child fan-out.</li>
-<li><strong>Runtime:</strong> Actor states, restore phases, WorkerPool saturation, parking outcomes, crashes.</li>
-<li><strong>Inference:</strong> request/queue latency, TTFT, tokens, cache, throttling, GPU saturation.</li>
-<li><strong>Infrastructure:</strong> nodes, network, storage, databases, collector health.</li>
-</ol>
-<p>Каждый верхнеуровневый panel должен вести к traces/events с тем же time range и dimensions. Dashboard без drill-down отвечает «плохо», но не помогает дежурному найти причинный путь.</p>
-<p>Page должен приходить по пользовательскому симптому или быстрому расходованию error budget. Cause alerts вроде «CPU 82%» полезны как diagnostic signals, но часто не требуют ночного звонка. Multi-window burn-rate alert различает быстрый catastrophic burn и медленное устойчивое ухудшение. У alert должны быть owner, impact, ссылка на runbook и несколько первых запросов, которые подтверждают или опровергают гипотезу.</p>
-<h2>Разбор инцидента «агент завис»</h2>
-<p>Рабочий runbook идёт сверху вниз, сохраняя correlation identity.</p>
-<ol>
-<li>Найти <code>root_job_id</code> и определить terminal/expected outcome. Goal ещё исполняется, ждёт человека или уже завершён без verification?</li>
-<li>По <code>task_id</code> проверить последний committed agent event. Если это <code>approval.requested</code>, искать approval ID и deadline, а не CPU.</li>
-<li>По Actor UID запросить current state у Substrate и сравнить его с lifecycle history. Не принимать последний log event за authoritative current state.</li>
-<li>Если Actor ждёт resume, разложить route/parking/restore latency. При <code>budget_exhausted</code> бюджет исчерпан на retryable условии: по последнему gRPC code различать дефицит capacity, lifecycle contention и control-plane outage. <code>timeout</code> относится к deadline ожидания caller, <code>error</code> — к non-retryable failure.</li>
-<li>Для работающей activation перейти по trace link к model/tool spans. Отделить gateway queue, provider latency и tool execution.</li>
-<li>Для write tool сопоставить proposed → authorized → executed → verified. HTTP 200 без verification не закрывает инцидент.</li>
-<li>Если сигнал обрывается, проверить сам telemetry pipeline: dropped records, collector queue, duplicate ingestion и clock skew.</li>
-</ol>
-<p>Такой путь превращает фразу «завис» в проверяемую последовательность гипотез. Без общей identity команда прыгает между пятью dashboards и вручную сравнивает timestamps.</p>
-<h2>Минимальный план внедрения</h2>
-<p>Не начинайте с покупки observability platform. Начните с контракта и одного end-to-end сценария.</p>
-<h3>Этап 1. Identity и schema</h3>
-<ul>
-<li>определить root, Task, Actor, activation, step, tool/model IDs;</li>
-<li>зафиксировать reserved namespaces и owners полей;</li>
-<li>версионировать event schemas;</li>
-<li>описать redaction и cardinality budgets.</li>
-</ul>
-<h3>Этап 2. Один golden path</h3>
-<p>Instrument путь <code>CreateTask → ResumeActor → model request → read-only tool → verified answer</code>. Для него должны работать log-to-trace переходы и поиск от user goal до каждого слоя.</p>
-<h3>Этап 3. Failure paths</h3>
-<p>Добавить approval timeout, tool retry, WorkerPool saturation, suspend/resume, child Task, collector outage и external operation, завершившуюся после client timeout.</p>
-<h3>Этап 4. SLO и alerts</h3>
-<p>Сначала определить outcome SLI и denominator, затем platform decomposition и burn-rate alerts. Не выводить reliability из sampled traces.</p>
-<h3>Этап 5. Проверка контрактов</h3>
-<p>Автоматические tests должны ловить:</p>
-<ul>
-<li>потерю <code>traceparent</code> на HTTP/gRPC/queue boundary;</li>
-<li>отсутствие span link после resume или delegation;</li>
-<li>попадание Task/Actor IDs в metric labels;</li>
-<li>secret/PII в events и model content;</li>
-<li>sampling lifecycle/audit events;</li>
-<li>duplicates при одновременном OTLP и stdout ingestion;</li>
-<li>неверный порядок из-за clock skew;</li>
-<li>незаметную потерю данных при backpressure/collector outage;</li>
-<li>расхождение event registry и реально эмитируемого кода.</li>
-</ul>
+<p>По выбранному SLI good = 2, due = 5, ratio = <strong>40%</strong>; одна цель ещё не созрела для оценки. Если оставить только три завершившиеся verification, получится 2/3, около <strong>66,7%</strong>. Разница вызвана знаменателем, а не улучшением системы. Отбрасывание ещё и позднего результата исказило бы картину сильнее.</p>
+<p>В диагностическом канале 11 предложенных к доставке records: один потерян из-за очереди, одна повторная копия удалена при дедупликации, сохранено девять уникальных записей. Последним по sequence для <code>happy</code> остаётся <code>tool.verified</code>, хотя старое событие пришло позже и имеет больший timestamp. Это правило действует только в отдельном stream; программа не строит глобальные распределённые часы.</p>
+<p>Попробуйте мысленно удалить все diagnostics для <code>happy</code>. По ledger цель останется verified, но потребуется исследовать instrumentation или доставку. Теперь сделайте ledger недоступным: результат расследования должен стать <code>unknown</code>, даже если в diagnostics есть <code>tool.verified</code>. Эти два случая включены в тесты и показывают, почему источники имеют разный вес.</p>
+<p>В примере также проверяются bounded metric labels и allowlist атрибутов. Данные <code>Authorization</code>, prompt, произвольные strings и попытки подменить identity не попадают в диагностические атрибуты. Это конечная учебная schema, не универсальное DLP: доверенные Context и хранилище не аутентифицированы, строки IDs сами требуют защиты, а допустимые числа могут быть covert channel. Очередь ограничена, но история records хранится без retention в памяти. Нет disk buffer, реального sampling, OTLP propagation, span links и устойчивости после рестарта. Тесты этих преобразований не заменяют интеграцию.</p>
+<h2>Как выбирать инструменты под получившийся контракт</h2>
+<p>Теперь понятно, какие обязанности распределять между инструментами. Instrumentation рождает сигналы в контролируемых сервисах. Collector принимает и преобразует их. Backend хранит и ищет. UI помогает переходить от агрегата к конкретной истории. Ни один слой автоматически не реализует остальные.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Потребность</th>
+<th>Подходящий класс инструмента</th>
+<th>Что проверить при выборе</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Единая schema и перенос context между сервисами</td>
+<td>OpenTelemetry SDK и instrumentation библиотек</td>
+<td>Поддержку используемых протоколов, async context, версию conventions и реальную полноту hooks</td>
+</tr>
+<tr>
+<td>Приём, redaction, batch и маршрутизация сигналов</td>
+<td>OpenTelemetry Collector</td>
+<td>Пропускную способность, queue/retry/storage, безопасность входов и наблюдаемость потерь</td>
+</tr>
+<tr>
+<td>Агрегаты и alerts по bounded dimensions</td>
+<td>Prometheus-совместимый metrics backend</td>
+<td>Series budget, retention, histogram support, полноту ingestion и стоимость эксплуатации</td>
+</tr>
+<tr>
+<td>Поиск по job/attempt и просмотр причинного пути</td>
+<td>Log store и trace backend, например Jaeger</td>
+<td>Индексацию IDs, доступ, links, sampling, retention и переходы из metrics</td>
+</tr>
+</tbody>
+</table>
+<p>Для небольшой системы можно начать с одного instrumented gateway, структурированных logs и понятной метрики принятия/результата. Дополнительный collector оправдан, когда нужны общая обработка, несколько экспортёров и контроль pipeline. Отдельный trace backend полезен, когда ручное соединение операций уже мешает расследованию. UI вроде Grafana объединяет views, но не создаёт отсутствующие causal links или недостающие acceptance records.</p>
+<p>Проверяйте выбор на своём отказном сценарии: можно ли найти <code>billing-742</code>, увидеть ожидание approval, перейти к конкретной попытке после resume и отличить потерянный response от неподтверждённого результата? Это более содержательный acceptance test, чем количество встроенных dashboards. Для tracing и поиска первичны <a href="https://www.jaegertracing.io/docs/">документация Jaeger</a> и возможности конкретного backend; для обработки доставки - <a href="https://opentelemetry.io/docs/collector/resiliency/">Collector resiliency</a>.</p>
+<h3>LLM telemetry как часть этого пути</h3>
+<p>Модель - один из участников workflow. Её request нужно связать с Task и попыткой, а latency разделить по реально наблюдаемым границам. TTFT со стороны клиента уже может включать сеть и очередь provider. Server-side queue time и prefill duration имеют другую точку отсчёта; суммировать всё без определения интервалов нельзя. Подробные измерения inference разобраны в главе 21.</p>
+<p>Для штатной диагностики обычно достаточно operation/model identifiers, token counts, finish/error class и измеренных durations. Provider request ID полезен для расследования, но не для metric label. Если оценивается стоимость, сохраняют версию pricing и различают оценку от итогового bill. Качество ответа или корректность изменения измеряются отдельно: быстрый <code>finish_reason</code> ещё не подтверждает пользовательский outcome.</p>
+<p>GenAI semantic conventions помогают согласовать имена spans, metrics и events, но версию нужно закрепить вместе с instrumentation. При сверке этой редакции прежний раздел сайта OTel уже перенаправляет к отдельному <a href="https://github.com/open-telemetry/semantic-conventions-genai">репозиторию GenAI conventions</a>. Поэтому в книге не следует обещать, что произвольный набор <code>gen_ai.*</code> универсально стабилен или что смена SDK автоматически мигрирует старые queries.</p>
+<p>Prompt, completion, tool arguments и results собирают только при понятной необходимости, с разрешением, ограничениями размера, доступом и retention. Лучше не собирать содержимое по умолчанию, чем надеяться удалить всё секретное одной regex. В частности, скрытый reasoning не нужен для обычного incident timeline: используйте наблюдаемые операции и подтверждённые решения.</p>
+<h2>Что произойдёт при отказе самой телеметрии</h2>
+<p>Collector и exporter имеют очереди, пределы памяти, retry и shutdown. При переполнении данные могут быть отброшены; crash до flush тоже оставляет пробел. Для важного потока нужен подходящий persistent buffer, но и он ограничен размером диска и отказным доменом. Retry может дать повторную доставку. Формулировка «у нас OTLP» не задаёт end-to-end exactly-once и не доказывает полноту audit. <a href="https://opentelemetry.io/docs/collector/resiliency/">OpenTelemetry Collector resiliency</a></p>
+<p>В модели дедупликация использует <code>(producer, source_event_id)</code> и сравнивает содержимое повторов. В настоящем приложении нужно определить уникальность, срок хранения ключа и поведение при конфликте. Не всякая native log-запись уже имеет такой ID. Если source их не предоставляет, произвольный хеш текста не всегда отличит дубль от двух действительно одинаковых событий.</p>
+<p>Sampling выбирает часть диагностических данных ради стоимости. Head sampling принимает решение рано и ещё не знает, произойдёт ли ошибка позже. Tail sampling может учитывать пришедшие spans, но не вернёт уже отброшенное на входе. Чтобы обещать сохранение всех ошибок, нужно обеспечить полный вход нужного класса, маршрутизацию связанных spans, достаточный буфер и обработку поздних данных; даже тогда доставка имеет свои ограничения. Комбинировать head/tail можно, но обещание относится только к реально дошедшей population. <a href="https://opentelemetry.io/docs/concepts/sampling/">OpenTelemetry: sampling</a></p>
+<p>Критичные audit/state records не следует намеренно сэмплировать. Но отсутствие sampling не равно гарантированной доставке. Если диагностический pipeline недоступен, обычный запрос не должен зависать бесконечно. Если отсутствует обязательное audit evidence, поведение критической записи определяется policy главы 24: остановить admission, использовать предусмотренный устойчивый путь или перейти к явно разрешённой аварийной процедуре. Это разные режимы, а не один глобальный <code>fail open</code>.</p>
+<p>У pipeline должны быть собственные наблюдаемые счётчики: принято, отказано, потеряно, повторено, заполнение очереди и возраст старейшей записи. Их проверяют независимым от этого же канала способом, где это оправдано. «В логах collector нет ошибок» ничего не доказывает, если его logs уходят через тот же отказавший exporter.</p>
+<h2>Что дают закреплённые AX и Substrate</h2>
+<h3>AX: полезные локальные записи и работа для adapter</h3>
+<p>На снимке AX <code>ac233282</code> стандартные <code>ax-server</code> и <code>ax-task-runner</code> настраивают <code>slog.NewTextHandler</code> в stdout. Стандартный <code>grpcServer()</code> создаёт <code>grpc.NewServer()</code> без OTel interceptors. В roadmap автоматический сбор OpenTelemetry trajectory на runner layer обозначен будущей работой. Это подтверждает отсутствие такого готового пути в проверенных точках входа, но не запрещает внешнюю instrumentation в конкретном deployment. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go">AX: server entry point</a>, <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-task-runner/main.go">runner entry point</a>, <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md">roadmap</a></p>
+<p>Практический путь - инструментировать границы, которыми владеет приложение: приём goal, mapping Task/Actor, harness, model gateway и publisher. Если downstream trace context не переносится, adapter сохраняет хотя бы явную связь job/attempt и описывает этот пробел. Установка collector возле AX не создаст отсутствующие spans внутри runner и не определит verification за автора приложения.</p>
+<h3>Substrate: runtime-события с известными ограничениями</h3>
+<p>В <code>df788825</code> есть собственные metadata <code>ate.*</code>, JSON-обёртка container output, actor-aware CLI logs, метрики и traces компонентов. Три native event names - <code>ate.actor.state_changed</code>, <code>ate.actor.crashed</code>, <code>ate.actor.usage_sampled</code> - присутствуют в коде <code>actorevent</code> и registry. Runtime attribution помогает связать смену Worker, restore и измерения, а бизнес-цель <code>billing</code> и критерий её успеха добавляет приложение. <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md">Substrate: observability</a>, <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/actorevent/actorevent.go">actorevent</a></p>
+<p>По документированному контракту <code>ateapi</code> пишет state transition после commit. Событие свидетельствует о состоявшемся переходе при доверенном происхождении, но потерянный следующий record оставит derived view устаревшим. Для current state обращаются к control plane. <code>otlp,console</code> даёт две копии и может помочь пережить отказ одного пути, но общий отказный домен и duplicate ingestion остаются. CLI stream также не заменяет central history после migration.</p>
+<p>Container stdout получает runtime metadata, но trace context конкретного concurrent request должен прийти из actor SDK: forwarder общего потока не может достоверно угадать, какой запрос породил строку. Для прямого OTLP-export из Actor в этом снимке требуется отдельный egress path; stdout проходит через worker другим путём. Наличие логов поэтому не доказывает, что traces и metrics SDK из sandbox доходят до collector.</p>
+<p>Особенно важно происхождение metadata. В коде <code>otlprelay</code> allowlist по <code>service.name</code> прямо назван protocol contract, а не security boundary: имя задаёт клиент, скомпрометированный процесс может заявить разрешённое. Поэтому <code>service.name=ateapi</code> или <code>ateom-gvisor</code> не является криптографическим доказательством отправителя. Для доверенного attribution нужны защищённый ingress, проверенная workload identity и контролируемое добавление reserved fields. Это продолжение модели прав из главы 24, а не свойство одной строки в record. <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/otlprelay/relay.go">Substrate: relay source gate</a></p>
+<p>В диагностике ожидания полезна семантика request parking. <code>budget_exhausted</code> означает исчерпание бюджета при retryable условии, а не обязательно нехватку Worker: возможны lifecycle contention или недоступность control plane. Значение <code>served</code> означает, что запрос маршрутизирован к Worker; оно не подтверждает завершение бизнес-задачи. Аналогично фазы restore могут перекрываться, а разные usage formats иметь разные units/epochs. Перед запросом к backend проверяют registry и источник измерения, а не угадывают смысл по похожим названиям. <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md">Substrate: request parking</a></p>
+<h2>Как этим пользоваться дежурному</h2>
+<p>Вернёмся к вопросу Алисы. Найдите job и сохранённый критерий результата. Если workflow ждёт approval, сверьте его ID, кандидат и deadline; свободный CPU здесь ожидаем. Если попытка помечена <code>uncertain</code>, найдите operation ID и выполните предусмотренную проверку target. Если ledger уже хранит verified outcome, а UI его не показывает, исследуйте projection и доставку, не публикуйте изменение повторно ради появления зелёной строки.</p>
+<p>Если активная работа действительно выполняется, переходите к текущей activation и связанным model/tool spans. Найдите интервал, на котором прошло время: orchestration queue, Actor resume, модель или запись. Затем смотрите runtime и infrastructure metrics этого участка. Причинность требует проверки: совпадение высокой CPU и долгого ответа - повод для гипотезы, не доказательство bottleneck без дальнейших наблюдений.</p>
+<p>Alert для ночного дежурства должен выражать impact и требуемое действие: растёт число просроченных целей, потеряна возможность проверить результат либо быстро расходуется согласованный error budget. Порог CPU может быть полезным диагностическим alert, но сам по себе не определяет срочность. Уведомление должно вести к population, affected jobs, состоянию pipeline и первым проверкам; при малом трафике смотрят и абсолютное число затронутых целей. <a href="https://sre.google/workbook/alerting-on-slos/">SRE Workbook: alerting</a></p>
 <h2>Итог</h2>
-<p>Наблюдаемость agent infrastructure начинается не с dashboard и не с полного сохранения мыслей модели. Она начинается с точной причинной модели: user goal порождает Task, Task исполняется через Actor activations, agent принимает наблюдаемые решения, policy разрешает конкретное действие, executor выполняет его, а verification подтверждает внешний outcome.</p>
-<p>Metrics показывают масштаб и тенденции, events — конкретные переходы, traces — причинный путь. Stable logical IDs переживают relocation, attempt IDs различают retries, а physical IDs объясняют, где возник bottleneck. Lifecycle и audit evidence не сэмплируются; высококардинальные identity не попадают в metric labels; чувствительное содержимое не собирается по умолчанию.</p>
-<p>Substrate уже предоставляет прочную runtime-базу, но её semantics и ограничения нужно учитывать. Текущий AX ещё не реализует целостную OpenTelemetry trajectory, поэтому эту связность сегодня строят на контролируемых границах harness, gateway и runner. В следующей главе мы развернём учебный стенд и сразу заложим минимальный telemetry path, чтобы последующие эксперименты измерялись, а не оценивались на глаз.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
-<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md">Substrate observability на снимке df788825</a></li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md">Substrate request parking на снимке df788825</a></li>
-<li><a href="https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/metrics/registry">Substrate metric registry на снимке df788825</a></li>
-<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX server на снимке ac233282</a></li>
-<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go">AX runner на снимке ac233282</a></li>
-<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md">AX roadmap: Telemetry and Trajectory Collection</a></li>
-<li><a href="https://opentelemetry.io/docs/specs/otel/logs/">OpenTelemetry logs и correlation</a></li>
-<li><a href="https://opentelemetry.io/docs/specs/otel/trace/api/">OpenTelemetry tracing API и span links</a></li>
-<li><a href="https://opentelemetry.io/docs/specs/semconv/registry/attributes/gen-ai/">OpenTelemetry GenAI semantic conventions</a></li>
-<li><a href="https://www.w3.org/TR/trace-context/">W3C Trace Context</a></li>
-<li><a href="https://sre.google/workbook/alerting-on-slos/">Google SRE Workbook: alerting on SLOs</a></li>
-</ul></div></section><section class="chapter" id="ch-26"><div class="chapter-num">Глава 26</div><h1>Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal</h1>
-<p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-08</strong>. Команды и API относятся к этим снимкам; оба проекта pre-1.0, поэтому перед повторением сверяйте актуальные README и release notes.</p>
-<p>Лабораторный стенд нужен не для того, чтобы один раз увидеть зелёные Pods. Его задача — дать инженеру среду, в которой можно воспроизводимо ответить на вопросы: где проходит граница между AX, Substrate и Kubernetes; что переживает перезапуск; как Actor просыпается; где действует network policy; что происходит при нехватке Worker capacity; и какой слой сломался, когда Task перестал продвигаться.</p>
-<p>Если собрать всё в одной VM без явной модели, первый успешный запуск создаёт ложное чувство понимания. Затем ошибка DNS выглядит как проблема AX, заполненный диск — как дефект snapshot, а отсутствие <code>/dev/kvm</code> — как неисправный Kubernetes manifest. Поэтому в этой главе мы сначала проектируем <em>учебный эксперимент</em>, затем выбираем Kind, k3s или kubeadm и только после этого устанавливаем платформу.</p>
-<figure><figcaption>Три лабораторные топологии: растёт не «мощность Kubernetes», а реалистичность отказов и операционная цена</figcaption><svg class="diagram" viewBox="0 0 940 350" role="img" aria-label="Сравнение лабораторных топологий Kind, k3s и kubeadm на Proxmox"><defs><marker id="arrow-ch26" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs>
-<line x1="190" y1="175" x2="300" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch26)"/><text x="235" y="112" text-anchor="middle" font-size="10" fill="#5c6875">1 VM</text>
-<line x1="190" y1="175" x2="300" y2="175" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch26)"/><text x="245" y="166" text-anchor="middle" font-size="10" fill="#5c6875">1–3 VM</text>
-<line x1="190" y1="175" x2="300" y2="280" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch26)"/><text x="235" y="247" text-anchor="middle" font-size="10" fill="#5c6875">3+ VM</text>
-<line x1="510" y1="70" x2="620" y2="70" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch26)"/><text x="565" y="61" text-anchor="middle" font-size="10" fill="#5c6875">быстро</text>
-<line x1="510" y1="175" x2="620" y2="175" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch26)"/><text x="565" y="166" text-anchor="middle" font-size="10" fill="#5c6875">постоянно</text>
-<line x1="510" y1="280" x2="620" y2="280" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch26)"/><text x="565" y="271" text-anchor="middle" font-size="10" fill="#5c6875">реалистично</text>
-<rect x="30" y="135" rx="12" ry="12" width="160" height="80" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="110" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Proxmox/KVM</text><text x="110" y="187" text-anchor="middle" font-size="11" fill="#465569">virtualization host</text>
-<rect x="300" y="30" rx="12" ry="12" width="210" height="80" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="405" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Docker + Kind</text><text x="405" y="82" text-anchor="middle" font-size="11" fill="#465569">container nodes</text>
-<rect x="300" y="135" rx="12" ry="12" width="210" height="80" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="405" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">k3s</text><text x="405" y="187" text-anchor="middle" font-size="11" fill="#465569">persistent homelab</text>
-<rect x="300" y="240" rx="12" ry="12" width="210" height="80" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="405" y="269" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">kubeadm</text><text x="405" y="292" text-anchor="middle" font-size="11" fill="#465569">explicit Kubernetes mechanics</text>
-<rect x="620" y="30" rx="12" ry="12" width="285" height="80" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="762" y="59" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Быстрая итерация</text><text x="762" y="82" text-anchor="middle" font-size="11" fill="#465569">manifests · APIs · reset/recreate</text>
-<rect x="620" y="135" rx="12" ry="12" width="285" height="80" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="762" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Долгоживущая среда</text><text x="762" y="187" text-anchor="middle" font-size="11" fill="#465569">storage · ingress · edge</text>
-<rect x="620" y="240" rx="12" ry="12" width="285" height="80" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="762" y="269" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Production rehearsal</text><text x="762" y="292" text-anchor="middle" font-size="11" fill="#465569">CNI · CSI · LB · upgrades · recovery</text>
+<p style="break-inside:avoid-page;break-after:avoid-page">Хорошая наблюдаемость позволяет сказать: «эта цель ждёт решения до такого-то срока», «эта запись могла произойти, нужен reconciliation» или «результат подтверждён, но диагностика неполна». Эти ответы помогают продолжить работу и оставляют неопределённость видимой.</p>
+<p>Для этого нужны критерий результата, надёжный учёт принятых целей, идентификаторы разных масштабов и согласованный смысл сигналов. SDK, collector и backend выбирают под этот контракт, проверяя propagation, cardinality, потери и безопасность ingestion на одном сквозном сценарии. Следующая глава переносит инженерную проверку в Proxmox/KVM-лабораторию. Здесь мы подготовили вопросы и критерии наблюдения; сам стенд не запускали и совместимость закреплённой пары AX/Substrate этим опытом не доказывали.</p>
+<div class="sources" style="margin-top:3mm;padding:2mm 3mm;font-size:8.4pt;line-height:1.25"><h3 style="margin-top:0">Источники и дальнейшее чтение</h3>
+<ul>
+<li style="margin:.3mm 0"><a href="https://www.w3.org/TR/trace-context/">W3C Trace Context</a> · <a href="https://opentelemetry.io/docs/specs/otel/trace/api/">OTel tracing API</a></li>
+<li style="margin:.3mm 0"><a href="https://prometheus.io/docs/practices/naming/">Prometheus: labels</a> · <a href="https://prometheus.io/docs/practices/histograms/">histograms</a></li>
+<li style="margin:.3mm 0"><a href="https://opentelemetry.io/docs/concepts/sampling/">OTel sampling</a> · <a href="https://opentelemetry.io/docs/collector/resiliency/">Collector resiliency</a></li>
+<li style="margin:.3mm 0"><a href="https://sre.google/workbook/implementing-slos/">SRE Workbook: SLIs/SLOs</a> · <a href="https://sre.google/workbook/alerting-on-slos/">alerts</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/open-telemetry/semantic-conventions-genai">GenAI conventions</a> · <a href="https://www.jaegertracing.io/docs/">Jaeger docs</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX ac233282: server</a> · <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md">roadmap</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md">Substrate df788825: observability</a> · <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md">parking</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/actorevent/actorevent.go">Substrate: actorevent</a> · <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/metrics/registry/events.yaml">event registry</a> · <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/internal/otlprelay/relay.go">relay</a></li>
+</ul>
+</div></section><section class="chapter" id="ch-26"><div class="chapter-num">Глава 26</div><h1>Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal</h1>
+<p style="break-inside:avoid-page"><strong>Профиль главы на 16.10.2026:</strong> исходники AX <code>ac2332829f22360ff97b0ba34d94dd0dd782f17e</code> и Substrate <code>df788825e6fc13dd7aa5fd283c8f14bd4c818247</code>. Ниже разобраны эти ревизии, а не текущие ветки <code>main</code>. Совместимость пары требует отдельного интеграционного опыта. При подготовке этой редакции стенд не запускался; выполнен только локальный учебный пример на искусственных данных.</p>
+<p style="break-inside:avoid-page">В главе 25 мы разбирали, как понять, продвигается ли работа над изменением в <code>billing</code>. Теперь представим, что Task перестала отвечать, а инженер хочет воспроизвести проблему. На рабочей машине одновременно живут VPN, старый Kubernetes-кластер, несколько registry и локальная модель. Повторный запуск может случайно помочь, но объяснение причины от этого не появится.</p>
+<p style="break-inside:avoid-page">Лаборатория даёт возможность упростить вопрос. Сначала запустим маленький Actor, который увеличивает счётчик. Затем проверим его восстановление. Только после этого добавим AX и работу с Workspace. Если счётчик уже не восстанавливается, разбирать prompt пользовательского harness пока рано: наблюдаемая проблема возникла на более простом пути. Если счётчик исправен, а AX Task не получает рабочее окружение, появится основание исследовать следующую границу. Успех простого опыта сужает поиск, хотя и не исключает последующего отказа того же слоя.</p>
+<p style="break-inside:avoid-page">К концу главы у нас должен получиться паспорт среды и протокол опыта: что было установлено, какой результат ожидался, что наблюдалось и до какого вывода эти наблюдения позволяют дойти. Такой протокол полезнее единственного скриншота с зелёными Pods: другой инженер сможет повторить проверку и сравнить результаты.</p>
+<figure><figcaption>Три лабораторные топологии: растёт не «мощность Kubernetes», а реалистичность отказов и операционная цена</figcaption><svg aria-label="Сравнение лабораторных топологий Kind, k3s и kubeadm на Proxmox" class="diagram" role="img" viewbox="0 0 940 350"><defs><marker id="arrow-ch26" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs>
+<line marker-end="url(#arrow-ch26)" stroke="#53657a" stroke-width="2" x1="190" x2="300" y1="175" y2="70"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="235" y="112">1 VM</text>
+<line marker-end="url(#arrow-ch26)" stroke="#53657a" stroke-width="2" x1="190" x2="300" y1="175" y2="175"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="245" y="166">1–3 VM</text>
+<line marker-end="url(#arrow-ch26)" stroke="#53657a" stroke-width="2" x1="190" x2="300" y1="175" y2="280"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="235" y="247">3+ VM</text>
+<line marker-end="url(#arrow-ch26)" stroke="#53657a" stroke-width="2" x1="510" x2="620" y1="70" y2="70"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="565" y="61">быстро</text>
+<line marker-end="url(#arrow-ch26)" stroke="#53657a" stroke-width="2" x1="510" x2="620" y1="175" y2="175"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="565" y="166">постоянно</text>
+<line marker-end="url(#arrow-ch26)" stroke="#53657a" stroke-width="2" x1="510" x2="620" y1="280" y2="280"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="565" y="271">реалистично</text>
+<rect fill="#f3f5f7" height="80" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="160" x="30" y="135"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="110" y="164">Proxmox/KVM</text><text fill="#465569" font-size="11" text-anchor="middle" x="110" y="187">virtualization host</text>
+<rect fill="#edf4ff" height="80" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="210" x="300" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="405" y="59">Docker + Kind</text><text fill="#465569" font-size="11" text-anchor="middle" x="405" y="82">container nodes</text>
+<rect fill="#eefaf3" height="80" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="210" x="300" y="135"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="405" y="164">k3s</text><text fill="#465569" font-size="11" text-anchor="middle" x="405" y="187">persistent homelab</text>
+<rect fill="#fff7e8" height="80" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="210" x="300" y="240"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="405" y="269">kubeadm</text><text fill="#465569" font-size="11" text-anchor="middle" x="405" y="292">explicit Kubernetes mechanics</text>
+<rect fill="#edf4ff" height="80" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="285" x="620" y="30"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="762" y="59">Быстрая итерация</text><text fill="#465569" font-size="11" text-anchor="middle" x="762" y="82">manifests · APIs · reset/recreate</text>
+<rect fill="#eefaf3" height="80" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="285" x="620" y="135"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="762" y="164">Долгоживущая среда</text><text fill="#465569" font-size="11" text-anchor="middle" x="762" y="187">storage · ingress · edge</text>
+<rect fill="#f8efff" height="80" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="285" x="620" y="240"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="762" y="269">Production rehearsal</text><text fill="#465569" font-size="11" text-anchor="middle" x="762" y="292">CNI · CSI · LB · upgrades · recovery</text>
 </svg></figure>
-<p>Этот стенд использует direct reconciliation AX <code>ac233282</code>. Последовательный практикум главы 32 намеренно закреплён на AX <code>v0.3.1</code> с отдельным controller. Выберите один профиль для текущего опыта; при переходе сохраните новый паспорт версий и повторите интеграционные проверки. Такой переход не является обновлением только локального CLI.</p>
-<h2>Что именно мы строим</h2>
-<p>Proxmox, KVM, guest VM, container runtime, Kubernetes и agent platform — не синонимы и не один «кластер». Это вложенные уровни с разными обязанностями.</p>
-<table><thead><tr><th>Уровень</th><th>Что он предоставляет</th><th>Что проверять первым</th><th>Типичная ложная диагностика</th></tr></thead><tbody>
-<tr><td>Физический host</td><td>CPU, RAM, SSD/NVMe, NIC и аппаратную виртуализацию</td><td>pressure, I/O latency, firmware virtualization, время</td><td>«Kubernetes тормозит», хотя host ушёл в swap или storage saturated</td></tr>
-<tr><td>Proxmox/KVM</td><td>VM lifecycle, virtual disks, bridges, snapshots, passthrough</td><td>VM limits, bridge/VLAN, disk mode, CPU type</td><td>«Pod не видит сеть», хотя пакет не выходит из virtual bridge</td></tr>
-<tr><td>Guest Linux</td><td>kernel, systemd, filesystem, firewall, clock, container runtime</td><td>DNS, routes, free space/inodes, cgroups, kernel modules</td><td>«Image сломан», хотя guest не резолвит registry</td></tr>
-<tr><td>Kubernetes distribution</td><td>API, scheduling, Pod/service network, storage integration</td><td>Nodes, CoreDNS, CNI, StorageClass, events</td><td>«AX не создаёт Task», хотя базовый Pod не стартует</td></tr>
-<tr><td>Substrate</td><td>Actor lifecycle, WorkerPool, routing, suspend/resume</td><td>control API, atelet, workers, router, PostgreSQL/object store</td><td>«Runner завис», хотя Actor не получил Worker</td></tr>
-<tr><td>AX</td><td>Task/Workspace/Model и orchestration поверх Substrate</td><td>Redis, control plane, Task conditions, Actor mapping</td><td>«LLM плохая», хотя Task ждёт инфраструктуру</td></tr>
-</tbody></table>
-<p>Полезное правило: <strong>не устанавливайте следующий уровень, пока не доказана работоспособность предыдущего</strong>. До Substrate обычный Pod должен запускаться, резолвить Service и записывать данные в выбранный volume. До AX counter demo должен пройти create → route → suspend → resume. Иначе каждый новый компонент умножает число гипотез.</p>
-<h2>Сначала вопрос, потом distribution</h2>
-<p>Kind, k3s и kubeadm не являются тремя ступенями качества. Это инструменты для разных экспериментов.</p>
-<table><thead><tr><th>Критерий</th><th>Kind</th><th>k3s</th><th>kubeadm</th></tr></thead><tbody>
-<tr><td>Модель nodes</td><td>Containers внутри одной Linux-системы</td><td>Обычные Linux hosts/VM; server и agent</td><td>Обычные Linux hosts/VM; явный control plane и workers</td></tr>
-<tr><td>Главная сила</td><td>Быстро создать, удалить и воспроизвести cluster</td><td>Небольшая операционная цена постоянного кластера</td><td>Явно показывает стандартные mechanics Kubernetes</td></tr>
-<tr><td>Что выбирает за инженера</td><td>Почти всю node plumbing для локального теста</td><td>Много packaged defaults и компонентов</td><td>Мало: CNI, ingress, CSI, LB и HA проектируете сами</td></tr>
-<tr><td>Что хорошо проверять</td><td>Manifests, APIs, controllers, demos, reset/recreate</td><td>Homelab, edge, длительную работу, небольшой multi-node</td><td>Node lifecycle, network/storage choices, version skew, upgrades</td></tr>
-<tr><td>Чего он не доказывает</td><td>VM/node failure domains, production storage и сеть</td><td>Что ваши решения совпадут с обычным upstream cluster</td><td>Production readiness приложения без дополнительных tests</td></tr>
-<tr><td>Цена ошибки</td><td>Удалить cluster и повторить</td><td>Восстановить persistent lab</td><td>Разобрать control-plane/node/storage последствия</td></tr>
-</tbody></table>
-<h3>Kind: лаборатория control-plane поведения</h3>
-<p>Kind запускает Kubernetes nodes как containers и использует подготовленные node images с Kubernetes-компонентами. Это не «игрушечный API»: controllers, scheduler, kubelet и Service abstractions настоящие. Но физическая граница node подменена container boundary. Несколько Kind workers в одной VM не становятся несколькими независимыми machines: отказ guest kernel, Docker daemon, диска или bridge затронет их одновременно.</p>
-<p>Kind выбирают, когда главный вопрос звучит так: «правильны ли manifests и lifecycle?» Он особенно полезен здесь, потому что Substrate на зафиксированном снимке имеет поддерживаемый development path: скрипт создаёт Kind cluster и local registry, другой устанавливает Substrate, PostgreSQL и RustFS. Среду можно удалить целиком и убедиться, что инструкция воспроизводима.</p>
-<p>Kind неудобен, если эксперимент зависит от реального node reboot, отдельного NIC, production CSI, GPU topology или microVM. <code>extraPortMappings</code> и <code>extraMounts</code> полезны, но не превращают container-node в VM. Multi-node Kind следует использовать для scheduler/topology tests, а не как доказательство HA.</p>
-<h3>k3s: долгоживущий кластер с меньшей операционной ценой</h3>
-<p>K3s упаковывает Kubernetes distribution с практичными defaults и может работать на небольших Linux nodes. Это разумный второй стенд: его не приходится пересоздавать после каждого эксперимента, к нему проще подключить persistent storage и ingress, а VM уже являются настоящими failure domains.</p>
-<p>Удобство имеет цену: packaged CNI, ingress, ServiceLB, datastore и другие choices могут отличаться от целевой production-среды. Инженер обязан выписать, какие bundled components включены, какие отключены и чем заменены. Иначе фраза «на k3s работает» мало говорит о переносимости. K3s выбирают для homelab/edge и непрерывных integration tests, но не для обучения каждой детали bootstrap.</p>
-<h3>kubeadm: конструктор, а не готовая платформа</h3>
-<p>Kubeadm создаёт minimum viable conformant cluster и управляет bootstrap/upgrade mechanics. Он намеренно не решает весь stack: container runtime готовится отдельно, Pod network устанавливается отдельно, а storage, load balancer, ingress, certificates и backup требуют выбранных реализаций.</p>
-<p>Это лучший вариант, когда учебная цель — понять, почему CoreDNS не станет Ready до CNI, чем <code>control-plane-endpoint</code> отличается от адреса конкретного API server, как присоединяется node и что означает version skew. Но kubeadm — плохой первый шаг для изучения AX: слишком легко потратить неделю на CNI и ни разу не создать Task.</p>
-<h2>Рекомендуемая лестница стендов</h2>
-<p>Не пытайтесь сделать один cluster одновременно быстрым scratchpad, стабильным homelab и production rehearsal. Эти цели конфликтуют.</p>
-<ol>
-<li><strong>Lab A — disposable Kind.</strong> Одна VM. Проверяет сборку, manifests, Substrate API, AX lifecycle и observability contract. Reset — штатная операция.</li>
-<li><strong>Lab B — persistent k3s.</strong> Одна или три VM. Проверяет длительную работу, storage, ingress, egress, backups и node maintenance с небольшой ops-ценой.</li>
-<li><strong>Lab C — kubeadm rehearsal.</strong> Не менее трёх VM для meaningful failure tests; topology зависит от цели. Проверяет CNI/CSI/LB choices, upgrades, drain, loss of node и recovery.</li>
-</ol>
-<p>В книге базовым путём остаётся Lab A: <strong>Proxmox → Debian/Ubuntu VM → Docker → Kind → Substrate → AX</strong>. Это не рекомендация для production. Это кратчайший путь от чистого host до измеряемого Task без скрытого облачного control plane.</p>
-<h2>Проектирование VM на Proxmox</h2>
-<h3>CPU, память и overcommit</h3>
-<p>Выделенные VM resources — верхняя граница, а не гарантия производительности. Если Proxmox host перегружен соседними VM, восемь vCPU могут давать меньше работы, чем четыре свободных core. Для лаборатории важнее стабильный baseline, чем красивое число vCPU.</p>
-<p>Практические стартовые профили, а не обещание:</p>
-<table><thead><tr><th>Профиль</th><th>Стартовая VM</th><th>Что помещаем</th><th>Когда увеличивать</th></tr></thead><tbody>
-<tr><td>Control-plane learning</td><td>8 vCPU, 16 GiB RAM, 100 GiB SSD</td><td>Kind, Substrate, AX, лёгкий demo; inference вне VM</td><td>OOM, eviction, долгий image unpack, нехватка места</td></tr>
-<tr><td>Lifecycle/snapshot tests</td><td>12–16 vCPU, 24–32 GiB RAM, 200+ GiB SSD/NVMe</td><td>Несколько workers, repeated suspend/resume, telemetry</td><td>restore queue, I/O saturation, page cache pressure</td></tr>
-<tr><td>Multi-node rehearsal</td><td>Отдельные VM для control plane и workers</td><td>k3s/kubeadm, реальные node boundaries</td><td>По измеренному workload и выбранной HA topology</td></tr>
-</tbody></table>
-<p>Не запускайте большую local LLM в той же VM на первом этапе. Inference заберёт RAM/VRAM, page cache и disk bandwidth, а инженер станет одновременно отлаживать orchestration и model server. Подключите внешний model API или отдельную GPU VM; объединяйте слои только когда каждый имеет собственный baseline.</p>
-<h3>Диск и snapshots</h3>
-<p>На одном virtual disk смешиваются container layers, image registry, PostgreSQL, object storage, logs и Actor snapshots. Заполненный диск может остановить сразу все planes. Для долговременного стенда полезно разделить хотя бы OS/container cache и stateful data либо задать квоты и отдельные alerts.</p>
-<p>Proxmox snapshot фиксирует состояние VM/block device, но не гарантирует application-consistent backup PostgreSQL, Redis или object metadata. Он удобен как быстрый recovery point перед опасным упражнением; backup strategy всё равно проверяется средствами приложений. Снимок всей VM также не объясняет, какие именно данные требуются для восстановления платформы — этому посвящена следующая глава.</p>
-<h3>Сеть</h3>
-<p>До установки выпишите CIDR на бумаге. В Lab A одновременно существуют как минимум:</p>
-<ul>
-<li>LAN/VLAN Proxmox и адрес guest VM;</li>
-<li>Docker network, в которой живут Kind nodes;</li>
-<li>Kubernetes Pod CIDR;</li>
-<li>Kubernetes Service CIDR;</li>
-<li>возможно, VPN, corporate proxy и сети внешних MCP/model endpoints.</li>
-</ul>
-<p>Пересечение диапазонов создаёт ошибки, похожие на случайный packet loss: маршрут выбирается не туда, Service доступен из одного namespace и недоступен с host, proxy перехватывает внутренний адрес. Для kubeadm Pod network CIDR должен быть согласован с CNI и не пересекаться с host networks. Для Kind при proxy-настройке проверьте <code>NO_PROXY</code> для cluster-local и node ranges.</p>
-<p>Не публикуйте все control-plane ports на <code>0.0.0.0</code> ради удобства. Для первого доступа достаточно <code>kubectl port-forward</code> или port mapping, привязанного к management address. Затем явно спроектируйте ingress, TLS и firewall. «Открылось из браузера» не равно корректной service exposure.</p>
-<h3>Nested virtualization</h3>
-<p>Kind внутри VM не требует nested KVM: его nodes — containers. MicroVM runtime требует, чтобы аппаратная виртуализация прошла через Proxmox в guest и внутри был доступен <code>/dev/kvm</code>. Проверка должна быть отдельным gate:</p>
-<pre><code>test -e /dev/kvm
-ls -l /dev/kvm
-grep -E -m1 'vmx|svm' /proc/cpuinfo</code></pre>
-<p>Наличие флага CPU ещё не доказывает, что процесс имеет permission открыть устройство. Проверьте группу/ownership и выполните маленький runtime-specific smoke test. Для gVisor KVM не является универсальным обязательным условием: требования зависят от выбранной platform <code>runsc</code>. Всегда проверяйте конкретный runtime contract, а не слово «sandbox».</p>
-<h2>Воспроизводимость: стенд как продукт</h2>
-<p>Хорошая лаборатория собирается из пустой VM вторым инженером без устных подсказок. Для этого нужен небольшой bill of materials:</p>
-<ul>
-<li>версия и configuration VM template;</li>
-<li>guest OS и kernel;</li>
-<li>container runtime;</li>
-<li>Kind/k3s/Kubernetes version;</li>
-<li>Substrate и AX commit SHA;</li>
-<li>image digests, а не только mutable tags;</li>
-<li>Pod/Service/LAN CIDR и DNS assumptions;</li>
-<li>storage classes и пути данных;</li>
-<li>способ выдачи credentials без сохранения secrets в Git;</li>
-<li>acceptance tests и способ полного teardown.</li>
-</ul>
-<p>Cloud-init template, declarative VM provisioning и install scripts уменьшают drift, но не заменяют verification. Скрипт может завершиться с кодом 0, а нужный webhook ещё не готов. Каждый этап должен иметь наблюдаемый postcondition.</p>
-<h2>Lab A: путь от чистой VM до Substrate</h2>
-<p>Ниже — маршрут, а не вечный install script. Команды Substrate привязаны к снимку <code>df788825</code>; перед запуском прочитайте соответствующий README.</p>
-<h3>Gate 0. Guest готов</h3>
-<pre><code>uname -a
-timedatectl status
-df -h
-df -i
-ip route
-getent hosts registry.k8s.io
-docker info</code></pre>
-<p>Здесь нас интересуют не сами строки вывода, а факты: часы синхронизированы, root filesystem и inodes имеют запас, default route и DNS работают, Docker использует ожидаемые cgroups и может скачать/запустить тестовый image.</p>
-<h3>Gate 1. Kubernetes работает без платформы</h3>
-<p>На зафиксированном Substrate quickstart создание cluster и local registry автоматизировано:</p>
-<pre><code>hack/create-kind-cluster.sh
-kubectl cluster-info
-kubectl get nodes -o wide
-kubectl get pods -A
-kubectl wait --for=condition=Ready node --all --timeout=5m</code></pre>
-<p>Запустите отдельный smoke Pod, проверьте DNS Service и исходящий HTTPS. Если используется volume, запишите marker, пересоздайте Pod и докажите ожидаемую persistence semantics. Только после этого fault считается выше уровня Kubernetes.</p>
-<h3>Gate 2. Substrate проходит собственный lifecycle</h3>
-<pre><code>hack/install-ate-kind.sh \
+<h2>1. Какой вопрос должен выдержать стенд</h2>
+<p style="break-inside:avoid-page">Начнём с опыта, а не с покупки сервера. Для истории с <code>billing</code> первый вопрос звучит так: «Может ли платформа создать Actor, принять обращение, приостановить его и восстановить ожидаемое состояние?» Здесь ещё нет LLM, доступа к Git и публикации изменений. Это наш положительный контроль — небольшой сценарий с понятным результатом, на фоне которого легче разбирать более сложный сбой.</p>
+<p style="break-inside:avoid-page">Перед установкой запишем четыре вещи. <strong>Воздействие:</strong> один явный suspend после известного числа запросов. <strong>Ожидание:</strong> поведение счётчика соответствует выбранному режиму snapshot. <strong>Наблюдение:</strong> ответы приложения, состояние Actor, назначенный Worker и время событий. <strong>Восстановление:</strong> среду можно вернуть к исходному состоянию, не затронув чужие ресурсы. Если любой из пунктов отсутствует, повторение опыта будет зависеть от памяти автора.</p>
+<p style="break-inside:avoid-page">Развёртывание проходит через несколько границ. Физический host предоставляет ресурсы. Proxmox управляет VM, а QEMU/KVM исполняют гостевую систему; KVM обеспечивает аппаратное ускорение виртуализации, QEMU — в том числе модель виртуальных устройств. Внутри guest Linux работают Docker и контейнерные nodes Kind. Kubernetes размещает компоненты Substrate; Substrate обслуживает Actor lifecycle; AX связывает Task с рабочим окружением. Так становится понятным, почему «кластер работает» — слишком широкая формулировка: она не указывает, какой путь мы проверили. <a href="https://github.com/proxmox/pve-docs/blob/master/qm.adoc">Устройство VM в документации Proxmox</a>.</p>
+<p style="break-inside:avoid-page">У каждой границы есть свой наблюдаемый результат. Свободное место в guest ещё не означает, что node может получить runner image. Готовность Kubernetes API не означает, что Worker способен восстановить Actor. Наличие AX Service не показывает, что CLI подключён именно к этому серверу. Поэтому мы будем наращивать сценарий по одному слою и сохранять свидетельства каждого перехода.</p>
+<h2>2. Выбор топологии: какие отказы станут видны</h2>
+<p style="break-inside:avoid-page">Kind запускает Kubernetes nodes в контейнерах. Это удобно для проверки API и контроллеров: среду легко пересоздать, а число дополнительных решений невелико. Несколько nodes внутри одной VM при этом используют общий guest kernel, Docker daemon и физические ресурсы. Для нашего первого опыта это подходящая экономия. Для опыта «переживёт ли система выключение физического сервера?» потребуется другая топология. <a href="https://kind.sigs.k8s.io/docs/user/quick-start/">Модель и запуск Kind</a>.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Размещение трёх nodes</th>
+<th>Разных guest VM</th>
+<th>Разных физических hosts</th>
+<th>Какое воздействие имеет смысл</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Три контейнерных node в одной VM</td>
+<td>1</td>
+<td>1</td>
+<td>Остановка отдельного node-контейнера, поведение scheduler</td>
+</tr>
+<tr>
+<td>Три VM на одном Proxmox-host</td>
+<td>3</td>
+<td>1</td>
+<td>Перезапуск одной guest-системы, её kernel или сетевого интерфейса</td>
+</tr>
+<tr>
+<td>Три VM на трёх hosts</td>
+<td>3</td>
+<td>3</td>
+<td>Потеря одного host, если остальные зависимости действительно доступны</td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">Таблица считает размещение, а не доказывает HA. Три hosts могут зависеть от одного storage, коммутатора, питания или DNS. Кроме того, приложение должно иметь подходящую репликацию и quorum. Даже три исправные VM не помогают сервису, если единственный экземпляр его базы находился на отключённой машине. Количество VM на схеме выше иллюстрирует профили стенда; схема не показывает независимость физических hosts. Число nodes выбирают из схемы конкретного опыта; универсального правила «три VM достаточно для отказоустойчивости» здесь нет.</p>
+<p style="break-inside:avoid-page">Для первого пути выберем <strong>одну выделенную disposable VM с Kind</strong>. Disposable означает, что её разрешено пересоздать и в ней нет единственной копии нужных данных. Выделенная VM особенно важна из-за поведения установочных скриптов, которое разберём ниже. Proxmox удобен управлением жизненным циклом таких VM; если он уже установлен, можно использовать чистый template и записывать конфигурацию каждого клона. Сам Proxmox не является обязательной зависимостью AX: другую среду виртуализации нужно оценивать по тому же контракту ресурсов, сети и runtime.</p>
+<h3>Когда выбрать k3s или kubeadm</h3>
+<p style="break-inside:avoid-page">Выбор меняется вместе с вопросом. Если нужно неделями наблюдать работу платформы, обслуживание гостевых узлов и устойчивость storage, постоянный кластер на отдельных VM может быть удобнее постоянно пересоздаваемого Kind.</p>
+<p style="break-inside:avoid-page"><strong>K3s</strong> объединяет Kubernetes и ряд готовых компонентов в дистрибутив. Он полезен, когда важнее быстрее получить управляемый постоянный стенд, чем самостоятельно выбирать каждую деталь bootstrap. Нужно записать используемые datastore, сеть и включённые компоненты: результат будет относиться именно к этой конфигурации. <a href="https://docs.k3s.io/architecture">Архитектура K3s</a>.</p>
+<p style="break-inside:avoid-page"><strong>Kubeadm</strong> помогает собрать и обслуживать Kubernetes-кластер, оставляя инженеру выбор дополнительных компонентов. Его стоит брать для вопросов о присоединении узлов, обновлении control plane, CNI и storage integration. Времени на подготовку будет больше, зато решения, от которых зависит опыт, станут явными. <a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">Создание кластера с kubeadm</a>.</p>
+<p style="break-inside:avoid-page">Ни один из этих вариантов не получает совместимость с нашей парой AX/Substrate автоматически. В зафиксированном Substrate есть development-маршрут через Kind, поэтому начинаем с него. Переход на другой дистрибутив — отдельный опыт: нужно сверить API, feature gates, runtime, сеть и хранение, затем повторить проверки. Глава 32 использует другой профиль — AX <code>v0.3.1</code> с отдельным controller. Нельзя смешивать его manifests с direct reconciliation AX <code>ac233282</code> и считать, что обновился только CLI.</p>
+<h2>3. Подготовка VM: ресурсы, сеть и KVM</h2>
+<h3>Считать бюджет, а не угадывать минимальный сервер</h3>
+<p style="break-inside:avoid-page">Ресурсы нужны не только Pods. В guest работают ОС, Docker, Kind nodes, registry и процессы сборки. Substrate использует управляющие компоненты, workers и хранилища; AX добавляет свои процессы и Redis. Параллельная сборка и распаковка images может давать кратковременный пик, которого не видно после завершения установки.</p>
+<p style="break-inside:avoid-page">Например, инженер может предварительно заложить 3 GiB на ОС и контейнерную инфраструктуру, 6 GiB на компоненты и один лёгкий Actor, 4 GiB на сборку и 3 GiB резерва: получится 16 GiB. <strong>Это иллюстрация расчёта, а не измеренный minimum этой пары.</strong> Затем оценку заменяют наблюдениями: peak usage, OOM, eviction, время сборки и восстановления. Если 6 GiB не вмещают выбранные workers, исходный бюджет пересматривают. vCPU также нужно сопоставлять с загрузкой физического host: выделение восьми vCPU не резервирует восемь свободных физических ядер.</p>
+<p style="break-inside:avoid-page">На диске отдельно учитывают images, build cache, registry, базы, логи и Actor snapshots, а также место для самого опыта восстановления. Важны свободные bytes, inodes и задержка I/O. Для первого воспроизводимого измерения полезнее умеренная стабильная нагрузка, чем одновременная сборка, локальная LLM и несколько конкурирующих VM. Модель подключим позже, когда инфраструктурный путь станет наблюдаемым.</p>
+<h3>Проследить адрес от того, кто им пользуется</h3>
+<p style="break-inside:avoid-page">Сеть нужно разобрать с точки зрения конкретного процесса. <code>localhost</code> в shell гостевой VM, внутри Kind node и внутри sandbox обозначает разные сетевые окружения. Если image виден Docker в guest, это ещё не означает, что его сможет получить runtime в node. Если имя Kubernetes Service не разрешается на ноутбуке, это само по себе не дефект CoreDNS: такое имя предназначено для кластерного DNS-контекста.</p>
+<p style="break-inside:avoid-page">В паспорте записывают management LAN/VLAN, Docker network, Pod CIDR, Service CIDR и внешние VPN-маршруты. Для выбранного простого стенда выделяют непересекающиеся диапазоны, проверяя их против <strong>реальных</strong> маршрутов, а не только друг против друга. Затем отдельно проверяют DNS, route, TCP-соединение, TLS и credentials. Таймаут скачивания image и ответ registry <code>unauthorized</code> требуют разных исправлений.</p>
+<p style="break-inside:avoid-page">В Kind параметры сетей и отображения портов задаются конфигурацией; установка за proxy требует согласованного исключения внутренних адресов из proxy-маршрута. Эти настройки нужно сохранять вместе с паспортом, поскольку они влияют на воспроизводимость. <a href="https://kind.sigs.k8s.io/docs/user/configuration/">Конфигурация Kind</a>.</p>
+<p style="break-inside:avoid-page">Первый доступ к API лучше ограничить management-сегментом и локальным port-forward. Публикация на всех интерфейсах расширяет круг доступных клиентов; Kubernetes namespace не добавляет аутентификацию внешнему AX API. Для лаборатории используйте отдельные credentials с минимальными правами и коротким сроком действия. Значения токенов в паспорт, transcript и Git не включают. Модель доступа и защищённую границу API мы уже разбирали в главе 24.</p>
+<h3>Зачем проверять nested virtualization</h3>
+<p style="break-inside:avoid-page">При запуске microVM внутри гостевой VM появляется ещё один уровень аппаратной виртуализации. Возможность должна пройти от физического CPU и host через конфигурацию VM к guest, затем к контейнеру и процессу, который запускает runtime. Появление <code>/dev/kvm</code> — лишь один участок этой цепочки. Наличие устройства не подтверждает права процесса, допустимость нужных операций KVM и успешный запуск microVM. Сам интерфейс KVM состоит из открытия устройства и вызовов API, а не проверки существования файла. <a href="https://docs.kernel.org/virt/kvm/api.html">Linux KVM API</a>.</p>
+<p style="break-inside:avoid-page">Kind как контейнерный Kubernetes не требует nested KVM. Для gVisor требование зависит от platform <code>runsc</code>: <code>systrap</code> и <code>kvm</code> используют разные механизмы. При выборе KVM внутри VM нужно отдельно учитывать nested virtualization и её накладные расходы. Поэтому в первом паспорте указывают фактически выбранный runtime и его platform, а microVM добавляют отдельным опытом с runtime-specific запуском и восстановлением. <a href="https://gvisor.dev/docs/user_guide/platforms/">Platforms gVisor</a>.</p>
+<h2>4. Паспорт и свидетельства: небольшой локальный опыт</h2>
+<p style="break-inside:avoid-page">Паспорт отвечает на вопрос «что собирались проверить». Отчёт запуска отвечает на вопрос «что произошло». Между ними нужна явная связь: идентификатор опыта, hash конфигурации, время и результат каждого этапа. Иначе легко приложить вчерашний успешный counter к сегодняшней среде с другим runtime.</p>
+<p style="break-inside:avoid-page">В репозитории есть <code>examples/ch26_lab_evidence.py</code> и его тесты. Это <strong>офлайн-модель работы с записями</strong>, использующая только стандартную библиотеку Python. Она не подключается к гипервизору, не открывает <code>/dev/kvm</code>, не вызывает Docker, Kubernetes, AX или Substrate. В ней намеренно используются вымышленный runner <code>example.invalid/...</code> и документационная management-сеть <code>192.0.2.0/24</code>. Их нельзя переносить в настоящий install plan.</p>
+<p style="break-inside:avoid-page">Учебный <code>Plan</code> хранит lab ID, kube-context, runtime, два полных SHA исходников, runner reference с digest и четыре IPv4-диапазона. Его ветка <code>gvisor</code> моделирует вариант без требования KVM; выбор <code>runsc --platform=kvm</code> эта упрощённая модель отдельно не описывает. Проверка отклоняет пересекающиеся сети и незакреплённые версии. Однако форма SHA не доказывает существование commit, а строка <code>@sha256:</code> не подтверждает доступность, происхождение или содержимое image. Полный инженерный паспорт должен дополнительно содержать версию Proxmox/QEMU, VM template, guest OS и kernel, параметры CPU, памяти и дисков, версии инструментов, все применённые manifests и image digests, storage, маршруты и ссылки на очищенные от секретов свидетельства.</p>
+<p style="break-inside:avoid-page;break-after:avoid-page">Порядок этапов задаёт короткая функция из примера:</p>
+<pre><code class="language-python">def required_gates(plan):
+    return (&quot;guest&quot;,) + ((&quot;kvm&quot;,) if plan.runtime == &quot;microvm&quot; else ()) + (
+        &quot;kubernetes&quot;, &quot;substrate&quot;, &quot;ax_integration&quot;)
+</code></pre>
+<p style="break-inside:avoid-page"><code>review</code> ищет первый этап, для которого нет подходящего успешного отчёта. Он сверяет run ID, digest паспорта и возраст записи. В демонстрации время условное: <code>now=40</code>, допустимый возраст <code>30</code>, обычная запись датирована <code>10</code>. Равенство границе допустимо; запись с временем <code>0</code> уже устарела. Эти числа выбраны для теста, а не задают эксплуатационную норму свежести.</p>
+<p style="break-inside:avoid-page;break-after:avoid-page">Запуск из корня репозитория:</p>
+<pre><code class="language-bash">python3 examples/ch26_lab_evidence.py
+python3 -m unittest discover -s examples -p 'test_ch26_lab_evidence.py'
+</code></pre>
+<p style="break-inside:avoid-page;break-after:avoid-page">Ожидаемые результаты синтетических сценариев:</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Сценарий</th>
+<th>Первый незакрытый этап</th>
+<th>Результат модели</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>no_evidence</code></td>
+<td><code>guest</code></td>
+<td><code>missing</code></td>
+</tr>
+<tr>
+<td><code>guest_passed</code></td>
+<td><code>kubernetes</code></td>
+<td><code>missing</code></td>
+</tr>
+<tr>
+<td><code>cluster_passed</code></td>
+<td><code>substrate</code></td>
+<td><code>missing</code></td>
+</tr>
+<tr>
+<td><code>substrate_passed</code></td>
+<td><code>ax_integration</code></td>
+<td><code>missing</code></td>
+</tr>
+<tr>
+<td><code>synthetic_complete</code></td>
+<td><code>-</code></td>
+<td><code>records_complete</code></td>
+</tr>
+<tr>
+<td><code>foreign_run</code></td>
+<td><code>guest</code></td>
+<td><code>wrong_run</code></td>
+</tr>
+<tr>
+<td><code>changed_plan</code></td>
+<td><code>guest</code></td>
+<td><code>wrong_plan</code></td>
+</tr>
+<tr>
+<td><code>overlap</code></td>
+<td><code>-</code></td>
+<td><code>network_overlap</code></td>
+</tr>
+<tr>
+<td><code>microvm_guest_passed</code></td>
+<td><code>kvm</code></td>
+<td><code>missing</code></td>
+</tr>
+<tr>
+<td><code>stale_report</code></td>
+<td><code>guest</code></td>
+<td><code>stale_or_future</code></td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">Во всех строках <code>compatibility_proven=false</code>, включая <code>records_complete</code>. Записи создаёт сам пример, их никто не подписывает и не получает из работающего стенда. Даже настоящий hash паспорта связывает данные, но не удостоверяет автора и правдивость отчёта. Модель учит обнаруживать неподходящие свидетельства; доверенный сборщик и интеграционные проверки остаются отдельной работой.</p>
+<p style="break-inside:avoid-page">Вторая часть примера считает guest- и host-домены для трёх размещений из первой таблицы: <code>(3, 1, 1)</code>, <code>(3, 3, 1)</code> и <code>(3, 3, 3)</code> — nodes, guest VM, hosts. Она всегда возвращает <code>ha_proven=false</code>: декларация размещения не сообщает, выдержаны ли quorum и зависимости хранения. Попробуйте сменить только kube-context или runner digest и посмотреть, почему прежний комплект записей больше не относится к новому плану.</p>
+<h2>5. Маршрут реального опыта: от guest до Actor</h2>
+<p style="break-inside:avoid-page">Следующие команды — <strong>план будущей ручной проверки</strong>, не transcript выполненной установки. На момент редакции результат каждого реального этапа — <code>not_run</code>. Версии и поведение скриптов сверены по указанным исходникам, но сочетание ОС, Kubernetes, runtime и images нужно подтвердить на выбранной машине.</p>
+<h3>Этап A. Чистая guest-система</h3>
+<p style="break-inside:avoid-page">Подготовьте отдельную VM, сетевые ограничения и журнал опыта. Сохраните конфигурацию и перечень дисков, включая то, что находится вне VM. Затем соберите baseline: <code>uname -a</code>, состояние синхронизации времени, <code>df -h</code>, <code>df -i</code>, <code>ip route</code>, DNS для выбранного registry и <code>docker info</code>. Здесь важен вывод каждой проверки, а не количество выполненных команд.</p>
+<p style="break-inside:avoid-page">Критерий перехода — guest располагает нужными ресурсами, время согласовано, а выбранный image доступен из ожидаемого окружения и запускается. Для microVM требуется дополнительный runtime-specific smoke test из того же контекста прав и устройств, что будет у рабочего процесса. Его результат записывают отдельно. Пример из предыдущего раздела такого теста не выполняет.</p>
+<h3>Этап B. Kind и Kubernetes без платформы</h3>
+<p style="break-inside:avoid-page"><strong>Перед созданием прочитайте скрипт.</strong> В Substrate <code>df788825</code> файл <code>hack/create-kind-cluster.sh</code> удаляет кластер с выбранным именем перед созданием. Кроме того, он использует общий контейнер <code>kind-registry</code> и сеть Docker <code>kind</code>; в некоторых ветках скрипта они также изменяются. Новое имя кластера не изолирует эти общие объекты. Выполнять этот путь следует только в выделенной disposable VM с отдельным Docker daemon, без чужих кластеров и данных. <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/hack/create-kind-cluster.sh">Зафиксированный create-kind-cluster.sh</a>.</p>
+<p style="break-inside:avoid-page">В отдельном checkout Substrate, после сверки полного commit и подготовленных зависимостей:</p>
+<pre><code class="language-bash">git rev-parse HEAD
+export KIND_CLUSTER_NAME=ax26
+export KUBECTL_CONTEXT=kind-ax26
+hack/create-kind-cluster.sh
+kubectl --context=&quot;$KUBECTL_CONTEXT&quot; cluster-info
+kubectl --context=&quot;$KUBECTL_CONTEXT&quot; get nodes -o wide
+kubectl --context=&quot;$KUBECTL_CONTEXT&quot; get pods -A
+</code></pre>
+<p style="break-inside:avoid-page">Значения контекста здесь выбраны согласованно: install-wrapper позволяет уже заданному <code>KUBECTL_CONTEXT</code> переопределить вычисленное имя. До любых изменений проверяйте, куда действительно направлена команда. Полный source SHA фиксирует скрипт, но не делает неизменными все скачиваемые инструменты, base images и tags; их реальные версии и digests также заносят в паспорт.</p>
+<p style="break-inside:avoid-page">В этом скрипте есть специальная конфигурация API и feature gates, а также проверка возможности передать <code>/dev/kvm</code> контейнеру. Эта проверка не запускает microVM. Простая замена скрипта обычным <code>kind create cluster</code> может потерять нужные настройки; вид <code>Ready</code> у nodes сам по себе этого не выявит.</p>
+<p style="break-inside:avoid-page">До Substrate проверьте обычный Pod, разрешение Service DNS, нужный исходящий HTTPS и ожидаемую семантику volume. Запишите, что именно сохраняется после пересоздания Pod. Отдельно проверьте получение image из node-контекста. Если этот этап не пройден, добавление AX только увеличит число непроверенных зависимостей.</p>
+<h3>Этап C. Counter и восстановление состояния</h3>
+<p style="break-inside:avoid-page">В том же pinned checkout предусмотрен путь установки development-компонентов и counter demo:</p>
+<pre><code class="language-bash">hack/install-ate-kind.sh \
   --deploy-ate-system \
-  --credential-provider='{"name":"k8s.io"}'
-
+  --credential-provider='{&quot;name&quot;:&quot;k8s.io&quot;}'
 hack/install-ate-kind.sh --deploy-demo-counter
 go install ./cmd/kubectl-ate
-
 kubectl ate create actor my-counter-1 \
-  -a ate-demo-counter \
-  --template counter
-
-kubectl port-forward -n ate-system svc/atenet-router 8000:80</code></pre>
-<p>В другом terminal запрос к router должен попасть в нужный Actor:</p>
-<pre><code>curl -X POST \
+  -a ate-demo-counter --template counter
+kubectl --context=&quot;$KUBECTL_CONTEXT&quot; port-forward \
+  -n ate-system svc/atenet-router 8000:80
+</code></pre>
+<p style="break-inside:avoid-page">Перед <code>kubectl ate</code> отдельно сверьте текущий kube-context: переменная wrapper не является универсальной настройкой всех CLI. Установка разворачивает зависимости для разработки; это не готовая HA-конфигурация PostgreSQL и object store. Credential provider начинает с ограничивающей политики доступа: выбор provider не выдаёт Actor произвольные секреты. <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">Quickstart зафиксированного Substrate</a>.</p>
+<p style="break-inside:avoid-page">В другом терминале выполните один запрос и сохраните ответ вместе со временем:</p>
+<pre><code class="language-bash">curl --fail-with-body -X POST \
   -H 'ate-target-actor: ate-demo-counter/my-counter-1' \
-  -i http://127.0.0.1:8000/</code></pre>
-<p>Не останавливайтесь на первом HTTP 200. Зафиксируйте Actor state, Worker assignment и response; выполните suspend/resume; повторите запрос и проверьте сохранение counter state. Затем удалите Actor и убедитесь, что маршрутизация больше не выдаёт старый процесс. Это превращает demo в acceptance test.</p>
-<p>Зафиксированный quickstart разворачивает development PostgreSQL и RustFS. Их присутствие демонстрирует зависимости Substrate, но не делает их HA или backup-ready. Пустая default-deny policy credential provider также означает, что secret injection не «появится сама»: namespace access нужно разрешать отдельно.</p>
-<h3>Gate 3. AX добавляется только поверх здорового Substrate</h3>
-<p>На снимке AX <code>ac233282</code> prerequisites требуют работающий Substrate API, Go, <code>kubectl</code>, <code>ko</code> и registry, доступный cluster. Проверка границы начинается с Service:</p>
-<pre><code>kubectl get svc api -n ate-system
-make deploy AX_IMAGE_REPO=&lt;registry-доступный-из-cluster&gt;
-kubectl get pods -n ax-system
-ax ctx</code></pre>
-<p>После установки сначала примените и проверьте Workspace, затем создайте Task из отдельного <code>lab-task.yaml</code> с <code>spec.debug: true</code> и проверенным runner image. Не копируйте <code>examples/task.yaml</code> вслепую: в upstream example Task стоит перед Workspace, а apply не является общей транзакцией. Model нужен только при намеренной проверке платформенного client; пользовательский harness настраивается отдельно. Для <code>ac233282</code> созданная Task изначально Suspended: перед первым ssh требуется resume. Пройдите цикл:</p>
-<pre><code>ax apply -f lab-workspace.yaml
-ax get workspace &lt;workspace-name&gt;
+  -i http://127.0.0.1:8000/
+</code></pre>
+<p style="break-inside:avoid-page">Counter изменяет состояние при POST. Повтор после таймаута может увеличить его ещё раз, даже если первый ответ не дошёл до клиента. Поэтому в протокол входят все попытки, а при неоднозначном исходе нельзя автоматически приписывать скачок счётчика ошибке snapshot. Для простого опыта избегайте автоматических retry и параллельных запросов; неоднозначный запуск лучше отметить отдельно и повторить с новым Actor.</p>
+<p style="break-inside:avoid-page">В demo есть счётчик в памяти и счётчик в файле на durable volume. При snapshot режима <strong>Full</strong> сохраняются память и durable volumes; режим <strong>Data</strong> сохраняет durable-данные, а приложение загружается заново. Ожидание для in-memory counter зависит от этого выбора. Перед suspend посмотрите ActorTemplate и фактическую конфигурацию, запишите значения обоих счётчиков. <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/counter/README.md">Поведение counter demo</a>.</p>
+<p style="break-inside:avoid-page">Затем выполните <code>kubectl ate suspend actor my-counter-1 -a ate-demo-counter</code>, дождитесь наблюдаемого завершения suspend и повторите один POST. В demo обращение через router может вызвать автоматическое пробуждение. Сравните значения согласно режиму, сохраните Actor state и Worker assignment до и после. Смена Worker возможна, но сама по себе не является обязательным критерием успеха. HTTP 200 подтверждает обработку запроса; восстановление состояния проверяется содержимым ответа и остальными свидетельствами.</p>
+<h2>6. Добавить AX и связать опыт с Task</h2>
+<p style="break-inside:avoid-page">Теперь цель — проверить путь от Task к доступному Workspace, сохранив простой workload. В pinned checkout AX подготовьте Go, <code>kubectl</code>, <code>ko</code> и registry, доступный кластеру. Собирайте CLI из checkout (<code>go install ./cmd/ax</code>), а не через <code>@latest</code>, чтобы не получить другой API-клиент. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md">README AX выбранной ревизии</a>.</p>
+<p style="break-inside:avoid-page">Перед развёртыванием проверьте текущий kube-context и Service Substrate API. Затем в AX используется <code>make deploy AX_IMAGE_REPO=&lt;ваш-registry&gt;</code>. Подставляемое значение и права на него должны быть подготовлены заранее; это не буквальная исполнимая команда из книги.</p>
+<p style="break-inside:avoid-page">Здесь есть существенная деталь: в данном Makefile <code>deploy</code> зависит от развёртывания Redis и сервера, <strong>но не от сборки runner image</strong>. Runner нужно подготовить и проверить отдельно, включая архитектуру, доступность для узлов и digest. Наличие локального image или скопированного digest из примера не доказывает, что внутри находится нужная версия runner. Также не переносите <code>push-task-runner</code> на произвольный registry без чтения рецепта: в нём есть обращение к <code>gcloud</code>. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/Makefile">Makefile AX</a>.</p>
+<p style="break-inside:avoid-page">Сначала сверьте выбранный AX context и адрес сервера; это отдельная настройка от Kubernetes context. Подготовьте отдельные manifests Workspace и Task по схеме этой ревизии. В upstream <code>examples/task.yaml</code> несколько документов, причём Task идёт перед Workspace. Это удобный пример полей, но не транзакция установки. Для диагностического опыта примените Workspace отдельно, проверьте его существование, затем создайте Task с <code>spec.debug: true</code> и проверенным runner. Model подключайте, когда действительно понадобится платформенный model client; для проверки доступа к Workspace вызов LLM не требуется. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/examples/task.yaml">Состав примера Task</a>.</p>
+<p style="break-inside:avoid-page">На этой ревизии создание Task устанавливает фазу <code>Suspended</code>. После создания нужен явный resume; затем наблюдайте готовность Task, Workspace и соответствующего Actor. <code>ax watch task &lt;имя&gt;</code> держите в отдельном терминале: это поток наблюдения, а не команда с завершением по окончании пользовательской работы. Когда окружение готово, проверьте доступ через <code>ax ssh &lt;имя&gt; -- ls -la /workspace</code>, выполните suspend/resume и повторите проверку. Зафиксируйте, какие файлы по контракту Workspace должны сохраниться. Точная проверка проходит через статусы и содержимое, а не только через код возврата resume. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">Создание Task в AX</a>.</p>
+<p style="break-inside:avoid-page;break-after:avoid-page">Для подготовленных файлов <code>lab-workspace.yaml</code> и <code>lab-task.yaml</code>, где Task названа <code>lab26-task</code>, последовательность выглядит так. Команды наблюдения и дальнейший ssh выполняются только после проверки соответствующего состояния:</p>
+<pre><code class="language-bash">ax apply -f lab-workspace.yaml
+# Проверьте созданную Workspace в выбранном AX context.
 ax apply -f lab-task.yaml
 ax get tasks
-ax resume task &lt;task-name&gt;
-# Watch в отдельном терминале; он не завершается по exit пользовательской команды.
-ax watch task &lt;task-name&gt;
-# После Ready/WorkspaceReady и проверки фактического runner:
-ax ssh &lt;task-name&gt; -- ls -la /workspace
-ax suspend task &lt;task-name&gt;
-ax resume task &lt;task-name&gt;
-ax delete task &lt;task-name&gt;</code></pre>
-<p><code>AX_IMAGE_REPO</code> — частая граница ошибки. Image может существовать на host, но быть недоступным Kind node. Либо используйте registry, который резолвится и доступен из node containers, либо загрузите pinned image в cluster осознанно. Mutable <code>latest</code> затрудняет повторяемость и взаимодействует с <code>imagePullPolicy</code>; для лабораторного протокола сохраняйте digest.</p>
-<h2>Минимальная наблюдаемость с первого запуска</h2>
-<p>Глава 25 закончилась telemetry contract; здесь его нужно проверить. До первого Task сохраните:</p>
+ax resume task lab26-task
+# В отдельном терминале: ax watch task lab26-task
+# Дождитесь готовности Task, Workspace и Actor.
+ax ssh lab26-task -- ls -la /workspace
+ax suspend task lab26-task
+# Дождитесь завершения suspend, затем:
+ax resume task lab26-task
+</code></pre>
+<p style="break-inside:avoid-page">Перенесём из главы 25 правило связи событий: для одного запуска сохраняются lab ID, версия паспорта, Task, Actor, Worker и размещение Kubernetes. Не все эти поля должны становиться labels метрик; идентификаторы отдельных запусков удобно хранить в журнале или trace. Сначала покажите, что можете пройти эту цепочку в исправном опыте. Тогда при сбое будет видно, на какой границе исчезло ожидаемое наблюдение.</p>
+<h2>7. Один управляемый отказ и честный вывод</h2>
+<p style="break-inside:avoid-page">После успешного baseline выберите воздействие, которое отвечает исходному вопросу. Например, остановка одной guest VM проверяет потерю её узлов, но не отказ всего физического host. Ограничение исходящего доступа к тестовому registry проверяет новый image pull, если image ещё не находится в cache. Удаление Pod с уже прогретым image такой опыт не заменяет. Заранее задайте срок ожидания, условия прекращения и способ возврата настройки; используйте только ресурсы лаборатории.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Наблюдение</th>
+<th>Следующая проверка</th>
+<th>Почему она полезна</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Новая Task не получает окружение</td>
+<td>Task conditions → Actor → Worker capacity</td>
+<td>Разделяет создание Actor и возможность разместить его</td>
+</tr>
+<tr>
+<td>Pod не запускает runner</td>
+<td>Events, pull error, registry из node</td>
+<td>Разделяет сеть, credentials, отсутствие image и архитектуру</td>
+</tr>
+<tr>
+<td>Resume принят, ответа нет</td>
+<td>Actor state, restore, router и post-resume probe</td>
+<td>Отделяет приём команды от готовности обслуживать запрос</td>
+</tr>
+<tr>
+<td>После восстановления изменились данные</td>
+<td>Режим snapshot, durable paths, все POST-попытки</td>
+<td>Позволяет проверить ожидание опыта до вывода о потере состояния</td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">Эта последовательность — способ сузить поиск, а не запрет вернуться вниз. DNS или storage могли отказать после предыдущего успешного этапа. Проверки привязаны ко времени и конфигурации; после смены kernel, runtime, manifests или image нужно повторить затронутые этапы, а при неясной зависимости — весь базовый путь.</p>
+<p style="break-inside:avoid-page">Перед изменениями полезно иметь точку возврата VM, но её смысл нужно назвать точно. Snapshot на том же storage разделяет его отказ. Копирование работающей VM не означает согласованного состояния нескольких баз и внешнего object store. Даже filesystem freeze через guest agent улучшает согласованность файловой системы, не заменяя проверку восстановления приложения. В Proxmox режим backup <code>snapshot</code> — название режима live backup; его нельзя смешивать с обычным локальным VM snapshot. <a href="https://github.com/proxmox/pve-docs/blob/master/vzdump.adoc">Режимы backup Proxmox</a>.</p>
+<p style="break-inside:avoid-page">Завершая опыт, сначала сохраните очищенные логи и результат. Затем сверьте inventory: VM, cluster, Actor/Task, volumes, registry objects и временные credentials. Удаляйте только перечисленные лабораторные ресурсы в подтверждённых контекстах; общую команду «удалить всё» сюда включать опасно. Проверьте также, не остались ли внешние volumes и доступы после удаления VM. Snapshot с credentials хранит их копию, поэтому срок жизни такого снимка и отзыв доступа входят в завершение работы.</p>
+<h2>8. Что инженер должен уметь объяснить после опыта</h2>
+<p style="break-inside:avoid-page">Итоговый протокол может быть коротким: «В среде с таким паспортом counter в режиме Full прошёл обращение, suspend и восстановление; AX Task с таким runner получила Workspace; после выбранного воздействия результат оказался таким». Рядом должны находиться времена, наблюдения и границы вывода. Если проверена только одна VM на одном host, протокол не должен обещать физическую отказоустойчивость. Если есть только записи офлайн-примера, результат ограничивается проверкой этих записей.</p>
+<p style="break-inside:avoid-page">Попробуйте ответить без подсказки: почему новый kube-context не изолирует общий registry, почему успешный <code>make deploy</code> не гарантирует runner и почему готовые nodes не подтверждают восстановление Actor? Если ответ сводится к «так написано в инструкции», вернитесь к соответствующей границе и проследите, кто выполняет действие, к каким ресурсам обращается и какой результат наблюдаем.</p>
+<p style="break-inside:avoid-page">В следующей главе лабораторный протокол станет отправной точкой для production engineering: нужно будет решить, какие состояния восстанавливать, какие отказы выдерживать и чем подтверждать допустимое время простоя. Лаборатория уже помогает получить эти свидетельства, но границы достоверности каждого опыта остаются частью инженерного результата.</p>
+<div class="sources" style="margin-top:3mm;padding:2mm 3mm;font-size:8.4pt;line-height:1.26"><h3 style="margin-top:0">Источники и дальнейшее чтение</h3>
 <ul>
-<li>VM CPU/memory/disk/network и time sync;</li>
-<li>Kubernetes events, Pod status/restarts и node conditions;</li>
-<li>Substrate component logs, Actor state и Worker assignment;</li>
-<li>AX Task conditions/events и соответствующий Actor identity;</li>
-<li>latency model/tool calls, если они участвуют в сценарии;</li>
-<li>точные commit SHA и image digests.</li>
+<li style="margin:.3mm 0">Официальная документация: <a href="https://github.com/proxmox/pve-docs/blob/master/qm.adoc">Proxmox VM</a>, <a href="https://github.com/proxmox/pve-docs/blob/master/vzdump.adoc">backup</a>, <a href="https://docs.kernel.org/virt/kvm/api.html">Linux KVM API</a>, <a href="https://gvisor.dev/docs/user_guide/platforms/">gVisor platforms</a>.</li>
+<li style="margin:.3mm 0">Выбор Kubernetes-среды: <a href="https://kind.sigs.k8s.io/docs/user/quick-start/">Kind quick start</a>, <a href="https://kind.sigs.k8s.io/docs/user/configuration/">Kind configuration</a>, <a href="https://docs.k3s.io/architecture">K3s architecture</a>, <a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">kubeadm</a>.</li>
+<li style="margin:.3mm 0">Исходники конкретного профиля: <a href="https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247">Substrate <code>df788825</code></a>, <a href="https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e">AX <code>ac233282</code></a>. Открывайте ссылки на commit, чтобы не смешивать эту главу с изменившейся веткой <code>main</code>.</li>
 </ul>
-<p>В disposable lab допустим простой backend и короткая retention. Недопустимо только отсутствие correlation: по одному Task инженер должен пройти от AX status к Actor, Worker, Pod и node. Сначала докажите golden path, затем инъецируйте один fault за раз.</p>
-<h2>Fault exercises, которые чему-то учат</h2>
-<table><thead><tr><th>Эксперимент</th><th>Что он проверяет</th><th>Ожидаемое доказательство</th></tr></thead><tbody>
-<tr><td>Удалить AX control-plane Pod</td><td>Reconciliation и separation control/data state</td><td>Task не дублируется; control plane восстанавливает view</td></tr>
-<tr><td>Заполнить WorkerPool</td><td>Parking/backpressure и capacity signals</td><td>Запрос ждёт/отклоняется по документированной semantics</td></tr>
-<tr><td>Suspend/resume Actor</td><td>Snapshot, routing и state continuity</td><td>Предусмотренные volumes/checkpoint восстановлены; Full и Data/GOLDEN проверяются раздельно. Actor UID сохранён, placement может измениться</td></tr>
-<tr><td>Остановить model endpoint</td><td>Timeout/retry budget и видимость ошибки</td><td>Harness фиксирует bounded retry, model error и причину остановки; AX Ready может оставаться True</td></tr>
-<tr><td>Сломать DNS только в Pod</td><td>Разделение host/guest/cluster network</td><td>Host может резолвить, Pod — нет; fault локализован до CoreDNS/CNI/policy</td></tr>
-<tr><td>Перезагрузить VM</td><td>Что реально durable в одноузловом стенде</td><td>Составлен список восстановившихся и потерянных состояний</td></tr>
-</tbody></table>
-<p>В Kind перезагрузка VM — общий отказ всех псевдо-nodes. Для проверки независимого node failure переходите к нескольким VM. Не делайте из результата неверный вывод, будто три Kind worker доказали устойчивость к потере hardware node.</p>
-<h2>Диагностика снизу вверх</h2>
-<p>Когда «AX не работает», не начинайте с переустановки. Сужайте fault domain.</p>
-<ol>
-<li><strong>Host/VM:</strong> VM Running? Есть pressure, disk latency, свободные blocks/inodes, корректное время?</li>
-<li><strong>Guest:</strong> Работают route, DNS, TLS к registries, container runtime и firewall?</li>
-<li><strong>Kubernetes:</strong> Nodes Ready? CoreDNS Running? Есть CNI/CSI errors, Pending Pods, failed mounts и scheduling events?</li>
-<li><strong>Substrate:</strong> Control API доступен? WorkerPool имеет capacity? atelet и router здоровы? Actor получил Worker?</li>
-<li><strong>AX:</strong> Redis/control plane Ready? Каковы Task conditions? Создан ли соответствующий Actor?</li>
-<li><strong>Agent path:</strong> Доступны model, MCP и egress? Не ждёт ли Task approval? Есть ли verified outcome?</li>
-</ol>
-<p>Собирайте evidence до destructive reset. Для Kind экспорт cluster logs полезнее скриншота терминала; для systemd-based k3s/kubeadm сохраняйте journal конкретного unit и Kubernetes events. После сбора у стенда должен быть короткий и проверенный teardown path.</p>
-<h2>Критерии готовности лаборатории</h2>
-<p>Стенд готов не тогда, когда dashboard зелёный, а когда выполняются проверяемые условия:</p>
-<ul>
-<li>чистая VM разворачивается по документу без ручных исправлений;</li>
-<li>версии и images pinned, а secrets не попали в Git и shell history;</li>
-<li>обычный Kubernetes smoke test проходит до установки платформы;</li>
-<li>Substrate counter переживает suspend/resume с подтверждённым state;</li>
-<li>AX Task проходит create/watch/ssh/suspend/resume/delete;</li>
-<li>по Task ID можно найти Actor, Worker, Pod и node;</li>
-<li>один capacity fault и один network fault диагностируются по runbook;</li>
-<li>teardown освобождает cluster, registry volumes и временные credentials;</li>
-<li>повторная сборка даёт тот же результат либо drift объяснён.</li>
-</ul>
-<h2>Итог</h2>
-<p>Выбор между Kind, k3s и kubeadm — это выбор требуемой <em>fidelity</em>, а не соревнование дистрибутивов. Kind даёт быстрый и воспроизводимый путь к API/lifecycle experiments. K3s полезен как постоянный небольшой cluster. Kubeadm заставляет инженера владеть network, storage, endpoint, node и upgrade decisions и потому подходит для production rehearsal.</p>
-<p>Базовый стенд книги начинается с Kind в одной VM, потому что он минимизирует число неизвестных и совпадает с development quickstart Substrate. Но мы не выдаём container-nodes за независимые machines, Proxmox snapshot — за application backup, а первый успешный Task — за production readiness. Стенд считается полезным, когда он воспроизводится, наблюдается, ломается контролируемо и объясняет, какой слой отвечает за результат.</p>
-<p>Следующая глава поднимет тот же вопрос на production-уровень: какие stateful planes требуют HA и backup, почему дополнительные replicas сами по себе не дают доступность, как планировать upgrades и как доказать восстановление через DR drill.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
-<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">Substrate development quickstart на снимке df788825</a></li>
-<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md">AX quick start на снимке ac233282</a></li>
-<li><a href="https://kind.sigs.k8s.io/docs/user/quick-start/">Kind Quick Start</a></li>
-<li><a href="https://kind.sigs.k8s.io/docs/user/configuration/">Kind configuration: nodes, mounts, ports и networking</a></li>
-<li><a href="https://docs.k3s.io/architecture">K3s architecture</a></li>
-<li><a href="https://docs.k3s.io/installation/requirements">K3s requirements</a></li>
-<li><a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">Создание cluster с kubeadm</a></li>
-<li><a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/">Установка kubeadm и host prerequisites</a></li>
-<li><a href="https://pve.proxmox.com/wiki/Nested_Virtualization">Proxmox VE: Nested Virtualization</a></li>
-</ul></div></section><section class="chapter" id="ch-27"><div class="chapter-num">Глава 27</div><h1>Production engineering: как доказать HA, persistence, upgrades и DR</h1>
+</div></section><section class="chapter" id="ch-27"><div class="chapter-num">Глава 27</div><h1>Production engineering: как доказать HA, persistence, upgrades и DR</h1>
 <p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-10</strong>. Оба проекта pre-1.0. Реализованные механизмы, development manifests и рекомендуемая production architecture ниже разделены явно.</p>
 <p>В лаборатории достаточно увидеть, что Task создался, Actor проснулся и состояние пережило suspend/resume. Production задаёт более неприятные вопросы. Что произойдёт, если node исчезнет во время snapshot? Можно ли обновить dataplane, не потеряв активных Actors? Сколько последних минут состояния допустимо потерять? Как отличить восстановленный Task от повторного выполнения внешнего платежа или публикации?</p>
 <p>Ответ «у нас по три replicas» на эти вопросы не отвечает. Доступность API, сохранность данных, возможность восстановления и безопасность повторного исполнения - разные свойства. Их проектируют отдельно, а затем связывают общим recovery contract.</p>

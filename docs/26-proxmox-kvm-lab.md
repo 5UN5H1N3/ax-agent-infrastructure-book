@@ -1,299 +1,241 @@
 # Лабораторный стенд на Proxmox/KVM: от первого запуска до production rehearsal
 
-**Снимок главы:** **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-08**. Команды и API относятся к этим снимкам; оба проекта pre-1.0, поэтому перед повторением сверяйте актуальные README и release notes.
+**Профиль главы на 16.10.2026:** исходники AX `ac2332829f22360ff97b0ba34d94dd0dd782f17e` и Substrate `df788825e6fc13dd7aa5fd283c8f14bd4c818247`. Ниже разобраны эти ревизии, а не текущие ветки `main`. Совместимость пары требует отдельного интеграционного опыта. При подготовке этой редакции стенд не запускался; выполнен только локальный учебный пример на искусственных данных.
 
-Лабораторный стенд нужен не для того, чтобы один раз увидеть зелёные Pods. Его задача — дать инженеру среду, в которой можно воспроизводимо ответить на вопросы: где проходит граница между AX, Substrate и Kubernetes; что переживает перезапуск; как Actor просыпается; где действует network policy; что происходит при нехватке Worker capacity; и какой слой сломался, когда Task перестал продвигаться.
+В главе 25 мы разбирали, как понять, продвигается ли работа над изменением в `billing`. Теперь представим, что Task перестала отвечать, а инженер хочет воспроизвести проблему. На рабочей машине одновременно живут VPN, старый Kubernetes-кластер, несколько registry и локальная модель. Повторный запуск может случайно помочь, но объяснение причины от этого не появится.
 
-Если собрать всё в одной VM без явной модели, первый успешный запуск создаёт ложное чувство понимания. Затем ошибка DNS выглядит как проблема AX, заполненный диск — как дефект snapshot, а отсутствие `/dev/kvm` — как неисправный Kubernetes manifest. Поэтому в этой главе мы сначала проектируем *учебный эксперимент*, затем выбираем Kind, k3s или kubeadm и только после этого устанавливаем платформу.
+Лаборатория даёт возможность упростить вопрос. Сначала запустим маленький Actor, который увеличивает счётчик. Затем проверим его восстановление. Только после этого добавим AX и работу с Workspace. Если счётчик уже не восстанавливается, разбирать prompt пользовательского harness пока рано: наблюдаемая проблема возникла на более простом пути. Если счётчик исправен, а AX Task не получает рабочее окружение, появится основание исследовать следующую границу. Успех простого опыта сужает поиск, хотя и не исключает последующего отказа того же слоя.
+
+К концу главы у нас должен получиться паспорт среды и протокол опыта: что было установлено, какой результат ожидался, что наблюдалось и до какого вывода эти наблюдения позволяют дойти. Такой протокол полезнее единственного скриншота с зелёными Pods: другой инженер сможет повторить проверку и сравнить результаты.
 
 ![Три лабораторные топологии: растёт не «мощность Kubernetes», а реалистичность отказов и операционная цена](.gitbook/assets/diagrams/26-24.png)  
 *Три лабораторные топологии: растёт не «мощность Kubernetes», а реалистичность отказов и операционная цена*
 
-Этот стенд использует direct reconciliation AX `ac233282`. Последовательный практикум главы 32 намеренно закреплён на AX `v0.3.1` с отдельным controller. Выберите один профиль для текущего опыта; при переходе сохраните новый паспорт версий и повторите интеграционные проверки. Такой переход не является обновлением только локального CLI.
+## 1. Какой вопрос должен выдержать стенд
 
-## Что именно мы строим
+Начнём с опыта, а не с покупки сервера. Для истории с `billing` первый вопрос звучит так: «Может ли платформа создать Actor, принять обращение, приостановить его и восстановить ожидаемое состояние?» Здесь ещё нет LLM, доступа к Git и публикации изменений. Это наш положительный контроль — небольшой сценарий с понятным результатом, на фоне которого легче разбирать более сложный сбой.
 
-Proxmox, KVM, guest VM, container runtime, Kubernetes и agent platform — не синонимы и не один «кластер». Это вложенные уровни с разными обязанностями.
+Перед установкой запишем четыре вещи. **Воздействие:** один явный suspend после известного числа запросов. **Ожидание:** поведение счётчика соответствует выбранному режиму snapshot. **Наблюдение:** ответы приложения, состояние Actor, назначенный Worker и время событий. **Восстановление:** среду можно вернуть к исходному состоянию, не затронув чужие ресурсы. Если любой из пунктов отсутствует, повторение опыта будет зависеть от памяти автора.
 
-| Уровень | Что он предоставляет | Что проверять первым | Типичная ложная диагностика |
+Развёртывание проходит через несколько границ. Физический host предоставляет ресурсы. Proxmox управляет VM, а QEMU/KVM исполняют гостевую систему; KVM обеспечивает аппаратное ускорение виртуализации, QEMU — в том числе модель виртуальных устройств. Внутри guest Linux работают Docker и контейнерные nodes Kind. Kubernetes размещает компоненты Substrate; Substrate обслуживает Actor lifecycle; AX связывает Task с рабочим окружением. Так становится понятным, почему «кластер работает» — слишком широкая формулировка: она не указывает, какой путь мы проверили. [Устройство VM в документации Proxmox](https://github.com/proxmox/pve-docs/blob/master/qm.adoc).
+
+У каждой границы есть свой наблюдаемый результат. Свободное место в guest ещё не означает, что node может получить runner image. Готовность Kubernetes API не означает, что Worker способен восстановить Actor. Наличие AX Service не показывает, что CLI подключён именно к этому серверу. Поэтому мы будем наращивать сценарий по одному слою и сохранять свидетельства каждого перехода.
+
+## 2. Выбор топологии: какие отказы станут видны
+
+Kind запускает Kubernetes nodes в контейнерах. Это удобно для проверки API и контроллеров: среду легко пересоздать, а число дополнительных решений невелико. Несколько nodes внутри одной VM при этом используют общий guest kernel, Docker daemon и физические ресурсы. Для нашего первого опыта это подходящая экономия. Для опыта «переживёт ли система выключение физического сервера?» потребуется другая топология. [Модель и запуск Kind](https://kind.sigs.k8s.io/docs/user/quick-start/).
+
+| Размещение трёх nodes | Разных guest VM | Разных физических hosts | Какое воздействие имеет смысл |
 | --- | --- | --- | --- |
-| Физический host | CPU, RAM, SSD/NVMe, NIC и аппаратную виртуализацию | pressure, I/O latency, firmware virtualization, время | «Kubernetes тормозит», хотя host ушёл в swap или storage saturated |
-| Proxmox/KVM | VM lifecycle, virtual disks, bridges, snapshots, passthrough | VM limits, bridge/VLAN, disk mode, CPU type | «Pod не видит сеть», хотя пакет не выходит из virtual bridge |
-| Guest Linux | kernel, systemd, filesystem, firewall, clock, container runtime | DNS, routes, free space/inodes, cgroups, kernel modules | «Image сломан», хотя guest не резолвит registry |
-| Kubernetes distribution | API, scheduling, Pod/service network, storage integration | Nodes, CoreDNS, CNI, StorageClass, events | «AX не создаёт Task», хотя базовый Pod не стартует |
-| Substrate | Actor lifecycle, WorkerPool, routing, suspend/resume | control API, atelet, workers, router, PostgreSQL/object store | «Runner завис», хотя Actor не получил Worker |
-| AX | Task/Workspace/Model и orchestration поверх Substrate | Redis, control plane, Task conditions, Actor mapping | «LLM плохая», хотя Task ждёт инфраструктуру |
+| Три контейнерных node в одной VM | 1 | 1 | Остановка отдельного node-контейнера, поведение scheduler |
+| Три VM на одном Proxmox-host | 3 | 1 | Перезапуск одной guest-системы, её kernel или сетевого интерфейса |
+| Три VM на трёх hosts | 3 | 3 | Потеря одного host, если остальные зависимости действительно доступны |
 
-Полезное правило: **не устанавливайте следующий уровень, пока не доказана работоспособность предыдущего**. До Substrate обычный Pod должен запускаться, резолвить Service и записывать данные в выбранный volume. До AX counter demo должен пройти create → route → suspend → resume. Иначе каждый новый компонент умножает число гипотез.
+Таблица считает размещение, а не доказывает HA. Три hosts могут зависеть от одного storage, коммутатора, питания или DNS. Кроме того, приложение должно иметь подходящую репликацию и quorum. Даже три исправные VM не помогают сервису, если единственный экземпляр его базы находился на отключённой машине. Количество VM на схеме выше иллюстрирует профили стенда; схема не показывает независимость физических hosts. Число nodes выбирают из схемы конкретного опыта; универсального правила «три VM достаточно для отказоустойчивости» здесь нет.
 
-## Сначала вопрос, потом distribution
+Для первого пути выберем **одну выделенную disposable VM с Kind**. Disposable означает, что её разрешено пересоздать и в ней нет единственной копии нужных данных. Выделенная VM особенно важна из-за поведения установочных скриптов, которое разберём ниже. Proxmox удобен управлением жизненным циклом таких VM; если он уже установлен, можно использовать чистый template и записывать конфигурацию каждого клона. Сам Proxmox не является обязательной зависимостью AX: другую среду виртуализации нужно оценивать по тому же контракту ресурсов, сети и runtime.
 
-Kind, k3s и kubeadm не являются тремя ступенями качества. Это инструменты для разных экспериментов.
+### Когда выбрать k3s или kubeadm
 
-| Критерий | Kind | k3s | kubeadm |
-| --- | --- | --- | --- |
-| Модель nodes | Containers внутри одной Linux-системы | Обычные Linux hosts/VM; server и agent | Обычные Linux hosts/VM; явный control plane и workers |
-| Главная сила | Быстро создать, удалить и воспроизвести cluster | Небольшая операционная цена постоянного кластера | Явно показывает стандартные mechanics Kubernetes |
-| Что выбирает за инженера | Почти всю node plumbing для локального теста | Много packaged defaults и компонентов | Мало: CNI, ingress, CSI, LB и HA проектируете сами |
-| Что хорошо проверять | Manifests, APIs, controllers, demos, reset/recreate | Homelab, edge, длительную работу, небольшой multi-node | Node lifecycle, network/storage choices, version skew, upgrades |
-| Чего он не доказывает | VM/node failure domains, production storage и сеть | Что ваши решения совпадут с обычным upstream cluster | Production readiness приложения без дополнительных tests |
-| Цена ошибки | Удалить cluster и повторить | Восстановить persistent lab | Разобрать control-plane/node/storage последствия |
+Выбор меняется вместе с вопросом. Если нужно неделями наблюдать работу платформы, обслуживание гостевых узлов и устойчивость storage, постоянный кластер на отдельных VM может быть удобнее постоянно пересоздаваемого Kind.
 
-### Kind: лаборатория control-plane поведения
+**K3s** объединяет Kubernetes и ряд готовых компонентов в дистрибутив. Он полезен, когда важнее быстрее получить управляемый постоянный стенд, чем самостоятельно выбирать каждую деталь bootstrap. Нужно записать используемые datastore, сеть и включённые компоненты: результат будет относиться именно к этой конфигурации. [Архитектура K3s](https://docs.k3s.io/architecture).
 
-Kind запускает Kubernetes nodes как containers и использует подготовленные node images с Kubernetes-компонентами. Это не «игрушечный API»: controllers, scheduler, kubelet и Service abstractions настоящие. Но физическая граница node подменена container boundary. Несколько Kind workers в одной VM не становятся несколькими независимыми machines: отказ guest kernel, Docker daemon, диска или bridge затронет их одновременно.
+**Kubeadm** помогает собрать и обслуживать Kubernetes-кластер, оставляя инженеру выбор дополнительных компонентов. Его стоит брать для вопросов о присоединении узлов, обновлении control plane, CNI и storage integration. Времени на подготовку будет больше, зато решения, от которых зависит опыт, станут явными. [Создание кластера с kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/).
 
-Kind выбирают, когда главный вопрос звучит так: «правильны ли manifests и lifecycle?» Он особенно полезен здесь, потому что Substrate на зафиксированном снимке имеет поддерживаемый development path: скрипт создаёт Kind cluster и local registry, другой устанавливает Substrate, PostgreSQL и RustFS. Среду можно удалить целиком и убедиться, что инструкция воспроизводима.
+Ни один из этих вариантов не получает совместимость с нашей парой AX/Substrate автоматически. В зафиксированном Substrate есть development-маршрут через Kind, поэтому начинаем с него. Переход на другой дистрибутив — отдельный опыт: нужно сверить API, feature gates, runtime, сеть и хранение, затем повторить проверки. Глава 32 использует другой профиль — AX `v0.3.1` с отдельным controller. Нельзя смешивать его manifests с direct reconciliation AX `ac233282` и считать, что обновился только CLI.
 
-Kind неудобен, если эксперимент зависит от реального node reboot, отдельного NIC, production CSI, GPU topology или microVM. `extraPortMappings` и `extraMounts` полезны, но не превращают container-node в VM. Multi-node Kind следует использовать для scheduler/topology tests, а не как доказательство HA.
+## 3. Подготовка VM: ресурсы, сеть и KVM
 
-### k3s: долгоживущий кластер с меньшей операционной ценой
+### Считать бюджет, а не угадывать минимальный сервер
 
-K3s упаковывает Kubernetes distribution с практичными defaults и может работать на небольших Linux nodes. Это разумный второй стенд: его не приходится пересоздавать после каждого эксперимента, к нему проще подключить persistent storage и ingress, а VM уже являются настоящими failure domains.
+Ресурсы нужны не только Pods. В guest работают ОС, Docker, Kind nodes, registry и процессы сборки. Substrate использует управляющие компоненты, workers и хранилища; AX добавляет свои процессы и Redis. Параллельная сборка и распаковка images может давать кратковременный пик, которого не видно после завершения установки.
 
-Удобство имеет цену: packaged CNI, ingress, ServiceLB, datastore и другие choices могут отличаться от целевой production-среды. Инженер обязан выписать, какие bundled components включены, какие отключены и чем заменены. Иначе фраза «на k3s работает» мало говорит о переносимости. K3s выбирают для homelab/edge и непрерывных integration tests, но не для обучения каждой детали bootstrap.
+Например, инженер может предварительно заложить 3 GiB на ОС и контейнерную инфраструктуру, 6 GiB на компоненты и один лёгкий Actor, 4 GiB на сборку и 3 GiB резерва: получится 16 GiB. **Это иллюстрация расчёта, а не измеренный minimum этой пары.** Затем оценку заменяют наблюдениями: peak usage, OOM, eviction, время сборки и восстановления. Если 6 GiB не вмещают выбранные workers, исходный бюджет пересматривают. vCPU также нужно сопоставлять с загрузкой физического host: выделение восьми vCPU не резервирует восемь свободных физических ядер.
 
-### kubeadm: конструктор, а не готовая платформа
+На диске отдельно учитывают images, build cache, registry, базы, логи и Actor snapshots, а также место для самого опыта восстановления. Важны свободные bytes, inodes и задержка I/O. Для первого воспроизводимого измерения полезнее умеренная стабильная нагрузка, чем одновременная сборка, локальная LLM и несколько конкурирующих VM. Модель подключим позже, когда инфраструктурный путь станет наблюдаемым.
 
-Kubeadm создаёт minimum viable conformant cluster и управляет bootstrap/upgrade mechanics. Он намеренно не решает весь stack: container runtime готовится отдельно, Pod network устанавливается отдельно, а storage, load balancer, ingress, certificates и backup требуют выбранных реализаций.
+### Проследить адрес от того, кто им пользуется
 
-Это лучший вариант, когда учебная цель — понять, почему CoreDNS не станет Ready до CNI, чем `control-plane-endpoint` отличается от адреса конкретного API server, как присоединяется node и что означает version skew. Но kubeadm — плохой первый шаг для изучения AX: слишком легко потратить неделю на CNI и ни разу не создать Task.
+Сеть нужно разобрать с точки зрения конкретного процесса. `localhost` в shell гостевой VM, внутри Kind node и внутри sandbox обозначает разные сетевые окружения. Если image виден Docker в guest, это ещё не означает, что его сможет получить runtime в node. Если имя Kubernetes Service не разрешается на ноутбуке, это само по себе не дефект CoreDNS: такое имя предназначено для кластерного DNS-контекста.
 
-## Рекомендуемая лестница стендов
+В паспорте записывают management LAN/VLAN, Docker network, Pod CIDR, Service CIDR и внешние VPN-маршруты. Для выбранного простого стенда выделяют непересекающиеся диапазоны, проверяя их против **реальных** маршрутов, а не только друг против друга. Затем отдельно проверяют DNS, route, TCP-соединение, TLS и credentials. Таймаут скачивания image и ответ registry `unauthorized` требуют разных исправлений.
 
-Не пытайтесь сделать один cluster одновременно быстрым scratchpad, стабильным homelab и production rehearsal. Эти цели конфликтуют.
+В Kind параметры сетей и отображения портов задаются конфигурацией; установка за proxy требует согласованного исключения внутренних адресов из proxy-маршрута. Эти настройки нужно сохранять вместе с паспортом, поскольку они влияют на воспроизводимость. [Конфигурация Kind](https://kind.sigs.k8s.io/docs/user/configuration/).
 
-1. **Lab A — disposable Kind.** Одна VM. Проверяет сборку, manifests, Substrate API, AX lifecycle и observability contract. Reset — штатная операция.
-2. **Lab B — persistent k3s.** Одна или три VM. Проверяет длительную работу, storage, ingress, egress, backups и node maintenance с небольшой ops-ценой.
-3. **Lab C — kubeadm rehearsal.** Не менее трёх VM для meaningful failure tests; topology зависит от цели. Проверяет CNI/CSI/LB choices, upgrades, drain, loss of node и recovery.
+Первый доступ к API лучше ограничить management-сегментом и локальным port-forward. Публикация на всех интерфейсах расширяет круг доступных клиентов; Kubernetes namespace не добавляет аутентификацию внешнему AX API. Для лаборатории используйте отдельные credentials с минимальными правами и коротким сроком действия. Значения токенов в паспорт, transcript и Git не включают. Модель доступа и защищённую границу API мы уже разбирали в главе 24.
 
-В книге базовым путём остаётся Lab A: **Proxmox → Debian/Ubuntu VM → Docker → Kind → Substrate → AX**. Это не рекомендация для production. Это кратчайший путь от чистого host до измеряемого Task без скрытого облачного control plane.
+### Зачем проверять nested virtualization
 
-## Проектирование VM на Proxmox
+При запуске microVM внутри гостевой VM появляется ещё один уровень аппаратной виртуализации. Возможность должна пройти от физического CPU и host через конфигурацию VM к guest, затем к контейнеру и процессу, который запускает runtime. Появление `/dev/kvm` — лишь один участок этой цепочки. Наличие устройства не подтверждает права процесса, допустимость нужных операций KVM и успешный запуск microVM. Сам интерфейс KVM состоит из открытия устройства и вызовов API, а не проверки существования файла. [Linux KVM API](https://docs.kernel.org/virt/kvm/api.html).
 
-### CPU, память и overcommit
+Kind как контейнерный Kubernetes не требует nested KVM. Для gVisor требование зависит от platform `runsc`: `systrap` и `kvm` используют разные механизмы. При выборе KVM внутри VM нужно отдельно учитывать nested virtualization и её накладные расходы. Поэтому в первом паспорте указывают фактически выбранный runtime и его platform, а microVM добавляют отдельным опытом с runtime-specific запуском и восстановлением. [Platforms gVisor](https://gvisor.dev/docs/user_guide/platforms/).
 
-Выделенные VM resources — верхняя граница, а не гарантия производительности. Если Proxmox host перегружен соседними VM, восемь vCPU могут давать меньше работы, чем четыре свободных core. Для лаборатории важнее стабильный baseline, чем красивое число vCPU.
+## 4. Паспорт и свидетельства: небольшой локальный опыт
 
-Практические стартовые профили, а не обещание:
+Паспорт отвечает на вопрос «что собирались проверить». Отчёт запуска отвечает на вопрос «что произошло». Между ними нужна явная связь: идентификатор опыта, hash конфигурации, время и результат каждого этапа. Иначе легко приложить вчерашний успешный counter к сегодняшней среде с другим runtime.
 
-| Профиль | Стартовая VM | Что помещаем | Когда увеличивать |
-| --- | --- | --- | --- |
-| Control-plane learning | 8 vCPU, 16 GiB RAM, 100 GiB SSD | Kind, Substrate, AX, лёгкий demo; inference вне VM | OOM, eviction, долгий image unpack, нехватка места |
-| Lifecycle/snapshot tests | 12–16 vCPU, 24–32 GiB RAM, 200+ GiB SSD/NVMe | Несколько workers, repeated suspend/resume, telemetry | restore queue, I/O saturation, page cache pressure |
-| Multi-node rehearsal | Отдельные VM для control plane и workers | k3s/kubeadm, реальные node boundaries | По измеренному workload и выбранной HA topology |
+В репозитории есть `examples/ch26_lab_evidence.py` и его тесты. Это **офлайн-модель работы с записями**, использующая только стандартную библиотеку Python. Она не подключается к гипервизору, не открывает `/dev/kvm`, не вызывает Docker, Kubernetes, AX или Substrate. В ней намеренно используются вымышленный runner `example.invalid/...` и документационная management-сеть `192.0.2.0/24`. Их нельзя переносить в настоящий install plan.
 
-Не запускайте большую local LLM в той же VM на первом этапе. Inference заберёт RAM/VRAM, page cache и disk bandwidth, а инженер станет одновременно отлаживать orchestration и model server. Подключите внешний model API или отдельную GPU VM; объединяйте слои только когда каждый имеет собственный baseline.
+Учебный `Plan` хранит lab ID, kube-context, runtime, два полных SHA исходников, runner reference с digest и четыре IPv4-диапазона. Его ветка `gvisor` моделирует вариант без требования KVM; выбор `runsc --platform=kvm` эта упрощённая модель отдельно не описывает. Проверка отклоняет пересекающиеся сети и незакреплённые версии. Однако форма SHA не доказывает существование commit, а строка `@sha256:` не подтверждает доступность, происхождение или содержимое image. Полный инженерный паспорт должен дополнительно содержать версию Proxmox/QEMU, VM template, guest OS и kernel, параметры CPU, памяти и дисков, версии инструментов, все применённые manifests и image digests, storage, маршруты и ссылки на очищенные от секретов свидетельства.
 
-### Диск и snapshots
-
-На одном virtual disk смешиваются container layers, image registry, PostgreSQL, object storage, logs и Actor snapshots. Заполненный диск может остановить сразу все planes. Для долговременного стенда полезно разделить хотя бы OS/container cache и stateful data либо задать квоты и отдельные alerts.
-
-Proxmox snapshot фиксирует состояние VM/block device, но не гарантирует application-consistent backup PostgreSQL, Redis или object metadata. Он удобен как быстрый recovery point перед опасным упражнением; backup strategy всё равно проверяется средствами приложений. Снимок всей VM также не объясняет, какие именно данные требуются для восстановления платформы — этому посвящена следующая глава.
-
-### Сеть
-
-До установки выпишите CIDR на бумаге. В Lab A одновременно существуют как минимум:
-
-- LAN/VLAN Proxmox и адрес guest VM;
-- Docker network, в которой живут Kind nodes;
-- Kubernetes Pod CIDR;
-- Kubernetes Service CIDR;
-- возможно, VPN, corporate proxy и сети внешних MCP/model endpoints.
-
-Пересечение диапазонов создаёт ошибки, похожие на случайный packet loss: маршрут выбирается не туда, Service доступен из одного namespace и недоступен с host, proxy перехватывает внутренний адрес. Для kubeadm Pod network CIDR должен быть согласован с CNI и не пересекаться с host networks. Для Kind при proxy-настройке проверьте `NO_PROXY` для cluster-local и node ranges.
-
-Не публикуйте все control-plane ports на `0.0.0.0` ради удобства. Для первого доступа достаточно `kubectl port-forward` или port mapping, привязанного к management address. Затем явно спроектируйте ingress, TLS и firewall. «Открылось из браузера» не равно корректной service exposure.
-
-### Nested virtualization
-
-Kind внутри VM не требует nested KVM: его nodes — containers. MicroVM runtime требует, чтобы аппаратная виртуализация прошла через Proxmox в guest и внутри был доступен `/dev/kvm`. Проверка должна быть отдельным gate:
+Порядок этапов задаёт короткая функция из примера:
 
 ```
-test -e /dev/kvm
-ls -l /dev/kvm
-grep -E -m1 'vmx|svm' /proc/cpuinfo
+def required_gates(plan):
+    return ("guest",) + (("kvm",) if plan.runtime == "microvm" else ()) + (
+        "kubernetes", "substrate", "ax_integration")
 ```
 
-Наличие флага CPU ещё не доказывает, что процесс имеет permission открыть устройство. Проверьте группу/ownership и выполните маленький runtime-specific smoke test. Для gVisor KVM не является универсальным обязательным условием: требования зависят от выбранной platform `runsc`. Всегда проверяйте конкретный runtime contract, а не слово «sandbox».
+`review` ищет первый этап, для которого нет подходящего успешного отчёта. Он сверяет run ID, digest паспорта и возраст записи. В демонстрации время условное: `now=40`, допустимый возраст `30`, обычная запись датирована `10`. Равенство границе допустимо; запись с временем `0` уже устарела. Эти числа выбраны для теста, а не задают эксплуатационную норму свежести.
 
-## Воспроизводимость: стенд как продукт
-
-Хорошая лаборатория собирается из пустой VM вторым инженером без устных подсказок. Для этого нужен небольшой bill of materials:
-
-- версия и configuration VM template;
-- guest OS и kernel;
-- container runtime;
-- Kind/k3s/Kubernetes version;
-- Substrate и AX commit SHA;
-- image digests, а не только mutable tags;
-- Pod/Service/LAN CIDR и DNS assumptions;
-- storage classes и пути данных;
-- способ выдачи credentials без сохранения secrets в Git;
-- acceptance tests и способ полного teardown.
-
-Cloud-init template, declarative VM provisioning и install scripts уменьшают drift, но не заменяют verification. Скрипт может завершиться с кодом 0, а нужный webhook ещё не готов. Каждый этап должен иметь наблюдаемый postcondition.
-
-## Lab A: путь от чистой VM до Substrate
-
-Ниже — маршрут, а не вечный install script. Команды Substrate привязаны к снимку `df788825`; перед запуском прочитайте соответствующий README.
-
-### Gate 0. Guest готов
+Запуск из корня репозитория:
 
 ```
-uname -a
-timedatectl status
-df -h
-df -i
-ip route
-getent hosts registry.k8s.io
-docker info
+python3 examples/ch26_lab_evidence.py
+python3 -m unittest discover -s examples -p 'test_ch26_lab_evidence.py'
 ```
 
-Здесь нас интересуют не сами строки вывода, а факты: часы синхронизированы, root filesystem и inodes имеют запас, default route и DNS работают, Docker использует ожидаемые cgroups и может скачать/запустить тестовый image.
+Ожидаемые результаты синтетических сценариев:
 
-### Gate 1. Kubernetes работает без платформы
+| Сценарий | Первый незакрытый этап | Результат модели |
+| --- | --- | --- |
+| `no_evidence` | `guest` | `missing` |
+| `guest_passed` | `kubernetes` | `missing` |
+| `cluster_passed` | `substrate` | `missing` |
+| `substrate_passed` | `ax_integration` | `missing` |
+| `synthetic_complete` | `-` | `records_complete` |
+| `foreign_run` | `guest` | `wrong_run` |
+| `changed_plan` | `guest` | `wrong_plan` |
+| `overlap` | `-` | `network_overlap` |
+| `microvm_guest_passed` | `kvm` | `missing` |
+| `stale_report` | `guest` | `stale_or_future` |
 
-На зафиксированном Substrate quickstart создание cluster и local registry автоматизировано:
+Во всех строках `compatibility_proven=false`, включая `records_complete`. Записи создаёт сам пример, их никто не подписывает и не получает из работающего стенда. Даже настоящий hash паспорта связывает данные, но не удостоверяет автора и правдивость отчёта. Модель учит обнаруживать неподходящие свидетельства; доверенный сборщик и интеграционные проверки остаются отдельной работой.
+
+Вторая часть примера считает guest- и host-домены для трёх размещений из первой таблицы: `(3, 1, 1)`, `(3, 3, 1)` и `(3, 3, 3)` — nodes, guest VM, hosts. Она всегда возвращает `ha_proven=false`: декларация размещения не сообщает, выдержаны ли quorum и зависимости хранения. Попробуйте сменить только kube-context или runner digest и посмотреть, почему прежний комплект записей больше не относится к новому плану.
+
+## 5. Маршрут реального опыта: от guest до Actor
+
+Следующие команды — **план будущей ручной проверки**, не transcript выполненной установки. На момент редакции результат каждого реального этапа — `not_run`. Версии и поведение скриптов сверены по указанным исходникам, но сочетание ОС, Kubernetes, runtime и images нужно подтвердить на выбранной машине.
+
+### Этап A. Чистая guest-система
+
+Подготовьте отдельную VM, сетевые ограничения и журнал опыта. Сохраните конфигурацию и перечень дисков, включая то, что находится вне VM. Затем соберите baseline: `uname -a`, состояние синхронизации времени, `df -h`, `df -i`, `ip route`, DNS для выбранного registry и `docker info`. Здесь важен вывод каждой проверки, а не количество выполненных команд.
+
+Критерий перехода — guest располагает нужными ресурсами, время согласовано, а выбранный image доступен из ожидаемого окружения и запускается. Для microVM требуется дополнительный runtime-specific smoke test из того же контекста прав и устройств, что будет у рабочего процесса. Его результат записывают отдельно. Пример из предыдущего раздела такого теста не выполняет.
+
+### Этап B. Kind и Kubernetes без платформы
+
+**Перед созданием прочитайте скрипт.** В Substrate `df788825` файл `hack/create-kind-cluster.sh` удаляет кластер с выбранным именем перед созданием. Кроме того, он использует общий контейнер `kind-registry` и сеть Docker `kind`; в некоторых ветках скрипта они также изменяются. Новое имя кластера не изолирует эти общие объекты. Выполнять этот путь следует только в выделенной disposable VM с отдельным Docker daemon, без чужих кластеров и данных. [Зафиксированный create-kind-cluster.sh](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/hack/create-kind-cluster.sh).
+
+В отдельном checkout Substrate, после сверки полного commit и подготовленных зависимостей:
 
 ```
+git rev-parse HEAD
+export KIND_CLUSTER_NAME=ax26
+export KUBECTL_CONTEXT=kind-ax26
 hack/create-kind-cluster.sh
-kubectl cluster-info
-kubectl get nodes -o wide
-kubectl get pods -A
-kubectl wait --for=condition=Ready node --all --timeout=5m
+kubectl --context="$KUBECTL_CONTEXT" cluster-info
+kubectl --context="$KUBECTL_CONTEXT" get nodes -o wide
+kubectl --context="$KUBECTL_CONTEXT" get pods -A
 ```
 
-Запустите отдельный smoke Pod, проверьте DNS Service и исходящий HTTPS. Если используется volume, запишите marker, пересоздайте Pod и докажите ожидаемую persistence semantics. Только после этого fault считается выше уровня Kubernetes.
+Значения контекста здесь выбраны согласованно: install-wrapper позволяет уже заданному `KUBECTL_CONTEXT` переопределить вычисленное имя. До любых изменений проверяйте, куда действительно направлена команда. Полный source SHA фиксирует скрипт, но не делает неизменными все скачиваемые инструменты, base images и tags; их реальные версии и digests также заносят в паспорт.
 
-### Gate 2. Substrate проходит собственный lifecycle
+В этом скрипте есть специальная конфигурация API и feature gates, а также проверка возможности передать `/dev/kvm` контейнеру. Эта проверка не запускает microVM. Простая замена скрипта обычным `kind create cluster` может потерять нужные настройки; вид `Ready` у nodes сам по себе этого не выявит.
+
+До Substrate проверьте обычный Pod, разрешение Service DNS, нужный исходящий HTTPS и ожидаемую семантику volume. Запишите, что именно сохраняется после пересоздания Pod. Отдельно проверьте получение image из node-контекста. Если этот этап не пройден, добавление AX только увеличит число непроверенных зависимостей.
+
+### Этап C. Counter и восстановление состояния
+
+В том же pinned checkout предусмотрен путь установки development-компонентов и counter demo:
 
 ```
 hack/install-ate-kind.sh \
   --deploy-ate-system \
   --credential-provider='{"name":"k8s.io"}'
-
 hack/install-ate-kind.sh --deploy-demo-counter
 go install ./cmd/kubectl-ate
-
 kubectl ate create actor my-counter-1 \
-  -a ate-demo-counter \
-  --template counter
-
-kubectl port-forward -n ate-system svc/atenet-router 8000:80
+  -a ate-demo-counter --template counter
+kubectl --context="$KUBECTL_CONTEXT" port-forward \
+  -n ate-system svc/atenet-router 8000:80
 ```
 
-В другом terminal запрос к router должен попасть в нужный Actor:
+Перед `kubectl ate` отдельно сверьте текущий kube-context: переменная wrapper не является универсальной настройкой всех CLI. Установка разворачивает зависимости для разработки; это не готовая HA-конфигурация PostgreSQL и object store. Credential provider начинает с ограничивающей политики доступа: выбор provider не выдаёт Actor произвольные секреты. [Quickstart зафиксированного Substrate](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md).
+
+В другом терминале выполните один запрос и сохраните ответ вместе со временем:
 
 ```
-curl -X POST \
+curl --fail-with-body -X POST \
   -H 'ate-target-actor: ate-demo-counter/my-counter-1' \
   -i http://127.0.0.1:8000/
 ```
 
-Не останавливайтесь на первом HTTP 200. Зафиксируйте Actor state, Worker assignment и response; выполните suspend/resume; повторите запрос и проверьте сохранение counter state. Затем удалите Actor и убедитесь, что маршрутизация больше не выдаёт старый процесс. Это превращает demo в acceptance test.
+Counter изменяет состояние при POST. Повтор после таймаута может увеличить его ещё раз, даже если первый ответ не дошёл до клиента. Поэтому в протокол входят все попытки, а при неоднозначном исходе нельзя автоматически приписывать скачок счётчика ошибке snapshot. Для простого опыта избегайте автоматических retry и параллельных запросов; неоднозначный запуск лучше отметить отдельно и повторить с новым Actor.
 
-Зафиксированный quickstart разворачивает development PostgreSQL и RustFS. Их присутствие демонстрирует зависимости Substrate, но не делает их HA или backup-ready. Пустая default-deny policy credential provider также означает, что secret injection не «появится сама»: namespace access нужно разрешать отдельно.
+В demo есть счётчик в памяти и счётчик в файле на durable volume. При snapshot режима **Full** сохраняются память и durable volumes; режим **Data** сохраняет durable-данные, а приложение загружается заново. Ожидание для in-memory counter зависит от этого выбора. Перед suspend посмотрите ActorTemplate и фактическую конфигурацию, запишите значения обоих счётчиков. [Поведение counter demo](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/demos/counter/README.md).
 
-### Gate 3. AX добавляется только поверх здорового Substrate
+Затем выполните `kubectl ate suspend actor my-counter-1 -a ate-demo-counter`, дождитесь наблюдаемого завершения suspend и повторите один POST. В demo обращение через router может вызвать автоматическое пробуждение. Сравните значения согласно режиму, сохраните Actor state и Worker assignment до и после. Смена Worker возможна, но сама по себе не является обязательным критерием успеха. HTTP 200 подтверждает обработку запроса; восстановление состояния проверяется содержимым ответа и остальными свидетельствами.
 
-На снимке AX `ac233282` prerequisites требуют работающий Substrate API, Go, `kubectl`, `ko` и registry, доступный cluster. Проверка границы начинается с Service:
+## 6. Добавить AX и связать опыт с Task
 
-```
-kubectl get svc api -n ate-system
-make deploy AX_IMAGE_REPO=<registry-доступный-из-cluster>
-kubectl get pods -n ax-system
-ax ctx
-```
+Теперь цель — проверить путь от Task к доступному Workspace, сохранив простой workload. В pinned checkout AX подготовьте Go, `kubectl`, `ko` и registry, доступный кластеру. Собирайте CLI из checkout (`go install ./cmd/ax`), а не через `@latest`, чтобы не получить другой API-клиент. [README AX выбранной ревизии](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md).
 
-После установки сначала примените и проверьте Workspace, затем создайте Task из отдельного `lab-task.yaml` с `spec.debug: true` и проверенным runner image. Не копируйте `examples/task.yaml` вслепую: в upstream example Task стоит перед Workspace, а apply не является общей транзакцией. Model нужен только при намеренной проверке платформенного client; пользовательский harness настраивается отдельно. Для `ac233282` созданная Task изначально Suspended: перед первым ssh требуется resume. Пройдите цикл:
+Перед развёртыванием проверьте текущий kube-context и Service Substrate API. Затем в AX используется `make deploy AX_IMAGE_REPO=<ваш-registry>`. Подставляемое значение и права на него должны быть подготовлены заранее; это не буквальная исполнимая команда из книги.
+
+Здесь есть существенная деталь: в данном Makefile `deploy` зависит от развёртывания Redis и сервера, **но не от сборки runner image**. Runner нужно подготовить и проверить отдельно, включая архитектуру, доступность для узлов и digest. Наличие локального image или скопированного digest из примера не доказывает, что внутри находится нужная версия runner. Также не переносите `push-task-runner` на произвольный registry без чтения рецепта: в нём есть обращение к `gcloud`. [Makefile AX](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/Makefile).
+
+Сначала сверьте выбранный AX context и адрес сервера; это отдельная настройка от Kubernetes context. Подготовьте отдельные manifests Workspace и Task по схеме этой ревизии. В upstream `examples/task.yaml` несколько документов, причём Task идёт перед Workspace. Это удобный пример полей, но не транзакция установки. Для диагностического опыта примените Workspace отдельно, проверьте его существование, затем создайте Task с `spec.debug: true` и проверенным runner. Model подключайте, когда действительно понадобится платформенный model client; для проверки доступа к Workspace вызов LLM не требуется. [Состав примера Task](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/examples/task.yaml).
+
+На этой ревизии создание Task устанавливает фазу `Suspended`. После создания нужен явный resume; затем наблюдайте готовность Task, Workspace и соответствующего Actor. `ax watch task <имя>` держите в отдельном терминале: это поток наблюдения, а не команда с завершением по окончании пользовательской работы. Когда окружение готово, проверьте доступ через `ax ssh <имя> -- ls -la /workspace`, выполните suspend/resume и повторите проверку. Зафиксируйте, какие файлы по контракту Workspace должны сохраниться. Точная проверка проходит через статусы и содержимое, а не только через код возврата resume. [Создание Task в AX](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go).
+
+Для подготовленных файлов `lab-workspace.yaml` и `lab-task.yaml`, где Task названа `lab26-task`, последовательность выглядит так. Команды наблюдения и дальнейший ssh выполняются только после проверки соответствующего состояния:
 
 ```
 ax apply -f lab-workspace.yaml
-ax get workspace <workspace-name>
+# Проверьте созданную Workspace в выбранном AX context.
 ax apply -f lab-task.yaml
 ax get tasks
-ax resume task <task-name>
-# Watch в отдельном терминале; он не завершается по exit пользовательской команды.
-ax watch task <task-name>
-# После Ready/WorkspaceReady и проверки фактического runner:
-ax ssh <task-name> -- ls -la /workspace
-ax suspend task <task-name>
-ax resume task <task-name>
-ax delete task <task-name>
+ax resume task lab26-task
+# В отдельном терминале: ax watch task lab26-task
+# Дождитесь готовности Task, Workspace и Actor.
+ax ssh lab26-task -- ls -la /workspace
+ax suspend task lab26-task
+# Дождитесь завершения suspend, затем:
+ax resume task lab26-task
 ```
 
-`AX_IMAGE_REPO` — частая граница ошибки. Image может существовать на host, но быть недоступным Kind node. Либо используйте registry, который резолвится и доступен из node containers, либо загрузите pinned image в cluster осознанно. Mutable `latest` затрудняет повторяемость и взаимодействует с `imagePullPolicy`; для лабораторного протокола сохраняйте digest.
+Перенесём из главы 25 правило связи событий: для одного запуска сохраняются lab ID, версия паспорта, Task, Actor, Worker и размещение Kubernetes. Не все эти поля должны становиться labels метрик; идентификаторы отдельных запусков удобно хранить в журнале или trace. Сначала покажите, что можете пройти эту цепочку в исправном опыте. Тогда при сбое будет видно, на какой границе исчезло ожидаемое наблюдение.
 
-## Минимальная наблюдаемость с первого запуска
+## 7. Один управляемый отказ и честный вывод
 
-Глава 25 закончилась telemetry contract; здесь его нужно проверить. До первого Task сохраните:
+После успешного baseline выберите воздействие, которое отвечает исходному вопросу. Например, остановка одной guest VM проверяет потерю её узлов, но не отказ всего физического host. Ограничение исходящего доступа к тестовому registry проверяет новый image pull, если image ещё не находится в cache. Удаление Pod с уже прогретым image такой опыт не заменяет. Заранее задайте срок ожидания, условия прекращения и способ возврата настройки; используйте только ресурсы лаборатории.
 
-- VM CPU/memory/disk/network и time sync;
-- Kubernetes events, Pod status/restarts и node conditions;
-- Substrate component logs, Actor state и Worker assignment;
-- AX Task conditions/events и соответствующий Actor identity;
-- latency model/tool calls, если они участвуют в сценарии;
-- точные commit SHA и image digests.
-
-В disposable lab допустим простой backend и короткая retention. Недопустимо только отсутствие correlation: по одному Task инженер должен пройти от AX status к Actor, Worker, Pod и node. Сначала докажите golden path, затем инъецируйте один fault за раз.
-
-## Fault exercises, которые чему-то учат
-
-| Эксперимент | Что он проверяет | Ожидаемое доказательство |
+| Наблюдение | Следующая проверка | Почему она полезна |
 | --- | --- | --- |
-| Удалить AX control-plane Pod | Reconciliation и separation control/data state | Task не дублируется; control plane восстанавливает view |
-| Заполнить WorkerPool | Parking/backpressure и capacity signals | Запрос ждёт/отклоняется по документированной semantics |
-| Suspend/resume Actor | Snapshot, routing и state continuity | Предусмотренные volumes/checkpoint восстановлены; Full и Data/GOLDEN проверяются раздельно. Actor UID сохранён, placement может измениться |
-| Остановить model endpoint | Timeout/retry budget и видимость ошибки | Harness фиксирует bounded retry, model error и причину остановки; AX Ready может оставаться True |
-| Сломать DNS только в Pod | Разделение host/guest/cluster network | Host может резолвить, Pod — нет; fault локализован до CoreDNS/CNI/policy |
-| Перезагрузить VM | Что реально durable в одноузловом стенде | Составлен список восстановившихся и потерянных состояний |
+| Новая Task не получает окружение | Task conditions → Actor → Worker capacity | Разделяет создание Actor и возможность разместить его |
+| Pod не запускает runner | Events, pull error, registry из node | Разделяет сеть, credentials, отсутствие image и архитектуру |
+| Resume принят, ответа нет | Actor state, restore, router и post-resume probe | Отделяет приём команды от готовности обслуживать запрос |
+| После восстановления изменились данные | Режим snapshot, durable paths, все POST-попытки | Позволяет проверить ожидание опыта до вывода о потере состояния |
 
-В Kind перезагрузка VM — общий отказ всех псевдо-nodes. Для проверки независимого node failure переходите к нескольким VM. Не делайте из результата неверный вывод, будто три Kind worker доказали устойчивость к потере hardware node.
+Эта последовательность — способ сузить поиск, а не запрет вернуться вниз. DNS или storage могли отказать после предыдущего успешного этапа. Проверки привязаны ко времени и конфигурации; после смены kernel, runtime, manifests или image нужно повторить затронутые этапы, а при неясной зависимости — весь базовый путь.
 
-## Диагностика снизу вверх
+Перед изменениями полезно иметь точку возврата VM, но её смысл нужно назвать точно. Snapshot на том же storage разделяет его отказ. Копирование работающей VM не означает согласованного состояния нескольких баз и внешнего object store. Даже filesystem freeze через guest agent улучшает согласованность файловой системы, не заменяя проверку восстановления приложения. В Proxmox режим backup `snapshot` — название режима live backup; его нельзя смешивать с обычным локальным VM snapshot. [Режимы backup Proxmox](https://github.com/proxmox/pve-docs/blob/master/vzdump.adoc).
 
-Когда «AX не работает», не начинайте с переустановки. Сужайте fault domain.
+Завершая опыт, сначала сохраните очищенные логи и результат. Затем сверьте inventory: VM, cluster, Actor/Task, volumes, registry objects и временные credentials. Удаляйте только перечисленные лабораторные ресурсы в подтверждённых контекстах; общую команду «удалить всё» сюда включать опасно. Проверьте также, не остались ли внешние volumes и доступы после удаления VM. Snapshot с credentials хранит их копию, поэтому срок жизни такого снимка и отзыв доступа входят в завершение работы.
 
-1. **Host/VM:** VM Running? Есть pressure, disk latency, свободные blocks/inodes, корректное время?
-2. **Guest:** Работают route, DNS, TLS к registries, container runtime и firewall?
-3. **Kubernetes:** Nodes Ready? CoreDNS Running? Есть CNI/CSI errors, Pending Pods, failed mounts и scheduling events?
-4. **Substrate:** Control API доступен? WorkerPool имеет capacity? atelet и router здоровы? Actor получил Worker?
-5. **AX:** Redis/control plane Ready? Каковы Task conditions? Создан ли соответствующий Actor?
-6. **Agent path:** Доступны model, MCP и egress? Не ждёт ли Task approval? Есть ли verified outcome?
+## 8. Что инженер должен уметь объяснить после опыта
 
-Собирайте evidence до destructive reset. Для Kind экспорт cluster logs полезнее скриншота терминала; для systemd-based k3s/kubeadm сохраняйте journal конкретного unit и Kubernetes events. После сбора у стенда должен быть короткий и проверенный teardown path.
+Итоговый протокол может быть коротким: «В среде с таким паспортом counter в режиме Full прошёл обращение, suspend и восстановление; AX Task с таким runner получила Workspace; после выбранного воздействия результат оказался таким». Рядом должны находиться времена, наблюдения и границы вывода. Если проверена только одна VM на одном host, протокол не должен обещать физическую отказоустойчивость. Если есть только записи офлайн-примера, результат ограничивается проверкой этих записей.
 
-## Критерии готовности лаборатории
+Попробуйте ответить без подсказки: почему новый kube-context не изолирует общий registry, почему успешный `make deploy` не гарантирует runner и почему готовые nodes не подтверждают восстановление Actor? Если ответ сводится к «так написано в инструкции», вернитесь к соответствующей границе и проследите, кто выполняет действие, к каким ресурсам обращается и какой результат наблюдаем.
 
-Стенд готов не тогда, когда dashboard зелёный, а когда выполняются проверяемые условия:
-
-- чистая VM разворачивается по документу без ручных исправлений;
-- версии и images pinned, а secrets не попали в Git и shell history;
-- обычный Kubernetes smoke test проходит до установки платформы;
-- Substrate counter переживает suspend/resume с подтверждённым state;
-- AX Task проходит create/watch/ssh/suspend/resume/delete;
-- по Task ID можно найти Actor, Worker, Pod и node;
-- один capacity fault и один network fault диагностируются по runbook;
-- teardown освобождает cluster, registry volumes и временные credentials;
-- повторная сборка даёт тот же результат либо drift объяснён.
-
-## Итог
-
-Выбор между Kind, k3s и kubeadm — это выбор требуемой *fidelity*, а не соревнование дистрибутивов. Kind даёт быстрый и воспроизводимый путь к API/lifecycle experiments. K3s полезен как постоянный небольшой cluster. Kubeadm заставляет инженера владеть network, storage, endpoint, node и upgrade decisions и потому подходит для production rehearsal.
-
-Базовый стенд книги начинается с Kind в одной VM, потому что он минимизирует число неизвестных и совпадает с development quickstart Substrate. Но мы не выдаём container-nodes за независимые machines, Proxmox snapshot — за application backup, а первый успешный Task — за production readiness. Стенд считается полезным, когда он воспроизводится, наблюдается, ломается контролируемо и объясняет, какой слой отвечает за результат.
-
-Следующая глава поднимет тот же вопрос на production-уровень: какие stateful planes требуют HA и backup, почему дополнительные replicas сами по себе не дают доступность, как планировать upgrades и как доказать восстановление через DR drill.
+В следующей главе лабораторный протокол станет отправной точкой для production engineering: нужно будет решить, какие состояния восстанавливать, какие отказы выдерживать и чем подтверждать допустимое время простоя. Лаборатория уже помогает получить эти свидетельства, но границы достоверности каждого опыта остаются частью инженерного результата.
 
 ### Источники и дальнейшее чтение
 
-- [Substrate development quickstart на снимке df788825](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md)
-- [AX quick start на снимке ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md)
-- [Kind Quick Start](https://kind.sigs.k8s.io/docs/user/quick-start/)
-- [Kind configuration: nodes, mounts, ports и networking](https://kind.sigs.k8s.io/docs/user/configuration/)
-- [K3s architecture](https://docs.k3s.io/architecture)
-- [K3s requirements](https://docs.k3s.io/installation/requirements)
-- [Создание cluster с kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/)
-- [Установка kubeadm и host prerequisites](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/install-kubeadm/)
-- [Proxmox VE: Nested Virtualization](https://pve.proxmox.com/wiki/Nested_Virtualization)
+- Официальная документация: [Proxmox VM](https://github.com/proxmox/pve-docs/blob/master/qm.adoc), [backup](https://github.com/proxmox/pve-docs/blob/master/vzdump.adoc), [Linux KVM API](https://docs.kernel.org/virt/kvm/api.html), [gVisor platforms](https://gvisor.dev/docs/user_guide/platforms/).
+- Выбор Kubernetes-среды: [Kind quick start](https://kind.sigs.k8s.io/docs/user/quick-start/), [Kind configuration](https://kind.sigs.k8s.io/docs/user/configuration/), [K3s architecture](https://docs.k3s.io/architecture), [kubeadm](https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/).
+- Исходники конкретного профиля: [Substrate `df788825`](https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247), [AX `ac233282`](https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e). Открывайте ссылки на commit, чтобы не смешивать эту главу с изменившейся веткой `main`.
