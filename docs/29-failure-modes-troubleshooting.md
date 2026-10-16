@@ -1,238 +1,209 @@
 # Failure modes и troubleshooting: как локализовать нарушенный контракт
 
-**Снимок главы:** **AX main `ac233282` · Substrate main `df788825` · проверено 2026-10-10**. Команды и поля status относятся к этим снимкам и должны сверяться с закреплённой версией deployment. Issues ниже - наблюдения из конкретных окружений, а не доказательство, что любой похожий симптом имеет ту же причину.
+**Профиль главы на 16.10.2026:** AX `ac233282` и Substrate `df788825`, полные SHA - в паспорте главы 26. Поведение runner, Workspace setup, direct reconciliation и request parking ниже относится к этим ревизиям. Учебное расследование использует искусственные наблюдения; стенд и реальные восстановительные действия не запускаются.
 
-Когда агент «не работает», перед инженером находится не одна программа, а цепочка контрактов: Kubernetes должен дать здоровый node и Pod; Substrate - выбрать Worker, восстановить Actor и провести трафик; AX - reconcile'ить декларацию; runner - подготовить workspace и запустить процесс; model и tools - ответить в пределах deadline; harness - правильно обработать результат. Один пользовательский симптом может возникнуть на любом из этих слоёв.
+В главе 28 мы разобрались с ёмкостью сервиса `billing`. Теперь одна Task исследования репозитория не выдала отчёт к согласованному сроку. В AX она выглядит готовой, Actor работает, runner отвечает на `/readyz`. Дежурный видит зелёные статусы, а пользователь всё ещё ждёт файл. Можно предположить очередь модели, незавершённый checkout или остановившуюся команду. С чего начать, чтобы следующее наблюдение действительно сузило поиск?
 
-Troubleshooting - это не перебор команд и не искусство угадывать знакомую ошибку. Его цель - найти **последнюю подтверждённо исправную границу**, сформулировать одну проверяемую гипотезу о следующей границе и получить evidence, которое эту гипотезу подтверждает или опровергает. Такой подход одновременно сокращает MTTR и не даёт случайным рестартам уничтожить причину.
+Проследим это расследование от жалобы до проверяемого объяснения. Затем разберём соседние случаи: отсутствие Worker, сетевой отказ, медленное восстановление и повторную внешнюю запись. Общий навык один: понимать, что именно подтвердило каждое наблюдение, какую неопределённость оно оставило и какое действие допустимо при этих знаниях.
 
-## Сначала отделите симптом, состояние и причину
+## 1. Сформулировать нарушенное обещание
 
-| Термин | Пример | Что он доказывает |
+**Troubleshooting** - поиск объяснения неполадки и способа вернуть нужный результат. **Failure mode**, режим отказа, описывает, как работа может нарушиться: команда завершилась раньше времени, восстановление ждёт storage, публикация получила неопределённый исход. Одно сообщение «агент завис» подходит сразу к нескольким режимам. Оно сообщает о проблеме, но пока не выбирает место проверки.
+
+Для нашей Task обещание конкретнее: исследовать определённый commit `billing`, создать отчёт и сделать его доступным инициатору до установленного срока. В этом контракте есть вход, работа и доставка результата. Отчёт по другому commit нарушит его даже при быстром завершении. Отчёт, оставшийся в недоступном sandbox, тоже ещё не выполнил обещание пользователю.
+
+Полезно разделить несколько уровней объяснения. **Симптом** - пользователь не получил файл. **Наблюдаемое состояние** - Task Ready и HTTP 200 от runner. **Механизм отказа** может оказаться завершением дочерней команды после отказа проверки входа. **Причина этого механизма** потребует следующего шага: почему не подготовился нужный checkout? Ошибка доступа к Git, неверный путь и неполученный ref дают похожее отсутствие исходников, но требуют разных исправлений.
+
+Термин **root cause**, первопричина, используйте для подтверждённой причинной цепочки с явно выбранной глубиной разбора. Во время аварии обычно достаточно сначала локализовать механизм и стабилизировать сервис. Дальше можно разбирать, почему система допускала такой вход, почему проверка готовности его не обнаружила и как изменить выпуск. Запись «перезапустили, помогло» описывает удачное вмешательство, но ещё не объясняет, что именно оно исправило.
+
+## 2. Убедиться, что наблюдения относятся к одной попытке
+
+Откройте карточку проблемной работы и зафиксируйте время жалобы, ожидаемый результат, последний успешный похожий запрос и недавние изменения. Затем свяжите Task с фактическим Actor, периодом исполнения и запуском команды. У Actor после удаления и повторного создания может сохраниться имя, но измениться UID. После resume изменится физическое размещение; прежний Pod уже не обязательно исполняет нашу работу.
+
+Идентификаторы и их происхождение разобраны в главе 25. Для расследования нужны одновременно логическая цель, попытка, runtime-объект и место исполнения. Если activation ID команда ведёт сама, это её диагностическое соглашение, а не автоматически существующее поле AX. Аналогично, у AX ObjectMeta этого среза нет Kubernetes-подобного `resourceVersion`: нельзя переносить проверки другого API только из-за похожего имени ресурса.
+
+Сохраните небольшой набор исходных данных: spec и status Task/Workspace, фактическую связь с Actor, версии образов и runtime, последние связанные логи и указатели на trace. Для Kubernetes добавьте Pod UID, имя контейнера, image ID, restart count и последнее termination state. Выбирайте данные под вопрос: какой вход должен был увидеть процесс и какой проход сейчас исследуется? Полный архив кластера чаще затрудняет ответ, чем помогает ему.
+
+Временную последовательность стройте с учётом часов. Длительность одного процесса измеряется монотонными часами; события разных машин связываются идентификаторами и spans. Время приёма записи log backend может отличаться от времени самого события. Соседние строки интерфейса не обязательно были соседними действиями программы. Сохранённая вчера readiness полезна для вчерашнего прохода; сегодняшнюю попытку она не подтверждает.
+
+Данные расследования также требуют защиты. Перед передачей уберите tokens, credential-bearing URLs, содержимое закрытых файлов и лишние параметры model/tool calls. Оставьте имена этапов, коды ошибок, безопасные идентификаторы и ссылки на закрытые оригиналы с контролем доступа. Включение максимально подробных логов способно раскрыть данные и увеличить задержку, поэтому заранее выберите поля и срок такой диагностики.
+
+## 3. Проверить смысл зелёного статуса
+
+Начнём с пути нашей работы. AX сохраняет Task и вызывает reconciliation; Substrate подбирает и запускает Actor; runner готовит Workspace и запускает дочернюю команду; harness исследует файлы; клиент получает результат. Сеть, storage и модель создают ответвления этого пути. Вместо общего утверждения «низ платформы исправен» отметим, какие переходы подтверждены именно для этой попытки.
+
+| Наблюдение | Какой вывод допустим | Что проверить следующим |
 | --- | --- | --- |
-| Пользовательский симптом | «Task не дал первый ответ за 60 секунд» | Нарушен outcome/SLO, но слой ещё неизвестен |
-| Наблюдаемое состояние | `Task Ready=True`, Actor `RUNNING`, model queue растёт | Компоненты сообщили свои локальные claims |
-| Механизм отказа | Child process завершился, runner остался PID 1 | Как именно перестал выполняться контракт |
-| Root cause | Необработанное исключение после несовместимого MCP response | Почему механизм возник и что нужно изменить системно |
-| Contributing factor | Нет liveness signal приложения и terminal Task phase | Почему отказ долго не обнаруживался или усилился |
+| CreateTask вернулся успешно | Handler завершил предусмотренный direct reconciliation и запись итогового status | Выполнение команды и результат приложения |
+| Actor имеет Worker и состояние RUNNING | Control plane сообщает рабочее состояние Actor | Фактический runner, нужную активацию и первый прикладной доступ |
+| Runner отвечает 200 на readyz | Его флаг подготовки Workspace установлен | Содержимое входа и исход команды |
+| Дочерняя команда завершилась с exit 0 | Процесс сообщил успешное завершение | Отчёт относится к нужному входу и доступен пользователю |
+| Отчёт проверен и доставлен | Выполнен выбранный пользовательский результат | Не осталась ли повторная или незавершённая работа |
 
-Не каждое расследование обязано сразу найти организационную «первопричину». Во время incident достаточно локализовать механизм, безопасно восстановить сервис и сохранить evidence. Root-cause analysis выполняется после стабилизации. И наоборот, фраза «Pod был перезапущен» описывает событие, а не причину: нужны termination reason, exit code, node pressure и предшествующий таймлайн.
+Успех lifecycle RPC в этой версии AX имеет более сильный смысл, чем простая постановка в очередь. В [handler](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go) видны resource lock, сохранение Task, direct reconciliation и обновление status. При этом метод не ждёт окончания исследования репозитория. Отдельного lifecycle controller и Redis Streams очереди AX в этом срезе нет.
 
-## Метод последней подтверждённой границы
+Readiness runner тоже имеет конкретного производителя. В [runner](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go) она выставляется после возврата вызовов подготовки Workspace без ошибки. Дочерняя command запускается затем; после её выхода runner остаётся доступным до остановки. Поэтому сочетание «команда закончилась, runner готов» допускается самим устройством запуска.
 
-Идите не механически «снизу вверх», а от пользовательского запроса по его реальному пути. На каждой границе задавайте один и тот же вопрос: *какое наблюдение докажет, что вход был принят, работа действительно выполнена, а результат передан дальше?*
+В Kubernetes readiness и liveness решают другие задачи: первая влияет на готовность принимать трафик через соответствующие Services, вторая может привести к перезапуску контейнера по настроенным правилам. Ни одна не доказывает создание отчёта. В Substrate Worker Pod и Actor sandbox также не следует считать одним контейнером с одним состоянием. Проверка процессов внутри Worker Pod может показать управляющий runtime, а не нужную гостевую программу.
 
-1. **Определите outcome.** Не «Task сломан», а «запрос `request_id=...` не вернул первый token до deadline» или «после resume отсутствует файл X».
-2. **Зафиксируйте окно времени.** Переведите timestamps в UTC, отметьте последнюю успешную операцию, первую неуспешную и изменения deployment в этом окне.
-3. **Постройте короткий timeline.** Client send → AX accepted → reconcile → Actor assignment → restore → runner ready → model/tool call → response.
-4. **Найдите последний доказанный переход.** HTTP 200 от AX доказывает приём запроса, но не готовность workspace; `WorkspaceReady=True` может не доказать наличие ожидаемого checkout.
-5. **Разделите путь независимыми probes.** Проверьте model endpoint без агента, MCP с той же identity, TLS из sandbox, readiness приложения внутри Actor.
-6. **Изменяйте одну переменную.** Другой pool, clean Actor, cold snapshot или прямой endpoint - по одному, иначе результат не объясняет причину.
-7. **Перед recovery сохраните evidence.** Перезапуск, delete/recreate и revert могут стереть logs, failed state и локальный filesystem.
+## 4. Выбрать наблюдение между несколькими объяснениями
 
-Полезная запись гипотезы выглядит так: «ResumeTask ждёт не model, а Worker assignment: lifecycle RPC задерживается, Actor остаётся `SUSPENDED`, а Substrate возвращает `ResourceExhausted`; свободная capacity с подходящим selector должна устранить этот отказ». Для AX `ac233282` ищут RPC и runtime evidence, а не возраст события удалённой controller queue. Если RPC уже завершился ошибкой, появление Worker не повторит операцию автоматически: сначала перечитайте Task и Actor, затем решите, допустим ли новый resume. Гипотеза указывает слой, наблюдение и проверяемое предсказание; «наверное Kubernetes» этого не делает.
+У нас есть три начальные гипотезы: команда ещё ждёт модель, команда уже завершилась или harness читает неполный checkout. Наиболее полезный первый вопрос - что произошло с конкретным дочерним процессом? Если он завершился, ожидание его текущего model call уже не объясняет отсутствие дальнейшего прогресса. Если он жив, нужны последний завершённый шаг и активный вызов зависимости. Отсутствие строки о model call само по себе не доказывает, что вызова не было.
 
-## Первые десять минут: сохранить факты, не чинить вслепую
+В учебном случае запись ожидания процесса показывает exit 2, а диагностическая запись harness сообщает об отказе входной проверки: у каталога репозитория нет требуемого HEAD. Число 2 здесь выбрано автором учебного harness; универсального значения «сломался Git» у exit code 2 нет. Мы получили объяснение остановки команды, но ещё не установили, почему не появился checkout.
 
-До рестартов и удаления ресурсов соберите минимальный incident bundle. Конкретные команды зависят от версии и способа установки, но состав данных стабилен.
+Следующая проверка обращается к тому же каталогу в том же окружении, откуда запускалась команда. Сверяются ожидаемые repository/ref и полный commit, фактический HEAD, пути bindings и mount. Например, чтение `git -C /workspace/billing rev-parse --verify HEAD` различит имеющийся commit и отсутствие разрешимого HEAD. Путь в примере условный: его берут из фактического binding, а не из привычки к `/workspace`. Неуспех этой команды ещё надо разделить на отсутствие репозитория, доступ к каталогу и отсутствие нужного ref.
 
-- точное время, timezone, request/task/actor/workspace identity и пользовательский deadline;
-- commit, release, image digest и манифесты AX, Substrate, runner, sandbox runtime и model server;
-- AX Task/Workspace/Model spec и полный status с conditions, reasons и timestamps; отдельно Substrate EgressPolicy и фактический путь доступа;
-- Substrate Actor, ActorTemplate, WorkerPool, Worker assignment, operation state и snapshot reference;
-- Kubernetes Pod/Deployment/DaemonSet/Node state, recent Events, restarts, termination reason и resource pressure;
-- логи `ax-server`, runner и компонентов Substrate, включая его controllers, `ateapi`, `atelet`, `ateom`, `atenet` и зависимостей в одном окне;
-- trace/correlation IDs, latency milestones, queue age и relevant metric snapshots;
-- результаты positive и negative probes без секретов: DNS, TCP, TLS, model, MCP и filesystem;
-- последние изменения: rollout, policy, image, snapshot, secret, DNS, node drain, autoscaling.
+Состояние Git remote и exit status fetch/checkout помогают продолжить поиск. Внешний `git ls-remote` проверяет доступ к удалённым refs, но не доказывает, что нужные файлы уже находятся в sandbox. Такая сетевая проверка должна быть разрешена для выбранных identity и destination. Успех с ноутбука инженера при других credentials и сетевом пути отвечает на иной вопрос.
 
-Используйте `kubectl describe` и Events как дополнение, а не как единственный источник: Events имеют ограниченное retention, могут агрегироваться и не являются журналом всех переходов. Логи без version/digest тоже недостаточны - одинаковое имя image tag может скрывать разные binaries.
+У этой версии есть важная деталь: [SetupWorkspace](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/workspace/setup.go) записывает ошибки Git, не создаёт marker успешной подготовки, но возвращает результат без ошибки. Поэтому ready=true может сочетаться с неполным checkout. Если же сама SetupWorkspace вернула ошибку, runner оставляет ready=false, однако запуск command всё равно предусмотрен. Это два разных пути; конкретное содержимое каталога нужно проверить в обоих.
 
-## Status - это утверждение компонента, а не end-to-end truth
+Теперь известно достаточно, чтобы исследовать Workspace setup и его Git error log. Сообщение об ошибке fetch может указать следующий слой: DNS, TLS, authorization либо ref. Одна лишь найденная пустая директория не позволяет выбрать между ними. Мы локализовали нарушенный входной контракт и сохранили основания для следующего шага, не меняя model endpoint или число Workers.
 
-Condition отвечает только на вопрос, который реализовал её producer. AX issue #346 показывает Task с `phase=Running` и `Ready=True` после завершения command и даже при `ACTOR_STATE_CRASHED` на нижнем слое. Issue #347 показывает `WorkspaceReady=True` при созданном, но пустом Git repository. Эти issues дают гипотезы для проверки, но не заменяют чтение handler выбранного commit. В AX `ac233282` нет Gateway resource или `GatewayReady`: сетевой путь проверяется по Substrate policy и отдельным probes.
+## 5. Потренировать выбор следующей проверки
 
-Из этого не следует, что conditions бесполезны. Они полезны как локальные checkpoints. Для каждого operational claim нужен отдельный outcome probe:
+В репозитории есть `examples/ch29_incident_evidence.py`. Он принимает искусственные наблюдения о срезе одной попытки и показывает, какие гипотезы они поддерживают, опровергают или оставляют открытыми. Выход содержит только название следующего чтения. Программа не собирает логи, не подключается к API и не выполняет recovery.
 
-| Claim | Что он обычно подтверждает | Как проверить пользовательский outcome |
+В учебный контекст входят Task, Actor UID, activation, attempt и snapshot. Это формат упражнения, не тип ресурса AX. Поля позволяют показать, как чужой проход или старое наблюдение искажает расследование. Для временного окна используется одна условная шкала миллисекунд: допустимы записи от 100 до 200 включительно. Само упражнение не проверяет синхронизацию реальных часов или подлинность этих меток.
+
+Фильтрация после проверки входных типов выглядит так:
+
+```
+def scoped_observations(observations, context, start_ms, as_of_ms):
+    return [o for o in observations
+            if o.context == context
+            and start_ms <= o.captured_ms <= as_of_ms]
+```
+
+По каждому полю сохраняется известное значение или неизвестность. `None` означает отсутствие известного наблюдения, а `NO_HEAD` - явно заданный результат проверки об отсутствии разрешимого HEAD. Exit 0 является известным значением; он не должен исчезнуть из-за проверки «если значение истинно». Противоположные значения одного поля в одном зафиксированном срезе помечаются как `conflicting`, а не выбираются по порядку поступления.
+
+Для четырёх гипотез используются состояния `supported`, `refuted`, `unknown`, `conflicting`. Например, известное назначение Worker опровергает гипотезу «Worker не назначен» на этом срезе. Exit 2 поддерживает гипотезу ненулевого исхода команды. Он ничего не говорит о checkout до появления соответствующего наблюдения. Это ограниченные выводы из входных записей, а не вероятностная оценка всех причин аварии.
+
+| Сценарий | Что добавлено к наблюдениям | Следующее чтение |
 | --- | --- | --- |
-| `Ready=True` | AX сохранил результат предусмотренных reconcile steps | Проверить child process, application heartbeat и полезный response |
-| `WorkspaceReady=True` | Runner считает bootstrap завершённым | Проверить expected ref/commit, файлы и доступность repo для процесса |
-| Substrate EgressPolicy существует | Сохранена policy, но это ещё не доказательство разрешённого пути | Положительный probe разрешённого и отрицательный probe запрещённого destination |
-| Actor `RUNNING` | Actor получил Worker и lifecycle достиг running state | Проверить listener/readiness и первый state access после restore |
-| Model HTTP 200 | Endpoint вернул transport-level success | Проверить schema, finish reason, token usage, quality и latency budget |
+| only\_ready | Worker назначен, runner готов | read\_child\_outcome |
+| child\_exit\_2 | Известен ненулевой exit | read\_checkout |
+| checkout\_missing | Нет HEAD, отчёт отсутствует | inspect\_workspace\_setup |
+| other\_activation | NO\_HEAD относится к другой активации | read\_checkout |
+| old\_observation | NO\_HEAD получен вне окна | read\_checkout |
+| conflicting\_exit | Одному срезу приписаны exit 0 и exit 2 | reconcile\_evidence |
+| no\_worker | Известно отсутствие assignment | inspect\_eligibility |
+| runner\_unready | Worker есть, runner не готов | inspect\_bootstrap |
+| result\_invalid | Команда успешна, вход верный, результат неверен | inspect\_result\_contract |
+| all\_checks\_pass | Все заданные проверки успешны | verify\_user\_delivery |
 
-## Быстрая карта симптомов
+Запуск из корня книги:
 
-| Симптом | Вероятная граница | Первое различающее evidence | Не делать первым |
-| --- | --- | --- | --- |
-| `ax apply` отклонён | Client/API/schema | HTTP/gRPC code, field path, server validation log | Перезапускать Workers |
-| Task долго без Actor | AX reconcile | Ответ lifecycle RPC, ax-server trace, resource lock и фактическое наличие Actor | Увеличивать model replicas |
-| Actor не получает Worker | Selector/capacity/scheduler | Pool labels, free slots, assignment outcome | Удалять snapshot |
-| Actor застрял в resume | Snapshot/runtime/readiness | Restore phase timings, runtime log, probe result | Считать это только storage latency |
-| Workspace «готов», но неверен | Runner/bootstrap | Expected commit против фактического HEAD/files | Анализировать prompt |
-| Task Running, ответа нет | Child/model/tool | Process tree, heartbeat, active request trace | Доверять одному Task status |
-| Только TLS egress не работает | DNS/SNI/policy/router | Раздельные DNS, TCP и TLS probes + atenet flags | Расширять allowlist до `*` в production |
-| Model timeout | Queue/prefill/route | Server receive time, queue time, TTFT, GPU memory | Повторять без retry budget |
-| Resume быстрый, первая команда медленная | Lazy restore/cache | Первый RAM/filesystem touch и restore breakdown | Смотреть только Resume RPC |
-| Действие выполнено дважды | Tool retry/idempotency | Action key, attempt journal, remote audit log | Повторять вручную «для проверки» |
+```
+python3 examples/ch29_incident_evidence.py
+python3 -m unittest discover -s examples -p 'test_ch29_incident_evidence.py'
+```
 
-## Playbook 1: Task не создаётся или застрял до Running
+После `checkout_missing` программа предлагает читать setup, а не объявляет неисправными credentials. После `all_checks_pass` она предлагает проверить доставку, а не закрывает incident. Во всех вариантах остаются `root_cause_proven=false`, `actions_executed=false` и `real_system_inspected=false`. Поле `root_cause` остаётся неизвестным.
 
-Для AX `ac233282` разделите четыре случая: запрос отклонён до записи; AX record сохранён, но direct reconciliation завершился ошибкой; Actor создан или активирован, но итоговый status не записан; runtime работает, а прикладная готовность не достигнута. Один симптом «Task не стартовал» требует разных проверок. Отдельного controller Pod и возраста lifecycle очереди в этом срезе нет.
+Упражнение доверяет переданным labels и значениям: JSON с правильным Actor UID ещё не стал свидетельством доверенного источника. Оно также не обнаруживает все противоречия между разными полями и не моделирует текущие изменения состояния. Реальные переходы нужно разносить по времени и срезам. Выбранный порядок чтений удобен для этой истории; в инциденте с массовой недоступностью или риском утечки первым будет ограничение ущерба, а не полный обход такой последовательности.
 
-1. Сохраните ответ клиента, transport code, validation field, request ID и deadline. Timeout не говорит, остановилась ли серверная операция.
-2. Прочитайте AX record и сравните spec с отправленной. Если запись отсутствует, исследуйте validation, lock и store; если существует, не создавайте новый logical run автоматически.
-3. Проверьте Workspace references, image, atespace и ActorTemplate. Model не подключается к Task автоматической ссылкой; credentials и endpoint harness проверяются отдельно. Gateway не является AX kind.
-4. Свяжите сохранённый status с временем RPC и фактическим Actor. В AX ObjectMeta этого среза нет Kubernetes-подобных generation/resourceVersion: используйте spec snapshot, Task identity и timestamps, а не несуществующий observedGeneration.
-5. В ax-server trace найдите ожидание resource lock, Substrate RPC, readiness и запись итогового status. Сопоставьте каждую ошибку с текущим состоянием нижнего слоя.
-6. Если Actor создан, проверьте его assignment, snapshot и готовность через Substrate. Работоспособность runner и завершение agent command проверяйте раздельно.
+## 6. Подобрать инструмент по границе поиска
 
-Перед recovery исключите продолжающийся исходный attempt. Повтор Create для существующей immutable Task не является replay всех пропущенных шагов. Выберите штатную операцию для установленного состояния и сначала убедитесь, что она не создаст второй Actor или повторный внешний effect; подробные окна частичной записи разобраны в главе 38.
+После определения вопроса выбор утилиты становится проще. Для нашей Task нужен исход дочерней command, затем проверка Workspace. Метрики средней загрузки кластера на этом шаге дают контекст, но не заменяют сведений о конкретной попытке.
 
-## Playbook 2: Actor не resume или долго ждёт Worker
-
-Resume состоит из нескольких стадий: выбрать подходящий WorkerPool, получить slot, назначить Worker, найти snapshot, восстановить runtime, дождаться readiness и сделать Actor routable. `no free workers`, несовместимый sandbox и повреждённый snapshot требуют разных решений.
-
-1. **Eligibility:** совпадают ли ActorTemplate selector, labels pool, sandbox class, version pin и node placement?
-2. **Capacity:** есть ли реально свободный Worker с достаточным CPU/RAM/actor budget, а не просто Running Pod?
-3. **Assignment:** какой outcome и error type вернул scheduler; сколько времени заняла стадия?
-4. **Snapshot lookup:** существует ли reference, принадлежит ли snapshot Actor/Tag, доступен ли object store и совместим ли формат с runtime?
-5. **Restore:** разделите download, unpack/restore, sandbox start, first page/file touch и readiness.
-6. **Application compatibility:** повторяется ли проблема на cold boot или только после checkpoint/restore? Работает ли другой минимальный runtime в том же pool?
-
-Substrate request parking может удерживать входящий запрос при временном исчерпании pool до bounded deadline. Поэтому пользователь видит длинный request, а не мгновенный `503`. Смотрите одновременно parking duration, assignment failures и освобождение Workers. Увеличение client timeout не создаёт capacity и способно накопить ещё больше ожидающих запросов.
-
-Если Actor в `CRASHED`, сначала определите, потеряна ли работа после последнего external snapshot. Revert возвращает к сохранённой точке и потому является data-loss decision, а не безобидным restart. Зафиксируйте snapshot version и получите согласие owner-а данных до отката.
-
-## Playbook 3: workspace объявлен готовым, но содержимое неверно
-
-Проверка «каталог существует» слишком слаба. Для Git-workspace contract должен включать как минимум ожидаемый remote, ref/commit, ненулевой checkout и доступ процесса к файлам. Для generated workspace нужны manifest или контрольные файлы, а не только readiness runner-а.
-
-- сравните запрошенный branch/tag/SHA с `HEAD` и refs внутри workspace;
-- проверьте exit status fetch/checkout, stderr и размер `FETCH_HEAD`, не публикуя credentials;
-- выполните `git ls-remote` из той же sandbox identity и через тот же Gateway;
-- проверьте mount path, ownership, permissions и то, что agent process видит тот же namespace;
-- отделите пустой корректный repository от неуспешного checkout явным acceptance invariant;
-- после resume сравните durable path и ephemeral path: данные могли быть записаны не в snapshot-managed filesystem.
-
-AX issue #347 полезен не как универсальный диагноз, а как пример **ложноположительной readiness**: bootstrap step объявлен завершённым при неполном результате. Исправление класса проблемы - сделать postcondition проверяемой и failure loud, а не добавить sleep перед запуском агента.
-
-## Playbook 4: Task Running, но полезный процесс умер или завис
-
-Runner как PID 1 и child agent - разные процессы и разные health contracts. Живой runner может обслуживать debug/readiness, пока command давно завершился. И наоборот, долгий model call может выглядеть как hang, хотя процесс жив и ждёт внешний dependency.
-
-1. Проверьте process tree, PID child, start time, state, exit code или zombie; не ограничивайтесь PID 1.
-2. Проверьте application heartbeat/progress marker: последний завершённый agent step, model/tool request и budget.
-3. Получите stack/thread dump безопасным для runtime способом; перед kill сохраните stderr и core/diagnostic data, если policy разрешает.
-4. Сопоставьте cgroup OOM/throttling и node eviction с application logs. Exit без traceback может быть внешним kill.
-5. Для hang проверьте deadline и cancellation propagation: client мог уйти, а tool/model request продолжает занимать ресурс.
-6. Определите terminal semantics. Если процесс должен завершаться, успешный exit не является failure; если это service, exit 0 всё равно нарушает availability contract.
-
-Issue AX #346 показывает gap конкретной версии: Task status не позволял отличить выполняющийся command от завершившегося. Пока platform status не несёт этот сигнал, добавьте собственную метрику/heartbeat, alert на отсутствие progress и контролируемый supervisor policy. Бесконечный auto-restart без ограничения может скрыть crash loop и повторить side effects.
-
-## Playbook 5: сеть и egress - проверять по уровням
-
-«Интернет не работает» объединяет минимум DNS, route, TCP, TLS, HTTP, proxy policy и authorization приложения. Один `curl` не всегда показывает, где отказ.
-
-1. **DNS:** какое имя запросил процесс, какой resolver ответил, какие A/AAAA/CNAME получены, совпадает ли namespace/search domain?
-2. **TCP:** устанавливается ли соединение к конкретному IP:port; нет ли IPv6/IPv4 расхождения?
-3. **TLS:** какой SNI отправлен, какой certificate chain получен, доверяет ли ему sandbox CA store, где возник alert?
-4. **Policy/router:** какое правило выбрано, какой destination увидел `atenet`, почему соединение разрешено или отклонено?
-5. **HTTP/application:** status, redirect target, proxy/auth headers и server-side request ID.
-
-Всегда делайте пару probes: разрешённый destination должен пройти, запрещённый - предсказуемо не пройти. Только positive probe не доказывает enforcement; только negative не отличает строгую policy от полностью сломанной сети. Наличие сохранённой EgressPolicy не доказывает успешный TLS outcome: проверяйте выбранное правило, destination, сертификаты и фактический ответ origin.
-
-Не оставляйте wildcard egress как «временное» production-исправление. Для диагностики его можно использовать только в изолированном test Task с коротким временем жизни и зафиксированным сравнением. Иначе вы одновременно меняете network path и снимаете security boundary.
-
-## Playbook 6: model или MCP медленные и ошибочно выглядят как проблема AX
-
-Если Actor и приложение живы, вынесите dependency из agent loop. Выполните минимальный запрос из того же network namespace, с той же identity, route и timeout. Запрос с ноутбука инженера проверяет другой путь.
-
-| Dependency | Разделить latency | Проверить correctness |
+| Инструмент или источник | Когда полезен | Граница вывода |
 | --- | --- | --- |
-| Model | DNS/TLS, server queue, prefill/TTFT, decode/ITL | Model ID, context limit, schema, finish reason, token count |
-| MCP modern 2026-07-28 | Transport/auth, per-request metadata, discovery/catalog, tool execution и downstream API | Совместимость revision/capabilities; server/discover обязателен для server, но предварительный вызов необязателен для client |
-| MCP legacy 2025-11-25 | Connect, initialize/initialized, discovery, tool execution и downstream API | Согласованные revision/capabilities и transport-specific lifecycle; не переносить handshake на modern |
-| Direct tool/API | Client queue, transport, server processing, async completion | Idempotency key, resource version, remote audit record |
+| AX API и снимок spec/status | Сопоставить запрос, сохранённую декларацию и результат reconcile | Status может отставать от приложения; ошибка RPC допускает частично выполненную работу |
+| Ate API, Actor и Worker records | Проверить assignment, lifecycle и подходящую capacity | RUNNING не подтверждает отчёт или корректный checkout |
+| Kubernetes status и container logs | Найти рестарт, termination, Pod/node pressure, выбранный image | Worker container и Actor process требуют правильного сопоставления |
+| Журнал runner и приложения | Найти запуск, cwd, исход команды, последний шаг | Отсутствие записи может быть потерей доставки; нужна связь с текущим проходом |
+| Trace и фазовые метрики | Локализовать ожидание RPC или зависимости | Sampling и неполная instrumentation оставляют пробелы; агрегат не описывает каждый запрос |
 
-Timeout означает «клиент не дождался», а не «операция не выполнилась». Перед retry write-action проверьте remote system по idempotency key или operation ID. Retry без этого превращает сетевую неопределённость в duplicate side effect.
+На Kubernetes-уровне начать можно с чтения конкретного Pod и логов конкретного контейнера. Следующие команды являются шаблонами, их значения заменяют только после сопоставления ресурсов:
 
-## Playbook 7: suspend/resume и snapshot path
+```
+kubectl --context CONTEXT -n NAMESPACE get pod POD -o json
+kubectl --context CONTEXT -n NAMESPACE logs POD -c CONTAINER --timestamps
+kubectl --context CONTEXT -n NAMESPACE logs POD -c CONTAINER --previous
+```
 
-Разделите control-plane duration и пользовательский recovery. Быстрый `ResumeActor` может вернуть assignment раньше, чем lazy pages или filesystem blocks понадобятся приложению; реальная задержка проявится на первом полезном доступе.
+`--previous` запрашивает логи предыдущего экземпляра контейнера, если они доступны; это не архив всех прежних Actor activations. У runner и приложения ищите их собственный вывод через настроенный путь логирования Substrate, привязанный к Actor. В противном случае можно принять штатный рестарт Worker за завершение команды или исследовать другую сессию.
 
-- запишите snapshot kind, owner, version, размер, время создания и runtime/build compatibility;
-- сравните cold boot, golden restore и Actor-owned restore на одном image/runtime;
-- снимите phase timings: lookup, download, restore, readiness и first touch;
-- проверьте object-store latency/errors, bandwidth, node cache и concurrent restores;
-- проверьте, что приложение tolerates checkpoint/restore: sockets, threads, clocks и external leases могут устареть;
-- после resume проверяйте semantic state - не только PID, но и ожидаемый файл, memory counter или способность обслужить запрос.
+Если в образе нет диагностических утилит, иногда нужен debug container или guest debug interface. Это уже отдельное вмешательство: оно может менять Pod, расширять доступ к процессам и влиять на ресурсы. В microVM инструменты Worker host не становятся автоматически инструментами гостя. Выбирайте разрешённый способ и сохраняйте его область доступа; установка debug-среды не должна превращать расследование в скрытое изменение security boundary.
 
-Если golden snapshot строится, а Actor-owned restore ломается, сравните изменения state после первого запуска. Если cold boot работает, а любой restore нет, подозревайте runtime/checkpoint compatibility. Если все варианты медленны только одновременно, возвращайтесь к capacity chapter: вероятен shared storage/network bottleneck, а не повреждение отдельного snapshot.
+## 7. Если работа не дошла до команды
 
-## Playbook 8: runaway child Tasks и повторные действия
+Для Task без подтверждённого runtime разделите сохранение декларации и фактическое создание или продолжение Actor. В AX direct path внешний шаг может завершиться до записи итогового status. После timeout перечитайте обе стороны и выясните, продолжается ли исходная операция. Повторный Create существующей immutable Task не является универсальным replay; появление свободного Worker после ошибки само по себе не повторяет завершившийся AX RPC.
 
-Здесь инфраструктура часто здорова: failure находится в harness policy. Coordinator не видит ACK, считает child потерянным и создаёт новый; tool выполнил действие, но response потерялся; retry снова вызывает write. Симптомом становится рост Tasks, затрат или внешних объектов.
+При отсутствии assignment сначала проверьте **eligibility**, пригодность места: sandbox class, template и Actor selectors, labels pools, версию и инфраструктурное размещение Workers. Затем проверьте оставшийся budget подходящих Workers. Общая свободная память кластера ещё не означает, что конкретный Actor куда-то помещается; разбор фрагментации есть в главе 28. Наращивание неподходящего pool не изменит результат selector.
 
-1. Остановите дальнейший fan-out через admission/circuit breaker, сохранив уже созданные Tasks для evidence.
-2. Соберите parent/root Task ID, spawn reason, attempt number, idempotency key, depth и budget для каждого child.
-3. Отделите дубликат вычисления от дубликата внешнего эффекта; второй требует проверки remote audit log.
-4. Проверьте, различает ли harness timeout, explicit failure, cancellation и unknown outcome.
-5. Восстанавливайте работу от durable journal/checkpoint, а не из памяти coordinator-а.
-6. Добавьте bounded depth/fan-out, global budget, deduplication и propagation cancellation до повторного включения.
+Код `ResourceExhausted` в documented assignment path означает отсутствие места для Actor, но очередь пользователя может включать ещё ожидание router. В [request parking](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md) запросы к временно недоступному Actor могут разделять один in-flight resume. Проверяйте результат assignment, состояние flight и исход ожидания клиента раздельно.
 
-## Recovery: минимальное обратимое действие
+Park budget ограничивает начало повторных попыток, а не гарантирует прерывание уже начатого restore. Resume может продолжаться после прекращения ожидания отдельного клиента; его ограничивают собственные серверные и dataplane deadlines. Поэтому timeout клиента не подтверждает отсутствие работающего Actor. Перед новой попыткой прочитайте текущее состояние. А рост parking требует отличить нехватку мест от недоступности control plane и от исчерпания самого parking lot.
 
-Правильное recovery устраняет активный механизм отказа и сохраняет возможность понять его позже. Выбирайте наименьшее действие, которое проверяет гипотезу:
+Если Worker назначен, а приложение ещё не отвечает, переходите к восстановлению и подготовке среды. Ошибка загрузки snapshot, возврат ошибки setup и команда, запускающаяся с неполным checkout, оставляют разные следы. Один общий «увеличить таймаут запуска» смешивает эти механизмы и дольше удерживает ресурсы, не устраняя их причину.
 
-- отменить один зависший request раньше, чем рестартовать весь control plane;
-- дать один совместимый Worker нужному pool раньше, чем масштабировать все pools;
-- создать clean test Actor раньше, чем удалять проблемный Actor и его snapshot;
-- переключить canary на известный digest раньше, чем массово откатывать deployment;
-- изолировать background class раньше, чем отключать admission для всех;
-- revert snapshot только после явной оценки потерянного интервала.
+## 8. Если процесс жив и ждёт сеть или инструмент
 
-После действия проверьте не только исчезновение alert, но и первоначальный user outcome, отсутствие backlog, прекращение retries, восстановление error budget и сохранение security policy. «Pods зелёные» не закрывает incident, если Tasks по-прежнему не дают полезный результат.
+Живой процесс может ждать модель, MCP server, Git или внешний API. Сначала найдите последний начатый вызов, его deadline и наблюдаемый исход. Затем сопоставьте его с принимающей стороной, если её журнал доступен. Медленный ответ модели и блокировка на чтении pipe требуют разных следующих наблюдений, хотя heartbeat приложения может выглядеть одинаково.
 
-## Как оформить escalation без пересказа на час
+Сетевой путь разбирают по уровням. Сначала проверяют DNS-ответ в нужном окружении, затем соединение к destination, TLS с нужным SNI, доверие к сертификату, HTTP и прикладную авторизацию. Успех TCP подтверждает соединение, но ещё не правильный origin и права. HTTP 401 или 403 нужно связать с компонентом, который вернул ответ: это может быть origin, proxy или проверка policy.
 
-Хороший handoff позволяет следующему инженеру продолжить с текущей границы, а не повторять всё расследование.
+Сравнительная проверка должна сохранять важные условия приложения: identity, DNS, destination, путь через proxy/egress, timeout и допустимый запрос. Замена hostname на IP меняет TLS и routing; отключение проверки сертификата исключает часть исследуемой защиты. Если обходной запрос с ноутбука успешен, он помогает выбрать гипотезу о различии путей, но не доказывает исправность пути Actor.
 
-- **Impact:** какие workload classes, сколько Tasks, с какого времени, какой SLO нарушен.
-- **Known good / first bad:** версии, timestamps и последняя успешная операция.
-- **Timeline:** 5-10 ключевых событий с correlation IDs.
-- **Last proven boundary:** что точно работает и каким probe доказано.
-- **Current hypothesis:** evidence за/против и предсказание следующей проверки.
-- **Actions:** что уже меняли, exact result и что нельзя делать из-за риска state/side effects.
-- **Artifacts:** sanitized logs, specs/status, metrics, traces, digests и reproduction.
+В закреплённом AX нет отдельного ресурса Gateway. Здесь исследуются фактический маршрут Substrate, EgressPolicy, настройки router и доверие TLS. Сохранённая policy показывает намерение. Проверка разрешённого destination и контролируемый отрицательный тест запрещённого помогают оценить реальное enforcement. Такие тесты согласуют по адресам и последствиям; wildcard egress не нужен как штатное средство диагностики.
 
-## Антипаттерны troubleshooting
+Для модели следующий слой - очередь, начало генерации и законченный допустимый ответ из главы 21. Для MCP нужно сверить revision и transport profile, credentials, доступный каталог и конкретный tool result; подробности modern и legacy профилей остаются в главе 6. Успешный transport может нести прикладную ошибку или неверную schema. Разделите adapter, выполнение инструмента и downstream API, прежде чем менять harness или runtime.
 
-- **Restart first.** Симптом исчезает вместе с volatile evidence, причина остаётся.
-- **Grepping только слово error.** Полезный signal может быть timeout, cancellation, queue age или отсутствие события.
-- **Один огромный log bundle без timeline.** Данные есть, но причинный порядок потерян.
-- **Проверка из ноутбука инженера.** Она обходит identity, DNS, Gateway и sandbox path workload-а.
-- **Доверие одному Ready.** Локальный claim выдаётся за пользовательский outcome.
-- **Одновременная смена image, pool и policy.** Успех невозможно связать с причиной.
-- **Retry write после timeout.** Unknown outcome превращается в duplicate effect.
-- **Delete/recreate stateful Actor.** Recovery уничтожает snapshot и точку расследования.
-- **Увеличение timeout вместо устранения queue.** Система дольше удерживает бесполезную работу.
-- **Объявить root cause по совпадению.** Корреляция с rollout полезна, но механизм нужно подтвердить.
+Если вызов мог менять внешнее состояние, перестаньте трактовать timeout как доказанный отказ действия. Узнайте исход по operation ID, idempotency key или authoritative target state. При неизвестном исходе новый write способен создать дубликат. Глава 25 объясняет выбор источника истины, глава 27 - право продолжить запись после восстановления; здесь эти ограничения определяют безопасный следующий шаг расследования.
+
+## 9. Если замедление проявилось после resume
+
+Сравните, что именно изменилось: новая программа, другой runtime, холодный node cache, размер snapshot или одновременные пробуждения. Один успешный cold boot не доказывает пригодность сохранённой памяти: после restore программа может столкнуться с устаревшим соединением, lease или внешним контекстом. Для содержательного сравнения сохраняйте версии, вход и способ наблюдения, меняя выбранный фактор в изолированном опыте.
+
+На пути восстановления ищите snapshot reference, его владельца и доступные bytes, совместимость runtime и состояние операции. Затем разделите наблюдаемое время control plane, restore и первый полезный доступ к файлам или памяти. Ленивое восстановление может перенести заметную задержку в первую команду. Утверждение «Resume был быстрым» без этой границы пока описывает только RPC.
+
+В [observability guide Substrate](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md) для restore указаны фазовые длительности и отдельный total. Некоторые фазы перекрываются и не складываются в total; отсутствующая фаза не является измеренным нулём. Проверяйте instrument, labels и единицы. Иначе арифметика dashboard сама создаст фиктивную задержку или скроет настоящую.
+
+Если единичная сессия восстанавливается нормально, а массовая группа медленна, сравните shared storage, network и подходящую capacity по методу главы 28. Если неверен только конкретный snapshot, исследуйте его происхождение и состояние. Golden snapshot даёт другую исходную сессию; его успешный запуск полезен для сравнения runtime, но не подтверждает сохранность состояния проблемного Actor.
+
+Revert и удаление Actor меняют или уничтожают исследуемое состояние. До таких действий нужны сохранённые ссылки и данные, оценка потерянного интервала и согласованное право на откат. Создание отдельного тестового Actor также требует места и полномочий. В этой главе эти опыты планируются; локальное упражнение не выполняет ни одного из них.
+
+## 10. Отделить восстановление сервиса от доказательства причины
+
+Когда страдает много пользователей, ограничение ущерба может предшествовать подробному разбору. Например, можно приостановить разрешённый фоновый fan-out или направить новые чтения на проверенный canary. Такое действие записывают с целью, областью, ожидаемым результатом и условием возврата. Условия безопасности внешних writes и сохранности состояния действуют и во время аварии.
+
+Продолжим искусственное расследование ещё на один шаг. Добавим заранее заданные факты, которых не было в срезе Python-примера: fetch запросил ref `review/biling` и получил отказ из-за отсутствия этого ref; декларация содержит именно такое написание. Разрешённая сверка удалённых refs показывает ожидаемый `review/billing`. Мы нашли конкретное расхождение входа, объясняющее отказ fetch. Одновременно код setup объясняет, как он остался совместим с readiness. Для этой учебной истории причинная цепочка теперь подтверждена заданными фактами; к любому реальному пустому checkout она не переносится.
+
+Восстановительный план состоит в исправлении источника конфигурации, подготовке отдельной согласованной read-only попытки с нужным входом и проверке её результата. Существующую immutable Task не переписывают в надежде повторить Create. Для новой попытки проверяют фактический полный commit, успешный исход команды, содержание отчёта и доступ инициатора к нему. Отдельная регрессионная проверка должна выявлять неверный ref и сообщать понятную ошибку пользователю. Исправление опечатки восстанавливает этот запуск; изменение проверки входа и передачи исхода команды помогает обнаружить следующий такой отказ раньше.
+
+В настоящем инциденте такое же изменение следует связать с наблюдаемым механизмом. Например, если смена credentials помогла, проверьте соответствующую ошибку прежнего запроса и не изменился ли одновременно маршрут или ref. Это отличает подтверждённое исправление причины от удачного совпадения.
+
+При зависшем процессе отмена запроса полезна, если доходит до выполняющейся работы и освобождает ресурс. Клиентский disconnect может лишь закрыть ожидание; backend продолжит вычислять или писать. Перед kill сохраняют доступные логи и разрешённые diagnostics, учитывая их возможные паузы и объём. Для одноразовой команды exit 0 ожидаем, для долговременного сервиса даже успешный exit означает прекращение обслуживания. Supervisor policy выбирается под этот контракт.
+
+Если растёт число child Tasks или одинаковых внешних объектов, исследуйте решения coordinator: одну логическую цель, причины spawn, attempts, budgets и журнал результатов. Потерянное подтверждение может вызвать новое вычисление или повторный write при исправной инфраструктуре. Ограничение дальнейшего fan-out уменьшит ущерб; возврат к работе требует установить исход уже отправленных действий, а не только очистить очередь.
+
+После вмешательства проверяйте исходное обещание. Для `billing` это правильный commit, корректный отчёт и доступ инициатора к нему. Затем убедитесь, что нет лишних активных попыток, зависших запросов и ослабленной policy. Исчезнувший alert и здоровые Pods полезны как промежуточные сигналы, но завершение incident определяется выбранным пользовательским результатом.
+
+## 11. Передать расследование следующему инженеру
+
+Хорошая передача смены сохраняет не объём накопленных логов, а ход рассуждения. Напишите, кто и с какого момента затронут, какой результат ожидался, какой проход исследован и что уже подтверждено. Затем укажите открытый вопрос, следующую различающую проверку, выполненные вмешательства и ограничения повторного запуска. Ссылки на безопасно сохранённые артефакты должны позволять проверить выводы.
+
+Если смена передаётся до получения результата fetch, для нашего искусственного случая запись может выглядеть так: «У Task billing-review нет отчёта по ожидаемому commit. Для текущих Actor UID и attempt подтверждены assignment и готовность runner. Дочерняя команда завершилась с exit 2; входная проверка сообщила об отсутствии HEAD в её каталоге. Причина неполного checkout пока неизвестна. Следующая проверка - результат Git setup и доступ к заданному ref из того же окружения. Рестарты и повторная публикация не выполнялись».
+
+Эта запись отделяет установленный механизм от предположений и позволяет продолжить расследование. После восстановления дополните её причинной цепочкой, причиной позднего обнаружения и проверкой, которая предотвратит повторение. Например, прикладной preflight на commit и обязательный результат команды решают разные части проблемы: первый обнаруживает неверный вход, второй даёт пользователю понятный исход запуска.
 
 ## Итог
 
-Диагностика AX/Substrate начинается с точного пользовательского outcome и проходит по цепочке контрактов. Сохраняйте evidence до recovery, стройте timeline, ищите последнюю подтверждённую границу и проверяйте следующую независимым probe. Status, лог и metric по отдельности редко дают end-to-end truth; сильный вывод появляется, когда control-plane state, runtime evidence и пользовательская проверка согласованы.
+Диагностика становится понятнее, когда каждое наблюдение связано с конкретной попыткой и конкретным обещанием. В разобранной истории зелёный runner оказался совместим с завершившейся командой и неполным checkout. Чтение её исхода сузило поиск лучше, чем изменение мощности или ожидание модели. Дальнейшая причина потребовала отдельного наблюдения, поэтому её не заменили знакомым названием ошибки.
 
-Следующая глава использует накопившееся operational понимание для решения более раннего вопроса: нужен ли конкретному workload сам дополнительный control plane AX/Substrate. Чем дороже система в диагностике, upgrades и on-call expertise, тем убедительнее должна быть польза от isolation, durable Actors и oversubscription.
+Попробуйте пройти пример с записью от другой активации или с неизвестным HEAD. Если вы можете объяснить, почему вывод изменился и какое чтение нужно теперь, метод переносится на сеть, snapshot и внешнюю запись. Следующая глава использует этот опыт для выбора самой платформы: её полезные возможности нужно сопоставить с ценой эксплуатации и диагностики.
 
 ### Источники и дальнейшее чтение
 
-- [AX issue #346: Task остаётся Running/Ready после завершения command](https://github.com/google/ax/issues/346)
-- [AX issue #347: пустой Git checkout при WorkspaceReady](https://github.com/google/ax/issues/347)
-- [AX issue #345: hostname egress allowlist и TLS outcome](https://github.com/google/ax/issues/345)
-- [Substrate architecture: assignment, hydration и snapshot lifecycle](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md)
-- [Substrate API guide: WorkerPool, ActorTemplate и recovery semantics](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md)
-- [Substrate observability: lifecycle, scheduler, restore и WorkerPool signals](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md)
-- [Substrate request parking: bounded wait при pool saturation](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md)
-- [Kubernetes: debugging running Pods](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/)
+- [AX lifecycle handler](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go)
+- [AX runner и ожидание дочерней команды](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go)
+- [AX Workspace setup и обработка Git failures](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/workspace/setup.go)
+- [AX metadata endpoints и readiness](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/metadata/server.go)
+- [Substrate API guide](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/api-guide.md)
+- [Substrate request parking](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/request-parking.md)
+- [Substrate observability и фазовые измерения](https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/observability.md)
+- [Google SRE о проверке гипотез при troubleshooting](https://sre.google/sre-book/effective-troubleshooting/)
+- [Kubernetes о диагностике running Pods](https://kubernetes.io/docs/tasks/debug/debug-application/debug-running-pod/)
+- [Kubernetes о liveness и readiness probes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/)
