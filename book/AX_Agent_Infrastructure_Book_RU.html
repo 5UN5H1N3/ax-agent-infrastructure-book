@@ -8286,184 +8286,269 @@ ax resume task lab26-task
 <li style="margin:.3mm 0">Исходники конкретного профиля: <a href="https://github.com/agent-substrate/substrate/tree/df788825e6fc13dd7aa5fd283c8f14bd4c818247">Substrate <code>df788825</code></a>, <a href="https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e">AX <code>ac233282</code></a>. Открывайте ссылки на commit, чтобы не смешивать эту главу с изменившейся веткой <code>main</code>.</li>
 </ul>
 </div></section><section class="chapter" id="ch-27"><div class="chapter-num">Глава 27</div><h1>Production engineering: как доказать HA, persistence, upgrades и DR</h1>
-<p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-10</strong>. Оба проекта pre-1.0. Реализованные механизмы, development manifests и рекомендуемая production architecture ниже разделены явно.</p>
-<p>В лаборатории достаточно увидеть, что Task создался, Actor проснулся и состояние пережило suspend/resume. Production задаёт более неприятные вопросы. Что произойдёт, если node исчезнет во время snapshot? Можно ли обновить dataplane, не потеряв активных Actors? Сколько последних минут состояния допустимо потерять? Как отличить восстановленный Task от повторного выполнения внешнего платежа или публикации?</p>
-<p>Ответ «у нас по три replicas» на эти вопросы не отвечает. Доступность API, сохранность данных, возможность восстановления и безопасность повторного исполнения - разные свойства. Их проектируют отдельно, а затем связывают общим recovery contract.</p>
-<figure><figcaption>Production-like topology: availability зависит от всей цепочки stateful и stateless planes</figcaption><svg class="diagram" viewBox="0 0 920 310" role="img" aria-label="Production topology AX и Substrate с зависимостями состояния"><defs><marker id="arrow-ch27" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="80" y1="155" x2="220" y2="75" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="145" y="104" text-anchor="middle" font-size="10" fill="#5c6875">API</text><line x1="290" y1="75" x2="390" y2="75" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="340" y="66" text-anchor="middle" font-size="10" fill="#5c6875">Actor API</text><line x1="480" y1="75" x2="580" y2="75" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="530" y="66" text-anchor="middle" font-size="10" fill="#5c6875">assign</text><line x1="670" y1="75" x2="780" y2="75" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="725" y="66" text-anchor="middle" font-size="10" fill="#5c6875">model</text><line x1="255" y1="110" x2="255" y2="205" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="255" y="151" text-anchor="middle" font-size="10" fill="#5c6875">desired state</text><line x1="435" y1="110" x2="435" y2="205" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="435" y="151" text-anchor="middle" font-size="10" fill="#5c6875">metadata</text><line x1="625" y1="110" x2="625" y2="205" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="625" y="151" text-anchor="middle" font-size="10" fill="#5c6875">snapshots</text><line x1="670" y1="75" x2="815" y2="205" stroke="#53657a" stroke-width="2" marker-end="url(#arrow-ch27)"/><text x="755" y="149" text-anchor="middle" font-size="10" fill="#5c6875">telemetry</text><rect x="20" y="120" rx="12" ry="12" width="120" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="80" y="148" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Ingress/LB</text><text x="80" y="170" text-anchor="middle" font-size="11" fill="#465569">failure domain</text><rect x="185" y="40" rx="12" ry="12" width="140" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="255" y="68" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX control</text><text x="255" y="90" text-anchor="middle" font-size="11" fill="#465569">reconciliation</text><rect x="185" y="205" rx="12" ry="12" width="140" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="255" y="233" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">AX state</text><text x="255" y="255" text-anchor="middle" font-size="11" fill="#465569">Redis/backup</text><rect x="365" y="40" rx="12" ry="12" width="140" height="70" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="435" y="68" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Substrate CP</text><text x="435" y="90" text-anchor="middle" font-size="11" fill="#465569">lifecycle</text><rect x="365" y="205" rx="12" ry="12" width="140" height="70" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="435" y="233" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">PostgreSQL</text><text x="435" y="255" text-anchor="middle" font-size="11" fill="#465569">dynamic state</text><rect x="555" y="40" rx="12" ry="12" width="140" height="70" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="625" y="68" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">WorkerPools</text><text x="625" y="90" text-anchor="middle" font-size="11" fill="#465569">gVisor/microVM</text><rect x="555" y="205" rx="12" ry="12" width="140" height="70" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="625" y="233" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Object store</text><text x="625" y="255" text-anchor="middle" font-size="11" fill="#465569">Actor snapshots</text><rect x="780" y="40" rx="12" ry="12" width="110" height="70" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="835" y="68" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Inference</text><text x="835" y="90" text-anchor="middle" font-size="11" fill="#465569">GPU/API</text><rect x="780" y="205" rx="12" ry="12" width="110" height="70" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="835" y="233" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Evidence</text><text x="835" y="255" text-anchor="middle" font-size="11" fill="#465569">logs/audit</text></svg></figure>
-<h2>Четыре разных свойства production-системы</h2>
-<p>Инженеры часто используют слово «надёжность» для всего сразу. Это скрывает решения.</p>
-<table><thead><tr><th>Свойство</th><th>Вопрос</th><th>Чем доказывается</th></tr></thead><tbody>
-<tr><td>Availability</td><td>Принимает ли система новые запросы во время отказа?</td><td>SLO, multi-zone topology, failover test, dependency health</td></tr>
-<tr><td>Durability</td><td>Сохранится ли уже подтверждённое состояние?</td><td>replication, backup policy, checksum, retention и immutability</td></tr>
-<tr><td>Recoverability</td><td>Можно ли вернуть согласованную систему после разрушения?</td><td>проверенный restore, RTO/RPO и dependency order</td></tr>
-<tr><td>Execution safety</td><td>Не повторит ли восстановленный агент внешний side effect?</td><td>idempotency key, operation ledger, reconciliation и human review</td></tr>
-</tbody></table>
-<p>Replica отвечает только на часть availability. Она не исправляет логическую порчу данных, удаление operator-ом, несовместимую schema migration или повторный tool call. Реплика может очень быстро распространить ошибку. Поэтому <strong>replication не заменяет backup, а backup не считается защитой, пока restore не проверен</strong>.</p>
-<h2>RPO, RTO и failure domain</h2>
-<p><strong>RPO</strong> — допустимое временное окно потери подтверждённых изменений перед отказом. <strong>RTO</strong> — предельно допустимое время до оговорённого восстановления сервиса. Эти цели задаются отдельно для каждого plane. Требование «RPO 0 и RTO 30 секунд для всего» обычно означает синхронную replication, горячий standby и высокую стоимость, но всё равно не решает duplicate external effects.</p>
-<p><strong>Failure domain</strong> - набор компонентов, которые могут исчезнуть одной причиной: process, Pod, node, rack/zone, cluster, region, cloud account или credentials domain. Две replicas на одном node защищают от падения process, но не node. PostgreSQL replica в той же zone не защищает от zone outage. Backup в том же account может быть удалён теми же скомпрометированными credentials.</p>
-<table><thead><tr><th>Plane</th><th>Пример цели</th><th>Главная цена</th><th>Что проверить</th></tr></thead><tbody>
-<tr><td>AX API/status</td><td>короткий RTO, небольшой RPO desired state</td><td>репликация store и безопасный multi-writer</td><td>failover не создаёт два Actor для одного Task</td></tr>
-<tr><td>Substrate lifecycle</td><td>Actor metadata доступна после node loss</td><td>PostgreSQL HA/PITR и согласованность snapshot references</td><td>Actor можно найти, revert/resume работает по контракту</td></tr>
-<tr><td>Actor snapshots</td><td>потеря не более последнего допустимого checkpoint</td><td>object durability, bandwidth и retention</td><td>blob читается, checksum верен, runtime совместим</td></tr>
-<tr><td>Audit/evidence</td><td>не терять security и side-effect evidence</td><td>append-only storage и отдельный trust domain</td><td>можно доказать, какие действия уже выполнены</td></tr>
-</tbody></table>
-<p>Числа в таблице должны стать вашими числами. Сначала product owner определяет ущерб от потери и недоступности; затем архитектура выбирает replication, backup frequency и reserve. Не наоборот.</p>
-<h2>Инвентаризация состояния: что является source of truth</h2>
-<p>DR начинается не с команды backup, а с ответа «какое состояние authoritative и кто им владеет?» Для AX/Substrate минимум выглядит так:</p>
-<table><thead><tr><th>Состояние</th><th>Владелец</th><th>Можно ли пересоздать?</th><th>Что нужно для восстановления</th></tr></thead><tbody>
-<tr><td>Task/Workspace/Model specs, status, events</td><td>AX store</td><td>specs - из Git только при строгом GitOps; live status - нет</td><td>backup Redis/другого production store, schema version, manifests</td></tr>
-<tr><td>Actor, assignment, lifecycle metadata</td><td>Substrate/PostgreSQL</td><td>не безопасно угадывать</td><td>database backup/PITR, migrations, Actor IDs</td></tr>
-<tr><td>Memory/filesystem checkpoints</td><td>Substrate/object store</td><td>обычно нет</td><td>snapshot blobs, metadata, checksum, runtime/image compatibility</td></tr>
-<tr><td>Worker Pods и caches</td><td>Kubernetes/dataplane</td><td>да</td><td>WorkerPool spec, images, node labels, capacity</td></tr>
-<tr><td>Images и sandbox assets</td><td>registry/release pipeline</td><td>только из reproducible build</td><td>immutable digest, provenance, old and new release images</td></tr>
-<tr><td>Secrets, CA, signing keys</td><td>identity/secret system</td><td>не всегда</td><td>separate encrypted backup, rotation and revocation procedure</td></tr>
-<tr><td>External side effects</td><td>внешняя authoritative system</td><td>не часть cluster restore</td><td>operation ID, idempotency key, receipt и reconciliation API</td></tr>
-</tbody></table>
-<p>Особенно опасна связь PostgreSQL metadata с object blobs. База может утверждать, что snapshot существует, пока blob ещё не завершён или уже удалён lifecycle policy. И наоборот, object store может содержать orphan blobs. Backup этих систем в разные моменты времени не образует автоматически согласованную recovery point.</p>
-<p>Зафиксируйте recovery manifest: cutoff time, версии схем, database backup ID, object-store version/generation, registry digests и key versions. Если атомарный cross-store snapshot невозможен, restore procedure должна уметь выбрать последний полностью завершённый checkpoint и отбрасывать incomplete references.</p>
-<h2>Что реально развёртывают текущие manifests</h2>
-<p>Нельзя читать README quickstart как production blueprint.</p>
-<ul>
-<li>На снимке AX <code>ac233282</code> manifest <code>deploy/ax-server.yaml</code> задаёт одну replica <code>ax-server</code>.</li>
-<li><code>deploy/redis.yaml</code> запускает одиночный Redis как <code>Deployment</code> без PVC и без настроенной persistence/replication.</li>
-<li>Substrate development quickstart устанавливает bundled PostgreSQL и RustFS, удобные для локальной проверки, но не объявляет их готовой HA/backup architecture.</li>
-<li>AX использует <code>v1alpha1</code> resources и прямо предупреждает о breaking changes до стабильного релиза.</li>
-<li>Substrate содержит конкретный rolling-upgrade runbook, однако compatibility всё равно определяется выбранными release pair и documented preconditions.</li>
-</ul>
-<p>Следствие простое: <strong>текущий quickstart нельзя сделать production-ready добавлением одного Helm value</strong>. Нужно выбрать production stores, identity, topology, backup, upgrade authority и наблюдаемость, а затем проверить интеграцию. Если конкретный компонент не документирует multi-replica semantics, не предполагайте, что горизонтальное масштабирование безопасно.</p>
-<h2>HA - свойство цепочки, а не Deployment</h2>
-<h3>Stateless API всё равно имеет stateful dependencies</h3>
-<p>Несколько API replicas полезны только если:</p>
-<ul>
-<li>requests можно безопасно отправить любой replica;</li>
-<li>leader election/locks исключают двойную reconciliation там, где это нужно;</li>
-<li>store выдерживает concurrent clients и имеет согласованный failover;</li>
-<li>retry не превращает timeout в duplicate create/tool action;</li>
-<li>load balancer проверяет readiness, а не только открытый TCP port;</li>
-<li>replicas распределены по реальным failure domains.</li>
-</ul>
-<p>Readiness должна означать способность обслужить полезный запрос. Процесс с живым HTTP endpoint, но без Redis, PostgreSQL, Substrate API или signing service, не Ready.</p>
-<h3>PDB защищает не от всех отказов</h3>
-<p>PodDisruptionBudget ограничивает voluntary evictions, например при controlled node drain. Он не предотвращает падение node, kernel panic, потерю zone или удаление Pods напрямую. PDB с <code>minAvailable: 2</code> также бесполезен, если все replicas оказались на одном node. Нужны topology spread/anti-affinity, достаточное число nodes и capacity, чтобы replacement действительно разместился.</p>
-<h3>Stateful stores добавляют собственную distributed system</h3>
-<p>PostgreSQL HA, Redis replication/Sentinel/Cluster или managed equivalents несут свои quorum, failover, fencing и lag semantics. Выбор должен исходить из RPO/RTO и write model AX/Substrate, а не из привычки команды. После failover клиент обязан переподключиться к новому writer, не записав одновременно в старый split-brain endpoint.</p>
-<p>Для PostgreSQL PITR требует base backup и непрерывного архива WAL. Для Redis RDB и AOF дают разные компромиссы durability/performance. Название технологии не является политикой: зафиксируйте режим, fsync/backup interval, retention, restore command и измеренный worst-case data loss.</p>
-<h2>Backup design: три копии недостаточно без semantics</h2>
-<p>Рабочая политика отвечает на вопросы:</p>
+<p style="break-inside:avoid-page"><strong>Профиль главы на 16.10.2026:</strong> AX <code>ac233282</code> и Substrate <code>df788825</code>, полные SHA — в паспорте главы 26. Это закреплённые ревизии, не текущий <code>main</code>. Development-манифесты, условия upstream runbook и проектируемая эксплуатационная схема ниже разделены. Стенд и восстановление реальных данных при подготовке редакции не запускались.</p>
+<p style="break-inside:avoid-page">В лаборатории из главы 26 мы научились связывать результат с конфигурацией среды. Теперь вернёмся к публикации <code>billing</code>. Publisher отправил согласованного кандидата во внешнюю систему. Ветка обновилась, ответ потерялся, затем кластер стал недоступен. У дежурного есть резервная копия, в которой последняя попытка ещё не завершена. Если просто поднять процессы и продолжить выполнение, агент может повторить запись, уже состоявшуюся за пределами кластера.</p>
+<p style="break-inside:avoid-page">При этом резервная копия сама может оказаться непригодной: база ссылается на отсутствующий snapshot, старый runtime не понимает новый формат, ключ расшифрования остался в недоступном account. Даже исправная копия не отвечает на вопрос, прекратил ли старый publisher писать после сетевого разделения. Восстановить файлы, восстановить сервис и безопасно продолжить работу — связанные, но разные действия.</p>
+<p style="break-inside:avoid-page">Разберём этот инцидент последовательно: какое обещание дать пользователю, какое состояние сохранить, как выбрать средства защиты и что проверить перед возобновлением работы. После этого станет понятнее и плановое обновление: оно меняет те же данные и границы совместимости, только у инженера есть время подготовиться.</p>
+<figure><figcaption>Production-like topology: availability зависит от всей цепочки stateful и stateless planes</figcaption><svg aria-label="Production topology AX и Substrate с зависимостями состояния" class="diagram" role="img" viewbox="0 0 920 310"><defs><marker id="arrow-ch27" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="80" x2="220" y1="155" y2="75"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="145" y="104">API</text><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="290" x2="390" y1="75" y2="75"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="340" y="66">Actor API</text><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="480" x2="580" y1="75" y2="75"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="530" y="66">assign</text><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="670" x2="780" y1="75" y2="75"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="725" y="66">model</text><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="255" x2="255" y1="110" y2="205"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="255" y="151">desired state</text><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="435" x2="435" y1="110" y2="205"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="435" y="151">metadata</text><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="625" x2="625" y1="110" y2="205"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="625" y="151">snapshots</text><line marker-end="url(#arrow-ch27)" stroke="#53657a" stroke-width="2" x1="670" x2="815" y1="75" y2="205"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="755" y="149">telemetry</text><rect fill="#edf4ff" height="70" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="120" x="20" y="120"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="80" y="148">Ingress/LB</text><text fill="#465569" font-size="11" text-anchor="middle" x="80" y="170">failure domain</text><rect fill="#eefaf3" height="70" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="140" x="185" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="255" y="68">AX control</text><text fill="#465569" font-size="11" text-anchor="middle" x="255" y="90">reconciliation</text><rect fill="#fff7e8" height="70" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="140" x="185" y="205"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="255" y="233">AX state</text><text fill="#465569" font-size="11" text-anchor="middle" x="255" y="255">Redis/backup</text><rect fill="#f8efff" height="70" rx="12" ry="12" stroke="#70459b" stroke-width="1.5" width="140" x="365" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="435" y="68">Substrate CP</text><text fill="#465569" font-size="11" text-anchor="middle" x="435" y="90">lifecycle</text><rect fill="#fff7e8" height="70" rx="12" ry="12" stroke="#9a6410" stroke-width="1.5" width="140" x="365" y="205"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="435" y="233">PostgreSQL</text><text fill="#465569" font-size="11" text-anchor="middle" x="435" y="255">dynamic state</text><rect fill="#f3f5f7" height="70" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="140" x="555" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="625" y="68">WorkerPools</text><text fill="#465569" font-size="11" text-anchor="middle" x="625" y="90">gVisor/microVM</text><rect fill="#edf4ff" height="70" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="140" x="555" y="205"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="625" y="233">Object store</text><text fill="#465569" font-size="11" text-anchor="middle" x="625" y="255">Actor snapshots</text><rect fill="#fff0f0" height="70" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="110" x="780" y="40"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="835" y="68">Inference</text><text fill="#465569" font-size="11" text-anchor="middle" x="835" y="90">GPU/API</text><rect fill="#eefaf3" height="70" rx="12" ry="12" stroke="#287a4b" stroke-width="1.5" width="110" x="780" y="205"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="835" y="233">Evidence</text><text fill="#465569" font-size="11" text-anchor="middle" x="835" y="255">logs/audit</text></svg></figure>
+<h2>1. Сначала определить восстанавливаемый результат</h2>
+<p style="break-inside:avoid-page">Production engineering — подготовка системы к эксплуатации с измеримыми обязательствами и понятными действиями при отказе. Для нашего сервиса обязательство может звучать так: «После потери кластера восстановить согласованные задачи и возможность продолжать публикации в установленный срок, не выдавая неизвестный исход предыдущей записи за разрешение повторить её». Это уже позволяет выбирать архитектуру и проверку.</p>
+<p style="break-inside:avoid-page"><strong>DR, disaster recovery,</strong> — аварийное восстановление после события, для которого обычного продолжения работы или локального failover недостаточно. Такой сценарий может означать потерю кластера, повреждение общей базы или компрометацию доступов. Его границы называют явно: доступность при потере одного Pod и восстановление после удаления всех копий в account требуют разных средств.</p>
+<p style="break-inside:avoid-page">В слове «надёжность» удобно различать четыре свойства:</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Свойство</th>
+<th>Что означает для <code>billing</code></th>
+<th>Какое свидетельство нужно</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Доступность, availability</td>
+<td>Пользователь может выполнить оговорённую операцию в пределах SLO</td>
+<td>Проверка полезного пути под нагрузкой и при выбранном отказе</td>
+</tr>
+<tr>
+<td>Сохранность, durability</td>
+<td>Подтверждённые данные сохраняются в пределах принятого контракта</td>
+<td>Семантика подтверждения записи, хранения и отказа</td>
+</tr>
+<tr>
+<td>Восстановимость, recoverability</td>
+<td>Команда может вернуть согласованное состояние и сервис</td>
+<td>Восстановление из сохранённых копий с измерением результата</td>
+</tr>
+<tr>
+<td>Безопасность продолжения исполнения</td>
+<td>Восстановленный процесс корректно разбирает прежние внешние действия</td>
+<td>Связь operation ID, согласования, состояния target и результата reconciliation</td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">Например, чтение статуса может оставаться доступным, пока новые публикации остановлены. Если считать оба пути одним «API uptime», пользовательская проблема исчезнет из отчёта. Глава 25 уже дала способ связать SLI с результатом; здесь нужно определить, какие именно операции обещаны во время аварии и после неё.</p>
+<p style="break-inside:avoid-page"><strong>RPO, recovery point objective,</strong> задаёт допустимую глубину отката данных во времени. <strong>RTO, recovery time objective,</strong> задаёт допустимое время до восстановления оговорённого обслуживания. Это цели, с которыми сравнивают результат опыта. Начало отсчёта RTO фиксируют заранее; в нашем сценарии считаем от начала недоступности, включая обнаружение, получение доступа и проверку восстановления. Отсчёт только от команды restore скрыл бы значительную часть простоя. <a href="https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/plan-for-disaster-recovery-dr.html">Планирование DR и целей восстановления</a>.</p>
+<p style="break-inside:avoid-page">Если отказ случился в момент <code>t=130</code>, а последняя пригодная точка покрывает состояние до <code>t=120</code>, окно потенциальной потери составляет десять секунд. Это ещё не число утраченных операций: в эти секунды могло не быть записей, часть данных могла сохраниться другим путём. Чтобы установить фактическую потерю, нужны sequence, receipts или другой журнал подтверждённых изменений. Цель RPO 15 секунд сама по себе ни одного изменения не сохраняет.</p>
+<p style="break-inside:avoid-page">Для AX state, Actor checkpoints и внешних действий могут действовать разные требования. Одному workload допустимо повторить локальную компиляцию; другому нельзя потерять подтверждённое согласование. Внешняя публикация не откатывается вместе с Redis. Поэтому recovery contract описывает состояние каждого участника, условия подтверждения и способ сопоставить их после отказа. Требования продукта определяют этот контракт до выбора числа replicas.</p>
+<h2>2. Какое состояние понадобится после потери кластера</h2>
+<p style="break-inside:avoid-page">Представим, что рабочий кластер полностью недоступен. Что инженер сможет получить из другого места и чему сможет доверять? Ответ нужно записать вместе с владельцами данных.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Состояние</th>
+<th>Почему потребуется</th>
+<th>Что нельзя восстановить догадкой</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>AX Task, Workspace, Model, статусы и связи</td>
+<td>Понять, какую работу продолжать и с каким Actor</td>
+<td>Живой статус из одного YAML в Git</td>
+</tr>
+<tr>
+<td>Substrate metadata</td>
+<td>Найти Actor и соответствующий завершённый checkpoint</td>
+<td>Связь Actor → snapshot по похожим именам файлов</td>
+</tr>
+<tr>
+<td>Snapshot blobs и их зависимости</td>
+<td>Восстановить выбранное состояние исполнения</td>
+<td>Недостающие bytes, runtime или ключ расшифрования</td>
+</tr>
+<tr>
+<td>Images, конфигурации и схемы</td>
+<td>Запустить совместимые readers и writers</td>
+<td>Старый image по изменившемуся tag <code>latest</code></td>
+</tr>
+<tr>
+<td>Журнал внешних операций и данные target</td>
+<td>Определить, что уже произошло вне кластера</td>
+<td>Неизвестный результат по отсутствию записи в старой копии</td>
+</tr>
+<tr>
+<td>Доступы, trust и процедура восстановления</td>
+<td>Получить копии и безопасно запустить новый контур</td>
+<td>Полномочия недоступного или скомпрометированного control plane</td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">Часть Kubernetes-объектов можно пересоздать декларативно. Worker Pods и caches обычно относятся к расходуемой инфраструктуре; данные workload — к другому классу. GitOps помогает вернуть желаемые конфигурации, но не воспроизводит автоматически runtime status, историю согласований и содержимое PVC. Прежде чем исключить что-либо из backup, проверьте, из какого сохранённого источника оно будет восстановлено.</p>
+<h3>Почему копии разных хранилищ нужно связать</h3>
+<p style="break-inside:avoid-page">Допустим, metadata уже ссылается на <code>snapshot-S2</code>, а в сохранённом object store есть только <code>S1</code>. Обе backup-задачи могли завершиться успешно: каждая скопировала своё хранилище в своё время. Вместе эти копии не образуют пригодную точку восстановления.</p>
+<p style="break-inside:avoid-page">Нужен <strong>recovery manifest</strong> — перечень согласованных версий: backup базы и его позиция восстановления, идентичности Task/Actor, ссылки на завершённые blobs, их версии и digests, необходимые images, форматы и версии ключей. Это предлагаемая эксплуатационная схема, не готовый стандартный формат AX/Substrate. Согласованность обеспечивают протоколом публикации checkpoints, временной остановкой writers — процессов, изменяющих состояние, — либо проверенной процедурой согласования копий. Близость timestamps не заменяет такой протокол.</p>
+<p style="break-inside:avoid-page">Metadata и blobs должны оставаться доступными на весь срок восстановления. Удаление рабочего snapshot сборщиком мусора или lifecycle policy не должно неожиданно лишить смысла retained backup базы. Политики хранения согласуют по зависимостям: какие версии ещё нужны хотя бы одной действующей точке восстановления? Аналогичный вопрос относится к image registry и encryption keys.</p>
+<p style="break-inside:avoid-page">В нашем опыте последний полноценный комплект относится к <code>t=120</code>. Комплект <code>t=125</code> выглядит свежее, но не завершён. Выберем 120. Если же там не хватает bytes или ключа, придётся искать более старую согласованную точку и заново сравнивать получившуюся потерю с RPO. Допустимость такого отклонения требует решения ответственного за восстановление; автоматический выбор «самого свежего файла» этого решения не даёт.</p>
+<h2>3. Выбор средств хранения и backup</h2>
+<p style="break-inside:avoid-page">Выбирать инструмент удобнее по обязанности, которую он должен выполнять. Реплика помогает продолжать обслуживание после части отказов. Backup позволяет вернуться к сохранённой истории, в том числе после логической ошибки. Ошибочное удаление может распространиться на replicas задолго до обнаружения. Поэтому проверяют и путь failover, и отдельный путь restore.</p>
+<p style="break-inside:avoid-page">При допустимом долгом простое можно восстанавливать окружение из копий: постоянно работающих ресурсов меньше, но подготовка и replay занимают время. Малый RTO может потребовать заранее готового контура, доступных ключей и тёплой capacity. За сокращение действий во время аварии платят ресурсами и обслуживанием резервного пути. Эту цену сравнивают с ущербом от простоя; резервный контур всё равно нуждается в проверке данных и права писать.</p>
+<h3>PostgreSQL и восстановление по журналу</h3>
+<p style="break-inside:avoid-page">Если metadata должна восстанавливаться ближе к моменту отказа, чем интервал между полными копиями, полезен PITR — point-in-time recovery. В PostgreSQL он использует базовую физическую копию и непрерывную нужную последовательность WAL. WAL, write-ahead log, — журнал изменений данных: при восстановлении его записи воспроизводятся поверх базовой копии до выбранной точки. Потерянный участок журнала ограничивает доступный горизонт восстановления; наличие свежего <code>pg_dump</code> не заменяет этот механизм. Конфигурационные файлы и внешние object blobs также требуют своего плана. <a href="https://www.postgresql.org/docs/current/continuous-archiving.html">PostgreSQL continuous archiving и PITR</a>.</p>
+<p style="break-inside:avoid-page">В управляемом PostgreSQL команда может использовать сервисный PITR, если подтверждены retention, доступ после потери account/region, ограничения восстановления и нужные права. Для самостоятельного размещения пример подходящего средства — <strong>pgBackRest</strong>: он организует копии, WAL archive, retention и restore. Выбор оправдан, когда команда готова обслуживать repository и проверять цепочки восстановления. Один успешный backup job не показывает, что восстановлены все зависимости приложения. <a href="https://pgbackrest.org/user-guide.html">Руководство pgBackRest</a>.</p>
+<p style="break-inside:avoid-page">Не заменяйте выбранный AX store PostgreSQL только потому, что он уже используется Substrate. Сначала нужна поддерживаемая реализация store или отдельная доработка и проверка API/locking semantics. Общий инструмент backup может обслуживать несколько баз, но это не делает их одним состоянием приложения.</p>
+<h3>Redis и граница подтверждённой записи</h3>
+<p style="break-inside:avoid-page">RDB сохраняет снимки Redis, AOF записывает изменения с выбранной политикой синхронизации. При периодическом сохранении остаётся интервал изменений после последней копии; более частая синхронизация увеличивает требования к I/O. Например, режим AOF <code>everysec</code> не означает, что каждая подтверждённая операция уже прошла отдельный <code>fsync</code>. Следует проверять и сохранение на диск, и расположение самого диска, и поведение failover. Наличие AOF на storage, потерянном вместе с машиной, не является отдельной аварийной копией. <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Persistence Redis</a>.</p>
+<p style="break-inside:avoid-page">В AX <code>ac233282</code> файл <code>deploy/redis.yaml</code> задаёт одну replica Redis в Deployment и не подключает устойчивый том или специальную конфигурацию persistence. Это описание <strong>манифеста</strong>, а не утверждение, будто Redis не умеет сохранять данные или обязательно отключает свои defaults. Без выбранного устойчивого хранения и проверенного restore этот quickstart не предоставляет требуемого контракта сохранности AX state. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/redis.yaml">Закреплённый Redis manifest AX</a>.</p>
+<h3>Object store и защита истории</h3>
+<p style="break-inside:avoid-page">Для snapshots важны сохранённая версия объекта, целостность bytes, возможность чтения и необходимые ключи. Versioning помогает пережить замену версии; политика retention или object lock может ограничить удаление. Их конкретные гарантии и права администратора нужно проверить у выбранного backend. Другая папка в том же account с теми же полномочиями удаления не создаёт независимого credentials domain.</p>
+<p style="break-inside:avoid-page">Checksum обнаруживает расхождение с ожидаемыми bytes. Он не удостоверяет источник manifest и не подтверждает, что runtime сможет восстановить процесс. Если злоумышленник меняет и blob, и ожидаемый hash, простая проверка равенства пройдёт. Поэтому доверие к каталогу backup, управление ключами и фактическая проверка restore — самостоятельные части схемы.</p>
+<h3>Kubernetes и конфигурация окружения</h3>
+<p style="break-inside:avoid-page">Для self-managed control plane нужен план восстановления etcd — хранилища состояния Kubernetes API. Его копия не содержит автоматически данные внешних сервисов. Для managed Kubernetes нужно понимать границы ответственности сервиса. <strong>Velero</strong> может помогать с копированием Kubernetes resources и поддерживаемыми способами защиты volumes. Это полезно, когда нужно вернуть динамические объекты вместе с окружением. Но из этого не следует согласованность внешнего PostgreSQL, object store и operation journal: их связывает recovery contract приложения. <a href="https://velero.io/docs/main/backup-reference/">Backup reference Velero</a>, <a href="https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/">восстановление etcd</a>.</p>
+<p style="break-inside:avoid-page">Для маленькой системы часто лучше несколько хорошо проверенных механизмов с понятными владельцами, чем единая панель, за которой никто не может объяснить recovery point. Итог выбора инструмента — доступный и проверяемый restore-путь, включая действия при недоступности обычных credentials и observability backend.</p>
+<h2>4. Доступность и право нового контура писать</h2>
+<p style="break-inside:avoid-page">HA, high availability, проектируется для конкретных отказов и операций. Если нужно пережить потерю физического host, replicas распределяют по таким hosts, а зависимости не оставляют единственными на той же машине. Именно эту границу мы разобрали в главе 26. Схема в начале главы показывает зависимости; она не является проверенной конфигурацией, которую достаточно скопировать.</p>
+<p style="break-inside:avoid-page">Запас мощности тоже относится к сценарию отказа. В условном пуле из трёх узлов по десять slots после потери одного останется двадцать slots. Восемнадцать активных работ арифметически помещаются, двадцать одна — уже нет. Но slots здесь лишь первая оценка: нужны ещё подходящее размещение по RAM/CPU, snapshot I/O, доступ к images и способность обслужить одновременный resume. Проценты резерва без workload и отказного сценария мало помогают. Измерения capacity продолжатся в главе 28.</p>
+<p style="break-inside:avoid-page"><strong>PodDisruptionBudget</strong> ограничивает допустимые добровольные evictions через соответствующий механизм Kubernetes. Он помогает при согласованном drain, но не предотвращает аварийную потерю node. Прямое удаление Pod обходит PDB; rollout Deployment регулируется правилами самого workload, а не обещанием PDB остановить любое обновление. К этому добавляют topology, резерв и протокол приложения. <a href="https://kubernetes.io/docs/concepts/workloads/pods/disruptions/">Kubernetes disruptions</a>.</p>
+<p style="break-inside:avoid-page">Readiness должна соответствовать способности обслуживать обещанный путь. Проверка только открытого порта слишком слаба, а зависимость readiness всех replicas от любого необязательного backend может одновременно убрать их из обслуживания. Liveness отвечает на другой вопрос: нужен ли restart процесса; временный отказ внешнего сервиса сам по себе не делает restart полезным. Инженер выбирает критические зависимости, ограничивает ожидание и отдельно проверяет пользовательский outcome. В AX manifest <code>ax-server</code> обе probes обращаются к <code>/healthz</code>; из одного названия нельзя вывести глубину проверки. <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/">Probes Kubernetes</a>, <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/ax-server.yaml">manifest AX</a>.</p>
+<h3>Зачем останавливать старого writer</h3>
+<p style="break-inside:avoid-page">При сетевом разделении старый publisher может продолжать работать, хотя новый контур уже выбран главным. Leader election помогает выбрать участника; <strong>fencing</strong> делает устаревшего участника неспособным выполнять защищаемую запись. Например, шлюз записи принимает epoch 8 и отклоняет epoch 7. Такая защита действует, только если проверяется там, где выполняется изменение, а не просто записана в diagnostic log. Другой вариант — надёжно отозвать старые полномочия или изолировать старый контур.</p>
+<p style="break-inside:avoid-page">Истечение lock или исчезновение heartbeat не подтверждает остановку прежнего процесса: он мог надолго приостановиться, а потом продолжить. Конкретный store, lock и target должны давать нужный контракт. В частности, документация Redis отдельно обсуждает fencing и ограничения времени жизни locks. Эта глава не приписывает готовый end-to-end fencing AX. <a href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/">Distributed locks Redis</a>.</p>
+<p style="break-inside:avoid-page">Теперь вернёмся к внешней публикации. Журнал намерений сохранил <code>publish-742</code> и hash кандидата до отправки; в нашем сценарии этот журнал доступен вне восстанавливаемого checkpoint. Target сохранил receipt об обновлении ветки. После восстановления мы сопоставляем operation ID, кандидата и фактическое состояние target. Уже выполненную публикацию не нужно исполнять снова. Если журнал утрачен, receipt непроверяем или target не даёт установить исход, работа остаётся в состоянии неопределённости из главы 24. Удобный таймаут не превращает её в новую безопасную попытку.</p>
+<h2>5. Практикум на искусственной истории восстановления</h2>
+<p style="break-inside:avoid-page">В репозитории добавлен <code>examples/ch27_recovery_plan.py</code> с тестами. Он использует стандартную библиотеку Python и небольшие строки bytes. Это <strong>учебная модель решения</strong>, не парсер backup AX/Substrate и не реализация DR. Флаги завершения, доступности ключа, fencing и наблюдения target поступают как доверенные искусственные входы. Реальные инфраструктурные действия программа не выполняет.</p>
+<p style="break-inside:avoid-page">Упрощённый каталог содержит по одному кандидату на каждый момент <code>cut</code>; одинаковые имена и одинаковые cuts отклоняются как неоднозначность этой модели. <code>select_point</code> рассматривает записи от новых к старым. Для выбранной фиксированной Task он сверяет Actor, ссылку metadata на blob, наличие bytes, их SHA-256, доступность ключа и объявленную пару snapshot format / reader. Совпадение hash вычисляется действительно; расшифрование и запуск runtime не выполняются. <code>demo-v1</code> — имя учебного контракта, не версия AX или Substrate.</p>
+<p style="break-inside:avoid-page">В основном сценарии используем сжатую шкалу секунд, чтобы расчёт был виден целиком:</p>
 <ol>
-<li>Что именно входит в backup и какой plane намеренно исключён?</li>
-<li>Какой consistency point связывает database и object storage?</li>
-<li>Где хранятся encryption keys и кто может удалить backup?</li>
-<li>Как обнаруживается silent corruption?</li>
-<li>Как часто выполняется restore test и кто подписывает результат?</li>
-<li>Можно ли восстановить старую release, если новая уже изменила schema?</li>
+<li>В <code>t=120</code> сохранён завершённый комплект <code>p120</code>.</li>
+<li>Комплект <code>p125</code> ещё не завершён. Внешняя публикация имеет устойчивый operation ID и receipt; момент <code>126</code> в имени receipt — только иллюстративная метка.</li>
+<li>В <code>t=130</code> начинается недоступность. Старый writer в успешной ветке изолирован, состояние target сопоставлено с сохранённой операцией.</li>
+<li>В <code>t=170</code> задан результат проверки оговорённого сервиса после восстановления. Цели опыта: RPO не более 15 секунд, RTO не более 45 секунд. Это учебные числа, не измерения платформы.</li>
 </ol>
-<p>Храните backup вне основного failure и credentials domain. Используйте versioning/object lock там, где threat model требует защиты от ransomware или operator deletion. Проверяйте не только наличие файла, но и checksum, decryptability, schema migration и запуск минимального workload после restore.</p>
-<p>Kubernetes objects также требуют стратегии. GitOps repository восстанавливает declared resources, но не status, dynamically created objects, Secrets и данные PVC. Для self-managed Kubernetes нужен отдельный план etcd backup; managed control plane не освобождает от backup application state.</p>
-<h2>Upgrade engineering: совместимость важнее порядка команд</h2>
-<p>Upgrade AX/Substrate пересекает несколько version boundaries одновременно:</p>
-<ul>
-<li>Kubernetes API и node version skew;</li>
-<li>AX <code>v1alpha1</code> resource schema, CLI и server;</li>
-<li>Substrate controller, API, atelet и Worker images;</li>
-<li>PostgreSQL schema migrations;</li>
-<li>snapshot format и sandbox runtime;</li>
-<li>runner contract, Workspace assets и Model/tool protocols;</li>
-<li>identity/trust bundle и credential provider.</li>
-</ul>
-<p>Compatibility matrix должна быть release artifact. Для каждой пары old/new укажите: поддерживается ли mixed-version window, можно ли читать old snapshot, можно ли rollback database, какие CRD fields меняются, какой component обновляется первым и какие tests обязательны.</p>
-<h3>Безопасный общий протокол</h3>
-<ol>
-<li><strong>Freeze scope:</strong> зафиксировать old/new SHA, images/digests, migrations, feature flags и owners.</li>
-<li><strong>Проверить preconditions:</strong> stores healthy, backups restorable, WorkerPools имеют reserve, нет активного incident.</li>
-<li><strong>Создать recovery point:</strong> согласованный backup и inventory, а не только VM snapshot.</li>
-<li><strong>Развернуть staging/canary:</strong> прогнать create, route, suspend, resume, revert, delete, egress и side-effect tests.</li>
-<li><strong>Expand before contract:</strong> сначала backward-compatible schema/API, затем новые writers, и только после полного перехода удалять старое.</li>
-<li><strong>Roll по failure domain:</strong> одна node/zone cohort за шаг, с выдержкой и наблюдением SLO.</li>
-<li><strong>Проверить state compatibility:</strong> old и new Actors/snapshots в обе стороны только там, где это обещано.</li>
-<li><strong>Закрыть mixed-version window:</strong> удалить old capacity после подтверждённой устойчивости, сохранить rollback assets.</li>
-</ol>
-<h3>Конкретика Substrate на снимке df788825</h3>
-<p>Зафиксированный rolling-upgrade runbook задаёт порядок: новый <code>ate-controller</code>, затем versioned dataplane node за node, затем остальной control plane. Nodes и WorkerPools привязаны label <code>ate.dev/substrate-version</code>. Serving WorkerPool не редактируют на месте: его клонируют под новую worker image/version, потому что обычное изменение Deployment может прокатиться через живых Actors.</p>
-<p>Перед заменой node workers должны быть корректно drained/suspended. Удаление worker Pod не эквивалентно сохранению Actor: если suspend не завершился в предусмотренное окно, Actor может перейти в <code>CRASHED</code>, а recovery потребует <code>RevertActor</code> к последнему внешнему snapshot с потерей изменений после него. На single-node cluster rolling upgrade неизбежно становится outage.</p>
-<pre><code>kubectl get ds -n ate-system -l app=atelet \
-  -L ate.dev/substrate-version
-kubectl get nodes -L ate.dev/substrate-version
-kubectl get workerpools -A</code></pre>
-<p>Эти команды показывают progress, но не доказывают correctness. После каждой cohort нужны lifecycle tests и outcome SLI. Не импровизируйте порядок по общей Kubernetes-интуиции: используйте runbook именно выбранной Substrate release.</p>
-<h3>Rollback может быть невозможен</h3>
-<p>Rollback binary безопасен только если old version понимает новую schema, snapshots и stored data. После destructive migration единственный путь назад может состоять из остановки writes и восстановления pre-upgrade backup, то есть с потерей данных после recovery point. Поэтому у каждого шага должен быть заранее выбран один вариант: instant rollback, roll-forward fix или restore. Фраза «если что откатим image» без этой классификации опасна.</p>
-<h2>Capacity reserve как часть HA</h2>
-<p>Кластер, работающий на 100% average utilization, уже не высокодоступен. При потере node оставшиеся nodes должны принять control-plane Pods, replacement workers и активных Actors. Во время drain появляются suspend/resume I/O, object-store burst и дополнительные reconciliation events. Model rollout может временно держать две копии weights в GPU memory.</p>
-<p>Reserve рассчитывается по сценарию, а не фиксированным «20%»:</p>
-<ul>
-<li>N+1 node или потеря целой zone;</li>
-<li>максимальная upgrade cohort;</li>
-<li>resume burst после gateway/region recovery;</li>
-<li>snapshot/checkpoint bandwidth и database compaction;</li>
-<li>image pull/cache miss после появления чистых nodes;</li>
-<li>inference queue при недоступности части GPU pool.</li>
-</ul>
-<p>Control plane, state stores, WorkerPools и inference лучше иметь в разных capacity pools с priority/taints. Иначе agent workload может вытеснить компоненты, которые нужны, чтобы этот же workload остановить или восстановить.</p>
-<h2>Disaster recovery: восстанавливайте причинную цепочку</h2>
-<p>DR plan должен различать сценарии: потеря node, zone, cluster/region; corruption store; ошибочное удаление; compromise credentials; потеря object store; недоступность external model/tool. Для каждого сценария нужны trigger, incident commander, RPO/RTO, точка остановки writes и authority на failover.</p>
-<h3>Порядок восстановления</h3>
-<ol>
-<li><strong>Contain:</strong> остановить writers и автоматические retries, отозвать скомпрометированные credentials, зафиксировать cutoff.</li>
-<li><strong>Поднять trust foundation:</strong> DNS, networking, KMS/secret store, CA/trust bundles и registry access.</li>
-<li><strong>Восстановить Kubernetes foundation:</strong> cluster, storage classes, admission/network policies и system workloads.</li>
-<li><strong>Вернуть immutable artifacts:</strong> exact AX/Substrate/worker/runner images и configs нужной release.</li>
-<li><strong>Восстановить object snapshots и PostgreSQL:</strong> до согласованного recovery point; проверить references/checksums.</li>
-<li><strong>Запустить Substrate:</strong> сначала control/state plane, затем WorkerPools; не принимать traffic до lifecycle smoke test.</li>
-<li><strong>Восстановить AX state:</strong> manifests/status/events или replay authoritative specs; сопоставить Tasks с Actors.</li>
-<li><strong>Reconcile external side effects:</strong> по operation ledger узнать, что уже произошло; не повторять tool calls вслепую.</li>
-<li><strong>Открывать traffic поэтапно:</strong> synthetic Task, canary tenant, затем cohorts с наблюдением SLO.</li>
-</ol>
-<p>Порядок может отличаться в вашей реализации, но dependencies должны быть явными. Запуск AX до доступности authoritative Substrate state может создать ложную картину отсутствующих Actors. Resume до проверки snapshot/runtime compatibility превращает recovery в дополнительное повреждение.</p>
-<h3>Минимальный DR drill</h3>
-<p>Раз в оговорённый период восстановите не пустой control plane, а проверяемую историю:</p>
-<ol>
-<li>создайте Task, выполните локальное изменение и внешний idempotent side effect;</li>
-<li>suspend Actor и запишите correlation/operation IDs;</li>
-<li>создайте согласованный backup и уничтожьте isolated test environment;</li>
-<li>восстановите environment только по runbook и сохранённым artifacts;</li>
-<li>проверьте Task ↔ Actor mapping, snapshot state и отсутствие duplicate side effect;</li>
-<li>измерьте фактическое окно потери данных и время восстановления, сравните их с RPO/RTO; запишите ручные шаги и missing credentials;</li>
-<li>исправьте runbook и повторите drill, пока результат не станет воспроизводимым.</li>
-</ol>
-<p>Backup success metric - не число загруженных bytes. Это доля успешных restore drills, измеренные потери/время восстановления относительно целей RPO/RTO и количество необъяснимых расхождений после reconciliation.</p>
-<h2>Production readiness gate</h2>
-<p>Перед допуском реального workload команда должна показать:</p>
-<ul>
-<li>dependency/state inventory с owner для каждого plane;</li>
-<li>измеримые availability SLO, RPO и RTO;</li>
-<li>topology по node/zone/credentials domains, а не только replica count;</li>
-<li>restorable backups PostgreSQL, AX store, object snapshots, identity и manifests;</li>
-<li>immutable release BOM и compatibility matrix;</li>
-<li>проверенный Substrate drain/upgrade path и отдельный AX migration plan;</li>
-<li>capacity reserve для node/zone loss и rolling upgrade;</li>
-<li>operation ledger/idempotency для внешних side effects;</li>
-<li>успешный restore drill с evidence и подписанными результатами;</li>
-<li>runbooks, доступные при недоступности основного cluster и observability backend.</li>
-</ul>
+<p style="break-inside:avoid-page;break-after:avoid-page">Окно потенциальной потери равно <code>130 - 120 = 10</code> секунд, длительность до подтверждённого обслуживания — <code>170 - 130 = 40</code> секунд. В программе их считает функция:</p>
+<pre><code class="language-python">def recovery_budget(incident_at, cut, verified_at, rpo_limit, rto_limit):
+    values = [incident_at, cut, rpo_limit, rto_limit]
+    if any(type(v) is not int or v &lt; 0 for v in values) or cut &gt; incident_at:
+        raise ValueError(&quot;invalid_budget_input&quot;)
+    if verified_at is not None and (
+            type(verified_at) is not int or verified_at &lt; incident_at):
+        raise ValueError(&quot;invalid_verification_time&quot;)
+    exposure = incident_at - cut
+    elapsed = None if verified_at is None else verified_at - incident_at
+    return {&quot;exposure_s&quot;: exposure, &quot;recovery_elapsed_s&quot;: elapsed,
+            &quot;rpo_met&quot;: exposure &lt;= rpo_limit,
+            &quot;rto_met&quot;: None if elapsed is None else elapsed &lt;= rto_limit}
+</code></pre>
+<p style="break-inside:avoid-page">Если подтверждения обслуживания ещё нет, <code>recovery_elapsed_s</code> и <code>rto_met</code> равны <code>None</code>. Это «ещё не установлено», а не нулевой RTO и не уже доказанное нарушение срока. Для продолжающегося реального инцидента отдельно считают elapsed до текущего момента. Учебная функция оценивает только заданную завершённую проверку или её отсутствие.</p>
+<p style="break-inside:avoid-page;break-after:avoid-page">Запуск из корня репозитория:</p>
+<pre><code class="language-bash">python3 examples/ch27_recovery_plan.py
+python3 -m unittest discover -s examples -p 'test_ch27_recovery_plan.py'
+</code></pre>
+<p style="break-inside:avoid-page;break-after:avoid-page">Ожидаемые результаты десяти сценариев. Прочерк означает <code>None</code>, то есть измерение отсутствует:</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Сценарий</th>
+<th>Точка</th>
+<th>Окно отката, с</th>
+<th>Восстановление, с</th>
+<th>Результат модели</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>good</code></td>
+<td><code>p120</code></td>
+<td>10</td>
+<td>40</td>
+<td><code>model_pass</code></td>
+</tr>
+<tr>
+<td><code>old_fallback</code></td>
+<td><code>p110</code></td>
+<td>20</td>
+<td>40</td>
+<td><code>hold_rpo</code></td>
+</tr>
+<tr>
+<td><code>corrupt_blob</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>hold_no_point</code></td>
+</tr>
+<tr>
+<td><code>mapping_lost</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>hold_no_point</code></td>
+</tr>
+<tr>
+<td><code>unknown_format</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>hold_no_point</code></td>
+</tr>
+<tr>
+<td><code>missing_key</code></td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+<td><code>hold_no_point</code></td>
+</tr>
+<tr>
+<td><code>old_writer_live</code></td>
+<td><code>p120</code></td>
+<td>10</td>
+<td>—</td>
+<td><code>hold_fencing</code></td>
+</tr>
+<tr>
+<td><code>unknown_effect</code></td>
+<td><code>p120</code></td>
+<td>10</td>
+<td>—</td>
+<td><code>hold_unknown</code></td>
+</tr>
+<tr>
+<td><code>retry_needed</code></td>
+<td><code>p120</code></td>
+<td>10</td>
+<td>—</td>
+<td><code>hold_retry_needed</code></td>
+</tr>
+<tr>
+<td><code>too_slow</code></td>
+<td><code>p120</code></td>
+<td>10</td>
+<td>50</td>
+<td><code>hold_rto</code></td>
+</tr>
+</tbody>
+</table>
+<p style="break-inside:avoid-page">В <code>good</code> новый комплект отклонён как incomplete, старый пригоден, target сообщает о состоявшейся операции. В <code>old_fallback</code> bytes более нового комплекта отсутствуют; выбранный <code>p110</code> выходит за установленный RPO. Это повод обсуждать потерю с ответственным владельцем, а не молча снижать обещание пользователю. <code>rejected</code> в выводе сохраняет причину исключения кандидата.</p>
+<p style="break-inside:avoid-page">В <code>retry_needed</code> target определённо сообщает, что операция не выполнена, и учебный контракт idempotency ещё действует. Модель советует <code>retry_same_operation</code>, но возвращает <code>hold_retry_needed</code>: совет не равен выполненной и проверенной записи. Неопределённый поиск, истёкший срок idempotency или неизвестный payload не дают такого совета. Прежние operation ID и кандидат остаются связанными; новый ключ создал бы другую попытку дедупликации.</p>
+<p style="break-inside:avoid-page">Обычный вызов <code>assess</code> по умолчанию не получает положительных свидетельств fencing и проверки сервиса. Их явно задаёт helper <code>worked_case</code>, создающий fixtures. Во всех сценариях <code>production_ready=false</code> и <code>live_restore_executed=false</code>, включая <code>model_pass</code>. Такой результат говорит только о согласованности переданных учебных данных. Он не доказывает доверие к receipt, действительное прекращение старых writes, корректность всех Tasks, совместимость runtime, HA или выполнение RPO/RTO на настоящем стенде.</p>
+<p style="break-inside:avoid-page">Попробуйте поменять только hash blob, только ожидаемый Actor или только reader. Затем оставьте идеальную копию, но уберите receipt. Это разные места отказа: в первых случаях не выбирается точка, в последнем — не разрешается безопасное продолжение. Поэтому один общий флаг <code>backup_ok</code> не заменит протокол проверки.</p>
+<h2>6. Обновление системы с живым состоянием</h2>
+<p style="break-inside:avoid-page">При обновлении нужно проверить не только запуск нового binary. Новый reader должен понимать сохранённые данные; новый writer может создать данные, которые старый reader уже не прочитает. Совместимость AX CLI/server, Substrate control plane/dataplane, database schema, runner и snapshot runtime имеет разные границы. Заявление «новая версия работает» должно указывать исходную версию, направление чтения и допустимое окно смешанных версий.</p>
+<p style="break-inside:avoid-page">Перед rollout выберите стратегию возвращения для каждого изменения. При <strong>rollback</strong> старый код продолжит понимать текущее состояние. При <strong>roll-forward</strong> проблему устраняют следующей совместимой версией, не возвращая старый writer. При <strong>restore</strong> возвращают сохранённое состояние с принятым окном потери и затем согласуют внешние действия. Смена image не отменяет migration и не откатывает target. Совместимое расширение схемы перед переключением writers часто позволяет сохранить обратный путь; удаление старого поля разумно откладывать до его завершения.</p>
+<h3>Что требует runbook выбранного Substrate</h3>
+<p style="break-inside:avoid-page">В <code>df788825</code> документирован versioned rolling path. Его preconditions существенны: version-suffixed atelet DaemonSet, labels <code>ate.dev/substrate-version</code>, закреплённые serving WorkerPools, поддержка <code>DrainWorker</code> и контролируемые источники изменения nodes. Если начальный installation profile не соответствует условиям, этот путь нельзя переносить на него как универсальную инструкцию. <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/upgrade.md">Закреплённый upgrade runbook</a>.</p>
+<p style="break-inside:avoid-page">Порядок в документе начинается с новых CRDs и controller, затем подготавливается новая версия dataplane. Serving WorkerPool клонируют с сохранением необходимых полей и новой version pin/image, а не редактируют и не уменьшают под живыми Actors. Так старая и новая capacity существуют раздельно, а переход выполняется по узлам. Для выбранной пары релизов отдельно проверяют, что действительно допустимо в mixed-version window; обещание runbook нельзя распространять на произвольные будущие форматы.</p>
+<p style="break-inside:avoid-page">На узле сначала прекращают новые назначения через <code>DrainWorker</code>. Это ещё не переносит существующих Actors. Нужно учесть и работающих Actors, и paused Actors с локальным snapshot на этом узле; последних не видно в списке занятых Workers. Их доводят до завершённого suspend с внешним snapshot. Только затем меняют version label и освобождают старую worker capacity в предусмотренном порядке. Перестановка этих действий может снова разместить старые workers там, где уже меняется atelet.</p>
+<p style="break-inside:avoid-page">Runbook предупреждает и о worker eviction: завершить процесс по <code>SIGTERM</code> недостаточно для сохранения Actor. Suspend должен дойти до control plane и завершиться в предусмотренное окно. В описанном аварийном исходе Actor становится <code>CRASHED</code>, а <code>RevertActor</code> возвращает его к последнему внешнему snapshot с потерей более поздних изменений. Это иной результат, чем обещанный аккуратным rollout перенос состояния. После dataplane обновляется остальной control plane; single-node профиль на соответствующем этапе останавливается полностью.</p>
+<p style="break-inside:avoid-page">Старые WorkerPools, образы и versioned объекты сохраняют до завершения проверки и выдержки. Их удаление — отдельное решение о закрытии быстрого обратного пути. Следуйте полному runbook конкретного перехода, включая его исключения и provider-specific условия, а не только этому объяснению причин. Здесь мы не выполняем ни drain, ни изменение labels, ни rollout.</p>
+<p style="break-inside:avoid-page">Для AX требуется собственный план обновления store, API и runner. <code>deploy/ax-server.yaml</code> задаёт одну replica; увеличение числа серверов требует проверки concurrent writes, resource locking, lifecycle reconciliation и восстановления после незавершённой операции. Пара AX/Substrate из главы 26 по-прежнему не объявлена испытанной совместимой сборкой. Статическое чтение manifests и runbook такую проверку не заменяет.</p>
+<h2>7. Как провести настоящий recovery drill</h2>
+<p style="break-inside:avoid-page">Следующий шаг после офлайн-модели — отдельный восстановительный контур с синтетическим workload и тестовым target. Это будущий согласованный опыт, не часть выполненных проверок этой редакции. Он не должен иметь права писать в production target или автоматически продолжать задачи из скопированной базы.</p>
+<p style="break-inside:avoid-page">Сначала задайте сценарий: например, основной кластер недоступен, но backup repository, ключи и журнал внешних операций сохранены. Отдельный опыт должен проверять их потерю или компрометацию. Назначьте руководителя восстановления, полномочия на остановку/возобновление writes, цели RPO/RTO и условия прекращения упражнения. Runbook и доступ к нему должны пережить именно выбранный отказ.</p>
+<p style="break-inside:avoid-page">Затем создайте проверяемую историю: известный Task, marker в сохраняемом состоянии, согласованный кандидат, operation ID и известный исход внешнего действия. Сохраните комплект зависимостей и восстановите его в новом изолированном окружении по инструкции. Это лучше проверяет полноту runbook, чем рестарт прежнего процесса с его неучтёнными caches и открытыми доступами.</p>
+<p style="break-inside:avoid-page">До возобновления пройдите цепочку: права старого writer прекращены; каталог и ключи доступны; metadata и blobs согласованы; нужные readers запускаются; Task сопоставлен с Actor; восстановлен marker; внешняя операция reconciled; проверен полезный путь. Если ключи могли быть скомпрометированы, обычное возвращение старого secret из backup не закрывает инцидент — требуется отдельная процедура доверия, ротации и отзыва.</p>
+<p style="break-inside:avoid-page">Измеряйте обнаружение, доступ к копиям, получение ключей, restore/replay, проверку данных и staged admission отдельно. Общий RTO включает договорённый путь до обслуживания. Фактическую потерю сверяют с журналом подтверждённых изменений. Запишите ручные действия и расхождения; после исправления runbook повторите опыт. Глава 25 подсказывает, как сохранить связь результата с Task и попыткой, не принимая diagnostic log за единственное доказательство.</p>
+<p style="break-inside:avoid-page">Восстановление одной удачной Task — полезный smoke test. Для эксплуатационного обещания нужны репрезентативные размеры state, варианты runtime, длительные операции, неполные snapshots и соответствующая нагрузка после аварии. Отдельно проверяют возврат в основной контур: failback тоже может запустить двух writers или создать очередь повторных действий. Один успешный drill ограничен своим сценарием и не является сертификатом на все отказы.</p>
 <h2>Итог</h2>
-<p>Production engineering AX/Substrate начинается не с replica count. Сначала система разделяется на stateful planes и failure domains. Для каждого plane назначаются source of truth, RPO/RTO, backup и restore owner. Затем проектируются multi-replica semantics, capacity reserve, compatibility matrix и порядок recovery.</p>
-<p>Текущие development manifests AX и Substrate дают работающую основу для экспериментов, но не готовую production topology. Особенно важно не приписывать persistence одиночному Redis без PVC, HA - одному PostgreSQL, а rollback - простой замене image. Substrate уже документирует сложный versioned rolling path; его детали показывают, почему live Actors нельзя обслуживать обычным бездумным Deployment rollout.</p>
-<p>Когда failure и recovery доказаны, можно честно обсуждать производительность. Следующая глава разложит latency, throughput, active ratio, resume storms, store QPS и object bandwidth, не оптимизируя систему ценой её восстановимости.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong><ul>
-<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/upgrade.md">Substrate rolling upgrade runbook на снимке df788825</a></li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/architecture.md">Substrate architecture на снимке df788825</a></li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/threat-model.md">Substrate threat model на снимке df788825</a></li>
-<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/redis.yaml">AX development Redis manifest на снимке ac233282</a></li>
-<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/ax-server.yaml">AX server deployment на снимке ac233282</a></li>
-<li><a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/">Kubernetes: highly available clusters with kubeadm</a></li>
-<li><a href="https://kubernetes.io/docs/concepts/workloads/pods/disruptions/">Kubernetes: disruptions и PodDisruptionBudget</a></li>
-<li><a href="https://kubernetes.io/releases/version-skew-policy/">Kubernetes version skew policy</a></li>
-<li><a href="https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/">Kubernetes: etcd backup and recovery</a></li>
-<li><a href="https://www.postgresql.org/docs/current/continuous-archiving.html">PostgreSQL continuous archiving и PITR</a></li>
-<li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis persistence: RDB и AOF</a></li>
-</ul></div></section><section class="chapter" id="ch-28"><div class="chapter-num">Глава 28</div><h1>Performance и scaling: как найти bottleneck и доказать capacity</h1>
+<p style="break-inside:avoid-page">Для <code>billing</code> восстановление закончено, когда команда может объяснить не только происхождение данных, но и право продолжать работу: выбран согласованный комплект, понятен допустимый откат, остановлен старый writer, установлен исход прежних внешних действий и проверен оговорённый сервис. У каждого вывода есть своё свидетельство.</p>
+<p style="break-inside:avoid-page">Replication, backup, fencing и совместимые updates решают разные части этой задачи. Инструмент выбирают по тому, какую часть он действительно покрывает и кто сможет восстановить её при отказе. Локальный пример помогает проверить логику решения; обещание RPO/RTO появляется после опыта на выбранной конфигурации и workload.</p>
+<p style="break-inside:avoid-page">Следующая глава посвящена performance и scaling. Теперь для этих измерений есть важное условие: полезная capacity должна сохраняться в принятом сценарии отказа и восстановления, а ускорение не должно менять смысл подтверждённой работы.</p>
+<div class="sources" style="margin-top:3mm;padding:2mm 3mm;font-size:8.4pt;line-height:1.27"><h3 style="margin-top:0">Источники и дальнейшее чтение</h3>
+<ul>
+<li style="margin:.3mm 0">Конкретный профиль: <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/docs/upgrade.md">Substrate upgrade <code>df788825</code></a>, <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/redis.yaml">AX Redis</a>, <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/ax-server.yaml">AX server</a>.</li>
+<li style="margin:.3mm 0">Цели и Kubernetes: <a href="https://docs.aws.amazon.com/wellarchitected/latest/reliability-pillar/plan-for-disaster-recovery-dr.html">DR planning</a>, <a href="https://kubernetes.io/docs/concepts/workloads/pods/disruptions/">disruptions/PDB</a>, <a href="https://kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/">probes</a>, <a href="https://kubernetes.io/docs/tasks/administer-cluster/configure-upgrade-etcd/">etcd</a>.</li>
+<li style="margin:.3mm 0">Средства и ограничения: <a href="https://www.postgresql.org/docs/current/continuous-archiving.html">PostgreSQL PITR</a>, <a href="https://pgbackrest.org/user-guide.html">pgBackRest</a>, <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis persistence</a>, <a href="https://redis.io/docs/latest/develop/clients/patterns/distributed-locks/">distributed locks</a>, <a href="https://velero.io/docs/main/backup-reference/">Velero</a>. Версии инструментов, форматы и проверенные переходы закрепляют в эксплуатационном паспорте.</li>
+</ul>
+</div></section><section class="chapter" id="ch-28"><div class="chapter-num">Глава 28</div><h1>Performance и scaling: как найти bottleneck и доказать capacity</h1>
 <p><strong>Снимок главы:</strong> <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-10</strong>. Числа из README, demo и issues ниже отделены от измерений вашей системы. Оба проекта pre-1.0, поэтому performance contract нужно перепроверять для каждой закреплённой версии.</p>
 <p>После главы о HA возникает естественный соблазн: добавить replicas, включить autoscaling и считать задачу закрытой. Но производительность распределённой agent platform определяется не количеством Pods, а самой медленной стадией полезного пути. AX может быстро принять Task и медленно reconcile'ить его. WorkerPool может иметь свободные Pods, пока object store ограничивает одновременный restore. Model endpoint может отвечать быстро, но агент делает вдвое больше шагов из-за неудачного routing.</p>
 <p>Цель performance engineering - не получить максимальное число в синтетическом тесте. Нужно доказать, какую полезную нагрузку система выдерживает при заданных SLO, качестве результата и сценарии отказа, где находится saturation knee и как система ведёт себя за ним.</p>
