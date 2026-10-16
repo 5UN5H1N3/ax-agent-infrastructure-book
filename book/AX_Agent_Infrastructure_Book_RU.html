@@ -7439,7 +7439,11 @@ python3 -m unittest discover -s examples -p 'test_ch23_security_boundaries.py'
 <li style="margin:.3mm 0"><a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">Kubernetes NetworkPolicy</a>: CNI, сетевые границы и аддитивность.</li>
 <li style="margin:.3mm 0"><a href="https://www.openpolicyagent.org/docs">OPA</a> и <a href="https://docs.cedarpolicy.com/">Cedar</a>: policy decision.</li>
 </ul>
-</div></section><section class="chapter" id="ch-24"><div class="chapter-num">Глава 24</div><h1>Identity, authorization и human-in-the-loop: как безопасно делегировать authority агенту</h1><div class="badges"><span class="badge">AX · ac233282</span><span class="badge">SUBSTRATE · 36d6d222</span><span class="badge">SOURCE REVIEW · 08.10.2026</span><span class="badge">EXPERIMENTAL AUTHZ marked explicitly</span></div><figure><figcaption>Authority path: identity, policy и approval превращают proposal в ограниченный execution grant</figcaption><svg aria-label="Authority path: identity, policy и approval превращают proposal в ограниченный execution grant" class="diagram" role="img" viewbox="0 0 950 430"><defs><marker id="arrow24" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs>
+</div></section><section class="chapter" id="ch-24"><div class="chapter-num">Глава 24</div><h1>Identity, authorization и human-in-the-loop: как безопасно делегировать authority агенту</h1>
+<blockquote>
+<p>Снимок главы: <strong>AX <code>ac233282</code> · Substrate <code>36d6d222</code> · исходники повторно проверены 16.10.2026</strong>. Это закреплённые снимки, не заявление о текущем <code>main</code>. Экспериментальный authorization Substrate и предлагаемая архитектура приложения разобраны отдельно.</p>
+</blockquote>
+<figure><figcaption>Authority path: identity, policy и approval превращают proposal в ограниченный execution grant</figcaption><svg aria-label="Authority path: identity, policy и approval превращают proposal в ограниченный execution grant" class="diagram" role="img" viewbox="0 0 950 430"><defs><marker id="arrow24" markerheight="10" markerunits="strokeWidth" markerwidth="10" orient="auto" refx="8" refy="3"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"></path></marker></defs>
 <line marker-end="url(#arrow24)" stroke="#53657a" stroke-width="2" x1="170" x2="215" y1="65" y2="65"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="192" y="55">initiates</text>
 <line marker-end="url(#arrow24)" stroke="#53657a" stroke-width="2" x1="365" x2="410" y1="65" y2="65"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="387" y="55">delegates</text>
 <line marker-end="url(#arrow24)" stroke="#53657a" stroke-width="2" x1="560" x2="605" y1="65" y2="65"></line><text fill="#5c6875" font-size="10" text-anchor="middle" x="582" y="55">attenuates</text>
@@ -7462,561 +7466,285 @@ python3 -m unittest discover -s examples -p 'test_ch23_security_boundaries.py'
 <rect fill="#fff0f0" height="70" rx="12" ry="12" stroke="#a23d3d" stroke-width="1.5" width="150" x="605" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="680" y="214">Executor / PEP</text><text fill="#465569" font-size="11" text-anchor="middle" x="680" y="236">recheck + broker</text>
 <rect fill="#edf4ff" height="70" rx="12" ry="12" stroke="#2d5d9f" stroke-width="1.5" width="150" x="800" y="190"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="875" y="214">Target system</text><text fill="#465569" font-size="11" text-anchor="middle" x="875" y="236">authoritative state</text>
 <rect fill="#f3f5f7" height="70" rx="12" ry="12" stroke="#495463" stroke-width="1.5" width="150" x="605" y="325"></rect><text fill="#17212b" font-size="14" font-weight="700" text-anchor="middle" x="680" y="349">Verify / audit</text><text fill="#465569" font-size="11" text-anchor="middle" x="680" y="371">evidence + outcome</text>
-</svg></figure><p>Представим сетевого агента, который расследует потерю связности. Он прочитал telemetry, нашёл неверный BGP prefix-list и предлагает исправить одну строку. На экране это выглядит как простой вопрос: «Применить изменение?» Но за кнопкой скрывается несколько разных вопросов.</p>
-<ul>
-<li>Кто инициировал расследование?</li>
-<li>Какой Task сформировал proposal?</li>
-<li>Имеет ли этот Task право менять именно этот router и именно этот object?</li>
-<li>Кто вправе принять риск?</li>
-<li>Не изменились ли конфигурация и topology после approval?</li>
-<li>Каким credential executor обратится к network controller?</li>
-<li>Как доказать, что выполнено ровно одобренное действие?</li>
-</ul>
-<p>Если все ответы представлены одним admin token, human-in-the-loop становится декорацией. Модель может повлиять на текст approval, Task может подменить target между approve и execute, а компрометация одного child agent получит authority всей платформы.</p>
-<p>Эта глава строит связку из identity, authorization, delegation и approval. Глава 23 объяснила threat model и defense in depth. Здесь мы опускаемся на уровень конкретного запроса: <strong>какой principal, действуя от чьего имени, может выполнить какое action над каким resource при каких условиях</strong>. Глава 25 продолжит путь в audit и observability.</p>
-<h2>Четыре механизма, которые нельзя смешивать</h2>
-<h3>Authentication: кто предъявил запрос</h3>
-<p>Authentication проверяет credential и связывает соединение или request с principal. Примеры: human вошёл через OIDC, workload предъявил SPIFFE certificate, CLI отправил JWT с проверенными issuer и audience.</p>
-<p>Authentication не отвечает, можно ли удалить Actor или изменить firewall. Валидный token доказывает identity, а не право на любое действие.</p>
-<h3>Authorization: разрешён ли конкретный request</h3>
-<p>Authorization принимает решение над структурированным запросом:</p>
-<p><code>principal + action + resource + context -&gt; allow / deny</code></p>
-<p>Например: может ли <code>task:incident-742/child-3</code> выполнить <code>network.prefix-list.update</code> над <code>router:edge-17/prefix-list:customers</code> в production, если change window открыт, proposal имеет approved digest, а текущая revision равна <code>481</code>?</p>
-<p>Проверка «пользователь состоит в группе netops» недостаточна, если она не связывает роль с target, environment, operation и текущими условиями.</p>
-<h3>Approval: кто принимает остаточный риск</h3>
-<p>Approval - не замена authorization. Он фиксирует решение ответственного человека или отдельного control process о конкретном high-impact transition. Даже одобренное действие должно пройти обычную policy check. И наоборот, policy может разрешать bounded write без ручного approval.</p>
-<h3>Credential: как разрешение предъявляется исполнителю</h3>
-<p>После allow или approval executor всё равно должен обратиться к target system. Credential является техническим носителем authority: short-lived token, mTLS identity, signed capability или brokered request. Если агенту выдать исходный долгоживущий admin secret, вся предыдущая логика теряет смысл.</p>
-<p>Короткая формула:</p>
+</svg></figure>
+<p>В предыдущей главе два агента работали над исправлением <code>billing</code>: tester запускал проверки, reviewer изучал diff. Теперь кандидат готов. Проверки прошли, reviewer написал замечания, разработчик их исправил. Остаётся обновить основную ветку.</p>
+<p>Для инженера это знакомый момент: результат уже выглядит убедительно, но переносить его в основную ветку пока рано. Нужно понять, какой именно кандидат проверяли, кто вправе принять изменение и не появились ли за это время новые коммиты. Если поручить публикацию агенту, эти вопросы должны получить технический ответ. Иначе фраза пользователя «да, публикуй» останется текстом в чате, а исполняющий сервис будет действовать на основании собственных широких прав.</p>
+<p><strong>Authority здесь означает техническую возможность совершить действие над ресурсом.</strong> Например, прочитать закрытый diff, создать Task или обновить ветку. Наша задача - передать агенту ровно ту часть этой возможности, которая нужна для работы, и сохранить понятную связь между намерением человека и фактическим изменением.</p>
+<p>Разберём путь одного действия: кто пришёл с запросом, от чьего имени работает, откуда получил права, что подтвердил человек и что проверяется перед записью. В конце проверим этот путь на локальной модели. Средства изоляции из главы 23 остаются необходимыми: правила доступа приносят пользу, когда у Task нет обходного пути к тому же ресурсу.</p>
+<h2>От «опубликуй» к проверяемому разрешению</h2>
+<p>Начнём с самого короткого варианта. Алиса просит опубликовать исправление. Сервис узнаёт её по корпоративной сессии и находит разрешение работать с репозиторием <code>billing</code>. Но запрос к API хранилища отправляет publisher, а не браузер Алисы. Между ними находится Task, который мог вызвать дочернего агента и пережить перезапуск.</p>
+<p>У этого действия несколько участников с разными обязанностями.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Участник</th>
+<th>Что означает его identity</th>
+<th>На что она влияет</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Алиса, инициатор</td>
+<td>От чьего имени поставлена задача</td>
+<td>Какие ресурсы и действия вообще можно делегировать</td>
+</tr>
+<tr>
+<td>Root Task</td>
+<td>Какой запуск выполняет эту задачу</td>
+<td>Связь с целью, родителем и выданными разрешениями</td>
+</tr>
+<tr>
+<td>Child Task</td>
+<td>Кто сейчас предлагает или запрашивает действие</td>
+<td>Собственный ограниченный доступ, отдельный от root</td>
+</tr>
+<tr>
+<td>Publisher</td>
+<td>Какой сервис обращается к целевой системе</td>
+<td>Проверка запроса и использование downstream credential</td>
+</tr>
+<tr>
+<td>Борис, approver</td>
+<td>Кто принял риск конкретного изменения</td>
+<td>Разрешение выполнить согласованный переход при заданных условиях</td>
+</tr>
+</tbody>
+</table>
+<p><code>root_job_id</code> и <code>task_id</code> помогают найти работу в журнале. Сам по себе UUID не аутентифицирует отправителя. Аналогично имя Actor не становится workload identity только потому, что оно есть в JSON. Доверенный сервис связывает эти идентификаторы с проверенной сессией или удостоверением workload. После пересоздания объекта с прежним именем связь должна учитывать новый UID, а не продолжать полномочия старого объекта автоматически.</p>
+<p>Из этого вытекают четыре отдельных механизма. <strong>Authentication</strong> устанавливает, кто предъявил запрос. <strong>Authorization</strong> решает, разрешено ли этому участнику конкретное действие. <strong>Approval</strong> фиксирует принятие определённого риска уполномоченным человеком. <strong>Credential</strong> позволяет технически обратиться к следующему сервису. Один credential может переносить identity и сведения о правах, но эти проверки всё равно имеют разную семантику.</p>
+<p>Представим, что у publisher есть credential на запись в десять репозиториев. Запрос Алисы относится к одному из них. Действующий от её имени Task не приобретает доступ ко всем десяти: publisher должен пересечь запрос с делегированными правами. Именно это предотвращает ситуацию confused deputy из главы 23, когда сервис использует собственные полномочия в интересах недостаточно привилегированного вызывающего.</p>
+<h3>Где заканчивается аутентификация</h3>
+<p>На входе API проверяет предъявленное удостоверение и создаёт доверенный контекст запроса. В случае JWT нужно проверять подпись допустимым алгоритмом и доверенным ключом, issuer, предназначенную сервису audience и временные ограничения. Простое декодирование payload показывает, что написал отправитель, но не устанавливает его личность. Идентификатор пользователя следует интерпретировать вместе с доверенным issuer: одинаковый <code>sub</code> у двух поставщиков не обязан означать одного человека. Это следует из правил проверки JWT, а не из выбранного агентного framework. <a href="https://www.rfc-editor.org/rfc/rfc8725.html">RFC 8725</a></p>
+<p>При mTLS сервис проверяет сертификат клиента в рамках настроенного доверия и сопоставляет удостоверенную workload identity с ожидаемым вызывающим. Это удобно для связи сервисов. Человек обычно входит через интерактивную сессию IdP; workload получает собственное удостоверение. Передача пользовательского пароля или долговременного токена внутрь Task смешала бы эти два жизненных цикла.</p>
+<p>Внешний JSON может содержать просьбу «опубликуй кандидат B». Поля <code>subject=alice</code>, <code>actor=root</code>, <code>tenant=finance</code> из того же JSON нельзя принять за доказательство. Gateway получает subject из сессии, actor из проверенного контекста запуска, а repository UID разрешает по своему inventory с проверкой доступности ресурса для вызывающего. Модель предлагает действие и объяснение; доверенная граница устанавливает, от кого пришло предложение.</p>
+<h2>Разрешение состоит из действия, ресурса и условий</h2>
+<p>Полезно произнести правило целиком: «Task <code>publisher-7</code>, действуя от имени Алисы, может продвинуть кандидат B в <code>billing/main</code>, если текущее значение ветки A, разрешение ещё действует и Борис подтвердил этот переход».</p>
+<p>Здесь есть principal, action, resource и context - модель запроса, которую, например, использует Cedar. Principal обозначает действующую сторону; дополнительные сведения об инициаторе и делегировании приложение помещает в собственную схему entities/context. Policy engine принимает структурированные данные, а приложение отвечает за их происхождение и полноту. <a href="https://docs.cedarpolicy.com/auth/authorization.html">Cedar: authorization</a></p>
+<p>Для нашего действия resource должен включать устойчивую identity репозитория и точную ветку, action - одну определённую операцию, context - проверяемые ограничения. Разрешение «работать с Git» слишком широко: чтение diff, создание ветки, обновление <code>main</code> и удаление репозитория имеют разные последствия. Также имя <code>billing</code> без владельца или UID может разрешиться в другой объект после переименования, переноса либо повторного создания.</p>
+<p>Правило вида «Алиса - maintainer» полезно как исходное условие. Затем сервис выясняет, что ей разрешено делегировать в этом запуске, какое действие предложено и какие ограничения действуют сейчас. Если организация требует второго человека для обновления защищённой ветки, членство Алисы в maintainers не отменяет это требование.</p>
+<p>В этой главе <code>candidate.promote</code> - <strong>учебная операция публикации неизменяемого кандидата</strong>, а не имя GitHub API. Она обозначает условное обновление одной ссылки с ожидаемого A на согласованное B. Для реального merge адаптеру потребуются правила целевой платформы: защищённая ветка, проверки конкретного commit, допустимый способ merge и доступные условия конкурентной записи. Эти свойства нельзя вывести только из нашего абстрактного названия операции.</p>
+<h2>Как выдавать права дочерней задаче</h2>
+<p>Root получил право подготовить изменение и запросить его публикацию. Reviewer нужен доступ к кандидату и результатам тестов. Publisher понадобится право выполнить одну публикацию. Разделение этих разрешений позволяет изменить исполнителя, не копируя ему весь пользовательский доступ.</p>
+<p><strong>Делегирование - выпуск нового разрешения для другого участника с установленными пределами.</strong> Сервис выдачи, или broker, сначала проверяет, вправе ли родитель делегировать, а затем проверяет запрошенные ограничения. Этот сервис входит в доверенную часть системы. Если child может самостоятельно записать себе grant в хранилище broker, проверка scope уже ничего не ограничивает.</p>
+<p>В простой системе grant можно хранить серверной записью. Она содержит инициатора, текущего actor, ссылку на родителя, разрешённые пары «действие - ресурс», получателя разрешения, срок и право дальнейшего делегирования. Случайный ID этой записи позволяет найти разрешение; дополнительно сервис проверяет identity вызывающего. Если одного знания ID достаточно для исполнения, такой ID уже является bearer capability и требует защиты как секрет.</p>
+<p>В нашем примере root разрешены чтение кандидата и его публикация в <code>billing/main</code> до момента 100 по учебным часам. Reviewer получает только чтение до момента 50, publisher - только публикацию до 50. У обоих можно запретить дальнейшее делегирование. Запрос reviewer на <code>repo.delete</code>, другую ветку или более долгий срок отклоняется broker. Вариант с молчаливым пересечением scope тоже возможен, но вызывающий должен получить фактически выданные права, а не полагаться на запрошенные.</p>
+<p>Права важно сравнивать как допустимые сочетания. Если родитель умеет читать репозиторий X и писать в Y, независимое объединение списков <code>actions=[read,write]</code> и <code>resources=[X,Y]</code> добавит право писать в X. Для сложных правил нужно сохранять условия и связи между полями, а не вычислять два независимых множества.</p>
+<h3>Что даёт token exchange, а что остаётся вашей задачей</h3>
+<p>OAuth 2.0 Token Exchange описывает обмен удостоверений и различает subject и actor. Claim <code>act</code> может назвать текущего исполнителя; вложенные <code>act</code> сохраняют историю. По RFC прежние actors в этой истории информативны и не являются основанием для access-control решения потребителя. Ограничение прав при выдаче нового токена определяется политикой сервиса выдачи, а не наличием цепочки. Сам обмен также не создаёт автоматического каскадного отзыва полученных токенов. <a href="https://www.rfc-editor.org/rfc/rfc8693.html">RFC 8693, §2.1 и §4.1</a></p>
+<p>Это имеет практическое последствие. Алиса отозвала root job, а child уже получил подписанный токен на пять минут. Если целевой API проверяет его локально и не обращается к состоянию отзыва, токен может оставаться пригодным до expiry. Короткий срок уменьшает окно, но не делает отзыв мгновенным.</p>
+<p>Нужно выбрать требуемую семантику: остановить выдачу новых разрешений, запрещать новые claims по онлайн-проверке цепочки либо добиться прекращения уже начатой операции. Это три разных требования. Первое реализуется в broker, второе требует доступного актуального состояния на пути исполнения, третье - поддержки отмены или fencing у целевой системы. Далее наш локальный пример реализует второй вариант до claim; уже принятую запись он ретроактивно не отменяет.</p>
+<h2>Какой механизм контроля выбрать</h2>
+<p>Начните с вопросов к доступу, а не со списка продуктов. Если в приложении один вид записи и несколько явно заданных ролей, небольшой типизированный gateway с тестируемыми правилами может быть понятнее отдельного распределённого policy-сервиса. Но он всё равно должен проверять каждый исполняемый путь, использовать доверенные атрибуты и закрываться при невозможности принять решение. С ростом числа ресурсов и правил меняется стоимость поддержки такого кода.</p>
+<table style="break-inside:avoid-page">
+<thead>
+<tr>
+<th>Задача</th>
+<th>Подход и возможный инструмент</th>
+<th>Что дополнительно потребуется</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Раздать стабильные роли операторам платформы</td>
+<td>RBAC; для Kubernetes API - Kubernetes RBAC</td>
+<td>Отдельные правила бизнес-действий, которые Kubernetes API не видит</td>
+</tr>
+<tr>
+<td>Вычислять доступ через owner, team, tenant и родительские объекты</td>
+<td>ReBAC; например OpenFGA</td>
+<td>Корректное обновление отношений, подходящая согласованность чтения, условия конкретной операции</td>
+</tr>
+<tr>
+<td>Учитывать среду, тип действия и другие атрибуты запроса</td>
+<td>Типизированная policy в Cedar или правила OPA</td>
+<td>Доверенные данные, интеграция enforcement, тесты и обработка недоступности</td>
+</tr>
+<tr>
+<td>Исполнить узкое разрешение без раскрытия upstream secret Task</td>
+<td>Broker и специализированный tool gateway</td>
+<td>Проверка аргументов, защита от обхода, жизненный цикл разрешений и результат операции</td>
+</tr>
+</tbody>
+</table>
+<p>OpenFGA удобен там, где доступ следует из графа отношений: пользователь состоит в команде, команда владеет пространством, ресурс принадлежит этому пространству. Модель и tuples задают смысл этих отношений. Сервис приложения всё равно должен связать результат проверки с конкретной операцией и обработать изменение отношений за время ожидания. <a href="https://openfga.dev/docs/authorization-concepts">OpenFGA: authorization concepts</a></p>
+<p>OPA отделяет вычисление policy от её enforcement в приложении. Аналогичное разделение полезно и без отдельного продукта: <strong>PDP</strong> принимает решение, <strong>PEP</strong> не пропускает действие без допустимого решения, а источники атрибутов поставляют необходимые факты. Названия помогают распределить ответственность, но установка PDP не добавляет PEP во все API автоматически. <a href="https://www.openpolicyagent.org/docs/philosophy">OPA: philosophy</a></p>
+<p>В нашем publisher PEP находится перед записью, вне управляемого моделью Task. Он принимает только известную операцию, загружает права и approval и использует credential целевого хранилища. Task не должен иметь другой credential или сетевой маршрут, позволяющий выполнить ту же запись напрямую. Downstream credential желательно ограничить средствами самой целевой системы. Если она умеет только широкий service credential, gateway остаётся доверенным посредником с широкими правами: нельзя называть этот credential однооперационным только потому, что перед ним стоит узкая policy.</p>
+<p>Условия исполнения также требуют явной реализации. Если решение PDP говорит «допустимо после approval», middleware должен обеспечить это условие до вызова executor. Библиотека, вернувшая <code>allow</code>, не создаст workflow согласования, транзакцию claim или проверку целевой ревизии вместо приложения.</p>
+<h2>Что именно подтверждает человек</h2>
+<p>В примере с <code>billing</code> человек принимает риск продвижения определённого кандидата в основную ветку. Чтобы решить осмысленно, Борису нужны четыре группы сведений: что изменится, почему это предлагают, какие проверки действительно выполнены и что делать при нежелательном результате.</p>
+<p>Экран может начинаться так:</p>
 <blockquote>
-<p>Identity называет действующее лицо. Policy ограничивает допустимое. Approval принимает конкретный риск. Credential переносит минимальную authority к месту исполнения.</p>
+<p><strong>billing · основная ветка · публикация кандидата B.</strong> Сейчас ветка указывает на A. Предложение относится к задаче Алисы и будет исполнено publisher. Изменяются расчёт округления и два теста. Проверки выполнены для B; подробности и источник результатов доступны отдельно. Если ветка уйдёт с A или кандидат изменится, потребуется новое согласование. Разрешение действует до указанного времени. После публикации сервис проверит целевую ссылку; откат оформляется отдельным контролируемым изменением.</p>
 </blockquote>
-<h2>Карта identities агентной системы</h2>
-<p>У одного действия редко бывает только одна identity.</p>
-<table>
-<thead>
-<tr>
-<th>Identity</th>
-<th>Что она обозначает</th>
-<th>Жизненный цикл</th>
-<th>Что нельзя с ней делать</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Human / service initiator</td>
-<td>кто поставил цель</td>
-<td>user session или service request</td>
-<td>превращать в общий runtime token</td>
-</tr>
-<tr>
-<td>Root job / session</td>
-<td>один запуск бизнес-задачи</td>
-<td>от enqueue до финального outcome</td>
-<td>переиспользовать между независимыми jobs</td>
-</tr>
-<tr>
-<td>Task / Actor workload</td>
-<td>конкретный изолированный runtime</td>
-<td>create/resume/suspend/delete</td>
-<td>считать равным инициатору</td>
-</tr>
-<tr>
-<td>Child agent</td>
-<td>делегированную подзадачу и scope</td>
-<td>короче parent task</td>
-<td>автоматически наследовать все права parent</td>
-</tr>
-<tr>
-<td>Harness / coordinator</td>
-<td>компонент, который строит plan и вызывает tools</td>
-<td>deployment/runtime instance</td>
-<td>принимать собственный model output за grant</td>
-</tr>
-<tr>
-<td>Tool executor / gateway</td>
-<td>trusted component, делающий side effect</td>
-<td>service identity + operation</td>
-<td>выполнять unvalidated free-form arguments</td>
-</tr>
-<tr>
-<td>Approver</td>
-<td>кто имеет право принять риск</td>
-<td>отдельная authenticated session</td>
-<td>подтверждать действие без target и diff</td>
-</tr>
-<tr>
-<td>Resource owner</td>
-<td>кто отвечает за target и policy</td>
-<td>организационный lifecycle</td>
-<td>подменять identity фактического исполнителя</td>
-</tr>
-</tbody>
-</table>
-<p>Audit event должен связывать эти identities, а не схлопывать их в поле <code>user</code>. Для запроса полезны как минимум:</p>
-<ul>
-<li><code>subject</code> - от чьего имени выполняется работа;</li>
-<li><code>actor</code> - кто сейчас действует;</li>
-<li><code>root_job_id</code>, <code>task_id</code>, <code>parent_task_id</code>;</li>
-<li><code>tool_executor</code> и его workload identity;</li>
-<li><code>approver</code> и assurance level его сессии;</li>
-<li><code>resource_owner</code> и policy domain.</li>
-</ul>
-<p>Это различие особенно важно для multi-agent. Root coordinator может иметь право создать child, но child не должен получать токен coordinator. Он получает новую identity и более узкий grant.</p>
-<h2>Authorization request как контракт</h2>
-<p>Практичная модель запроса близка к PARC: principal, action, resource, context.</p>
-<table>
-<thead>
-<tr>
-<th>Часть</th>
-<th>Пример</th>
-<th>Источник истины</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Principal</td>
-<td><code>task:incident-742/child-3</code></td>
-<td>workload identity / broker</td>
-</tr>
-<tr>
-<td>Subject</td>
-<td><code>user:alice@example.com</code></td>
-<td>IdP session или trusted job envelope</td>
-</tr>
-<tr>
-<td>Action</td>
-<td><code>network.prefix-list.update</code></td>
-<td>server-side tool catalog</td>
-</tr>
-<tr>
-<td>Resource</td>
-<td><code>router:edge-17/prefix-list:customers</code></td>
-<td>resolved object ID, не свободный текст модели</td>
-</tr>
-<tr>
-<td>Context</td>
-<td>prod, ticket, revision, risk, time, device posture</td>
-<td>authoritative systems и policy inputs</td>
-</tr>
-</tbody>
-</table>
-<p>Модель может предложить action и human-readable reason. Она не должна самостоятельно определять principal, нормализованный resource ID или policy context. Эти поля собирает trusted harness или gateway.</p>
-<p>Пример внутреннего запроса:</p>
+<p>В настоящем интерфейсе A и B заменяются полными устойчивыми идентификаторами с удобным сокращением и просмотром полного значения. Указание «проверки прошли» должно вести к проверенному источнику и конкретному кандидату. Если runner или evidence store не доверены, экран сообщает этот предел; уверенная формулировка модели не улучшает происхождение доказательства.</p>
+<p style="break-inside:avoid-page;break-after:avoid-page">Согласование связывается с записью примерно такого вида:</p>
 <pre><code class="language-json">{
-  "subject": "user:alice@example.com",
-  "actor": "task:incident-742/child-3",
-  "action": "network.prefix-list.update",
-  "resource": "router:edge-17/prefix-list:customers",
-  "context": {
-    "environment": "production",
-    "ticket": "INC-742",
-    "current_revision": 481,
-    "proposal_digest": "sha256:...",
-    "risk": "high"
-  }
+  &quot;schema&quot;: 1,
+  &quot;subject&quot;: &quot;human:alice&quot;,
+  &quot;actor&quot;: &quot;task:publisher&quot;,
+  &quot;grant_id&quot;: &quot;grant-1&quot;,
+  &quot;audience&quot;: &quot;billing-publisher&quot;,
+  &quot;action&quot;: &quot;candidate.promote&quot;,
+  &quot;resource&quot;: &quot;repo:billing-uid/ref:refs/heads/main&quot;,
+  &quot;expected&quot;: &quot;A&quot;,
+  &quot;candidate&quot;: &quot;B&quot;,
+  &quot;approver&quot;: &quot;human:boris&quot;,
+  &quot;policy_version&quot;: 1,
+  &quot;expires_at&quot;: &quot;2026-10-16T12:30:00Z&quot;
 }
 </code></pre>
-<p>Не передавайте в policy engine весь prompt и не заставляйте его интерпретировать natural language. Authorization должна работать над типизированными полями с однозначной семантикой.</p>
-<h2>Делегирование: child получает меньше, а не копию parent</h2>
-<p>Agent delegation означает передачу части authority другому actor. Без явной модели делегирования команда часто делает самое опасное: копирует parent environment вместе с tokens.</p>
-<p>Безопасное делегирование обладает свойством attenuation - каждый следующий grant не шире предыдущего:</p>
-<ul>
-<li>меньше actions;</li>
-<li>меньше resources;</li>
-<li>более узкий audience;</li>
-<li>короче TTL;</li>
-<li>меньший budget;</li>
-<li>меньшая допустимая глубина spawn;</li>
-<li>запрет дальнейшей delegation, если она не нужна;</li>
-<li>обязательные conditions, например ticket, revision или approval ID.</li>
-</ul>
-<p>Для child, который проверяет BGP diff, достаточно <code>read route</code>, <code>read candidate</code> и <code>run validation</code>. Ему не нужен <code>apply</code>, credential от production controller или право создавать ещё десять children.</p>
-<p>OAuth 2.0 Token Exchange описывает различие subject и actor и позволяет представить delegation chain через <code>act</code> claim. Это полезная модель, даже если конкретная платформа использует SPIFFE или собственные signed capabilities. Важно не название protocol, а свойства выдачи:</p>
-<ol>
-<li>Broker проверяет parent identity и право делегировать.</li>
-<li>Запрошенный scope пересекается с parent scope, а не заменяет его.</li>
-<li>Новый token привязан к downstream audience.</li>
-<li>Token короткоживущий и, по возможности, proof-of-possession.</li>
-<li>Audit сохраняет subject, current actor и root chain.</li>
-<li>Revocation root job прекращает выдачу новых grants descendants.</li>
-</ol>
-<h3>Delegation и impersonation - не одно и то же</h3>
-<p>При delegation downstream видит subject и actor: сервис действует от имени Alice, но фактический actor - Task 742. При impersonation сервис выглядит как Alice. Для agent platform delegation предпочтительнее: она сохраняет accountability и позволяет policy ограничить machine actor сильнее человека.</p>
-<h2>Как выбрать policy model</h2>
-<p>Одного универсального механизма нет. Обычно production-система комбинирует несколько моделей.</p>
-<table>
-<thead>
-<tr>
-<th>Модель</th>
-<th>Когда подходит</th>
-<th>Сильная сторона</th>
-<th>Где ломается</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>RBAC</td>
-<td>немного стабильных ролей: platform-admin, operator, viewer</td>
-<td>проста для human governance</td>
-<td>role explosion, слабая привязка к object/context</td>
-</tr>
-<tr>
-<td>ABAC / policy-as-code</td>
-<td>решение зависит от environment, risk, time, labels, revision</td>
-<td>выражает request context и conditions</td>
-<td>сложнее объяснять и тестировать, нужен надёжный PIP</td>
-</tr>
-<tr>
-<td>ReBAC</td>
-<td>права следуют отношениям owner/editor/viewer, tenant, parent-child</td>
-<td>object-level access и наследование</td>
-<td>не заменяет runtime conditions и approval semantics</td>
-</tr>
-<tr>
-<td>Capability / scoped grant</td>
-<td>конкретному executor нужен узкий временный доступ</td>
-<td>минимальная authority рядом с side effect</td>
-<td>требует broker, lifecycle и защиты от replay</td>
-</tr>
-</tbody>
-</table>
-<p>Практический выбор:</p>
-<ul>
-<li>Kubernetes RBAC оставьте для platform operators и service accounts, которые управляют Kubernetes resources. Не используйте ClusterRole как authorization model бизнес-действий агента.</li>
-<li>OpenFGA или SpiceDB удобны, когда вопрос звучит как «имеет ли этот principal отношение owner/editor/viewer к этому tenant/object через граф родителей?»</li>
-<li>Cedar или OPA удобны, когда решение зависит от типизированного request context, risk tier, environment, maintenance window и approval obligations.</li>
-<li>Credential broker или tool gateway нужен у точки side effect, чтобы превратить решение policy в короткоживущую capability и не раскрывать upstream secret Task.</li>
-</ul>
-<p>Эти инструменты дополняют друг друга. ReBAC может установить, что Alice - editor atespace. Context policy проверит, что действие production и требует approval. Broker выдаст executor одноразовый grant только на нужный target.</p>
-<h2>PDP, PEP, PIP и broker</h2>
-<p>Zero Trust Architecture разделяет принятие решения и его исполнение.</p>
-<ul>
-<li><strong>Policy Decision Point (PDP)</strong> вычисляет allow/deny и obligations.</li>
-<li><strong>Policy Enforcement Point (PEP)</strong> блокирует operation, если действительного решения нет.</li>
-<li><strong>Policy Information Point (PIP)</strong> поставляет authoritative attributes: ownership, environment, current revision, incident state.</li>
-<li><strong>Credential broker</strong> выдаёт или добавляет downstream credential после успешной проверки.</li>
-</ul>
-<p>Для agent system PEP должен находиться в tool gateway или непосредственно перед target API. Проверка только внутри prompt, harness или UI слишком далеко от side effect: скомпрометированный Task может обойти её прямым network call.</p>
-<p>Хороший policy decision содержит не только <code>allow=true</code>, но и:</p>
-<ul>
-<li>principal и normalized resource;</li>
-<li>разрешённую operation и argument constraints;</li>
-<li>policy version и decision ID;</li>
-<li>expiry;</li>
-<li>obligations: approval, logging, rate limit, post-verification;</li>
-<li>reason codes, пригодные для audit и UX.</li>
-</ul>
-<p>PDP не должен выполнять action. Executor не должен самовольно расширять policy. PIP не должен доверять caller-supplied labels, если может получить их из authoritative store.</p>
-<h2>Что реально есть в AX и Substrate сейчас</h2>
-<h3>AX: atespace пока не является security boundary</h3>
-<p>В проверенном AX snapshot <code>ac233282</code> gRPC server создаётся без transport credentials и authn/authz interceptors. Caller-supplied atespace участвует в адресации resources, но сам по себе не доказывает tenant identity. Issue #376 отдельно фиксирует отсутствие control-plane authentication и authorization.</p>
-<p>Следствие: перед production или multi-tenant использованием AX нужен внешний authenticated perimeter, object-level authorization и network isolation control plane. Нельзя строить approval service поверх AX API и считать, что прямой доступ к AX уже закрыт.</p>
-<h3>Substrate: authentication реализована, authorization экспериментальна</h3>
-<p>В snapshot <code>36d6d222</code> <code>ate-api</code> требует authentication и принимает:</p>
-<ul>
-<li>mTLS client certificate, используя первый URI SAN как principal;</li>
-<li>bearer JWT от настроенного OIDC issuer с проверяемой audience.</li>
-</ul>
-<p>В source также есть OpenFGA authorization stack, роли <code>owner</code>, <code>editor</code>, <code>viewer</code>, global и atespace relationships, per-RPC registry и флаг <code>--experimental-enable-authz</code>. AccessPolicy governance checks выполняются даже при выключенном общем enforcement, чтобы caller не подготовил себе grant до включения режима.</p>
-<p>Но <code>docs/authentication.md</code> на том же snapshot всё ещё говорит, что authorization/RBAC не реализованы и authenticated providers следует считать полноправными операторами control plane. Это не повод игнорировать код и не повод объявлять RBAC production-ready. Это признак переходного состояния.</p>
-<p>Перед security claim проверьте конкретный image digest и deployment:</p>
-<ol>
-<li>Собран ли binary из ожидаемого commit.</li>
-<li>Включён ли <code>--experimental-enable-authz</code>.</li>
-<li>Заданы ли bootstrap owners и кто способен изменить эту конфигурацию.</li>
-<li>Есть ли rule для каждого используемого RPC.</li>
-<li>Соответствуют ли stored AccessPolicy и OpenFGA tuples ожидаемому graph.</li>
-<li>Проходят ли negative tests между atespaces.</li>
-<li>Что происходит при недоступности policy store.</li>
-</ol>
-<p>Substrate также строит actor identity для data plane: использует SPIFFE identities, умеет выпускать actor JWT/certificate и поддерживает egress credential injection, где secret добавляет gateway, а Actor видит только placeholder. Эти механизмы полезны для downstream access, но не являются человеческим approval workflow.</p>
-<h2>Human-in-the-loop: человек нужен не на каждом шаге</h2>
-<p>Если просить approve каждый tool call, оператор быстро начнёт подтверждать не читая. Approval fatigue превращает человека в медленный автомат и ухудшает безопасность.</p>
-<p>Approval ставят на переход authority, а не на количество шагов. Полезные сигналы:</p>
-<table>
-<thead>
-<tr>
-<th>Фактор</th>
-<th>Низкий риск</th>
-<th>Высокий риск</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Impact</td>
-<td>локальный artifact</td>
-<td>production availability, money, identity</td>
-</tr>
-<tr>
-<td>Reversibility</td>
-<td>простой rollback</td>
-<td>потеря данных или внешний irreversible effect</td>
-</tr>
-<tr>
-<td>Scope</td>
-<td>один test object</td>
-<td>fleet, tenant, shared control plane</td>
-</tr>
-<tr>
-<td>Uncertainty</td>
-<td>typed operation и проверенный diff</td>
-<td>ambiguous target или слабая диагностика</td>
-</tr>
-<tr>
-<td>Sensitivity</td>
-<td>public/read-only data</td>
-<td>secrets, PII, signing material</td>
-</tr>
-<tr>
-<td>Novelty</td>
-<td>известный playbook</td>
-<td>новый tool, policy или target class</td>
-</tr>
-<tr>
-<td>Delegation</td>
-<td>direct operator request</td>
-<td>длинная chain или autonomous child</td>
-</tr>
-</tbody>
-</table>
-<p>Рабочая taxonomy:</p>
-<table>
-<thead>
-<tr>
-<th>Класс</th>
-<th>Пример</th>
-<th>Default</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Read-only</td>
-<td>logs, metrics, route lookup</td>
-<td>auto при scoped identity</td>
-</tr>
-<tr>
-<td>Bounded reversible write</td>
-<td>создать branch, обновить test object</td>
-<td>policy allow + automatic verification</td>
-</tr>
-<tr>
-<td>High-impact write</td>
-<td>production firewall, BGP policy, deploy</td>
-<td>explicit approval + separation of duties</td>
-</tr>
-<tr>
-<td>Destructive / irreversible</td>
-<td>wipe data, root PKI revoke</td>
-<td>отдельная процедура или запрет agent execution</td>
-</tr>
-</tbody>
-</table>
-<p>Human-on-the-loop подходит там, где действие автоматизировано, но человек наблюдает SLO и способен быстро остановить систему. Human-in-the-loop нужен, когда каждое конкретное действие должно дождаться решения. Human-out-of-the-loop допустим для низкого риска с сильными limits и recovery. Выбор определяется impact и time-to-intervene, а не маркетинговым уровнем автономности.</p>
-<h2>Approval должен подтверждать immutable action</h2>
-<p>Approval «продолжить» ничего не связывает. Между экраном и executor должны совпасть normalized action, target, arguments и preconditions.</p>
-<p>Минимальный approval object:</p>
-<pre><code class="language-yaml">approvalId: apr-0194
-subject: user:alice@example.com
-actor: task:incident-742/child-3
-action: network.prefix-list.update
-resource: router:edge-17/prefix-list:customers
-argumentsDigest: sha256:...
-expectedDiffDigest: sha256:...
-preconditions:
-  currentRevision: 481
-  incident: INC-742
-risk: high
-requiredApproverRole: network-prod-approver
-policyVersion: net-policy-87
-expiresAt: 2026-10-08T09:15:00Z
-singleUse: true
-idempotencyKey: op-7f81
+<p>Это иллюстрация полей, не полный production-формат. В локальной программе A и B представлены 64 hex-символами, а время - целыми значениями для воспроизводимости. В приложении нужно также связать ticket, evidence и иные данные, на основании которых человек принимает решение, если их изменение влияет на допустимость действия. Например, новый результат проверки, отменяющий прежний, должен инвалидировать решение или приводить к повторной оценке, а не оставаться незамеченным приложением к старому approval.</p>
+<p>При изменении кандидата создаётся новое предложение. Если Борис поправил аргументы на экране, он подтверждает уже новую нормализованную операцию. Интерфейс и executor должны читать одну сохранённую версию: отдельно отрисованный summary и отдельно изменяемые arguments позволяют согласовать одно, а выполнить другое.</p>
+<h3>Digest связывает содержимое, но не удостоверяет автора</h3>
+<p>Для неизменяемого предложения удобно считать digest канонического представления. Требуется определить схему, допустимые поля, значения по умолчанию, единицы и кодировку. Просто сортировать ключи произвольного JSON недостаточно: разные типы чисел, повторяющиеся ключи или несовпадающие правила нормализации могут изменить смысл. В нашем примере схема намеренно мала: фиксированные идентификаторы и два значения из 64 строчных hex-символов.</p>
+<p>Хеш отвечает на вопрос о совпадении содержимого. Если атакующий переписал и payload, и лежащий рядом хеш, проверка их соответствия пройдёт. Поэтому proposal и approval хранятся в доверенном сервисе с контролем изменений либо удостоверяются подписью/MAC с надлежащей проверкой и управлением ключами. Поле <code>approved=true</code> из запроса Task не является approval.</p>
+<h3>Когда ставить человека в цикл</h3>
+<p>Место approval определяется последствиями действия и возможностью человека на них повлиять. В <code>billing</code> чтение разрешённого diff можно автоматизировать, а обновление основной ветки - поставить на согласование по правилам команды. При этом чтение закрытых персональных данных или передача их внешнему сервису тоже может быть высокорисковым действием: отсутствие записи не означает отсутствие ущерба.</p>
+<p>Human-in-the-loop означает, что конкретный переход ждёт решения. Human-on-the-loop подходит, когда действие может происходить автоматически, а оператор успевает заметить отклонение и остановить дальнейший ущерб. Для необратимой отправки денег возможность увидеть alert после записи уже не заменяет предварительное решение. Автоматическое выполнение без участия человека уместно там, где policy, лимиты и восстановление соответствуют принятому риску.</p>
+<p>Separation of duties задаётся правилами организации. В учебной модели инициатор и approver должны быть разными людьми, а Task не входит в список approvers. Для критичного изменения могут потребоваться два независимых подтверждения. Количество кнопок само по себе не обеспечивает независимость: если обе роли контролирует одна скомпрометированная сессия, разделения нет.</p>
+<p>Человеку также нужны нормальный отказ и понятный путь исправить предложение. Если отказ останавливает работу без объяснения, а approve постоянно требует читать десятки бессодержательных полей, интерфейс подталкивает к формальному согласию. Показывайте конкретный diff, существенные риски и происхождение evidence; журнальные идентификаторы оставляйте доступными, но не делайте их главным содержимым экрана.</p>
+<h2>Между approval и записью проходит время</h2>
+<p>Пока Борис смотрел diff, Алиса могла отозвать задачу, политика - измениться, а другая публикация - обновить ветку. Действие надо оценить ещё раз по текущим данным. В нашем примере новая версия policy консервативно инвалидирует approval целиком. Production-сервис может определить более точные правила совместимости, но должен уметь их объяснить и проверить.</p>
+<p>Publisher загружает действующий grant и его цепочку, проверяет actor и audience, затем сверяет точное предложение, срок, статус approval и актуальное право approver. После этого он атомарно занимает разрешение - делает <strong>claim</strong>. Два конкурентных исполнителя не должны оба перейти из <code>approved</code> в <code>claimed</code>. Для надёжного сервиса это условная запись или транзакция в устойчивом хранилище, а не независимые операции «прочитать статус» и «поменять статус».</p>
+<p>Claim означает, что одна попытка получила право начать исполнение. Между ним и внешней записью остаётся граница. Если publisher упал, система должна знать, было ли действие отправлено, можно ли безопасно повторить его и где искать результат. Одноразовое approval блокирует повторный claim, но <strong>не обеспечивает exactly-once во внешней системе</strong>. Механика восстановления из глав 22 и 37 нужна отдельно.</p>
+<h3>Проверка версии должна дойти до целевой записи</h3>
+<p>Проверить «ветка всё ещё A» и затем отправить безусловную запись недостаточно: другой клиент может изменить ветку между этими вызовами. Это time-of-check to time-of-use, TOCTOU. Защита требует условной операции, которая проверит ожидаемую версию в той же точке, где применяется изменение. При несовпадении publisher прекращает эту попытку и возвращает задачу к новому предложению.</p>
+<p>Нужно выяснить, какие именно условия поддерживает конкретный API. Например, параметр <code>sha</code> в GitHub merge API проверяет head pull request; из него нельзя заключить, что та же операция сравнивает согласованную base revision. Требования к base, merge queue и branch protection проектируются с учётом реальных возможностей платформы. Если API не позволяет атомарно обеспечить необходимое условие, дополнительный GET не создаст эту гарантию: нужен другой путь записи, подходящая сериализация всех writers или более узкое обещание пользователю. <a href="https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request">GitHub: merge a pull request</a></p>
+<p>После успешного ответа сервис отдельно проверяет целевое состояние. При timeout результат может быть неизвестен: запись уже произошла, а ответ потерялся. Поэтому нельзя возвращать approval в <code>approved</code> и бездумно повторять операцию. Сначала требуется reconciliation по authoritative состоянию и доступному operation ID; для некоторых API одного сравнения конечного значения недостаточно, чтобы доказать, какая попытка его установила.</p>
+<h3>Отзыв тоже имеет границу</h3>
+<p>Новый запрос должен увидеть отзыв root или approval. Но если claim уже выдан и запись принята target, последующий отзыв не удалит произошедшее изменение. Даже онлайн-проверка непосредственно перед отправкой оставляет промежуток до применения в другой системе. Строгое требование «после отзыва ни одна старая попытка не применится» потребует общей упорядоченной границы с target, например проверяемой им fencing epoch. Если её нет, в документации указывают момент, после которого операция считается начатой, и процедуру остановки/компенсации.</p>
+<p>Emergency, или break-glass, доступ также проектируют как отдельный путь: определённые операторы, короткий срок, ограниченный scope, причина, усиленный audit и последующий review. Он полезен при аварии штатного механизма, но должен оставлять проверяемые следы. Недоступность policy store не должна незаметно переключать обычный publisher на admin credential.</p>
+<h2>Локальный опыт: выдача прав, approval и условная публикация</h2>
+<p>Пример <code>examples/ch24_delegated_approval.py</code> использует только стандартную библиотеку Python. Он не обращается к GitHub, модели, AX или Substrate и не меняет файлы репозитория. Цель опыта - увидеть, на какой границе запрос отклоняется и изменилось ли состояние после попытки.</p>
+<p>У модели три части. <code>Authority</code> хранит root/child grants, разрешения approvers и approvals. <code>Operation</code> задаёт неизменяемый переход ссылки A → B. <code>FakeRef</code> - отдельная учебная цель с compare-and-set. Identity передаются как доверенные fixtures: программа <strong>не проверяет JWT, сертификаты и подлинность сессий</strong>. Хранилище и модель приложения находятся в одном процессе; это проверка логики, не security boundary для вредоносного Python-кода.</p>
+<p>Перед claim сервис проверяет живую цепочку grant и срок approval. Затем вызывается чистая функция, сверяющая загруженные записи:</p>
+<pre><code class="language-python">def authorize(grant, actor, operation, approval, policy_version, approvers):
+    &quot;&quot;&quot;Pure decision over records already loaded from trusted stores.&quot;&quot;&quot;
+    if actor.principal != grant.actor:
+        raise Denied(&quot;actor_mismatch&quot;)
+    if (operation.action, operation.resource) not in grant.rights:
+        raise Denied(&quot;scope_denied&quot;)
+    if (approval.grant_id, approval.subject, approval.actor, approval.audience) != (
+        grant.id, grant.subject, grant.actor, grant.audience
+    ):
+        raise Denied(&quot;approval_binding_mismatch&quot;)
+    if operation.digest() != approval.operation_digest:
+        raise Denied(&quot;proposal_changed&quot;)
+    if approval.policy_version != policy_version:
+        raise Denied(&quot;policy_changed&quot;)
+    if approval.approver == grant.subject or approval.approver not in approvers:
+        raise Denied(&quot;approver_denied&quot;)
 </code></pre>
-<p>Human-readable plan хранится рядом, но security binding строится по canonical representation. Canonicalization должна определять сортировку, регистр, default values, units и encoding. Иначе UI и executor могут вычислить разные digest для логически похожих payloads.</p>
-<h3>Защита от TOCTOU</h3>
-<p>Time-of-check to time-of-use возникает, когда approval выдан для revision 481, а к моменту execute target уже имеет revision 483. Executor обязан:</p>
-<ol>
-<li>Заново authenticated caller и approval claimant.</li>
-<li>Проверить expiry, single-use и status.</li>
-<li>Пересчитать digest из фактических normalized arguments.</li>
-<li>Повторить authorization с текущим policy context.</li>
-<li>Проверить resource UID/version или другой compare-and-swap precondition.</li>
-<li>Получить scoped credential только после этих проверок.</li>
-<li>Выполнить operation с idempotency key.</li>
-<li>Пометить approval consumed атомарно с claim или operation ledger.</li>
-</ol>
-<p>Если target, diff, risk, approver requirement или policy revision изменились существенно, создаётся новый proposal. Старое approval не «переносится» на похожее действие.</p>
-<h2>Lifecycle approval object</h2>
-<p>Полезная state machine:</p>
-<p><code>proposed -&gt; pending -&gt; approved | rejected | expired | superseded -&gt; claimed -&gt; executed -&gt; verified | failed | uncertain</code></p>
-<p>Состояние <code>uncertain</code> обязательно. Timeout после write не доказывает, что action не произошёл. В этом состоянии система запрещает слепой retry и сначала читает authoritative post-state или operation ledger.</p>
-<p>Approval service должен атомарно предотвращать:</p>
-<ul>
-<li>double execution;</li>
-<li>одновременный claim двумя executors;</li>
-<li>approve после expiry;</li>
-<li>изменение payload после approve;</li>
-<li>reuse approval другим Task;</li>
-<li>исполнение после revoke или supersede.</li>
-</ul>
-<h2>Separation of duties и break-glass</h2>
-<p>Для high-impact действий инициатор, approver и executor выполняют разные роли:</p>
-<ul>
-<li>Agent предлагает, но не approves.</li>
-<li>Approver принимает риск, но не меняет payload незаметно.</li>
-<li>Executor применяет только signed/hashed grant.</li>
-<li>Verifier независимо читает post-state.</li>
-</ul>
-<p>Для самых критичных операций полезны quorum или два разных policy domains: service owner подтверждает intent, security/network owner подтверждает blast radius.</p>
-<p>Break-glass не означает «выключить policy». Это отдельный короткоживущий путь с сильной authentication, узким scope, обязательной причиной, повышенным audit, alert и последующим review. Emergency access не должен становиться удобным обходом approval latency.</p>
-<h2>Каким должен быть approval UX</h2>
-<p>Человек способен принять решение только если видит релевантный context. Экран approval должен показывать:</p>
-<ul>
-<li>точный environment и target с устойчивым ID;</li>
-<li>before/after diff или normalized arguments;</li>
-<li>источник proposal и evidence;</li>
-<li>blast radius и затрагиваемые dependencies;</li>
-<li>policy reason: почему нужен человек;</li>
-<li>preconditions и freshness;</li>
-<li>план verification и rollback;</li>
-<li>expiry и признак single-use;</li>
-<li>identity инициатора, Task и фактического executor.</li>
-</ul>
-<p>Не прячьте critical fields в раскрывающийся JSON и не показывайте только natural-language summary модели. Summary помогает понять intent, но не является authoritative payload.</p>
-<p>Evidence тоже недоверенно. Ticket, repository text или tool result может содержать prompt injection, misleading links и Unicode spoofing. Approval UI должна явно отделять generated explanation от verified facts, нормализовать identifiers и не превращать текст модели в активные команды.</p>
-<h2>End-to-end pattern: observe -&gt; propose -&gt; authorize -&gt; approve -&gt; execute -&gt; verify</h2>
-<p>Разберём BGP incident полностью.</p>
-<h3>1. Observe</h3>
-<p>Read-only Task получает scoped доступ к telemetry. Он не имеет production write credential. Все reads связаны с incident и target domain.</p>
-<h3>2. Diagnose</h3>
-<p>Harness собирает evidence: expected route, current config revision, recent changes. Model формирует гипотезу, но authoritative facts поступают из controller и source-of-truth.</p>
-<h3>3. Propose</h3>
-<p>Trusted tool adapter преобразует предложение в typed operation. Target разрешается по inventory ID, diff нормализуется, вычисляется digest, оценивается blast radius.</p>
-<h3>4. Authorize</h3>
-<p>PDP проверяет subject, Task identity, action, resource, environment, delegation chain и policy. Решение требует <code>network-prod-approver</code>, потому что write влияет на production edge.</p>
-<h3>5. Approve</h3>
-<p>Approver видит точный diff, revision 481, validation result и rollback. Approval получает TTL и single-use binding к digest.</p>
-<h3>6. Execute</h3>
-<p>PEP повторяет policy check, сравнивает revision, claims approval и просит broker выдать credential только для <code>edge-17</code> и одной operation. Task этого credential не видит.</p>
-<h3>7. Verify</h3>
-<p>Отдельный read path проверяет config revision, route propagation и invariants. Успешный HTTP/gRPC response executor не считается outcome. Если verification не проходит, запускается controlled rollback или incident escalation.</p>
-<h2>Что и как тестировать</h2>
-<p>Authorization test suite должна включать отрицательные и race-сценарии.</p>
-<table>
+<p>Это часть executor, а не полная проверка запроса: загрузка доверенных данных, audience сервиса, expiry, отзыв и одноразовый claim находятся снаружи этой функции. Такое разделение позволяет проверить само правило независимо от способа хранения. Атомарность claim в модели обеспечивает один <code>Lock</code>; после перезапуска процесс потеряет записи. Production-хранилище и распределённая конкуренция здесь не реализованы.</p>
+<p style="break-inside:avoid-page;break-after:avoid-page">Запуск из корня репозитория:</p>
+<pre><code class="language-sh">python3 examples/ch24_delegated_approval.py
+python3 -m unittest discover -s examples -p 'test_ch24*.py' -v
+</code></pre>
+<p>Каждая строка демонстрации начинает с нового состояния. В <code>replay</code> сначала выполняется разрешённая публикация, затем делается повторная попытка. В <code>stale_target</code> отдельный callback меняет цель <strong>после claim</strong>, чтобы проверить защиту именно у записи. В <code>lost_reply</code> исключение возникает после изменения цели.</p>
+<table style="break-inside:avoid-page">
 <thead>
 <tr>
-<th>Проверка</th>
-<th>Ожидаемый результат</th>
+<th>Опыт</th>
+<th>Результат попытки</th>
+<th>Записей publisher</th>
+<th>Состояние approval</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>JWT валиден, audience чужая</td>
-<td>unauthenticated</td>
+<td><code>approved</code></td>
+<td><code>applied</code></td>
+<td>1</td>
+<td><code>applied</code></td>
 </tr>
 <tr>
-<td>Actor authenticated, но чужой atespace</td>
-<td>permission denied без утечки object details</td>
+<td><code>changed_candidate</code></td>
+<td><code>proposal_changed</code></td>
+<td>0</td>
+<td><code>approved</code></td>
 </tr>
 <tr>
-<td>Child запросил scope шире parent</td>
-<td>broker deny</td>
+<td><code>stale_target</code></td>
+<td><code>target_changed</code></td>
+<td>0</td>
+<td><code>precondition_failed</code></td>
 </tr>
 <tr>
-<td>Proposal изменён после approval</td>
-<td>digest mismatch, execute deny</td>
+<td><code>root_revoked</code></td>
+<td><code>grant_revoked_or_missing</code></td>
+<td>0</td>
+<td><code>approved</code></td>
 </tr>
 <tr>
-<td>Resource revision изменилась</td>
-<td>precondition failed, требуется новый proposal</td>
+<td><code>policy_changed</code></td>
+<td><code>policy_changed</code></td>
+<td>0</td>
+<td><code>approved</code></td>
 </tr>
 <tr>
-<td>Approval expired или revoked</td>
-<td>execute deny</td>
+<td><code>other_actor</code></td>
+<td><code>actor_mismatch</code></td>
+<td>0</td>
+<td><code>approved</code></td>
 </tr>
 <tr>
-<td>Два executors claim один approval</td>
-<td>ровно один получает grant</td>
+<td><code>approval_expired</code></td>
+<td><code>approval_expired</code></td>
+<td>0</td>
+<td><code>approved</code></td>
 </tr>
 <tr>
-<td>Timeout после write</td>
-<td>state <code>uncertain</code>, blind retry запрещён</td>
+<td><code>replay</code></td>
+<td><code>approval_unavailable</code></td>
+<td>1</td>
+<td><code>applied</code></td>
 </tr>
 <tr>
-<td>Policy store недоступен</td>
-<td>high-impact action fail closed</td>
+<td><code>lost_reply</code></td>
+<td><code>uncertain</code></td>
+<td>1</td>
+<td><code>uncertain</code></td>
 </tr>
 <tr>
-<td>Task обходит gateway прямым network call</td>
-<td>network deny</td>
-</tr>
-<tr>
-<td>Approver пытается подтвердить собственный high-risk request</td>
-<td>separation-of-duties deny</td>
-</tr>
-<tr>
-<td>Break-glass использован</td>
-<td>alert, короткий TTL, обязательный review evidence</td>
-</tr>
-<tr>
-<td>Verifier читает summary executor вместо target</td>
-<td>тест считается некорректным</td>
+<td><code>authority_down</code></td>
+<td><code>authority_unavailable</code></td>
+<td>0</td>
+<td><code>approved</code></td>
 </tr>
 </tbody>
 </table>
-<p>Дополнительно тестируйте policy coverage: каждый production RPC/tool method должен иметь зарегистрированное правило. Новый endpoint без policy обязан падать закрыто, а не становиться неявно разрешённым.</p>
-<h2>Метрики, которые покажут деградацию контроля</h2>
-<p>Глава 25 подробно разберёт observability, но approval и authorization должны сразу проектироваться с измерениями:</p>
-<ul>
-<li>allow/deny по policy, action и resource class;</li>
-<li>доля actions, потребовавших approval;</li>
-<li>approve/reject/expire/supersede;</li>
-<li>approval latency и time-to-execute;</li>
-<li>stale proposal и revision mismatch;</li>
-<li>double-claim attempts;</li>
-<li>break-glass frequency;</li>
-<li>uncertain outcomes после timeout;</li>
-<li>post-verification failures и rollbacks;</li>
-<li>child delegation depth и denied scope amplification.</li>
-</ul>
-<p>Высокий approve rate не доказывает безопасность. Он может означать rubber stamping. Полезнее смотреть на rejected proposals, изменённые планы, просроченные approvals, расхождения verification и качество policy automation.</p>
-<h2>Антипаттерны</h2>
-<ul>
-<li><strong>Один service account на всех агентов.</strong> Нельзя установить actor и ограничить blast radius.</li>
-<li><strong>Parent token копируется child.</strong> Делегирование превращается в privilege cloning.</li>
-<li><strong>Валидный JWT означает полный доступ.</strong> Authentication подменяет authorization.</li>
-<li><strong>Atespace или namespace считается tenant boundary.</strong> Имя resource не доказывает caller relationship.</li>
-<li><strong>Approval подтверждает prompt.</strong> Исполняется typed action, поэтому именно он должен быть связан digest.</li>
-<li><strong>Каждый tool call требует человека.</strong> Approval fatigue делает контроль формальным.</li>
-<li><strong>Approval проверяется только в UI.</strong> Прямой API path обходит решение.</li>
-<li><strong>Policy выполняется только перед ожиданием человека.</strong> После ожидания context и target могли измениться.</li>
-<li><strong>Executor использует admin secret.</strong> Scoped policy не ограничивает реальную downstream authority.</li>
-<li><strong>Успешный response равен outcome.</strong> Side effect проверяется по authoritative state.</li>
-<li><strong>Break-glass отключает audit.</strong> Emergency path требует больше evidence, а не меньше.</li>
-<li><strong>Экспериментальный authz объявлен готовым по наличию кода.</strong> Нужны flag, coverage, negative tests и failure-mode validation.</li>
-</ul>
+<p>Состояние <code>approved</code> в отклонённых до claim опытах означает сохранённую запись, а не пригодность разрешения сейчас: истёкший срок или отзыв снова запретят исполнение. Отдельный sweeper для смены таких статусов модель не реализует. Счётчик показывает записи publisher, не изменения стороннего writer: в <code>stale_target</code> цель уже изменилась, хотя publisher не сделал ни одной записи.</p>
+<p>Сначала сопоставьте <code>changed_candidate</code> и <code>stale_target</code>. В первом случае нарушена связь с человеческим решением; во втором человек согласовал прежний переход, но изменилась среда. Одной проверки digest для второго случая недостаточно. Затем сравните <code>replay</code> и <code>lost_reply</code>: одинаковое число записей соответствует разной известности результата. Это причина хранить состояние попытки отдельно от разрешения человека.</p>
+<p>Тесты дополнительно проверяют расширение scope, срока, audience и права дальнейшего делегирования, чтение без права публикации, самоодобрение, смену approver membership и двух конкурентных претендентов на один claim. Есть и тест ограничения: отзыв root после claim не останавливает уже разрешённую запись. В модели реальная аутентификация и криптографическая защита отсутствуют, durable recovery и live policy engine не тестируются. AX/Substrate стенд не запускается; доказательства совместимости этих систем опыт не даёт.</p>
+<h2>Как это соотносится с AX и Substrate</h2>
+<p>До этого мы проектировали control path приложения. Его нельзя считать встроенным свойством runtime только потому, что runtime умеет запускать Task или выдавать workload identity.</p>
+<h3>AX: внешний контроль нужен перед control plane</h3>
+<p>В AX <code>ac233282</code> стандартный <code>grpcServer()</code> создаёт <code>grpc.NewServer()</code> без встроенных transport credentials и authn/authz interceptors. В <code>GetTask</code> atespace берётся из запроса. Это подтверждает ограничение стандартного пути в закреплённом коде, но не описывает любой deployment: внешний proxy может добавлять защиту, и его конфигурацию нужно проверять отдельно. Caller-supplied atespace сам по себе не доказывает доступ к объекту. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX: server.go</a></p>
+<p>Практический вывод для издателя <code>billing</code>: отдельно защищают создание и управление Task, отдельно - доступ Task к publisher и бизнес-ресурсу. Approval над публикацией не закрывает прямой вход к AX control plane. Историческое обсуждение issue #376 полезно как контекст, а утверждения о конкретных методах нужно связывать с проверенным commit, как в главе 23.</p>
+<h3>Substrate: проверяем режим и покрытие, а не название функции</h3>
+<p>В Substrate <code>36d6d222</code> authentication подключена к unary и streaming gRPC. <code>apiauthn</code> сначала использует удостоверение mTLS peer с первым URI SAN; при его отсутствии проверяет bearer JWT через настроенного provider. Конфигурация OIDC задаёт issuer и audiences. На этом же снимке присутствуют модель OpenFGA, отношения owner/editor/viewer и экспериментальный флаг <code>--experimental-enable-authz</code>, по умолчанию выключенный. Для его включения требуется хотя бы один bootstrap owner. <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/main.go">Substrate: main.go</a>, <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/apiauthn/apiauthn.go">apiauthn.go</a></p>
+<p>Нужна важная точность: <code>authz.UnaryServerInterceptor</code> проверяет зарегистрированные правила. Если метод отсутствует в registry, interceptor передаёт запрос handler <strong>даже при включённом enforcement</strong>. Это не означает доступ без authentication: она подключена ранее, и handler может иметь собственные проверки. Но гарантии «новый RPC без правила автоматически запрещён» здесь нет. Ветка bypass также существует; её доступность и назначение входят в проверку доверенных путей. <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/interceptor.go">Substrate: authz/interceptor.go</a></p>
+<p>Правила AccessPolicy в registry отмечены <code>alwaysEnforce</code> и проверяются даже при выключенном общем enforcement. Вместе с тем <code>docs/authentication.md</code> на том же commit ещё сообщает об отсутствии authorization/RBAC. Это расхождение между документацией и экспериментальной реализацией, а не основание считать все вызовы защищёнными или объявлять весь код отсутствующим. Для своего образа надо сверить flag, bootstrap owners, registry, streaming/внутренние пути и реальные отрицательные тесты между ресурсами. <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/registry.go">Substrate: registry.go</a>, <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/authentication.md">authentication.md</a></p>
+<p>Egress credential injection решает другую часть задачи: gateway заменяет placeholder в исходящем разрешённом HTTP/HTTPS-запросе настоящим credential. Это позволяет не хранить secret в Actor, но ещё не связывает запрос с approval Алисы или Бориса. И Actor может пользоваться authority инъецируемого credential, даже не видя его байтов. Поэтому разрешённый hostname, path и операция должны соответствовать делегированию. Широкий secret за gateway остаётся широким secret; human approval workflow добавляет приложение. <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/egress-credential-injection.md">Substrate: egress credential injection</a></p>
+<h2>Что проверить перед реальной интеграцией</h2>
+<p>Перенос модели в сервис начинают с <strong>одной</strong> операции и положительного контроля: законный вызов должен действительно изменить учебную цель. После этого проверяют отказы с наблюдением post-state, а не только текста ошибки. Для нашего сценария это чужой actor/репозиторий, child без write, подмена кандидата после согласования, истёкшее approval, отзыв root, смена policy и недоступное хранилище прав. Прямой путь к target должен проверяться отдельно от корректного gateway-вызова.</p>
+<p>Следующий шаг - конкуренция и отказы между системами. Два экземпляра publisher пытаются занять одно approval; процесс завершается после claim; целевая запись проходит, а ответ теряется; права отзывают во время выполнения. У каждого опыта заранее задают допустимый результат и источник доказательства. Набор тестов локальной программы помогает сформулировать эти проверки, но не заменяет их на настоящем backend.</p>
+<p>Сразу определите, какие события попадут в audit: initiator/actor/executor, grant и его родитель, digest предложения, approver, версия policy, claim, внешний operation ID, известность результата и verification. Credential, сырой JWT и приватный reasoning в эти события не нужны. Решение <code>allow</code> свидетельствует о допуске, <code>claimed</code> - о начале попытки, receipt от target - о принятом действии, независимая проверка - о наблюдаемом результате. Эти факты полезно сохранять раздельно.</p>
 <h2>Итог</h2>
-<p>Безопасный agent не получает «права пользователя». Он получает короткую цепочку доказуемого делегирования. Human или service формулирует цель, Task действует под собственной workload identity, child получает attenuated scope, PDP проверяет principal-action-resource-context, approval связывается с immutable action, а PEP рядом с side effect выдаёт executor минимальную capability.</p>
-<p>Human-in-the-loop полезен только там, где человек видит конкретный риск и способен принять осмысленное решение. Он не исправляет широкие credentials, слабую isolation или неструктурированный tool call. Правильная архитектура делает низкорисковые действия автоматическими, high-impact действия проверяемыми, а запрещённые действия технически недоступными.</p>
-<p>Для current AX нужно внешнее control-plane authn/authz. В current Substrate authentication уже реальна, а OpenFGA authorization находится в экспериментальном переходе и требует проверки конкретного deployment. Ни продукт, ни роль, ни approval сами по себе не создают гарантию. Гарантия появляется только тогда, когда identity, policy, grant, execution и verification образуют непрерывный проверяемый путь.</p>
-<p>Следующая глава покажет, как сделать этот путь наблюдаемым: связать user goal, Task/Actor, policy decision, approval, tool call, model request и внешний side effect общей correlation identity без утечки secrets и скрытого reasoning.</p>
-<h3>Источники и дальнейшее чтение</h3>
+<p>Для публикации исправления мало узнать Алису и показать Борису кнопку. Нужна непрерывная связь: доверенная identity → ограниченное делегирование → конкретное предложение → решение уполномоченного человека → актуальная проверка → claim → условная запись → проверенный результат. У каждого перехода есть свой источник истины и свой предел гарантии.</p>
+<p>Начать можно с небольшого gateway и одной хорошо описанной операции. Затем выбирать policy engine, broker и хранилище исходя из числа отношений, нужной согласованности, требований к отзыву и характера внешних side effects. Это делает выбор инструментов следствием задачи. Следующая глава разберёт, как увидеть этот путь целиком: отличить ожидание approval от зависшего runtime, отказ policy от сбоя инструмента и принятый вызов от достигнутого результата.</p>
+<div class="sources" style="margin-top:3mm;padding:2mm 3mm;font-size:8.4pt;line-height:1.25"><h3 style="margin-top:0">Источники и дальнейшее чтение</h3>
 <ul>
-<li><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/authentication.md">Substrate authentication на снимке 36d6d222</a></li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/model.fga">Substrate experimental OpenFGA authorization model</a></li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/main.go">Substrate ate-api wiring: authentication и experimental authz flag</a></li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/egress-credential-injection.md">Substrate egress credential injection</a></li>
-<li><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX server на снимке ac233282</a></li>
-<li><a href="https://github.com/google/ax/issues/376">AX issue #376: control-plane authentication и authorization</a></li>
-<li><a href="https://csrc.nist.gov/pubs/sp/800/207/a/final">NIST SP 800-207A: identity-based access control для cloud-native systems</a></li>
-<li><a href="https://www.rfc-editor.org/rfc/rfc8693.html">RFC 8693: OAuth 2.0 Token Exchange и delegation chain</a></li>
-<li><a href="https://openfga.dev/">OpenFGA: relationship-based fine-grained authorization</a></li>
-<li><a href="https://docs.cedarpolicy.com/auth/authorization.html">Cedar authorization request: principal, action, resource, context</a></li>
-<li><a href="https://genai.owasp.org/llmrisk/llm062025-excessive-agency/">OWASP LLM06:2025 Excessive Agency</a></li>
-<li><a href="https://airc.nist.gov/airmf-resources/airmf/5-sec-core/">NIST AI RMF Core: роли и процессы human oversight</a></li>
+<li style="margin:.3mm 0"><a href="https://www.rfc-editor.org/rfc/rfc8725.html">JWT BCP: RFC 8725</a></li>
+<li style="margin:.3mm 0"><a href="https://www.rfc-editor.org/rfc/rfc8693.html">Token Exchange: RFC 8693</a></li>
+<li style="margin:.3mm 0"><a href="https://docs.cedarpolicy.com/auth/authorization.html">Cedar: authorization</a> · <a href="https://openfga.dev/docs/authorization-concepts">OpenFGA: concepts</a> · <a href="https://www.openpolicyagent.org/docs/philosophy">OPA: philosophy</a></li>
+<li style="margin:.3mm 0"><a href="https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request">GitHub: merge API</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX ac233282: server.go</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/main.go">Substrate 36d6d222: wiring</a> · <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/apiauthn/apiauthn.go">authn</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/interceptor.go">Substrate: authz interceptor</a> · <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/registry.go">registry</a> · <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/cmd/ateapi/internal/authz/model.fga">model</a></li>
+<li style="margin:.3mm 0"><a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/authentication.md">Substrate: authentication docs</a> · <a href="https://github.com/agent-substrate/substrate/blob/36d6d222a04051cbe05e6877e67bf13498cc558d/docs/egress-credential-injection.md">credential injection</a></li>
 </ul>
-</section><section class="chapter" id="ch-25"><div class="chapter-num">Глава 25</div><h1>Observability: от user goal до подтверждённого результата</h1><blockquote>
+</div></section><section class="chapter" id="ch-25"><div class="chapter-num">Глава 25</div><h1>Observability: от user goal до подтверждённого результата</h1><blockquote>
 <p>Снимок главы: <strong>AX main <code>ac233282</code> · Substrate main <code>df788825</code> · проверено 2026-10-08</strong>. Реализованные возможности и целевая архитектура ниже разделены явно.</p>
 </blockquote>
 <p>Пользователь пишет: «агент завис». На одном dashboard CPU свободен. В логах модели последний запрос завершился успешно. Actor числится <code>RUNNING</code>. Инструмент вернул HTTP 200. Каждая подсистема по отдельности выглядит здоровой, но результата нет.</p>
