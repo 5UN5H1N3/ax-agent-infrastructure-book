@@ -1,128 +1,195 @@
 # Приложение A. Аудит проектов и выявленные расхождения
 
-Инженер открывает README, находит знакомую схему и строит по ней процедуру обновления. Коллега смотрит исходники и видит другую архитектуру. Кто прав? Возможно, оба читают правильные материалы, но для разных версий. Опасность начинается, когда объяснение из одного среза, YAML из другого и image из третьего принимают за единую систему.
+Перед обновлением AX инженер открывает manifest guide и читает: доступны четыре вида ресурсов. В README их три. В старой инструкции дежурного есть отдельный controller, а в каталоге deployment новой версии остался только server. От ответа зависит вполне практическая работа: какие manifests готовить, какой процесс наблюдать и куда идти, если Task застрянет.
 
-**Технический аудит связывает утверждение с версией, источником и проверкой.** Он помогает выбрать пригодный инструмент и понять его ограничения. Наличие функции в коде ещё не доказывает её работоспособность в вашей установке; цель в архитектурном документе не становится измеренным результатом. Здесь зафиксируем границы AX, Substrate и MCP, на которых построены поздние главы книги, и способ перепроверить их перед изменением deployment.
+Такие расхождения особенно утомляют при первом знакомстве с системой. Приходится одновременно изучать её устройство и выяснять, какой части описания можно доверять. Помогает небольшой, ограниченный вопрос: «Что принимает выбранный CLI?» или «Кто выполняет reconciliation в этой сборке?». На него можно ответить и показать коллеге ход проверки.
 
-## A.1 Версии и область применимости
+**Технический аудит связывает утверждение с конкретным срезом системы и достаточными для решения доказательствами.** В этом приложении разберём один аудит AX целиком, затем применим тот же способ к snapshots Substrate и совместимости MCP. Результатом станет обоснованная правка инструкции и перечень оставшихся испытаний. Критерии допуска к эксплуатации собраны отдельно, в приложении B.
 
-У книги нет одной версии, которая автоматически описывает все её зависимости. Для программного проекта фиксируйте commit исходников и digest собранного image. Для протокола - revision спецификации, версии client и server и используемые extensions. Дата проверки отвечает на вопрос «когда смотрели», а не «какие bytes запускаются».
+## A.1 Начать с решения, ради которого проводится аудит
 
-| Компонент | Опорный срез | Что следует учитывать |
+Допустим, команда хочет обновить control plane, сохранить существующие Tasks и подготовить дежурного к смене архитектуры. Проверять весь репозиторий перед этим невозможно. Сначала выделим утверждения, на которых держится план: состав API, путь выполнения lifecycle, совместимость сохранённого состояния и способ обнаружить неуспешную работу.
+
+У каждого утверждения должна быть проверяемая форма. Вместо «AX совместим с Kubernetes» запишите: «Этот CLI принимает указанные kinds и отправляет соответствующие RPC выбранному server». Для восстановления вопрос будет другим: «Новая сборка читает snapshot, созданный старой, с таким sandbox class и scope». Второй вопрос требует иных источников и более дорогого испытания.
+
+Полезно спросить себя: **какое наблюдение заставит изменить план?** Если выяснится, что нужного RPC нет, придётся менять adapter или версию. Если состояние читается только вперёд после migration, изменится rollback. Если дежурный наблюдает удалённую очередь, нужно исправить runbook. Так аудит получает границы и перестаёт превращаться в бесконечное чтение кода.
+
+Глубина проверки зависит от последствий ошибки. Исправить число kinds в учебной инструкции можно по согласованным API и parser. Разрешение удалять snapshots требует разбора владения данными и испытания восстановления. Для security boundary понадобится проверить реальный путь запрета. Начинайте с самого дешёвого источника, который способен ответить на вопрос, и углубляйтесь там, где остаётся существенная неопределённость.
+
+## A.2 Версия исходников и версия работающей системы
+
+Слово «версия» скрывает несколько разных идентификаторов. Commit определяет дерево исходников. Digest image определяет содержимое образа. Конфигурация выбирает ветви поведения этого образа. У протокола есть собственная revision, а у client, server и tool schema - свои версии. В отчёте полезно оставить для них отдельные поля.
+
+| Компонент | Опорный срез книги | Область вывода |
 | --- | --- | --- |
-| AX release | `v0.3.1`, `e70162a3`; опубликован 25.09.2026 | Историческая release point, не срез реализации поздних глав |
-| AX в главах 38-43 | `ac233282`, изменение от 27.09.2026 | После v0.3.1; direct execution вместо отдельного controller и queue |
-| Substrate в главах 39-43 | `v0.3.0`, `ccecc788`; опубликован 30.09.2026 | Контракты snapshot, routing и наблюдения относятся к этому срезу |
-| MCP в главе 36 | Спецификация `2026-07-28` | Revision протокола не является версией SDK или tool schema |
+| AX release | `v0.3.1`, `e70162a3`; опубликован 25.09.2026 | Историческая release point для сравнения |
+| AX поздних глав | `ac233282`, изменение от 27.09.2026 | Реализация после v0.3.1; direct execution |
+| Substrate поздних глав | `v0.3.0`, `ccecc788`; опубликован 30.09.2026 | Рассмотренные контракты snapshot, routing и наблюдения |
+| MCP главы 36 | Спецификация `2026-07-28` | Контракт протокола; SDK и extensions фиксируются отдельно |
 
-Полные identity исходников: AX `ac2332829f22360ff97b0ba34d94dd0dd782f17e`; Substrate `ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97`. Они доступны по ссылкам на [AX](https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e) и [Substrate](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Даты публикации release подтверждают страницы [AX v0.3.1](https://github.com/google/ax/releases/tag/v0.3.1) и [Substrate v0.3.0](https://github.com/agent-substrate/substrate/releases/tag/v0.3.0); дата commit не подменяет дату release.
+Полные commits закреплены в ссылках на [AX](https://github.com/google/ax/tree/ac2332829f22360ff97b0ba34d94dd0dd782f17e) и [Substrate](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97). Даты публикации подтверждают страницы [AX v0.3.1](https://github.com/google/ax/releases/tag/v0.3.1) и [Substrate v0.3.0](https://github.com/agent-substrate/substrate/releases/tag/v0.3.0). Профили других прикладных глав сохранены в [карте версий](00-reading-guide.md); это приложение не вводит единую новую версию для всей книги.
 
-На 11.10.2026 уже опубликован [Substrate v0.4.0](https://github.com/agent-substrate/substrate/releases/tag/v0.4.0) от 08.10.2026. Release notes отдельно помечают breaking changes в упаковке rootfs и durable-dir snapshots и выводе actor events. Это повод проверить migration и restore, а не основание объявить прежние snapshots совместимыми. Опорный срез книги остаётся v0.3.0; новая версия требует отдельного сравнительного аудита.
+Сопоставление исходников с работающей системой выполняется через provenance - сведения о происхождении сборки - и фактический inventory. Например, оператор получает digest запущенного server, находит запись сборки и проверяет, какому commit и входным материалам она соответствует. При локальных patches или иной конфигурации вывод нужно уточнить. Если происхождение image неизвестно, результат чтения кода остаётся результатом для исходников; поле deployment mapping честно остаётся `UNKNOWN`.
 
-## A.2 Что доказывают разные источники
+Тег удобен для поиска release, но воспроизводимая запись сохраняет и полный разрешённый commit. Дата аудита показывает, когда проверяли, и помогает организовать повторную проверку. Она не устанавливает содержимое image. Совпадение версии CLI с желаемой версией server тоже нужно подтвердить отдельно: клиент может обращаться к другому endpoint.
 
-Вместо вопроса «какой документ главнее?» спросите, какое утверждение нужно подтвердить. Schema отвечает за допустимую форму сообщения. Реализация показывает путь выполнения при определённых условиях. Тест демонстрирует поведение в конкретной среде и с конкретными входами. Эти доказательства дополняют друг друга.
+## A.3 Как выбрать источник и инструмент
 
-| Источник | Что он подтверждает | Чего недостаточно для вывода |
+Документы и инструменты отвечают на разные вопросы. README помогает найти компонент и понять замысел. Schema показывает доступный контракт. Parser определяет, как конкретный клиент разбирает вход. Handler и вызванные им функции объясняют последствия запроса. Integration test связывает всё это с наблюдаемым поведением в заданной среде.
+
+| Текущий вопрос | С чего начать | Следующий шаг при неопределённости |
 | --- | --- | --- |
-| README, design, roadmap | Замысел, термины и заявленные направления | Наличие обещанного поведения в выбранной сборке |
-| API schema и parser | Поля, методы, правила разбора | Исполнение policy или сохранность payload |
-| Код обработчика и workflow | Условия, переходы и последствия ошибки | Полная корректность интеграции и отсутствие races |
-| Воспроизводимый integration test | Наблюдаемое поведение выбранного case | Все workloads, нагрузки и варианты отказа |
+| Какие поля и kinds принимает клиент? | Закреплённые schema и parser; поиск symbols | Тест parser с разрешённым и ошибочным входом |
+| Кто выполняет lifecycle? | Дерево файлов и diff; вызовы из server | Проверить locks, errors и сохранение состояния |
+| Какие bytes нужны для restore? | Schema snapshot и код ownership/copy/delete | Ограниченный restore drill с проверкой результата |
+| Почему запрос в установке отклонён? | Runtime logs, identity, config и актуальный API | Различающий тест с исправным контрольным запросом |
+| Выдержит ли система нагрузку? | Воспроизводимый benchmark своего workload | Проверка burst, отказа зависимости и восстановления |
 
-Полезная запись аудита содержит точное утверждение, immutable ссылку, условия, ожидаемый результат и критерий опровержения. «Изоляция есть» слишком широко. «Caller из tenant B не может прочитать snapshot tenant A» проверяется конкретной identity, policy, объектом и отрицательным тестом. Разрешённый контрольный read помогает отличить запрет от недоступности всего storage.
+Для точного среза удобны `git show`, `git ls-tree`, `git grep` и `git diff`. Они позволяют читать объект commit без переключения рабочей ветки. Обычный поиск по checkout может случайно показать локальную правку или другой HEAD. Веб-интерфейс полезен для чтения и передачи ссылки; в implementation-ссылке закрепляйте commit вместо `main`.
 
-Issue является свидетельством конкретного сообщения об ошибке. Закрытый issue не доказывает, что fix попал в установленный image. Найдите изменение, сравните его с вашей revision и воспроизведите relevant regression case. Аналогично, зелёный unit test не подтверждает правильную выдачу credentials в реальном cluster.
+Поиск строки служит навигацией. Найдя `Reconcile`, откройте функцию целиком, посмотрите callers и условия вызова. Отсутствие слова в одном каталоге ещё ничего не говорит об альтернативной реализации. Аналогично, `diff --stat` показывает объём изменения, но объяснение механизма находится в patch и окружающем коде. Синтаксис этих операций описан в официальных руководствах [show](https://git-scm.com/docs/git-show), [ls-tree](https://git-scm.com/docs/git-ls-tree), [grep](https://git-scm.com/docs/git-grep) и [diff](https://git-scm.com/docs/git-diff).
 
-## A.3 AX и границы его реализации
+Автоматический помощник может найти файлы и предложить гипотезу. Проверяющему всё равно нужны точная ссылка, symbol и собственное чтение существенного пути. Комментарии и документы являются материалом аудита; содержащиеся в них команды установки требуют отдельного решения о запуске. Для текущего разбора достаточно чтения. Мы не выполняем скачанные scripts и не применяем manifests.
 
-### Ресурсы и процесс управления
+## A.4 Практический аудит AX: три kinds и изменившийся lifecycle
 
-В [AX schema ac233282](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto) сервис предоставляет `Task`, `Workspace` и `Model`. Отдельного resource `Gateway` и его RPC в этом срезе нет. Сетевой gateway как компонент остаётся самостоятельным понятием; он не становится AX kind от знакомого названия.
+### Шаг 1. Закрепить дерево, которое читаем
 
-[Manifest guide](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/manifests.md) сохраняет фразу о четырёх kinds, тогда как [README](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md) перечисляет три. Это расхождение внутри одного среза. Для manifest определяющими становятся schema и parser, а не количество сущностей в вводном предложении. Не добавляйте поля по аналогии с Kubernetes: `generation`, `resourceVersion` и resource UID у AX ObjectMeta здесь отсутствуют.
-
-[Изменение ac233282](https://github.com/google/ax/commit/ac2332829f22360ff97b0ba34d94dd0dd782f17e) удаляет `cmd/ax-controller`, его deployment и Redis Streams queue. `ax-server` непосредственно выполняет reconciliation с Substrate под resource locks; Redis продолжает хранить AX records. Поэтому для этого среза queue lag и состояние отдельного controller не являются сигналами рабочего lifecycle path. Не объявляйте схему старого release ошибочной вообще: сначала проверьте, к какой версии она относится.
-
-### Готовность процесса и успех работы
-
-[Default runner](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go) подготавливает Workspace, запускает command как child и остаётся доступным после её завершения. Его `/readyz` связан с setup, а не с результатом агента. Зелёная Task и отвечающий runner не заменяют application checkpoint и проверку внешнего результата. Custom image, встраивающий runner package, также не обязан иметь универсальный PID layout.
-
-[ax-server](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go) может запуститься без reconciler при ошибке инициализации Substrate client. Его [health handler](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go) возвращает HTTP 200 без проверки Redis и runtime. Acceptance должен пройти полезный lifecycle и application probe, как в главе 43, а не только HTTP endpoint.
-
-Workspace setup не является универсальным harness. Размещение files, Git repositories и skills path не доказывает работающий MCP client, действительные credentials или корректный tool result. Эти проверки принадлежат приложению. По той же причине platform lifecycle не обещает exactly-once внешние действия; approval, operation ledger и reconciliation из глав 37 и 42 остаются необходимыми.
-
-## A.4 Substrate и условия восстановления
-
-Substrate разделяет виртуально долгоживущий Actor и физический Worker. Kubernetes управляет инфраструктурой и Worker Pods; runtime размещает Actors и обслуживает их lifecycle. Подмена «один Actor равен одному Pod» приводит к неверным расчётам capacity и поиску логов не того процесса. Placement и Worker assignment нужно читать через соответствующий Substrate API.
-
-[Architecture document v0.3.0](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md) прямо предупреждает о нереализованных частях замысла. Цели по latency и density не являются benchmark вашей установки. Проверяйте выбранный sandbox class, workload, распределение active и idle Actors, storage и время до первого полезного действия. gVisor и microVM нельзя объявить взаимозаменяемыми лишь потому, что обе реализации предлагают suspend/resume.
-
-### Snapshot является контрактом состояния
-
-В v0.3.0 различаются Full и Data, локальная точка и external snapshot, собственные и заимствованные bytes. Full может сохранять захваченную execution при поддерживаемой совместимости; Data не содержит индивидуальную RAM и использует настроенный источник boot. Сохранение файлов само по себе не означает продолжение прежнего процесса. Подробный разбор scope и `onResume.fromData` находится в главе 39.
-
-[CreateTag](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go) создаёт отдельную копию external snapshot suspended Actor. Новый Actor с `sourceTag`, напротив, сначала заимствует Tag URI: это видно в [CreateActor](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/actor.go). Наличие clone не даёт права удалять исходный Tag. До cleanup нужно учесть borrowers и golden dependencies, а для восстановления - metadata, payload и совместимость runtime.
-
-Object prefix с UID различает владельцев, но не заменяет storage authorization. Схема пути не запрещает caller читать чужие bytes. [Threat model](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/threat-model.md) формулирует угрозы и желаемые защитные свойства; каждое нужное свойство должно иметь работающий enforcement path и испытание в вашем deployment. Правильное название security feature не является результатом такого испытания.
-
-### Наблюдение имеет известные пробелы
-
-[Actor attribution](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md) связывает текущие logs с identity workload. История после relocation требует центрального backend; application trace context не появляется автоматически в каждой строке. [Registry blind spots](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/metrics/substrate.yaml) отмечают отсутствие store metrics и неполное наблюдение worker cache. Отсутствие соответствующего alert не доказывает исправность этих участков.
-
-## A.5 MCP и совместимость двух моделей
-
-[MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/index) использует самодостаточные requests: protocol version и client capabilities передаются в `params._meta`. [server/discover](https://modelcontextprotocol.io/specification/2026-07-28/server/discover) обязателен для server этой revision, но предварительный вызов необязателен для client. Discovery сообщает возможности; он не удостоверяет доверие к server и не выдаёт право на tool operation.
-
-Это отличается от [revision 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle) с `initialize` и `notifications/initialized`. Legacy integration не становится неисправной только потому, что использует тот handshake. Она должна взаимодействовать с совместимым peer. Проверяйте contract обеих сторон вместо попытки универсально добавить или удалить session header.
-
-[Modern Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) не использует прежнюю protocol session. Но отсутствие скрытой session не устраняет прикладное состояние: operation handles, права, unfinished writes и deduplication всё равно нужны. Stateless transport не доказывает, что потерянный write можно безопасно повторить.
-
-В audit record разделите protocol revision, SDK version, server image, tool schema и разрешённые extensions. Совпадение protocol revision ещё не гарантирует одинаковый смысл аргумента или поддержку optional feature. Минимальная проверка совместимости включает разрешённый read, неверный input, отказ чужому principal и понятный результат несовместимого request. Writes испытывают на simulator или ограниченном target с отдельной проверкой effect.
-
-## A.6 Как превращать расхождение в решение
-
-**Documentation drift** - расхождение документации с выбранной реализацией. Отделяйте его от изменения между версиями и от различия конфигураций. Если release действительно использовал queue, а следующий commit убрал её, это эволюция системы. Если guide того же commit перечисляет несуществующий kind, это drift. Если ваш image не включает нужный fix, обновлённый guide не изменит его поведение.
-
-| Утверждение | Граница вывода | Инженерное решение |
-| --- | --- | --- |
-| AX управляется отдельным controller | Верно не для ac233282 | Выбрать release-specific lifecycle runbook |
-| AX принимает четыре kinds | Schema этого среза определяет три | Проверять manifest по parser и API |
-| Ready означает успешную работу | Runner подтверждает другой контракт | Проверять child, progress и external truth |
-| Snapshot равен полному backup | Scope, ownership и dependencies различаются | Составить recovery inventory и выполнить restore drill |
-| Security описана в threat model | Описание цели не доказывает enforcement | Проверить allowed и denied paths |
-| MCP поддерживается обеими сторонами | Revision, transport и extensions могут различаться | Испытать конкретную client/server пару |
-
-После классификации выбирайте действие: исправить инструкцию, сменить конфигурацию, подобрать совместимую сборку или отложить rollout до реализации недостающей защиты. Если изменением можно затронуть данные или права, нужен критерий приёмки и безопасный путь восстановления. «Обновим до latest» не является решением без проверки этих условий.
-
-## A.7 Повторный аудит перед обновлением
-
-Начните с release inventory из главы 43. Сопоставьте запущенные digests с provenance сборки и commit, сохраните manifests, API schema, sandbox configuration и references на защищённые policy artifacts. Не выгружайте secret values в общий отчёт. Тег или вывод версии CLI сами по себе не доказывают, какой server и runner сейчас выполняются.
-
-Следующие команды только читают локальный AX checkout. `/path/to/ax` - заменяемый путь к проверенному репозиторию; оба указанных commits должны существовать в нём. Команды не переключают branch, не применяют manifests и не меняют cluster:
+Понадобятся Git и локальная копия официального AX с двумя указанными commits. `/path/to/ax` замените путём к своей копии. Если `rev-parse` сообщает об отсутствующем объекте, сначала получите его из проверенного upstream; сохраните это как недоступную предпосылку, пока загрузка не завершена. Следующие блоки выполняются в одной shell и только читают Git objects:
 
 ```
-git -C /path/to/ax rev-parse --verify HEAD
-git -C /path/to/ax ls-tree -r --name-only ac233282 -- \
-  cmd/ax-controller cmd/ax-server pkg/apis/v1alpha1
-git -C /path/to/ax diff --stat e70162a3 ac233282 -- \
-  cmd internal deploy docs DESIGN.md
+audit_ax=/path/to/ax
+audit_rev=ac2332829f22360ff97b0ba34d94dd0dd782f17e
+audit_base=e70162a34037c221fe6fadefd98308c05a4ad8f3
+git -C "$audit_ax" rev-parse --verify "${audit_rev}^{commit}"
+git -C "$audit_ax" rev-parse --verify "${audit_base}^{commit}"
 ```
 
-В дереве ac233282 нет отдельного `cmd/ax-controller`; diff показывает его удаление. Краткая статистика лишь указывает, куда смотреть дальше. Чтобы подтвердить поведение, прочитайте затронутый handler, schema и тесты именно выбранного commit. Checkout HEAD может быть другим; он не переопределяет явно заданную revision в этих командах.
+Ожидаемый результат - два полных commit ID, совпадающих с заданными. Эти команды проверяют доступность Git objects. Доверие к upstream и связь с deployed images устанавливаются отдельно. Рабочий HEAD может отличаться: дальнейшие команды явно обращаются к `audit_rev`.
 
-Для candidate повторите сравнение с новым полным commit и digest. Выпишите изменения API, snapshot format, authentication, egress, observability и rollback. Затем проведите выбранные integration cases на ограниченном стенде. Отчёт должен различать `PASS`, `FAIL`, `BLOCKED` и `SKIPPED`; непроверенная обязательная предпосылка оставляет release gate закрытым.
+### Шаг 2. Разобрать расхождение внутри одной версии
 
-Особенно проверьте переходы состояния: чтение старого checkpoint новой сборкой, обратный путь старой сборки после migration, Worker loss, обновление credentials и uncertain tool outcome. Наличие новой функции оценивайте вместе с ценой её эксплуатации. Если восстановление совместимого состояния не получается, rollout не готов, даже когда fresh start проходит.
+```
+git -C "$audit_ax" grep -n -F 'All four kinds' \
+  "$audit_rev" -- docs/manifests.md
+git -C "$audit_ax" show "${audit_rev}:pkg/apis/v1alpha1/ax.proto"
+git -C "$audit_ax" show "${audit_rev}:cmd/ax/main.go"
+```
 
-## A.8 Практикум проверки технического обещания
+Первый поиск находит вводную фразу guide. В schema откройте service `AX` и сообщения ресурсов: там представлены Task, Workspace и Model. В CLI найдите `applyDocument`: разбор `kind` ведёт к трём соответствующим ветвям, а для остальных значений предусмотрена ошибка. Клиент разбирает YAML и передаёт типизированные RPC; server этого пути не получает исходный manifest. Поэтому одно лишь изучение server handler пропустило бы важную границу входа.
 
-Возьмите одно важное для вашей задачи утверждение, а не весь проект сразу. Например, «после выхода command readiness станет отрицательной» или «clone не зависит от исходного Tag». Работайте с synthetic данными и ограниченными lab credentials; production snapshots и чужие tenant objects для упражнения не нужны.
+Теперь есть два согласованных свидетельства: контракт API и dispatch parser. Вместе они поддерживают вывод, что данный manifest path рассчитан на три вида ресурсов. Фраза о четырёх kinds в guide того же commit классифицируется как **documentation drift** - отставание документации от выбранной реализации. [Guide](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/manifests.md), [schema](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto) и [parser](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax/main.go) доступны для повторного чтения.
 
-1. **Определите контракт.** Что пользователь должен получить и при каких условиях? Запишите identity сборки и конфигурации.
-2. **Найдите путь исполнения.** Сопоставьте guide, schema, handler и storage ownership. Отделите обещание от реализованного механизма.
-3. **Задайте различающий тест.** Опишите ожидаемый результат и наблюдение, которое опровергнет утверждение. Добавьте исправный контроль.
-4. **Получите evidence.** Сохраните inputs, timestamps, relevant logs и проверку authoritative state без secrets. Ошибка стенда не является успешным отрицательным тестом.
-5. **Примите решение.** Ограничьте область вывода, исправьте runbook или поставьте gate. Другой инженер должен суметь повторить проверку по этой записи.
+Решение для команды простое: исправить число в своей инструкции и использовать поддерживаемые kinds. Gateway как сетевой компонент рассматривается в главе 40; вводить одноимённый AX resource по аналогии не требуется. Тем же способом проверяйте metadata: в ObjectMeta этого среза отсутствуют Kubernetes-поля `generation`, `resourceVersion` и resource UID. Заимствованный синтаксис знакомой платформы нужно сверять с фактической schema.
 
-Хороший аудит заканчивается не общим ярлыком «готово к production», а понятным решением для определённой задачи и сборки. Приложение B превращает такие решения в критерии готовности. Приложение C помогает находить первичные источники; для воспроизводимых выводов используйте ссылки на revision, а не меняющийся `main`.
+### Шаг 3. Отличить drift от эволюции между версиями
+
+```
+git -C "$audit_ax" ls-tree -r --name-only "$audit_rev" -- \
+  cmd/ax-controller cmd/ax-server
+git -C "$audit_ax" diff --name-status "$audit_base" "$audit_rev" -- \
+  cmd/ax-controller deploy/ax-controller.yaml internal/controller
+git -C "$audit_ax" show "${audit_rev}:internal/server/server.go"
+```
+
+В выбранном дереве первый список содержит `cmd/ax-server/main.go`; отдельного каталога controller нет. Сравнение со старым release показывает, среди прочего, удаление `cmd/ax-controller/main.go` и `deploy/ax-controller.yaml`. Это уже изменение между двумя версиями. Старую инструкцию нельзя оценивать без её собственного version context.
+
+Осталось понять, куда перешла работа controller. В `CreateTask`, `SuspendTask` и `ResumeTask` server видны прямые вызовы reconciler под locks соответствующего ресурса. [Изменение ac233282](https://github.com/google/ax/commit/ac2332829f22360ff97b0ba34d94dd0dd782f17e) убирает отдельный controller и Redis Streams queue. Redis продолжает хранить AX records; его роль в хранении следует рассматривать отдельно от удалённого механизма доставки работы.
+
+Для runbook это означает конкретную замену маршрута диагностики. Вместо поиска lag прежней очереди оператор проверяет обработку RPC server, доступность Substrate и результат прямого reconciliation. Затем он идёт к нужному Actor и приложению по главе 43. Так чтение исходников меняет действие человека, а не только подпись на архитектурной картинке.
+
+## A.5 Записать вывод так, чтобы его мог проверить коллега
+
+Карточка аудита хранит вопрос, границы, доказательства и действие. Для примера выше она может выглядеть так. Полные commits заданы в A.4; короткая подпись здесь нужна человеку. Имена полей и статусы - учебный формат отчёта, не AX API:
+
+```
+id: AX-AUDIT-01
+revision: ac233282
+question: manifest kinds and lifecycle owner
+evidence:
+  - docs/manifests.md: opening paragraph
+  - pkg/apis/v1alpha1/ax.proto: service AX
+  - cmd/ax/main.go: applyDocument
+  - internal/server/server.go: ResumeTask
+source_conclusion: SUPPORTED
+findings:
+  manifest_kind_count: 3
+  lifecycle_path: direct_reconciliation
+deployed_image_mapping: UNKNOWN
+integration_test: NOT_RUN
+action: update_versioned_runbook
+rollout_decision: HOLD
+```
+
+`SUPPORTED` относится к двум выводам о прочитанном коде. `HOLD` относится к допуску обновления: в этом учебном отчёте ещё нет inventory работающей системы и интеграционного прогона. Такое разделение позволяет принять полезное решение сейчас и сохранить открытыми действительно другие вопросы. Оно также предотвращает спор о том, что именно участники назвали «проверено».
+
+В рабочем отчёте добавьте immutable ссылки из A.4, дату, автора и владельца следующей проверки. Для выполненного теста сохраните inputs, config, timestamps и результат прикладного oracle. Отчёт с credentials и production payloads потребует защищённого хранения; в общем журнале оставляйте разрешённые references. Hash помогает сравнить содержимое evidence, а доверенный канал и provenance устанавливают его происхождение.
+
+Если два источника всё ещё расходятся, сохраняйте вопрос открытым и перечислите конкурирующие объяснения. Например, найденный fix может относиться к другой ветке, либо deployment использует локальный patch. Закрытый issue помогает найти изменение; соответствие этого изменения установленной сборке проверяется отдельно. Недоступный файл получает `BLOCKED`, а не удобный вывод по памяти.
+
+## A.6 Что ещё важно в закреплённом AX
+
+### Readiness отвечает за подготовку Workspace
+
+В [default runner](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go) command запускается дочерним процессом после setup. После её завершения runner остаётся доступным для inspection. [Metadata server](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/metadata/server.go) связывает `/readyz` с готовностью Workspace. Из этого получается важный контракт: readiness помогает понять, завершилась ли подготовка, а outcome command устанавливается по отдельным наблюдениям.
+
+Практическая проверка должна различать успешный setup, намеренный exit command с ошибкой и корректный прикладной результат. Глава 43 показывает такое упражнение с локальным fixture. Для выбранного AX image потребуется собственный integration case. У custom image устройство процессов может отличаться; PID layout лучше выводить из его entrypoint и runner contract, как в главе 18.
+
+### Здоровье API и готовность выполнять работу
+
+В [startup ax-server](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go) ошибка создания Substrate client допускает запуск без reconciler. [Health handler](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go) отвечает HTTP 200 без проверки runtime и Redis. Это объясняет, зачем приёмке нужен полезный lifecycle, даже если endpoint отвечает.
+
+При аудите Workspace отдельно проследите, что подготавливает платформа и что запускает приложение. Files, Git repositories и skills path дают приложению материал для работы. Поддержка MCP, используемые credentials и проверка tool result зависят также от harness. Учёт внешнего действия после timeout остаётся задачей operation ledger и reconciliation из глав 37 и 42. Такое распределение ответственности помогает выбрать тест нужного слоя.
+
+## A.7 Substrate: проследить владение состоянием
+
+Для snapshots центральный вопрос звучит так: «Какие объекты должны сохраниться, чтобы этот Actor удалось восстановить?». Пройдите путь от API-поля к записи metadata, payload URI и операциям copy/delete. Затем выясните, какие условия требуются runtime для чтения этих bytes. Это конкретная задача аудита данных, а не общий поиск слова snapshot.
+
+В [CreateActor v0.3.0](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/actor.go) создание через `sourceTag` сначала заимствует external snapshot URI Tag. В [Tag workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go) создание Tag из external snapshot suspended Actor проходит отдельный copy path; удаление Tag освобождает принадлежащий ему payload. Эти пути различаются по владению bytes.
+
+Представьте, что команда получила десять новых Actor records и хочет удалить исходный Tag ради экономии storage. При создании через заимствование появились новые записи, но исходный payload остаётся общей зависимостью. Аудит уже позволяет остановить опасный cleanup. Разрешение на последующее удаление потребует inventory borrowers, golden dependencies и подтверждения независимых восстановимых snapshots. Наличие собственного prefix проверяют вместе с metadata и фактическим payload; произвольное совпадение имени объекта недостаточно.
+
+Scope тоже входит в контракт. Full может сохранять захваченную execution при поддерживаемой совместимости. Data сохраняет данные без индивидуальной RAM и использует настроенный источник boot, включая `onResume.fromData`. Подробности находятся в главе 39. Отдельно проверяются sandbox class, runtime assets, доступность payload, внешние volumes и действующие права. Успешный fresh start отвечает на другой вопрос, чем restore существующего состояния.
+
+| Область аудита Substrate | Что можно установить по исходникам | Какое доказательство нужно от установки |
+| --- | --- | --- |
+| Snapshot ownership | Copy path, borrowed URI, cleanup dependencies | Restore нужного Actor из сохранённого inventory |
+| Placement | Различие Actor и Worker, assignment path | Актуальное размещение и история relocation |
+| Security | Где должна применяться проверка доступа | Allowed control и ожидаемый denied path |
+| Observability | Какие labels, stages и blind spots описаны | Полнота доставки и корреляции нужных событий |
+
+[Architecture document](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md) помечает часть архитектуры как замысел и содержит целевые показатели. Для capacity нужны измерения выбранных active/idle workloads, storage и sandbox backend. Actor имеет собственный lifecycle, а Worker связан с инфраструктурой Kubernetes; при relocation логический workload остаётся тем же, физическое место меняется.
+
+Для security начните с угроз и найдите enforcement нужного пути. UID в object prefix помогает различать владельцев; authorization определяется проверками доступа. [Threat model](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/threat-model.md) объясняет угрозы и предлагаемые защитные свойства. Испытание изоляции выбирают по конкретному свойству и выполняют в разрешённой lab области.
+
+Для наблюдения сопоставьте [observability guide](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md) и [metric registry](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/metrics/substrate.yaml). История logs после relocation требует центрального backend; trace context прикладных строк зависит от instrumentation приложения. Registry отмечает пробелы store metrics и worker cache. Для такого участка в audit record нужна дополнительная проверка, даже если alert молчит.
+
+## A.8 MCP: составить профиль совместимости
+
+Фраза «есть MCP» полезна для первичного поиска инструмента. При выборе client/server пары выясните revision протокола, transport, SDK/build обеих сторон, tool schema и optional features, нужные вашему сценарию. Клиент, умеющий вызвать простой read, может не поддерживать продолжение долгой операции, которое требуется приложению.
+
+[MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28/basic/index) передаёт protocol version и client capabilities в `params._meta` самодостаточных requests. Server обязан поддерживать [server/discover](https://modelcontextprotocol.io/specification/2026-07-28/server/discover); решение вызывать discovery заранее остаётся за client. В [revision 2025-11-25](https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle) используется handshake с `initialize` и `notifications/initialized`. Поэтому сохранённый trace сначала нужно соотнести с revision, а уже затем оценивать правильность порядка сообщений.
+
+При переходе между этими моделями составьте таблицу возможностей именно вашей пары. Проверьте разрешённый read, ошибочный input и понятный отказ несовместимому request. Для доступа добавьте allowed control и отказ чужому principal: ошибка соединения сама по себе не показывает работу authorization. Для записи определите способ выяснить внешний outcome после потери ответа, затем испытайте его на simulator или согласованном ограниченном target.
+
+В [Streamable HTTP этой revision](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) удалены protocol-level sessions. Прикладные operation handles, права и deduplication продолжают жить по своим правилам. Discovery возвращает сведения о server; доверие к endpoint и разрешение на tool operation устанавливаются отдельно. Эту границу стоит записать в решении о выборе adapter, особенно если тот берёт на себя retries.
+
+## A.9 Перед обновлением: что перепроверять и когда остановиться
+
+Повторный аудит начинается с сохранённого решения. Найдите, какие его предпосылки затрагивает candidate: API, parser, snapshot format, credentials, policy, model/tool adapter или sandbox configuration. Сравните старый и новый commits по этим путям, затем прочитайте влияющие изменения и их зависимости. Маленький patch в общем helper может быть важнее большой правки документации.
+
+Например, [Substrate v0.4.0 от 08.10.2026](https://github.com/agent-substrate/substrate/releases/tag/v0.4.0) перечисляет breaking changes в упаковке rootfs и durable-dir snapshots и выводе actor events. Эти notes указывают, куда направить сравнительный аудит и regression cases. Опорный срез книги остаётся v0.3.0; совместимость snapshots между ними здесь не испытывалась.
+
+Результаты прогона записывайте раздельно: `PASS` - критерий выполнен в заданных условиях; `FAIL` - наблюдение ему противоречит; `BLOCKED` - проверке помешала отсутствующая предпосылка; `SKIPPED` - её не выполняли. Если обязательный критерий остался открытым, rollout остаётся на `HOLD`. Это решение можно пересмотреть после получения нужных evidence, сохранив предыдущую запись.
+
+Завершать source-аудит пора, когда на поставленный вопрос есть достаточный ответ, границы вывода записаны, а остаточные вопросы назначены владельцам. Для нашего примера можно передать исправленный versioned runbook на review. Для выпуска ещё нужны связанный inventory и интеграционные cases главы 43. Удаление прежних snapshots и изменение production policy требуют собственного допуска.
+
+## A.10 Самостоятельная работа и передача результата
+
+Повторите read-only разбор A.4. В своей карточке отделите два расхождения: число kinds внутри одного commit и изменение lifecycle между release и следующим срезом. Для каждого укажите источник, механизм, действие оператора и вопрос, который по этим данным остаётся открытым. В этом упражнении не нужны cluster credentials, модель или установка AX.
+
+Затем выберите второе утверждение: «Actor, созданный из Tag, имеет независимый payload». Пройдите `CreateActor`, copy path Tag и cleanup. Покажите, какие references сохраняются, и напишите план разрешённого restore test с synthetic данными. Сам план получает `NOT_RUN`, пока опыт действительно не выполнен; источник и результат испытания хранятся раздельно.
+
+Передайте карточку коллеге. Он должен суметь открыть те же objects, найти symbols и объяснить, почему принято именно это решение. Если для повторения приходится угадывать версию или смысл слова «работает», уточните запись. Критерий хорошего аудита - другой инженер понимает, что теперь можно сделать безопасно и какое доказательство понадобится для следующего шага.
+
+Приложение B переводит эти выводы в критерии допуска. Приложение C помогает найти первичные источники для других вопросов. Вместе они поддерживают рабочий цикл: выбрать важное утверждение, разобраться в механизме, проверить нужный сценарий и сохранить основание решения.
