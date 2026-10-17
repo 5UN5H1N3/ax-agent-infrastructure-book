@@ -12610,116 +12610,149 @@ python3 -m unittest discover -s examples -p 'test_ch41_inference_budget.py'
 <section class="chapter" id="ch-42">
 <div class="chapter-num">Глава 42</div>
 <h1>Production security, secrets и disaster recovery</h1>
-<p>Представьте: ночью пропал кластер. Команда восстановила Redis, PostgreSQL и snapshots, дождалась зелёных health checks и разрешила Tasks продолжить работу. Один агент снова создал уже существующий тикет, другой проснулся со старым token, третий получил права, которые у пользователя отозвали вчера. Данные удалось вернуть, но безопасную систему - ещё нет.</p>
-<p><strong>Disaster recovery, DR</strong>, возвращает сервис к полезной работе после потери инфраструктуры или состояния. Для агентной платформы полезная работа означает не просто генерацию текста: восстановленный исполнитель должен знать, какие действия уже произошли, какие права действуют сейчас и откуда можно продолжить Task. Глава 27 задала цели доступности и восстановления. Здесь сосредоточимся на возвращении актуальных прав и истории действий: данные и исполнители не должны оживать раньше, чем восстановлены эти границы.</p>
-<p>Глава 41 дала запас мощности для штатной нагрузки и отказа части inference. Здесь разберём жизненный цикл credentials, состав recovery point и допуск восстановленных workloads к действиям. Модель угроз и approval contract опираются на главы 23-24, совместимость snapshots - на главу 39. Эта глава превращает их в процедуры, которые можно проверить на стенде.</p>
-
-<h2>Разделите отказ сервиса и потерю доверия</h2>
-<p>Не всякий инцидент требует полного DR. Потеря Worker при сохранных stores отличается от удаления metadata, повреждения object storage или компрометации ключа администратора. В первом случае может хватить размещения на новом Worker. Во втором нужно выбирать recovery point. В третьем восстановление старой копии способно вернуть и доступ атакующего.</p>
-<p><strong>HA</strong> поддерживает доступность при предусмотренных отказах. <strong>Replication</strong> копирует изменения между экземплярами; ошибочное удаление она тоже может скопировать. <strong>Backup</strong> удерживает пригодную прошлую точку, из которой можно восстановиться. <strong>Cyber recovery</strong> дополнительно требует чистой доверенной среды и устранения скомпрометированных identities. Эти механизмы дополняют друг друга, но ни один не заменяет остальные.</p>
-<p>В runbook для каждого сценария укажите, кто объявляет инцидент, кто останавливает новые Tasks и внешние writes, кто выбирает точку восстановления и кто разрешает возврат traffic. Такая договорённость важна именно ночью, когда техническая возможность включить сервис не равна полномочию принять риск потери данных или повторного действия.</p>
-<p>Не выдавайте quickstart за production boundary. В версии исходников AX <code>ac233282</code> <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">инициализация gRPC server</a> сама не добавляет transport credentials и authn/authz interceptors; внешний контроль доступа требует отдельного решения. В <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/authentication.md">документации Substrate v0.3.0</a> authorization и RBAC ещё не реализованы: actor identity provider имеет отдельное ограничение, но остальные authenticated providers получают полный контроль над control plane. Зафиксируйте фактические image digests и проверки отказа неавторизованным вызовам в своей установке. Перенос в новый cluster не улучшает исходную модель доступа автоматически.</p>
-
-<h2>Составьте паспорт каждого credential</h2>
-<p><strong>Credential</strong> - предъявляемое доказательство доступа: token, пароль, client certificate или иной материал. <strong>Secret</strong> - чувствительные данные, которые нужно защищать; не всякий secret предоставляет доступ, а право на действие не сводится к наличию token. Credential подтверждает identity или делегирование, но authorization ещё должна разрешить конкретную операцию.</p>
-<p>Для каждого credential запишите, кто его выпускает (<strong>issuer</strong>) и какой процесс или человек его использует (<strong>holder</strong>), а также audience, scope, TTL, механизм refresh и revoke, владельца rotation и места хранения. <strong>Audience</strong> определяет сервис, для которого credential выпущен; <strong>scope</strong> - разрешённую область использования. Model API key не должен становиться ключом к MCP tools, а token одного пользователя - общим доступом всех Tasks.</p>
-<table style="break-inside:avoid">
-<thead><tr><th>Назначение</th><th>Кто использует</th><th>Граница</th></tr></thead>
+<p>Продолжим историю <code>lab/network-017</code>. В главе 37 тестовый tool успел изменить конфигурацию, но исполнитель остановился до сохранения receipt. Глава 39 объяснила, как выбрать пригодный snapshot. Теперь предположим, что потерян весь кластер. Команда вернула stores и workspace, а harness прочитал старое состояние <code>DISPATCHING</code>: запрос отправлялся, результат ещё неизвестен. За время аварии оператор отозвал прежний credential. Что должно произойти после запуска?</p>
+<p>Дежурному нужны два независимых ответа. Первый: что уже сделано во внешней системе? Второй: что этому Task разрешено делать сейчас? Старый checkpoint отвечает лишь о прошлом знании приложения. Для результата операции нужен ledger или целевой сервис, для действующих прав - актуальная доверенная система доступа. На этом различии построим восстановление.</p>
+<p><strong>Disaster recovery, DR</strong>, возвращает полезную работу после потери инфраструктуры или данных. Для нашей платформы полезный результат включает сохранённый ход Task, правильную identity исполнителя и контролируемые внешние действия. Глава 27 задала цели восстановления, глава 41 разобрала запас мощности. Здесь спроектируем выдачу доступа, комплект резервных копий и последовательность допуска восстановленного приложения. Начнём с механизмов, затем проверим решения на локальном примере.</p>
+<h2>Сначала определите характер потери</h2>
+<p>Потеря Worker при сохранных управляющих данных обычно требует нового размещения и восстановления Actor. Ошибочное удаление metadata требует пригодной прошлой копии и проверки ссылок на payloads. Утечка административного credential требует ещё и устранить доступ нарушителя. В последнем случае перенос старой системы на новые nodes способен перенести ту же проблему.</p>
+<p>Эти случаи объясняют назначение разных механизмов. <strong>High availability, HA</strong>, сохраняет доступность при предусмотренных отказах, например потере одной replica. <strong>Replication</strong> переносит изменения на другую копию; ошибочное удаление может оказаться таким же изменением. <strong>Backup</strong> сохраняет прошлое состояние независимо от текущей рабочей копии. <strong>Cyber recovery</strong> добавляет восстановление доверенной среды после компрометации: нужно определить, каким artifacts, identities и точкам истории ещё можно доверять.</p>
+<p>Выбирайте процедуру по утраченной гарантии. Если данные целы и доступ не скомпрометирован, полный откат только увеличит потерю работы. Если доверие к текущим artifacts потеряно, один быстрый restart не разрешит вопрос об их происхождении. На время расследования сервис может работать в ограниченном режиме: диагностические чтения доступны, автоматические изменения остановлены.</p>
+<p>Заранее назначьте, кто ограничивает новые действия, кто выбирает recovery point и кто разрешает возврат пользовательской нагрузки. Ночью эти решения сложнее, чем команды восстановления. Инженер, который умеет запустить database, не обязательно уполномочен принять потерю последних изменений tenant.</p>
+<p>Проверки относятся к закреплённым версиям книги. В <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">AX <code>ac233282</code></a> конструктор gRPC server сам не устанавливает transport credentials и authn/authz interceptors. Для production нужен отдельно обеспеченный контроль доступа. В <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/authentication.md">Substrate v0.3.0, <code>ccecc788</code></a> документация ещё не заявляет RBAC: actor identity provider выделен особо, остальные authenticated providers получают широкий контроль. Экспериментальная authorization более нового среза рассмотрена отдельно в главе 24. При восстановлении используйте контракт фактически установленных digests, а не собирательный набор возможностей разных versions.</p>
+<h2>Как credential превращается в доступ</h2>
+<p><strong>Credential</strong> - материал, которым вызывающий доказывает identity или предъявляет делегированный доступ: token, пароль, private key для клиентской аутентификации. <strong>Secret</strong> - более широкое понятие чувствительных данных. Например, конфиденциальный фрагмент документа является secret, но не удостоверением для API.</p>
+<p>Сервис сначала проверяет предъявленный credential, затем решает, разрешено ли действие. Это authentication и authorization из главы 24. Смена token может восстановить аутентификацию, но не вернуть отозванное право изменять конфигурацию. Approval человека тоже относится к определённому действию и условиям, а не ко всем будущим действиям восстановленного процесса.</p>
+<p>Рассмотрим доступ нашего network writer. Удостоверение workload подтверждает, какой broker пришёл к сервису. Tenant и операция определяют область действия. <strong>Audience</strong> указывает, какому получателю предназначено удостоверение; model endpoint и network writer - разные получатели. <strong>TTL</strong>, time to live, ограничивает срок. <strong>Revocation</strong> позволяет прекратить доступ раньше, если механизм потребителя это поддерживает. Для self-contained token с локальной проверкой подписи прекращение выдачи новых tokens само по себе не отзывает уже выданные.</p>
+<p>Составьте паспорт credential без его значения. Для network writer в нём будут issuer, workload-получатель, разрешённые tenant и операции, audience, срок, способ доставки, проверка отзыва и ответственный за смену. Отдельно запишите, куда материал копируется: файл, environment, client cache, snapshot. Именно этот последний пункт часто объясняет, почему «ключ уже поменяли», а старый Actor всё ещё обращается к API.</p>
+<p>Control-plane administration, доступ к моделям, tools, registry и backups требуют разных полномочий. Runner, которому нужен один tool, не должен получать доступ к удалению recovery points. Такое разделение ограничивает <strong>blast radius</strong> - ущерб от одной утечки. Оно также позволяет отключить скомпрометированный runner, сохранив отдельный путь чтения backup.</p>
+<h2>Где хранить secret и кто должен его видеть</h2>
+<p>Сначала проследите вызов. Actor предлагает изменение; доверенный broker проверяет tenant, ресурс и параметры; broker обращается к tool. Если downstream credential нужен только последнему участнику, его можно оставить там. Это уменьшает число копий внутри пользовательской среды. Broker при этом становится доверенной границей: ему нужны проверка запросов и защита от обхода, разобранные в главах 23 и 37.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Потребность</th>
+<th>Механизм</th>
+<th>Что проверить до выбора</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>Control-plane administration</td><td>Операторы и controllers</td><td>Не выдавать runner; изменение policy и state отдельно аудируется</td></tr>
-<tr><td>Model и MCP access</td><td>Gateway, adapter или runner</td><td>Отдельные destinations, tenant и операции</td></tr>
-<tr><td>User delegation</td><td>Исполнитель конкретного run</td><td>Текущие права пользователя, ограниченный срок и возможность отзыва</td></tr>
-<tr><td>Registry pull</td><td>Инфраструктура загрузки image</td><td>Read-only доступ к нужным artifacts, не публикация новых images</td></tr>
-<tr><td>Backup и encryption</td><td>Backup service и recovery operators</td><td>Read/write/delete/decrypt разделены по ролям</td></tr>
-</tbody></table>
-<p>Разделение уменьшает <strong>blast radius</strong> - объём ущерба при утечке одного credential. Оно также делает восстановление понятнее: можно заменить доступ runner, не уничтожая возможность читать зашифрованный backup. Универсальный административный ключ в каждом Actor устраняет обе границы.</p>
-
-<h2>Выберите способ выдачи secrets под задачу</h2>
-<p>Начните с вопроса: должен ли workload вообще видеть secret? Если tool broker способен аутентифицировать Task, проверить операцию и обратиться к upstream сам, credential может остаться у broker. Но тогда broker становится доверенным посредником: он обязан не только скрывать bytes, но и ограничивать доступ. Один общий upstream key без проверки tenant и object ID оставляет возможность confused deputy из главы 23.</p>
-<p><strong>Kubernetes Secret</strong> подходит для интеграции Kubernetes workloads с существующими credentials. Это не шифрование по факту имени: base64 лишь кодирует bytes. Нужны ограничения API-доступа и проверенная encryption at rest. Обычный Secret volume обновляется с задержкой, а mount через <code>subPath</code> не получает автоматические обновления; приложение должно перечитать файл и обновить client. Значение, скопированное в environment процесса, само не меняется. Эти условия описаны в <a href="https://kubernetes.io/docs/concepts/configuration/secret/">документации Secrets</a>.</p>
-<p><strong>External secret store</strong> полезен для централизованного audit, разграничения доступа и независимой rotation. Он может доставлять статический credential в workload; это ещё не делает credential short-lived. <strong>Dynamic credentials</strong> выпускаются по identity потребителя с ограниченным сроком. Например, Vault управляет lease, renew и revoke для dynamic secrets; обычное хранение значения в KV backend не предоставляет такую же lease-семантику. Различие важно при выборе и объясняется в <a href="https://developer.hashicorp.com/vault/docs/concepts/lease">документации Vault</a>.</p>
-<p><strong>Workload identity</strong> позволяет обменивать identity workload на нужный доступ без универсального долгоживущего пароля. Она всё равно зависит от issuer, audience checks и authorization конечного сервиса. Projected ServiceAccount tokens в Kubernetes ограничены по сроку и обновляются kubelet; сохранённая копия token в памяти или snapshot не обязана обновиться вместе с файлом. Workload без задачи обращаться к Kubernetes API не должен получать автоматический API token без причины; соответствующие механизмы описаны в <a href="https://kubernetes.io/docs/concepts/security/service-accounts/">руководстве Service Accounts</a>.</p>
-<p>Выбор - компромисс между exposure и зависимостями. Прямой mount прост, но secret попадает в процесс. Broker уменьшает exposure у Actor, но добавляет критический сервис. Dynamic access уменьшает окно утечки, но требует работающего refresh path. Для каждого варианта испытайте отказ issuer/store и определите, какие действия блокируются: недоступность authorization не должна открывать доступ по умолчанию.</p>
-
-<h2>Проверьте rotation на всех копиях credential</h2>
-<p><strong>Rotation</strong> выпускает новый материал и переводит consumers на него. <strong>Revocation</strong> прекращает действие старого. Обновить запись в secret store недостаточно: старый credential может оставаться в environment, client object, connection pool, gateway cache, shell history или snapshot. Некоторые виды уже открытых sessions требуют отдельного закрытия.</p>
-<p>Для плановой смены сначала обеспечьте доставку нового credential, проверьте consumers, затем отзовите старый и докажите отказ на контролируемом canary. Допустимый overlap зависит от provider. При компрометации приоритет другой: ограничить вред, даже если немедленный revoke временно нарушит доступность. Время до фактического прекращения доступа измеряется, а не выводится из TTL записи.</p>
-<p>В Substrate credential injection и policy caches имеют конкретные ограничения версии, разобранные в главе 40. Не считайте, что отсутствие secret у Actor доказывает запрет любых upstream операций, а сохранение policy мгновенно закрывает уже разрешённый stream. Проверяйте результат у конечного сервиса и поведение fresh request, existing session и resume отдельно.</p>
-<p>После длительного suspend harness должен заново проверить identity, срок доступа, текущие права и состояние незавершённой операции. Ошибка <code>401</code> может потребовать refresh; <code>403</code> может означать изменившееся разрешение. Ни один код не является командой бесконечно повторять model call или заново выполнять tool write. Старый approval тоже не даёт вечного права: после restore должны проверяться его срок, binding к действию и действующая policy.</p>
-<p>Full snapshot может содержать secrets в RAM, а Data snapshot - в сохранённых файлах. Зашифровать payload полезно, но это не удаляет credential из него. Относитесь к snapshots как к чувствительным artifacts с отдельными readers и retention. Старые keys для decrypt могут понадобиться до окончания срока backup; это не причина возвращать старый API credential в работу.</p>
-
-<h2>Tenant isolation должна переживать восстановление</h2>
-<p>Namespace помогает организовать Kubernetes resources, но не даёт полную tenant isolation. Помимо RBAC нужны ограничения создания workloads и использования service accounts, admission policies, sandbox boundary, egress, разделение storage и quota. После DR эти controls восстанавливаются до пользовательских workload, а не добавляются вслед за первым успешным Task.</p>
-<p>Для Secrets недостаточно запретить только <code>get</code>. Доступ <code>list/watch</code> может раскрывать значения, а право создать Pod с mount нужного Secret даёт косвенный путь чтения. Это прямо отмечено в <a href="https://kubernetes.io/docs/concepts/security/secrets-good-practices/">практиках безопасности Kubernetes</a>. Проверяйте direct API access и транзитивные возможности; один ответ RBAC-проверки не описывает всю границу.</p>
-<p>Следующий пример проверяет только authorization в отдельном учебном стенде. Он не выводит secret values и не создаёт Pod. Context, namespace и ServiceAccount заранее подготовлены; оператору требуется право impersonation. Ошибку impersonation нельзя принять за доказанный запрет для runner.</p>
-<pre><code class="language-bash">kubectl --context ax-dr-lab -n ax-dr-lab auth can-i get secrets \
-  --as=system:serviceaccount:ax-dr-lab:runner
-kubectl --context ax-dr-lab -n ax-dr-lab auth can-i list secrets \
-  --as=system:serviceaccount:ax-dr-lab:runner
-kubectl --context ax-dr-lab -n ax-dr-lab auth can-i create pods \
-  --as=system:serviceaccount:ax-dr-lab:runner
-</code></pre>
-<p>Для profile, которому не нужны Kubernetes Secrets и создание Pods, ожидается <code>no</code> во всех трёх случаях. Затем проверяются реальный sandbox, broker и чужой tenant через безопасные canaries. Debug access, backup readers и restore operators тоже входят в threat model: привилегия посмотреть snapshot иногда опаснее обычного model key.</p>
-
-<h2>Backup удерживает граф зависимостей</h2>
-<p>Сначала составьте recovery inventory: какие данные authoritative, какие можно воспроизвести и какие нужны лишь для расследования. Git возвращает объявленную конфигурацию только в пределах того, что действительно хранилось в Git. Он не заменяет live state, содержимое volumes, receipts внешних операций и динамически созданные objects.</p>
-<table style="break-inside:avoid">
-<thead><tr><th>Слой</th><th>Что должно пережить потерю площадки</th><th>Проверка</th></tr></thead>
+<tr>
+<td>Приложение в Kubernetes принимает существующий API key</td>
+<td>Kubernetes Secret с ограниченным mount</td>
+<td>Защиту storage и API, перечитывание значения, все consumers</td>
+</tr>
+<tr>
+<td>Несколько сервисов используют централизованно управляемые secrets</td>
+<td>External secret store и выбранный способ доставки</td>
+<td>Копируется ли значение в Kubernetes, кто читает копии, как работает отказ store</td>
+</tr>
+<tr>
+<td>Backend умеет выдавать отдельный временный доступ</td>
+<td>Dynamic credentials, например подходящий secrets engine Vault</td>
+<td>Реальный lease, renew, revoke и прекращение доступа у backend</td>
+</tr>
+<tr>
+<td>Целевой сервис доверяет identity workload</td>
+<td>Workload identity и обмен на нужный доступ</td>
+<td>Issuer, audience, scope, обновление и доступность issuer</td>
+</tr>
+<tr>
+<td>Task нужна узкая операция без downstream key</td>
+<td>Tool broker с собственным credential</td>
+<td>Проверку каждого действия и отсутствие прямого обходного пути</td>
+</tr>
+</tbody>
+</table>
+<p>Это сочетаемые решения. Broker может получать temporary credential по workload identity и хранить его только до expiry. External store может, напротив, просто отдавать один долгоживущий key всем consumers. По названию продукта нельзя определить срок и область реального доступа.</p>
+<p><strong>Kubernetes Secret</strong> - API-объект для чувствительных данных; base64 не шифрует их. Обычный Secret volume обновляется с задержкой, <code>subPath</code> не получает автоматических обновлений. Приложению всё равно нужно перечитать файл и обновить client. Значение, однажды переданное через environment, не заменяется внутри уже запущенного процесса. Эти условия задаёт <a href="https://kubernetes.io/docs/concepts/configuration/secret/">контракт Secrets</a>.</p>
+<p>Для <strong>dynamic credentials</strong> Vault выдаёт lease и поддерживает его renew/revoke. Обычный KV backend хранит произвольное значение без такой lease-семантики. Поместить постоянный пароль в KV не значит сделать его временным. При интеграции проверьте, что делает конкретный secrets engine с уже открытой session после revoke. <a href="https://developer.hashicorp.com/vault/docs/concepts/lease">Vault leases</a></p>
+<p><strong>Workload identity</strong> связывает доступ с исполняющей средой вместо общего пароля. В Kubernetes projected ServiceAccount token имеет срок и обновляется kubelet; приложение должно использовать актуальное значение, а не сохранённую копию. Workload без задачи обращаться к API можно запускать с <code>automountServiceAccountToken: false</code>. Для другого получателя token нужна соответствующая audience и настроенное доверие. <a href="https://kubernetes.io/docs/concepts/security/service-accounts/">Service Accounts</a></p>
+<p>Если backend поддерживает только статический key, разумным выбором может быть ограниченный broker с проверяемой rotation. Если умеет короткоживущие удостоверения, оцените этот путь вместе с отказом issuer. Чем короче срок, тем важнее надёжное обновление: недоступность выдачи проявится как остановка новых операций. Заранее определите, какие безопасные чтения допустимы отдельно, а какие действия должны ждать восстановления доступа.</p>
+<h2>Rotation охватывает путь до конечного сервиса</h2>
+<p><strong>Rotation</strong> заменяет используемый материал, <strong>revocation</strong> прекращает действие старого. Между ними находится доставка нового значения всем consumers. Для плановой смены network writer команда может сначала выпустить <code>cred-v2</code>, переключить broker, подтвердить использование новой версии и затем отозвать <code>cred-v1</code>. Короткий overlap нужен лишь там, где его допускает provider и политика. При компрометации приоритетом становится быстрое ограничение вреда, даже ценой временной недоступности.</p>
+<p>Проверка заканчивается у получателя запроса. Новое значение в store доказывает только изменение store. Consumer мог удержать старый client, connection pool или bearer token в RAM. Поэтому испытайте fresh request, существующую session и resume ранее suspended Actor. Измерьте время между revoke и последним реально разрешённым обращением. Разные API могут прекращать новые обращения и уже начатые операции по-разному.</p>
+<p>В нашем случае snapshot возвращает <code>cred-v1</code>, хотя действующая система доступа уже отозвала его. Harness должен заново получить доступ по разрешённой процедуре и сверить текущие права. Если snapshot вернул также старую policy, её нельзя использовать как актуальное разрешение. Проверки на доверенном пути выполнения должны опираться на действующий источник policy и revocation state вне откатываемого checkpoint.</p>
+<p>Full restore возвращает процесс к сохранённой точке исполнения. Проверка credential только при startup поэтому может не выполниться. Поддерживаемый resume path должен заново установить нужные соединения и доступ, а доверенный broker - проверять текущие права на каждом действии независимо от состояния Actor. Если приложение не умеет такой возврат, рассмотрите совместимый Data restore с cold boot и явным чтением checkpoint, как в главе 39.</p>
+<p>Ошибка <code>401</code> может требовать нового удостоверения; <code>403</code> - разбора прав. Автоматический refresh допустим только по контракту клиента и не должен превращаться в бесконечный повтор tool write. Перед повтором отдельно устанавливается исход прежней операции. В главе 40 показано, почему policy caches, credential injection и уже открытые streams требуют самостоятельных проверок.</p>
+<p>Full snapshot способен удержать секрет в памяти, Data snapshot - в файлах. Шифрование payload защищает его хранение, но не удаляет сохранённый credential. Ограничивайте readers, доступ debug и retention снимков как чувствительных artifacts. При этом decrypt key старой резервной копии и API credential старого runner имеют разные сроки жизни: первый может быть нужен для чтения retained backup, второй не должен возвращаться в работу.</p>
+<h2>Как проверить границу tenant после восстановления</h2>
+<p>Tenant isolation складывается из проверок API, identity, sandbox, сети и storage. Namespace удобен для разделения Kubernetes resources, но не является всей этой границей. Например, запрет прямого чтения Secret бесполезен, если тому же участнику разрешено создать Pod, который смонтирует этот Secret.</p>
+<p>В Kubernetes проверьте <code>get</code>, <code>list</code> и <code>watch</code> Secrets, а также косвенные пути через создание workloads и выбор ServiceAccount. Право <code>list</code> тоже способно раскрывать значения. Документация <a href="https://kubernetes.io/docs/concepts/security/secrets-good-practices/">Secrets good practices</a> прямо выделяет эти пути. Проверка <code>kubectl auth can-i</code> оценивает authorization, а не sandbox или egress; при impersonation нужно учитывать группы identity и право оператора на impersonation. Ошибка такой проверки не равна подтверждённому запрету для runner.</p>
+<p>На отдельном стенде подготовьте synthetic tenants <code>lab-a</code> и <code>lab-b</code> с безопасными canary objects. От имени workload <code>lab-a</code> проверьте разрешённое чтение своего объекта, отказ чтения чужого и отказ чужой mutation. Контролируйте обе стороны: ответ отказа и отсутствие изменения у целевой системы. Иначе timeout после выполненного write легко принять за сработавший запрет.</p>
+<p>Тот же тест нужен для backup reader и restore operator. Доступ к зашифрованной копии вместе с decrypt правом иногда раскрывает больше, чем доступ обычного Task. Восстанавливайте controls до запуска пользовательских workloads. Если controllers начинают reconciliation сразу после подключения stores, барьеры должны уже действовать к этому моменту.</p>
+<h2>Что входит в пригодную резервную копию</h2>
+<p>Пройдем путь восстановления <code>lab/network-017</code>. AX record указывает на Actor; Actor - на completed snapshot; Data-on-golden требует ещё template и golden Tag. Приложение читает checkpoint, а затем ищет <code>op-17</code> в ledger и целевой системе. Каждый переход - зависимость, которую нужно вернуть. Имя файла с backup database не описывает весь комплект.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Компонент</th>
+<th>Что он возвращает</th>
+<th>Условие пригодности</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>Deployment</td><td>Manifests, схемы, exact images и configs</td><td>Artifacts доступны и совместимы, а не только указаны digests</td></tr>
-<tr><td>AX и Substrate state</td><td>Resource records, Actor/Tag metadata, mappings и migrations</td><td>Tasks ссылаются на правильные Actors и completed checkpoints</td></tr>
-<tr><td>Workspaces и snapshots</td><td>Payloads, manifests, borrowed/golden dependencies</td><td>Полные referenced prefixes читаются и проходят integrity checks</td></tr>
-<tr><td>Trust и keys</td><td>Configs issuer/policy, decrypt key versions, recovery access</td><td>Доступен bootstrap и decrypt; старые grants не оживают автоматически</td></tr>
-<tr><td>Actions и audit</td><td>Operation ledger, idempotency mapping, receipts</td><td>Внешний outcome можно установить без повторного write</td></tr>
-</tbody></table>
-<p>Согласованность здесь означает пригодность связей, а не равенство timestamps всех файлов. PostgreSQL metadata может ссылаться на незавершённый или удалённый payload. Clone может зависеть от чужого Tag, а тот - от golden baseline. Запись URI не содержит bytes по этому URI. Состав и ownership snapshot описаны в главе 39; backup должен удержать нужные зависимости независимо от обычного lifecycle cleanup.</p>
-<p>Если доступны coordinated checkpoints, фиксируйте завершение application state и payload до включения ссылок в recovery point. Если общий atomic snapshot невозможен, нужен валидатор references и процедура выбора последнего пригодного checkpoint. Не переписывайте запись на «похожий» blob: чужой payload с подходящим размером не становится состоянием вашего Actor.</p>
-
-<h2>Выберите persistence и проверьте доступ к копиям</h2>
-<p><strong>PostgreSQL PITR</strong>, point-in-time recovery, восстанавливает database через base backup и непрерывный архив <strong>WAL</strong> - журнала изменений. Пропущенный segment может сделать требуемую точку недоступной. WAL не заменяет отдельное резервирование вручную изменяемых database configs. Эти условия описаны для <a href="https://www.postgresql.org/docs/17/continuous-archiving.html">PostgreSQL 17</a>; параметры и инструменты проверяются по вашей версии. PITR одной базы не восстанавливает object storage и operation ledger других систем.</p>
-<p>В Redis <strong>RDB</strong> удерживает снимок состояния, а <strong>AOF</strong> записывает операции для восстановления. Режимы различаются частотой сохранения и fsync; <code>appendfsync everysec</code> допускает потерю последних записей при отказе. Это не универсальное обещание RPO в одну секунду для всей платформы. Для современных multipart AOF нужно сохранять согласованный набор его files и manifest, а не один удобный файл. Условия разобраны в <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">руководстве persistence Redis</a>.</p>
-<p>В AX baseline <code>ac233282</code> <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/redis.yaml">development manifest Redis</a> не настраивает durable volume и production persistence. Наличие работающего Redis Pod не доказывает наличие recovery point. Выбор production store требует проверенного восстановления schema и write semantics AX, как в главе 27.</p>
-<p>Храните копии вне выбранного failure domain и отдельно ограничивайте право их удалить. Backup account с тем же административным credential, который скомпрометирован в production, не независим. Versioning, immutability и retention помогают лишь при корректных permissions и сохранном доступе к ключам. Backup writer не обязан иметь право массового delete, а workload - право читать чужие recovery points.</p>
-<p>Контрольная сумма выявляет изменение bytes относительно известного значения, но сама не доказывает происхождение backup. Если атакующий заменил и файл, и записанный рядом hash, сравнение пройдёт. Для cyber recovery нужны доверенный каталог или проверяемая подпись, раздельные права на artifacts и evidence, а также выбор точки до компрометации. Подлинный backup тоже может содержать уже повреждённое состояние; его пригодность подтверждается проверками приложения.</p>
-<p>Шифрование добавляет dependency. В Kubernetes KMS envelope encryption данные шифруются DEK, защищённым ключом KEK из KMS; наличие encrypted etcd backup без нужного decrypt path недостаточно. Механизм описан в <a href="https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/">руководстве KMS</a>. Для любого encrypted store испытайте восстановление нужных key versions и доступ recovery identity. Старые decrypt keys нельзя удалять раньше использующих их retained backups без осознанной потери восстановимости.</p>
-
-<h2>Считайте RPO и RTO до полезного результата</h2>
-<p><strong>RPO</strong> - допустимый интервал потери изменений к моменту инцидента; <strong>RTO</strong> - допустимое время восстановления сервиса. Это цели, а не свойства названия database. Фактическая потеря определяется последней пригодной точкой, а время возврата - всем recovery path, включая поиск ключей, загрузку images, прогрев model endpoint и проверки прав.</p>
-<p>Учебный пример: отказ произошёл в <code>12:07 UTC</code>, metadata восстановима до <code>12:02</code>, но последний пригодный application checkpoint конкретного Task - <code>11:56</code>. Его состояние откатилось на 11 минут, а не на пять. Для других Tasks точка может быть другой. При этом тикет, созданный в <code>12:04</code>, во внешней системе сохранился. У него не «откатывают часы» вместе с checkpoint: этот outcome нужно учесть отдельно.</p>
-<p>Если containment занял 8 минут, bootstrap 12, возврат stores и payloads 18, проверки и reconciliation 10, а canary admission 7, последовательный путь занял <strong>55 минут</strong>. Параллельные операции считают по critical path, а не складывают механически. Открытый API port в середине этого пути не означает, что бизнес-сервис восстановлен.</p>
-<p>Определите отдельные цели для read-only diagnostics, создания новых Tasks, resume существующих и допуска high-risk writes. RTO платформы может быть выполнен, пока часть Actors требует ручного разбора. Такой degraded mode допустим только как явный контракт. Retention должна покрывать обнаружение повреждения: регулярные свежие копии бесполезны, если все они уже содержат одну давно незамеченную ошибку.</p>
-
-<h2>Подготовьте recovery manifest и независимый bootstrap</h2>
-<p><strong>Recovery manifest</strong> описывает выбранный набор backups, releases и mappings. Он не хранит открытые secrets, но содержит ссылки на нужные key versions и procedure IDs. Доступ к самому документу и artifacts должен оставаться возможным при отказе основной площадки.</p>
-<p>Ниже учебный формат внутреннего документа, не AX resource, не Substrate API и не файл для <code>kubectl apply</code>. Идентификаторы иллюстративные; в рабочем варианте добавляются реальные checksums, object versions и результаты validators.</p>
-<pre><code class="language-yaml">format: recovery-plan/v1
+<tr>
+<td>Deployment и artifacts</td>
+<td>Исполняемый код, schemas, config</td>
+<td>Доступны exact images и совместимая процедура запуска</td>
+</tr>
+<tr>
+<td>AX и Substrate metadata</td>
+<td>Связи Task, Actor, template, Tag</td>
+<td>Mappings разрешаются в правильные lifetimes и completed точки</td>
+</tr>
+<tr>
+<td>Snapshot payloads</td>
+<td>Файлы и поддерживаемое runtime state</td>
+<td>Полный граф dependencies читается и проходит integrity checks</td>
+</tr>
+<tr>
+<td>Trust foundation</td>
+<td>Доверенные issuer, policy и decrypt path</td>
+<td>Известен текущий источник прав, доступны нужные key versions</td>
+</tr>
+<tr>
+<td>Ledger и receipts</td>
+<td>История внешних операций</td>
+<td>Сохранён binding к run, operation, key и parameters</td>
+</tr>
+</tbody>
+</table>
+<p>Backup должен удерживать нужные payloads независимо от обычного cleanup. Подробности ownership и borrowed snapshots разобраны в главе 39. Если metadata ссылается на Tag, а его bytes уже удалены, успешное восстановление database оставит неразрешимую ссылку. Выбор соседнего каталога с похожей датой эту связь не исправляет.</p>
+<p>При coordinated backup фиксируйте поддерживаемую согласованную точку приложения и stores. Если общей транзакции нет, определите порядок завершения, валидатор references и последнюю допустимую точку для каждого Task. Timestamps могут различаться: важно, чтобы выбранные ссылки вели к завершённым совместимым данным. Отдельно сохраняйте актуальную историю отзыва прав, которую нельзя молча откатить вместе с пользовательским состоянием. Если после потери площадки её достоверность неизвестна, доступ остаётся закрытым до нового установления доверия.</p>
+<p>Git возвращает только то, что действительно было закоммичено: manifests и config не заменяют live state, volumes и receipts. Registry digest также обозначает artifact, а не гарантирует, что он останется доступен после потери registry. Проверьте сам путь получения выбранного image из recovery environment.</p>
+<h2>Как выбрать средства резервирования</h2>
+<p>Для PostgreSQL <strong>PITR</strong>, point-in-time recovery, соединяет base backup с непрерывным архивом <strong>WAL</strong>, журнала изменений. Это позволяет выбрать точку replay, а не ограничиваться временем последнего полного backup. Пробел в нужной цепочке WAL мешает восстановлению до цели. Вручную изменяемые <code>postgresql.conf</code>, <code>pg_hba.conf</code> и <code>pg_ident.conf</code> требуют отдельного сохранения. PITR одной database не возвращает snapshot objects другой системы. Условия приведены для <a href="https://www.postgresql.org/docs/17/continuous-archiving.html">PostgreSQL 17</a>.</p>
+<p>У Redis <strong>RDB</strong> сохраняет снимок, <strong>AOF</strong> - журнал операций. Выбор зависит от допустимой потери и стоимости записи. <code>appendfsync everysec</code> допускает потерю последних записей при аварии; это не SLO всей платформы. В multipart AOF сохраняют согласованный комплект files и manifest. Проверяйте процедуру своей версии по <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis persistence</a>. В <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/deploy/redis.yaml">development manifest AX <code>ac233282</code></a> durable volume и production persistence не настроены. Отдельный Redis Pod ещё не даёт подходящую резервную копию.</p>
+<p>Для object storage выбирайте versioning, retention и, где требуется, immutability по угрозе удаления и сроку обнаружения повреждений. Эти свойства работают вместе с правами: production admin с возможностью удалить все versions и резервные копии остаётся общей точкой отказа. Разделите backup writer, delete authority и recovery reader; вынесите копии за failure domain, потерю которого требуется пережить. Цена - дополнительный storage, администрирование и испытания доступа.</p>
+<p><strong>Checksum</strong> сравнивает bytes с известным значением. Он не удостоверяет источник, если файл и соседний hash заменили вместе. Доверенный каталог или проверяемая подпись защищают происхождение комплекта, а проверки приложения - его пригодность. Даже подлинный backup может содержать ошибочное удаление, сделанное до сохранения.</p>
+<p>Шифрование создаёт ещё одну зависимость. В KMS envelope encryption ключ данных, DEK, защищён ключом KEK из KMS; для чтения encrypted backup нужен рабочий decrypt path. Это устройство механизма, описанного в <a href="https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/">Kubernetes KMS</a>. Сохраните нужные key versions и отдельно испытайте права recovery identity. Удаление последнего пригодного decrypt key может сделать retained копию невосстановимой.</p>
+<h2>Как измерить потерю и время возврата</h2>
+<p><strong>RPO</strong> задаёт допустимый интервал потери изменений, <strong>RTO</strong> - допустимое время до восстановления выбранного сервиса. Обе цели относятся к пользовательской возможности: читать историю, создавать Tasks, продолжать старые Tasks или выполнять рискованные writes. У них могут быть разные сроки допуска.</p>
+<p>Пусть инцидент произошёл в <code>12:07 UTC</code>. Metadata можно вернуть до <code>12:02</code>, но последняя пригодная точка конкретного Task относится к <code>11:56</code>. Для его локального состояния окно отката составляет <strong>11 минут</strong>, а не пять. Это интервал потенциальной потери изменений Task, не доказательство того, что он работал каждую из этих минут. Внешнее изменение <code>op-17</code> в <code>12:04</code> сохраняется у tool и должно быть учтено независимо.</p>
+<p>Если containment занял 8 минут, bootstrap 12, возврат stores и payloads 18, сверка прав и операций 10, canary admission 7, последовательный путь составляет <strong>55 минут</strong>. При параллельном выполнении считают critical path с учётом зависимостей. Если read-only диагностика стала доступна раньше, это отдельный достигнутый этап; открытый порт не завершает RTO для полезной работы Task.</p>
+<p>Долгое обнаружение повреждения влияет на retention. Копии за последние три дня не помогут выбрать состояние до ошибки, которая незаметно живёт неделю. Сопоставьте частоту backup, срок обнаружения, глубину хранения и время восстановления. Затем измерьте эти величины в упражнении с выбранным объёмом данных и другим оператором.</p>
+<h2>Подготовьте независимый bootstrap</h2>
+<p><strong>Bootstrap восстановления</strong> - получение первых доверенных инструментов и доступов, с которых можно вернуть остальные компоненты. Типичный цикл выглядит так: secret store требует KMS key, доступ к KMS требует identity provider, а сам provider находится в потерянном cluster. Такой цикл нужно разорвать заранее подготовленным recovery path.</p>
+<p>В комплект входят проверенные operator tools, доступ к backup storage, нужным key versions, registry, DNS и средствам связи команды. <strong>Break-glass access</strong> - аварийный путь с узким purpose, ограниченным временем и аудитом из главы 24. Он не должен зависеть только от того сервиса, который этим доступом предстоит восстановить. После инцидента временные полномочия закрывают и проверяют их использование.</p>
+<p><strong>Recovery manifest</strong> связывает выбранные artifacts и процедуры. Ниже сокращённый учебный внутренний документ, не AX resource и не Substrate API. Идентификаторы условные; рабочий manifest содержит exact object versions, hashes, mappings и ссылки на результаты validators. Secret values в него не включают.</p>
+<pre><code>format: recovery-plan/v1
 environment: ax-dr-lab
 release_inventory: pinned-images-and-configs-01
-incident_time_utc: "2026-10-11T12:07:00Z"
-metadata_target_utc: "2026-10-11T12:02:00Z"
-stores:
-  ax_backup_id: ax-backup-1202
-  substrate_base_backup_id: substrate-base-1100
-  wal_archive_set: wal-verified-through-1202
-snapshots:
-  inventory_id: completed-snapshots-1202
-  task_checkpoint_utc: "2026-10-11T11:56:00Z"
-  dependency_report: snapshot-reference-check-01
-identity:
-  decrypt_key_reference: backup-key-version-7
-  fresh_access_procedure: issue-recovery-identities
-external_actions:
-  ledger_reference: action-ledger-durable
-  reconciliation_report: pending
-admission:
-  mutation_access: disabled
-  acceptance_report: pending
+incident_time_utc: &quot;2026-10-17T12:07:00Z&quot;
+metadata_target_utc: &quot;2026-10-17T12:02:00Z&quot;
+task_checkpoint_utc: &quot;2026-10-17T11:56:00Z&quot;
+snapshot_inventory: completed-snapshots-1202
+dependency_report: snapshot-reference-check-01
+decrypt_key_reference: backup-key-version-7
+current_authority_source: recovery-identity-and-policy
+operation_to_reconcile: op-17
+mutation_access: disabled
+acceptance_report: pending
 </code></pre>
-<p>Не делайте bootstrap циклическим: «получить ключ из secret store, который восстанавливается этим же ключом». Отдельно подготовьте доступ к KMS, identity provider, registry, backup store, DNS и средствам связи команды. Break-glass access из главы 24 ограничивается по времени и purpose, требует audit и последующего закрытия. Образ recovery tools и их versions тоже должны быть доступны без скачивания случайного <code>latest</code> из интернета.</p>
-<p>Проверяйте эти зависимости с чистой operator environment. На ноутбуке автора runbook нужные credentials и configs часто уже присутствуют. Если другой оператор не может пройти bootstrap только по утверждённому комплекту, документ ещё не описывает воспроизводимое восстановление.</p>
-
-<h2>Восстанавливайте через проверяемые этапы допуска</h2>
-<p>Первое действие - containment и <strong>fencing</strong>: исключение старых исполнителей из возможности писать. Потеря связи не доказывает, что старый cluster перестал выполнять Tasks. Если после переключения живы обе стороны, они могут независимо делать writes. Одного изменения DNS недостаточно; нужно проверить остановку writers, отказ старых credentials или другой поддерживаемый механизм fencing у конечной системы.</p>
+<p>Проверьте bootstrap с чистой operator environment. На ноутбуке автора могут случайно оставаться рабочие credentials, trust roots и registry cache. Второй оператор должен получить нужный доступ по утверждённой процедуре, не копируя забытые secrets из живого стенда. Такая проверка обнаруживает зависимость, которую невозможно увидеть простым чтением YAML.</p>
+<h2>Порядок допуска восстановленного приложения</h2>
+<p><strong>Fencing</strong> исключает старого исполнителя из возможности продолжать запись. Потеря связи с cluster не доказывает, что он остановился. DNS переключает маршрут новых клиентов, но не обязательно закрывает старые outbound connections. Выберите подтверждаемый механизм: отключение старого writer, отзыв действительно проверяемого доступа либо fencing token, который конечная система умеет отвергать после смены поколения. Локальное число поколения без проверки у получателя ничего не блокирует.</p>
 <figure>
 <figcaption>Recovery gates: trusted bootstrap, isolated restore, reconciliation, controlled writes</figcaption>
 <svg class="diagram" viewBox="0 0 900 340" role="img" aria-label="Recovery gates: trusted bootstrap, isolated restore, reconciliation, controlled writes">
@@ -12743,34 +12776,93 @@ admission:
 <text x="825" y="130" font-size="14" font-weight="700" text-anchor="middle">Admission</text><text x="825" y="153" font-size="11" text-anchor="middle">canary, then writes</text>
 </svg>
 </figure>
-<p>Начните restore в изолированной среде: mutation credentials не выданы, egress ограничен canary destinations, автоматический resume не разрешён. Просто выключить внешний ingress мало - восстановленный Actor сам способен инициировать outbound call. Подготовьте policies и механизм блокировки до запуска controllers, которые могут начать reconciliation сразу после подключения stores. Это операционный gate вашей установки, не универсальный флаг AX.</p>
-<p>Далее верните trust foundation и immutable artifacts, восстановите stores и object payloads, проверьте схемы, hashes и snapshot compatibility. Сопоставьте Task, Actor, Tag и execution identities. При переносе Kubernetes resources UIDs и owner references могут измениться; нельзя предполагать, что копия YAML автоматически восстанавливает mapping и ownership. Используйте поддерживаемую import/migration процедуру своей версии, а не ручное угадывание связей.</p>
-<p>После integrity checks проверьте authentication, authorization и tenant boundary. Выпустите свежие credentials, сверьте текущую policy и unresolved actions, выполните read-only canary. Затем допускайте ограниченную группу writes и расширяйте traffic с наблюдением. Реальный dependency graph может отличаться от линейного порядка «identity, cluster, stores»: bootstrap identity иногда сама требует инфраструктуры. Runbook должен разрешить этот цикл заранее.</p>
-<p>Если проверка gate не прошла, не маскируйте её ещё одним restart. Сохраните recovery evidence, остановитесь до следующего этапа и исправьте причину. Если recovery уже сделала новый write, повторное восстановление более старой копии не отменит этот write; он тоже входит в reconciliation.</p>
-
-<h2>Внешние действия переживают откат checkpoint</h2>
-<p>Возьмём операцию <code>op-17</code> из главы 37. Агент подготовил изменение, tool выполнил его, но receipt не успел попасть в checkpoint. После restore приложение видит старое состояние «не выполнено», а внешняя система - новое «выполнено». Повторять вызов только по локальному state опасно.</p>
-<p>Operation ledger связывает stable operation ID, точные arguments или их digest, authorization/approval, physical attempts и подтверждённый outcome. Он должен иметь durability, подходящую для действий, которые нельзя повторить, и не терять последние записи вместе с более старым Actor checkpoint. Если ledger всё же откатился, внешняя authoritative system и receipts нужны для установления outcome; факт отсутствия записи не доказывает отсутствие действия.</p>
-<p>Reconciliation выполняет read-only lookup по прежнему ID или idempotency key. Если операция подтверждена, harness сохраняет outcome и продолжает после неё. Если надёжно установлено, что эффекта не было, повтор возможен по текущей authorization и прежней logical identity. Если исход неизвестен, high-risk действие остаётся заблокированным до разбора. Недоступность lookup API не является разрешением сделать write ещё раз.</p>
-<p>Idempotency key помогает лишь в пределах контракта provider: scope, неизменность parameters и retention deduplication должны покрывать recovery window. Если ключ хранился у provider сутки, а backup восстановили через неделю, безопасный retry нельзя выводить из наличия старой строки key. Создавать новую operation identity ради обхода конфликта тоже нельзя. Где нет подходящего API, нужны domain reconciliation или явное решение человека, а не обещание exactly once.</p>
-
-<div class="keep">
-<h2>Практикум безопасного DR</h2>
-<p>Используйте отдельный стенд, synthetic tenant и тестовый tool с проверяемым receipt. Никаких production mutation credentials и намеренного повреждения реальных backups. Цель - восстановить историю работы и границы доступа, а не пустой dashboard.</p>
-<ol>
-<li><strong>Подготовьте историю.</strong> Создайте Task с durable marker, тестовой внешней операцией и suspend checkpoint. Сохраните mappings, operation ID, snapshot dependencies и current policy.</li>
-<li><strong>Зафиксируйте комплект.</strong> Соберите recovery manifest, согласованные backups, exact artifacts и key references. Проверьте decrypt и references до принятия recovery point.</li>
-<li><strong>Смените доступ.</strong> Пока test Actor suspended, отзовите canary credential или разрешение. После restore старый доступ не должен восстановиться вместе с state.</li>
-<li><strong>Пройдите чистый bootstrap.</strong> Восстанавливайте только по runbook с новой operator environment. Зафиксируйте скрытые prerequisites и ручные шаги; не копируйте забытые secrets из живого стенда.</li>
-<li><strong>Проверьте gates.</strong> Докажите блокировку старых writers, restricted egress, совместимость payloads и корректные Task/Actor mappings. Испытайте недоступный key/issuer и отсутствующий dependency на отдельной копии backup.</li>
-<li><strong>Согласуйте внешний outcome.</strong> Восстановите checkpoint до receipt и убедитесь, что уже выполненная операция не повторилась. Для unknown outcome проверьте остановку high-risk write.</li>
-<li><strong>Проверьте полезную работу.</strong> Read-only canary, чужой tenant deny, выдача свежего scoped credential, затем одна разрешённая test mutation. Измерьте время и фактическую потерю state.</li>
-<li><strong>Закройте упражнение.</strong> Сравните measured RPO/RTO с целями, закройте временный доступ, сохраните evidence без secret values и повторите исправленный runbook другим оператором.</li>
-</ol>
-<p>Приёмка завершена, когда команда может доказать восстановимость данных, действительность текущих прав и отсутствие необъяснимых повторных эффектов. Успешная загрузка backup или зелёный health check закрывают только часть этой задачи. В следующей главе соберём диагностику по слоям и release acceptance: какие наблюдения нужны оператору, чтобы быстро найти именно нарушенный gate.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong>
-<p>Kubernetes: <a href="https://kubernetes.io/docs/concepts/configuration/secret/">Secrets</a>, <a href="https://kubernetes.io/docs/concepts/security/secrets-good-practices/">access practices</a>, <a href="https://kubernetes.io/docs/concepts/security/service-accounts/">Service Accounts</a>, <a href="https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/">KMS</a>. <a href="https://developer.hashicorp.com/vault/docs/concepts/lease">Vault leases</a>, <a href="https://www.postgresql.org/docs/17/continuous-archiving.html">PostgreSQL 17 PITR</a>, <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis persistence</a>. Границы release: AX <code>ac233282</code>, Substrate <code>ccecc788</code>. В книге: главы 23-24, 27, 37, 39-41.</p>
-</div>
+<p>Затем восстанавливайте данные в изолированной среде. Пользовательские mutation credentials ещё не выданы, автоматический resume ограничен, egress закрыт за исключением подготовленных recovery destinations. Блокировка только входящего traffic оставила бы Actor возможность самому отправить write. Барьер нужен и на время запуска controllers, которые могут немедленно продолжить reconciliation. Это процедура вашей установки, не универсальный флаг AX.</p>
+<p>Порядок внутри restore определяется зависимостями. Верните доверенные artifacts и доступ к keys, затем совместимые stores и payloads. Проверьте schemas, references, integrity и mapping Task/Actor/Tag. При пересоздании Kubernetes resources UIDs и owner references могут измениться: используйте поддерживаемую import/migration процедуру версии, а не совпадение имён. Свежие credentials выдаются после проверки доверенной identity, а текущие grants устанавливаются отдельно от восстановленных старых records.</p>
+<p>Перед разрешением пользовательских writes выполните read-only canary, проверку чужого tenant и reconciliation незавершённых операций. Затем допустите узкий canary write в synthetic target и проверьте outcome у получателя. Расширяйте нагрузку по явным критериям и с возможностью снова закрыть admission. Если новый write уже произошёл, последующий откат snapshot не отменит его; это новая запись для reconciliation.</p>
+<p>Этап допуска, или <strong>gate</strong>, связывает условие с наблюдаемым подтверждением. Для fencing таким подтверждением будет отказ старому writer, для decrypt - чтение выбранной копии recovery identity, для tenant - отказ чужому доступу без эффекта. Один общий <code>healthy=true</code> не показывает, какое из условий действительно проверено.</p>
+<h2>Сверьте историю отдельно от разрешения продолжать</h2>
+<p>Восстановленный checkpoint нашего Task говорит <code>DISPATCHING</code>. Для <code>op-17</code> сохраняются прежние run, operation ID, idempotency key и digest аргументов. Новый key сделал бы запрос похожим на новое действие и разрушил бы связь с прежней попыткой. Ledger должен переживать откат Actor либо восстанавливаться с последующей сверкой у authoritative target.</p>
+<p>Дальше возможны три исхода. Receipt с правильным binding подтверждает прежнее выполнение: harness сохраняет его и переходит к проверке результата, не отправляя write снова. Достоверное подтверждение отсутствия эффекта позволяет рассмотреть retry той же logical operation по действующим правам и контракту provider. Неизвестный outcome оставляет рискованный повтор закрытым. Пустой lookup или недоступный API сами по себе относятся к третьему случаю.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Установленный факт</th>
+<th>Следующий шаг</th>
+<th>Чего этот факт не разрешает</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>op-17</code> выполнена, receipt связан с нужными arguments</td>
+<td>Учесть outcome и проверить инженерную цель</td>
+<td>Выполнить действие повторно или начать следующее без проверки прав</td>
+</tr>
+<tr>
+<td>Эффекта достоверно не было</td>
+<td>Оценить retry с прежней identity</td>
+<td>Обойти истёкший approval или изменившуюся policy</td>
+</tr>
+<tr>
+<td>Результат неизвестен</td>
+<td>Сохранить неопределённость и передать на разбор</td>
+<td>Повторить write ради получения более ясного ответа</td>
+</tr>
+</tbody>
+</table>
+<p>Отдельный recovery reader может иметь право читать receipt при отозванном праве Task на новые writes. Это позволяет вернуть историю без восстановления прежних полномочий. Само чтение тоже авторизуется: receipt способен содержать чувствительные сведения другого tenant.</p>
+<p>Idempotency действует в пределах provider contract: namespace ключа, неизменность parameters и срок хранения результата должны покрывать recovery window. Запись ключа недельной давности не даёт защиты, если provider хранит deduplication сутки. При отсутствии подходящего API потребуется предметная сверка и решение уполномоченного человека. Механизм безопасного write остаётся в главе 37; DR должен сохранить его условия, включая существующие уже после аварии эффекты.</p>
+<h2>Практика на локальной модели восстановления</h2>
+<p>Запустите <code>examples/ch42_recovery_admission.py</code> на стандартной библиотеке Python. Программа использует SQLite target из главы 37: подготовка fixture применяет одно изменение и имитирует остановку до сохранения receipt. Проверка восстановления вызывает только lookup. Реальный router, AX, Substrate, issuer и backup systems не задействуются.</p>
+<pre><code>python3 examples/ch42_recovery_admission.py
+python3 -m unittest discover -s examples -p 'test_ch42_recovery_admission.py'
+</code></pre>
+<p>Checkpoint остаётся старым во всех сценариях. Меняются данные отдельного текущего источника доступа и результат поиска receipt. В учебной модели credential представлен проверенными metadata, а не token bytes. Проверка подписи, collection evidence и реальные fencing механизмы остаются за пределами этой программы.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Сценарий</th>
+<th>Gate</th>
+<th>Почему</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Вернулась <code>cred-v1</code>, уже отозванная текущей authority</td>
+<td><code>HOLD_CREDENTIAL_REVOKED</code></td>
+<td>Сохранённое удостоверение больше не пригодно</td>
+</tr>
+<tr>
+<td>Выдана <code>cred-v2</code>, но право продолжения отозвано</td>
+<td><code>HOLD_CURRENT_PERMISSION</code></td>
+<td>Новая аутентификация не меняет policy</td>
+</tr>
+<tr>
+<td>Доступ свежий, receipt не найден</td>
+<td><code>HOLD_OUTCOME_UNKNOWN</code></td>
+<td>Основания повторять операцию нет</td>
+</tr>
+<tr>
+<td>Receipt найден, текущие проверки пройдены</td>
+<td><code>READY_FOR_CANARY</code></td>
+<td>Можно переходить к отдельной canary-проверке</td>
+</tr>
+<tr>
+<td>Старый writer не исключён</td>
+<td><code>HOLD_FENCING</code></td>
+<td>Два исполнителя могут продолжить одну работу</td>
+</tr>
+</tbody>
+</table>
+<p>В первых двух сценариях <code>historical_effect</code> имеет значение <code>APPLIED</code>: recovery reader смог установить прошлый факт, хотя продолжение заблокировано. Во всех сценариях <code>write_admission</code> остаётся <code>CLOSED</code>. Даже <code>READY_FOR_CANARY</code> - результат учебной оценки условий, не техническое разрешение production write. В ходе assessment число effects не меняется: было одно, осталось одно.</p>
+<p>Измените audience на <code>model-api</code>, передайте credential другого tenant, сдвиньте время ровно на expiry или измените digest checkpoint. Посмотрите, какое условие нарушено и почему свежий token не исправляет неверную identity операции. Затем уберите подтверждение tenant boundary. Тесты удерживают эти развилки и отдельно проверяют, что assessment не вызывает <code>apply</code>.</p>
+<p>Модель намеренно однопоточная и доверяет входным observations. Она не реализует распределённую блокировку и не устраняет промежуток между проверкой и последующим действием. В рабочем сервисе enforcement должен снова проверять условия на пути исполнения. Boolean <code>old_writers_fenced</code> здесь обозначает уже полученное подтверждение; выставить его вручную в настоящем DR было бы подменой проверки.</p>
+<h2>Как перенести упражнение на отдельный стенд</h2>
+<p>Используйте synthetic tenant, тестовый tool и копии данных, которыми разрешено рисковать. Сначала подготовьте Task с durable marker, незавершённой операцией и completed checkpoint. Сохраните inventory, release digests и текущую policy. Получите backup комплект и проверьте decrypt и зависимости до выбора recovery point.</p>
+<p>Затем отзовите canary credential или право продолжения и восстановите комплект в изолированной среде с чистого operator environment. Подтвердите прекращение доступа старого writer, отсутствие нежелательного auto-resume и сохранность tenant boundary. На отдельных копиях испытайте отсутствующий payload и недоступный key: ожидается остановка до допуска workloads, а не попытка выбрать похожие данные.</p>
+<p>Создайте случай, где test tool выполнил действие после выбранного checkpoint, а receipt в нём отсутствует. При restore результат должен найтись без повторного эффекта. Для unknown outcome проверьте остановку. Свежий scoped credential и новое разрешение выдавайте только по действующей процедуре, после чего выполните read-only canary и одну разрешённую test mutation. Зафиксируйте начало инцидента, выбранные точки и время полезного результата.</p>
+<p>Сравните измеренные интервалы с RPO/RTO, закройте временный доступ и сохраните evidence без secret values. Повтор другим оператором проверит воспроизводимость runbook. Дальше глава 43 связывает такие наблюдения с диагностикой и приёмкой релиза. Результат этой главы для инженера - понятный ответ на три вопроса: какие данные можно вернуть, какой доступ действителен сейчас и почему восстановленный Task безопасно допустить к следующему этапу.</p>
+<div class="sources"><h3>Источники и дальнейшее чтение</h3>
+<p>Kubernetes: <a href="https://kubernetes.io/docs/concepts/configuration/secret/">Secrets</a>, <a href="https://kubernetes.io/docs/concepts/security/secrets-good-practices/">Secrets good practices</a>, <a href="https://kubernetes.io/docs/concepts/security/service-accounts/">Service Accounts</a>, <a href="https://kubernetes.io/docs/tasks/administer-cluster/kms-provider/">KMS encryption</a>. <a href="https://developer.hashicorp.com/vault/docs/concepts/lease">Vault leases</a>, <a href="https://www.postgresql.org/docs/17/continuous-archiving.html">PostgreSQL 17 PITR</a>, <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">Redis persistence</a>. Границы release: AX <code>ac233282</code>, Substrate v0.3.0 <code>ccecc788</code>; более новый authorization срез разобран в главе 24. В книге: главы 23-24, 27, 37, 39-41 и 43.</p>
 </div>
 </section>
 <section class="chapter" id="ch-43">
