@@ -13611,93 +13611,300 @@ decision: HOLD
 <p>Хороший итог review - команда понимает, какую работу можно доверить системе сейчас и как поддерживать её в этих границах. Открытый case становится конкретной инженерной задачей с владельцем. Приложение C поможет найти первичные источники для следующей проверки; результаты остаются привязаны к испытанной системе и выбранному профилю.</p>
 
 <h1 id="appendix-c" style="break-before:page">Приложение C. Карта источников</h1>
-<p>Представьте знакомую ситуацию: пример из README запускается, но параметр из книги сервер не принимает. В другом окне документация обещает функцию, которой нет в вашем image. Прежде чем менять конфигурацию, стоит проверить, об одной ли реализации говорят эти три источника. Часто проблема не в понимании инженера, а в незаметно смешанных версиях.</p>
-<p>Это приложение помогает найти первоисточник под конкретный вопрос. Здесь собраны основные маршруты чтения, а не полная библиография каждой главы: локальные ссылки рядом с разбором остаются важны. Начинайте с задачи - проверить API, выбрать sandbox, рассчитать inference или подготовить восстановление - и переходите к соответствующему разделу карты.</p>
-
-<h2>C.1 Как читать карту и фиксировать версию</h2>
-<p>У первоисточников разные роли. Guide объясняет намерение и порядок настройки; schema задаёт поля и типы; код показывает конкретную ветку исполнения; тест иллюстрирует проверенный сценарий. Roadmap описывает планы, issue - обсуждение или наблюдение в чужой среде. Ни один из этих документов сам по себе не подтверждает, что нужный контракт работает в вашем deployment.</p>
-<p>Поэтому полезный маршрут выглядит так: <strong>объяснение → контракт → реализация → собственная проверка</strong>. Для простого ознакомления достаточно первых двух шагов. Для решения о допуске к production нужны также сведения о фактической сборке, конфигурации и результаты испытания из приложения B. Если источники расходятся, сохраните расхождение как открытый вопрос, а не выбирайте удобную формулировку.</p>
-<p>Полная <a href="#version-profiles">карта версий прикладных разделов находится в главе 0</a>. Она различает AX v0.3.1 и direct path ac233282, три development-среза Substrate в главах 23–34 и release v0.3.0 позднего аудита. Не переносите experimental authz главы 24 на release-профиль и не считайте стенды 26 и 32 одной сборкой.</p><p>В этой карте источников ссылки AX фиксируют ac233282, ссылки Substrate — ccecc788, а inference-профиль главы 41 — vLLM v0.31.0. Для практикума 32 используйте его отдельную пару AX v0.3.1 / Substrate df788825 и vLLM v0.30.0. MCP разбирается по revision 2026-07-28 с отдельным legacy 2025-11-25.</p>
-<p>Короткие SHA здесь служат подписью; ссылки на исходники содержат полные commit IDs. Полный SHA фиксирует объект Git, тогда как <code>main</code>, <code>master</code> и <code>latest</code> могут измениться. Tag удобен для навигации, но для воспроизведения сохраните и разрешённый commit, и digest реально запущенного image. Версия документации не устанавливает версию вашего бинарника автоматически.</p>
-<p>Ссылки карты и выбранные опорные разделы проверены <strong>12.10.2026</strong>. Это не аудит всей внешней документации и не испытание runtime. Для Kubernetes, gVisor, lab tooling и других меняющихся руководств ниже указан маршрут поиска, а не единая новая baseline книги. После обновления сверяйте их с release notes вашей версии и повторяйте затронутые проверки.</p>
-
-<h2>C.2 AX: от понятий к фактическому исполнению</h2>
-<p>Начинайте с роли AX в общей системе, затем проверяйте интересующий ресурс. Само слово «оркестратор» не отвечает, кто запускает child process, кто хранит progress и кто запрещает tool write. Эти границы видны в разных частях репозитория.</p>
-<table>
-<thead><tr><th>Инженерный вопрос</th><th>Куда идти в срезе ac233282</th><th>Что уточнить после чтения</th></tr></thead>
-<tbody>
-<tr><td>Что такое Task, Workspace и Model?</td><td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md">README</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/concepts.md">concepts</a></td><td>Какие сущности принадлежат AX, какие - Substrate, какие состояния остаются внутри вашего harness.</td></tr>
-<tr><td>Принимает ли API нужное поле?</td><td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/manifests.md">Manifest guide</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto">ax.proto</a></td><td>Тип, допустимое значение и обработку поля сервером. Желаемый ресурс из архитектурной схемы не становится API только от наличия на рисунке.</td></tr>
-<tr><td>Кто выполняет reconciliation?</td><td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go">ax-server entry point</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">server implementation</a></td><td>Direct reconciliation этого среза; не переносить на него старую модель отдельного controller и Redis queue.</td></tr>
-<tr><td>Что означает запуск и готовность runner?</td><td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/runner.md">Runner guide</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go">runner.go</a></td><td>Setup, запуск дочернего процесса и поведение после его ошибки. Ready endpoint не заменяет результат задачи.</td></tr>
-<tr><td>Что реализовано, а что задумано?</td><td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/DESIGN.md">DESIGN</a>, <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md">roadmap</a>, затем код</td><td>Будущие budgets, approvals или telemetry не считать готовыми механизмами контроля без реализации и проверки.</td></tr>
-</tbody></table>
-<p>Для релизного сравнения откройте <a href="https://github.com/google/ax/tree/e70162a34037c221fe6fadefd98308c05a4ad8f3">дерево v0.3.1</a> и соответствующий diff. <a href="https://github.com/google/ax/issues">Issues AX</a> помогают найти известное ограничение, но дата закрытия issue не доказывает наличие исправления в вашем image. Harness - прикладная управляющая обвязка вокруг model/tool loop - требует отдельного контракта. Его checkpoints, approvals и operation ledger нельзя вывести только из описания AX runner.</p>
-
-<h2>C.3 Substrate: lifecycle, доступ и сохранность состояния</h2>
-<p>Вопрос «Actor восстановился?» слишком широк. Иногда нужно узнать, продолжилось ли исполнение, иногда - кому принадлежит snapshot, а иногда - можно ли безопасно удалить исходный Tag. Для каждого случая нужен свой маршрут. Ниже все ссылки на код и guide фиксируют <code>ccecc788</code>, то есть Substrate v0.3.0.</p>
-<table>
-<thead><tr><th>Задача</th><th>Первичные источники</th><th>Граница вывода</th></tr></thead>
-<tbody>
-<tr><td>Разделить Actor, Worker и pool capacity</td><td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md">Architecture</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md">API guide</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto">ateapi.proto</a></td><td>Actor не равен выделенному Pod. Архитектурная цель плотности не задаёт вашу измеренную capacity.</td></tr>
-<tr><td>Проверить создание Tag и restore dependency</td><td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go">Tag workflow</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/actor.go">Actor creation</a></td><td>Копирование внешнего payload при CreateTag и заимствование URI через sourceTag - разные действия. Проверить ownership и retention до удаления источника.</td></tr>
-<tr><td>Отделить authentication от authorization</td><td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/authentication.md">Authentication</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/threat-model.md">Threat model</a></td><td>Доверенный JWT не доказывает fine-grained RBAC. Уточнить права конкретного provider и внешние tenant boundaries.</td></tr>
-<tr><td>Ограничить исходящий доступ Actor</td><td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/network-egress.md">Network egress</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-credential-injection.md">Credential injection</a></td><td>Сетевой маршрут, доверие TLS и выдача credential проверяются отдельно; разрешённый host не означает разрешённый business write.</td></tr>
-<tr><td>Найти события после relocation</td><td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md">Observability</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/metrics/substrate.yaml">Metrics и blind spots</a></td><td>Attribution текущего workload не заменяет центральное хранение истории. Отсутствующий сигнал надо компенсировать probe, а не трактовать как отсутствие отказа.</td></tr>
-</tbody></table>
-<p>Development quickstart главы 26 закреплён в <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">отдельном README-срезе df788825</a>. Это инструкция для своего контекста установки, не доказательство совместимости с API v0.3.0. При выборе новой версии используйте <a href="https://github.com/agent-substrate/substrate/releases">Substrate releases</a>, сравнение schema и ваш restore test. Книга сохраняет исторический разбор, а не обещает перенос snapshot между любыми сборками.</p>
-
-<h2>C.4 MCP: начинать с revision, а не со знакомого SDK</h2>
-<p>MCP стандартизует взаимодействие клиента с сервером tools и других возможностей. Он не решает за инженера, кому разрешено выполнять действие, как долго ждать approval и как установить результат потерянного write. Не путайте protocol contract с policy и durable state вашего harness.</p>
-<table>
-<thead><tr><th>Что выясняете</th><th>Источник</th><th>На что обратить внимание</th></tr></thead>
-<tbody>
-<tr><td>Базовая модель revision 2026</td><td><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/index">Base protocol 2026-07-28</a></td><td>Самодостаточность сообщений, metadata и применимая schema; не подставлять lifecycle прежней revision.</td></tr>
-<tr><td>Как узнать возможности и вызвать tool</td><td><a href="https://modelcontextprotocol.io/specification/2026-07-28/server/discover">Discover</a> и <a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools">Tools</a></td><td>Discovery, input/output schemas, ошибки и смысл annotations. Описание tool не заменяет проверку разрешений.</td></tr>
-<tr><td>Как передавать сообщения по HTTP</td><td><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">Streamable HTTP</a></td><td>Transport requirements, authentication context и поведение соединения. Network retry ещё не означает безопасный повтор mutation.</td></tr>
-<tr><td>Почему старый клиент работает иначе</td><td><a href="https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle">Legacy lifecycle 2025-11-25</a> и <a href="https://blog.modelcontextprotocol.io/posts/2026-07-28/">объяснение изменений 2026</a></td><td>Legacy lifecycle читать в его версии; release article даёт контекст, но нормативные требования искать в specification.</td></tr>
-</tbody></table>
-<p>В integration record сохраняйте revision протокола, версии client/server SDK, transport и реально поддерживаемые capabilities. Одинаковое название библиотеки недостаточно. Проверяйте совместимость на разрешённом fixture: invalid input, denied action, timeout и корректное отображение результата. Бизнес-гарантию отсутствия второго effect подтверждает adapter/provider contract и тест H4, а не сам MCP.</p>
-
-<h2>C.5 Kubernetes и sandbox: искать механизм нужной границы</h2>
-<p><a href="https://kubernetes.io/docs/concepts/">Kubernetes Concepts</a> удобно использовать как оглавление. Дальше выбирайте механизм по задаче. Если нужно понять, почему контейнер не принимает traffic, начните с probes; если нужно запретить выход к чужому service, начните с сетевой политики и её реализации в кластере. Это разные проблемы, хотя обе могут выглядеть как failed request.</p>
+<p>Вы готовите очистку storage после учебного запуска. Новые Actors созданы из Tag и уже видны в API. Можно ли удалить исходный Tag? По названию операции легко представить, что каждый Actor получил собственную копию. Но решение зависит от того, что именно скопировано: запись с адресом snapshot или сами файлы. Одна ссылка на общий обзор эту разницу не объяснит.</p>
+<p>Карта источников нужна для таких вопросов. Она помогает выбрать документ, найти нужный участок реализации и понять, какое решение из него следует. Здесь собраны основные маршруты по стеку книги; подробные ссылки рядом с главами дополняют их. В C.8 мы пройдём один маршрут целиком, используя только чтение исходников. К концу приложения вы сможете собрать короткое, проверяемое обоснование выбора и назвать наблюдение, которое потребуется от вашей установки.</p>
+<h2>C.1 Как выбрать источник и сохранить контекст</h2>
+<h3>Начать с решения, которое предстоит принять</h3>
+<p>Попробуйте заменить тему вопросом о действии. Вместо «почитать про snapshots» спросите: «Какие данные должны остаться, чтобы этот Actor восстановился после потери Worker?». Вместо «разобраться с MCP» - «Поддержит ли эта пара client/server нужный способ вызова tool?». Тогда у чтения появится понятная граница: найденное объяснение должно менять конфигурацию, проверку, выбор компонента или порядок действий оператора.</p>
+<p>Полезный маршрут чтения: <strong>объяснение → контракт → реализация → проверка в нужных условиях</strong>. Руководство вводит понятия. Контракт определяет поля, допустимые сообщения и обязательства сторон. Реализация показывает ветку, которая обрабатывает выбранный случай. Проверка связывает это знание с конкретной сборкой и входами. При знакомстве со стеком можно остановиться на первых шагах; при решении об удалении данных понадобятся также зависимости и наблюдения от установки.</p>
+<p>У источников нет универсальной очереди авторитетности. Для вопроса «как должен выглядеть request?» нужна спецификация. Для вопроса «что делает этот server при таком request?» нужен код его версии. Если реализация нарушает спецификацию, её поведение остаётся фактом этой реализации, а нарушение - причиной завести дефект или отказаться от интеграции.</p>
 <table class="keep">
-<thead><tr><th>Решение</th><th>Руководство</th><th>Что проверить в своей среде</th></tr></thead>
+<thead>
+<tr>
+<th>Источник</th>
+<th>Какую работу он делает</th>
+<th>Что искать читателю</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>Разделить startup, liveness и readiness</td><td><a href="https://kubernetes.io/docs/concepts/workloads/pods/probes/">Pod probes</a></td><td>Какой endpoint измеряет probe и что делает платформа при failure. Application outcome проверяется отдельно.</td></tr>
-<tr><td>Ограничить network reachability</td><td><a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">NetworkPolicy</a></td><td>Поддержку enforcement вашим network plugin, selectors и allowed control. Объект policy без применения не защищает traffic.</td></tr>
-<tr><td>Хранить credentials и описать ресурсы</td><td><a href="https://kubernetes.io/docs/concepts/configuration/secret/">Secrets</a> и <a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/">Custom resources</a></td><td>Доступ и защиту Secret; где находится фактический API. Kubernetes CRD-механизм не делает AX Task Kubernetes CRD автоматически.</td></tr>
-<tr><td>Выбрать границу изоляции</td><td><a href="https://gvisor.dev/docs/architecture_guide/intro/">gVisor architecture и security</a></td><td>Threat assumptions, совместимость workload и residual risks. Sandbox не даёт прикладную авторизацию на tool account.</td></tr>
-<tr><td>Подобрать учебный кластер</td><td><a href="https://kind.sigs.k8s.io/docs/user/quick-start/">Kind quickstart</a>, <a href="https://docs.k3s.io/architecture">K3s architecture</a>, <a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">kubeadm cluster guide</a></td><td>Цель lab, доступные ресурсы, topology и поддерживаемые версии; удобство установки не доказывает production readiness.</td></tr>
-</tbody></table>
-<p>Для nested lab из главы 26 дополнительно проверьте <a href="https://pve.proxmox.com/wiki/Nested_Virtualization">Proxmox Nested Virtualization</a> и доступность нужных CPU extensions внутри VM. Один успешно созданный кластер не подтверждает работу выбранного sandbox backend. В отчёте разделяйте установленный компонент и реально испытанный путь исполнения.</p>
-
-<h2>C.6 Inference: от механизма к измеренному профилю</h2>
-<p>Inference-документация отвечает на два разных вопроса: «как настроить server?» и «почему меняются память и latency?». Первое требует совпадения версии, второе - понимания механизма и измерения своего workload. Не переносите benchmark чужой модели на свою только потому, что backend называется так же.</p>
+<tr>
+<td>Guide и README</td>
+<td>Объясняют модель и обычный путь настройки</td>
+<td>Предпосылки, выбранный профиль и ссылки на точный контракт</td>
+</tr>
+<tr>
+<td>Schema и спецификация</td>
+<td>Задают структуру и требования</td>
+<td>Поле, тип, обязательность, default и условия применения</td>
+</tr>
+<tr>
+<td>Исходный код</td>
+<td>Показывает конкретную обработку</td>
+<td>Entry point, проверки, вызовы helpers и запись результата</td>
+</tr>
+<tr>
+<td>Тест</td>
+<td>Показывает сценарий с проверяемым ожиданием</td>
+<td>Входы, assertions, mocks и реальные границы исполнения</td>
+</tr>
+<tr>
+<td>Release notes и issue</td>
+<td>Помогают найти изменение или известную проблему</td>
+<td>Commit исправления и ветку, в которую он попал</td>
+</tr>
+<tr>
+<td>Наблюдение установки</td>
+<td>Показывает результат при данных условиях</td>
+<td>Сборку, конфигурацию, вход, измерение и прикладной результат</td>
+</tr>
+</tbody>
+</table>
+<p>Тест особенно полезно читать от assertion назад. Если он проверяет только, что mock получил вызов <code>CopyPrefix</code>, то подтверждает выбор пути, но не сохранность bytes в настоящем object storage. Следующий опыт выбирают по оставшемуся вопросу: доступ к payload, совместимость runtime или корректность восстановленного приложения. Метод такого аудита подробно разобран в <a href="#appendix">приложении A</a>, а критерии допуска - в <a href="#appendix-b">приложении B</a>.</p>
+<h3>Различать исходник, сборку и запущенный экземпляр</h3>
+<p>Commit фиксирует дерево исходников. Из него могут собрать несколько images с разными параметрами и зависимостями; установленный server может содержать локальный patch. Digest идентифицирует содержимое image, но соответствие этого image исходникам устанавливают сведения о сборке и доверенный provenance. Для воспроизведения нужны обе стороны этой связи.</p>
+<p>В записи решения сохраните repository и полный commit, путь и symbol, затем image digest и значимую конфигурацию установки. Для протокола добавьте revision и capabilities обеих сторон; для модели - её revision или hash, tokenizer и template. Если исследуете только код, поле с установленной сборкой может остаться неизвестным. Тогда вывод относится к прочитанному пути исполнения.</p>
+<p>Единая <a href="#version-profiles">карта версий находится в главе 0</a>. Здесь AX разбирается по <code>ac233282</code>, Substrate - по release <code>v0.3.0</code>, commit <code>ccecc788</code>. AX <code>v0.3.1</code> сохраняется как отдельный релизный контекст. Отдельные разборы используют development-срезы Substrate: threat model <code>296e329a</code> в главе 23, experimental authz <code>36d6d222</code> в главе 24 и lab <code>df788825</code> в разделах 25-31, 32 и 34, где он указан. Между ними нужно явно переключать источник.</p>
+<p>Профиль inference главы 41 использует vLLM <code>v0.31.0</code>; практикум 32 - отдельную пару AX <code>v0.3.1</code> / Substrate <code>df788825</code> и vLLM <code>v0.30.0</code>. MCP читается по revision <code>2026-07-28</code>, legacy <code>2025-11-25</code> отмечен отдельно. Эти обозначения сохраняют контекст разборов, а совместимость выбранной для запуска пары проверяется интеграционным тестом.</p>
+<p>Полные SHA в ссылках закрепляют объекты Git. <code>main</code>, <code>master</code> и <code>latest</code> перемещаются; tag тоже следует разрешить в commit при подготовке воспроизведения. У rolling-документации сохраните URL, дату и нужный фрагмент вместе с версией установленного компонента. Если страница недоступна или переехала, ищите файл в закреплённом дереве либо архив соответствующего release. Молчаливая замена на сегодняшнюю страницу может изменить сам ответ.</p>
+<h3>Выбирать инструмент по масштабу вопроса</h3>
+<p>Для одного поля обычно достаточно браузера: переключите commit, откройте schema и сделайте permalink на нужный участок. Локальный Git удобнее, когда требуется искать несколько symbols, проследить helpers или сравнить версии. <code>git show</code> читает файл выбранного дерева без checkout; <code>git grep</code> ищет в этом дереве; <code>git diff</code> показывает изменение между двумя commits. Назначение команд описано в официальных справках <a href="https://git-scm.com/docs/git-show">show</a>, <a href="https://git-scm.com/docs/git-grep">grep</a> и <a href="https://git-scm.com/docs/git-diff">diff</a>.</p>
+<p>IDE с переходом к определению полезна для большого call graph. Убедитесь, что она индексирует нужный checkout и конфигурацию сборки: навигация может вести в generated code или другую реализацию interface. Поисковик помогает найти репозиторий, а AI-помощник - предложить symbols и объяснить незнакомый синтаксис. Окончательные ссылки, условия ветки и вывод проверьте по файлам. Для поведения внешнего сервиса следующим инструментом становится ограниченный integration test с известным ожидаемым результатом.</p>
+<h2>C.2 AX и границы прикладного harness</h2>
+<p>Начните с того, чью ответственность выясняете. AX хранит и согласует свои ресурсы; runner подготавливает Workspace и запускает command; прикладной harness управляет циклом модели и инструментов. Harness - обвязка, которая хранит progress приложения, выбирает следующий шаг, проверяет разрешение и принимает результат tool. Чтобы понять судьбу потерянной записи во внешнюю систему, придётся читать также adapter и operation ledger приложения.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Инженерный вопрос</th>
+<th>Куда идти в срезе ac233282</th>
+<th>Что получить из чтения</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Что такое Task, Workspace и Model?</td>
+<td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/README.md">README</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/concepts.md">concepts</a></td>
+<td>Роль ресурса и его связь с приложением и Substrate</td>
+</tr>
+<tr>
+<td>Принимает ли API нужное поле?</td>
+<td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/manifests.md">Manifest guide</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/pkg/apis/v1alpha1/ax.proto">ax.proto</a></td>
+<td>Тип поля и место его обработки server; список поддерживаемых kinds</td>
+</tr>
+<tr>
+<td>Кто выполняет reconciliation?</td>
+<td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/cmd/ax-server/main.go">ax-server entry point</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/server/server.go">server implementation</a></td>
+<td>Direct path этого среза, условия запуска reconciler и вызывающий RPC</td>
+</tr>
+<tr>
+<td>Что означает готовность runner?</td>
+<td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/runner.md">Runner guide</a> и <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go">runner.go</a></td>
+<td>Setup, запуск child process, обработку его завершения и inspection</td>
+</tr>
+<tr>
+<td>Как оценить обещанную возможность?</td>
+<td><a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/DESIGN.md">DESIGN</a>, <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/docs/roadmap.md">roadmap</a>, затем реализация</td>
+<td>Статус замысла и наличие конкретного механизма в выбранном дереве</td>
+</tr>
+</tbody>
+</table>
+<p>Например, вам нужен предел расходов агента. В roadmap можно найти направление развития, в schema - место для параметра, а в коде - фактическую проверку перед следующим model/tool call. Прочитайте, кто прекращает новые попытки и что происходит с уже отправленным действием. Такой маршрут показывает, нужен ли контроль внутри harness и какой failure case включить в тест. Одного поля с названием budget для этого решения мало.</p>
+<p>Для смены архитектурного профиля откройте <a href="https://github.com/google/ax/tree/e70162a34037c221fe6fadefd98308c05a4ad8f3">дерево AX v0.3.1</a> и сравните его с <code>ac233282</code>. В первом есть отдельный controller; во втором reconciliation выполняет server. Поэтому старый runbook поиска зависшей очереди нужно сопоставить с новым путём обработки. <a href="https://github.com/google/ax/issues">Issues AX</a> помогают найти обсуждение и fix; включение fix в используемую сборку устанавливается по commit и сведениям о её происхождении.</p>
+<p>Для готовности приложения выберите наблюдение его полезного результата: отчёт, изменение объекта или проверку цели. Ответ probes и exit code процесса относятся к своим контрактам. В главе 43 показано, как связать эти наблюдения в приёмку, сохраняя отдельный статус каждого case.</p>
+<h2>C.3 Substrate и зависимости восстановления</h2>
+<p>В Substrate полезно сначала разделить логический Actor, физическое место исполнения и сохраняемые bytes. Один и тот же Actor может менять Worker. Metadata сообщает, на какой snapshot он ссылается, а storage policy определяет, кто хранит payload и когда его удаляет. Вопросы о lifecycle, capacity и retention поэтому ведут в разные участки проекта.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Задача</th>
+<th>Источники Substrate v0.3.0 ccecc788</th>
+<th>Что проследить</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Разделить Actor, Worker и pool</td>
+<td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/architecture.md">Architecture</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/api-guide.md">API guide</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto">ateapi.proto</a></td>
+<td>Lifetime ресурса, assignment и связь с инфраструктурой</td>
+</tr>
+<tr>
+<td>Выяснить владение snapshot</td>
+<td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go">Tag workflow</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/actor.go">Actor creation</a></td>
+<td>Copy, borrowed URI, финализацию и cleanup</td>
+</tr>
+<tr>
+<td>Понять доступ к control plane</td>
+<td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/authentication.md">Authentication</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/threat-model.md">Threat model</a></td>
+<td>Принятого principal, разрешённые RPC и доверенные границы</td>
+</tr>
+<tr>
+<td>Ограничить исходящий доступ</td>
+<td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/network-egress.md">Network egress</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-credential-injection.md">Credential injection</a></td>
+<td>Маршрут, TLS trust и выдачу credential для target</td>
+</tr>
+<tr>
+<td>Собрать историю workload</td>
+<td><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/observability.md">Observability</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/metrics/substrate.yaml">metric registry</a></td>
+<td>Labels, stages, доставку событий и перечисленные пробелы наблюдения</td>
+</tr>
+</tbody>
+</table>
+<p>При выборе изоляции сначала прочитайте threat assumptions, затем найдите enforcement конкретного пути. В закреплённом authentication guide обычные доверенные providers получают широкий доступ к RPC; наличие JWT не следует читать как готовый fine-grained RBAC. Это существенное условие выбора deployment boundary. Для экспериментов с authz из главы 24 откройте именно её срез и отдельно составьте профиль доступа.</p>
+<p>Для storage ищите операции, создающие новый payload, и операции, только сохраняющие его адрес. Затем проверьте удаление и смену текущей точки. При Full restore добавляется совместимость захваченной среды; при Data - источник boot и необходимые golden dependencies. Разбор этих механизмов находится в <a href="#ch-39">главе 39</a>. В C.8 мы ограничимся одним звеном: зависимостью нового Actor от исходного Tag сразу после создания.</p>
+<p>Development quickstart главы 26 закреплён в <a href="https://github.com/agent-substrate/substrate/blob/df788825e6fc13dd7aa5fd283c8f14bd4c818247/README.md">README df788825</a>. Выбирайте его для воспроизведения того lab, а release-документы - для механизма своей версии. При обновлении <a href="https://github.com/agent-substrate/substrate/releases">Substrate releases</a> дают список изменений, по которому выбирают schema diff и затронутые restore cases. Перенос snapshots требует проверки совместимости формата, runtime assets и зависимостей.</p>
+<h2>C.4 MCP и выбор совместимой пары</h2>
+<p>Сначала запишите, какую операцию должно уметь приложение: короткое чтение, запись с approval, получение промежуточного результата или продолжение долгой работы. Затем установите revision протокола, transport и нужные возможности. SDK делает вызовы удобными, но выбор его версии следует из этого профиля. Поддержка одного простого tool не отвечает на вопросы о всех остальных сценариях.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Вопрос интеграции</th>
+<th>Первичный источник</th>
+<th>Что сопоставить со своей парой</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Что обязательно в сообщениях?</td>
+<td><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/index">Base protocol 2026-07-28</a></td>
+<td>Самодостаточный request, metadata и schema</td>
+</tr>
+<tr>
+<td>Как узнать возможности и вызвать tool?</td>
+<td><a href="https://modelcontextprotocol.io/specification/2026-07-28/server/discover">Discover</a> и <a href="https://modelcontextprotocol.io/specification/2026-07-28/server/tools">Tools</a></td>
+<td>Capabilities, input/output, обработку ошибок и annotations</td>
+</tr>
+<tr>
+<td>Что требует HTTP transport?</td>
+<td><a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http">Streamable HTTP</a></td>
+<td>Headers, authentication context и поведение соединения</td>
+</tr>
+<tr>
+<td>Откуда взялся другой порядок сообщений?</td>
+<td><a href="https://modelcontextprotocol.io/specification/2025-11-25/basic/lifecycle">Legacy lifecycle 2025-11-25</a> и <a href="https://blog.modelcontextprotocol.io/posts/2026-07-28/">контекст изменений 2026</a></td>
+<td>Revision сохранённого trace и правила каждой стороны</td>
+</tr>
+</tbody>
+</table>
+<p>Например, в trace виден <code>initialize</code>. Для revision <code>2025-11-25</code> это часть handshake. В модели <code>2026-07-28</code> request несёт собственные protocol metadata и client capabilities. Чтобы оценить trace, выясните заявленную revision, а затем сравните сообщение с её требованиями. Перестройка современного клиента по старому примеру могла бы внести ошибку в исправную интеграцию. Подробный разбор сообщений находится в главе 36.</p>
+<p>На разрешённом fixture проверьте корректный read, ошибочный input и понятную ошибку несовместимому запросу. Для доступа добавьте разрешённый контрольный вызов и ожидаемый отказ чужому principal. Для write заранее выберите способ выяснить outcome после потери ответа. В integration record сохраните revision, версии и builds client/server SDK, transport и нужные capabilities.</p>
+<p>Аннотация tool помогает интерфейсу описать действие; право выполнять его проверяет соответствующая граница доступа. Для отсутствия второго внешнего effect нужны контракт adapter/provider и проверка H4 из приложения B. Это отдельная часть решения о выборе клиента с автоматическими retries.</p>
+<h2>C.5 Kubernetes и выбор границы изоляции</h2>
+<p>У похожих симптомов бывают разные механизмы. Failed request может означать неготовое приложение, запрещённый маршрут или отказ авторизации на target. Выберите границу, где должно выполняться нужное условие, и найдите её реализацию. <a href="https://kubernetes.io/docs/concepts/">Kubernetes Concepts</a> удобно использовать как оглавление для этого поиска.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Решение</th>
+<th>Руководство</th>
+<th>Следующий инженерный шаг</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Разделить startup, liveness и readiness</td>
+<td><a href="https://kubernetes.io/docs/concepts/workloads/pods/probes/">Pod probes</a></td>
+<td>Установить, что измеряет endpoint и какое действие следует за failure</td>
+</tr>
+<tr>
+<td>Ограничить сетевую достижимость</td>
+<td><a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">NetworkPolicy</a></td>
+<td>Проверить поддержку enforcement network plugin, selectors и контрольный разрешённый путь</td>
+</tr>
+<tr>
+<td>Хранить credentials</td>
+<td><a href="https://kubernetes.io/docs/concepts/configuration/secret/">Secrets</a></td>
+<td>Выбрать доступ, защиту хранения и способ отзыва у конечного provider</td>
+</tr>
+<tr>
+<td>Разобраться с расширением API</td>
+<td><a href="https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/">Custom resources</a></td>
+<td>Найти реальный API своего объекта и его controller</td>
+</tr>
+<tr>
+<td>Выбрать sandbox</td>
+<td><a href="https://gvisor.dev/docs/architecture_guide/intro/">gVisor architecture</a></td>
+<td>Сопоставить угрозы, совместимость workload, ограничения и стоимость исполнения</td>
+</tr>
+</tbody>
+</table>
+<p>Например, перед применением NetworkPolicy выясните, где возникает traffic агента: в обычном Pod network path, внутри guest или через egress proxy. Затем найдите механизм, который действительно контролирует этот маршрут. Нужны два наблюдения: разрешённый запрос проходит, запрещённый не достигает тестового target. Ошибка DNS без исправного контрольного запроса оставляет причину неопределённой. Конкретные ограничения enforcement сверяйте с документацией используемого plugin.</p>
+<p>При выборе sandbox задайте вопрос о том, что считаете недоверенным: код внутри гостя, его зависимости или доступные ему данные и credentials. Изоляция исполнения сужает последствия захвата среды. Доступ к внешнему tool account регулируется отдельно. Даже сильная граница вокруг процесса не помешает выполнить разрешённый этому account опасный write, поэтому в решении должны присутствовать оба слоя.</p>
+<p>Среду для обучения выбирайте по опыту, который хотите провести. <a href="https://kind.sigs.k8s.io/docs/user/quick-start/">Kind</a> удобен для локальной работы с Kubernetes API и manifests. <a href="https://docs.k3s.io/architecture">K3s architecture</a> помогает оценить компактную установку на выделенных nodes. <a href="https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/create-cluster-kubeadm/">kubeadm guide</a> полезен, когда учебная задача включает устройство и подготовку самого кластера. Возможность запустить выбранный sandbox backend проверяют по его host requirements и вашей topology.</p>
+<p>Для nested lab главы 26 начните также с <a href="https://pve.proxmox.com/wiki/Nested_Virtualization">Proxmox Nested Virtualization</a>. Расширения CPU должны быть доступны гостевой VM, а нужные runtime interfaces - среде исполнения. В протоколе опыта разделите «кластер установлен» и «нужный sandbox path испытан». Так результат одной проверки не подменит другую.</p>
+<h2>C.6 Inference и выбор измеримого профиля</h2>
+<p>Предположим, агент отвечает слишком долго, и команда предлагает включить оптимизацию из свежего benchmark. Сначала выясните, где тратится время: ожидание очереди, обработка input или генерация tokens. Затем смотрите документацию механизма, который может изменить эту часть. Короткий prompt и длинный context предъявляют разные требования; выигрыш на чужой модели ещё не даёт основания менять свой deployment.</p>
+<p>Для профиля главы 41 используйте следующие маршруты vLLM <code>v0.31.0</code>:</p>
 <ul>
-<li><strong>API и startup configuration.</strong> Для профиля главы 41 используйте vLLM v0.31.0: <a href="https://docs.vllm.ai/en/v0.31.0/serving/online_serving/openai_compatible_server/">OpenAI-compatible server</a> и <a href="https://docs.vllm.ai/en/v0.31.0/configuration/engine_args/">engine arguments</a>. Проверяйте поддерживаемые endpoints и flags. Совместимый API не обещает идентичный tokenizer, chat template или все semantics другого provider.</li>
-<li><strong>Memory и parallelism.</strong> Начните с <a href="https://docs.vllm.ai/en/v0.31.0/configuration/conserving_memory/">conserving memory</a> и <a href="https://docs.vllm.ai/en/v0.31.0/serving/parallelism_scaling/">parallelism and scaling</a>. Запишите weights, KV cache, context, concurrency и GPU topology; затем измерьте TTFT, ITL и ошибки при выбранном профиле. Инструкция объясняет knobs, но не выбирает за вас допустимую деградацию качества.</li>
-<li><strong>Наблюдение и переход на другую сборку.</strong> <a href="https://docs.vllm.ai/en/v0.31.0/usage/metrics/">Metrics v0.31.0</a> задают доступные сигналы. <a href="https://github.com/vllm-project/vllm/releases">vLLM releases</a> помогают искать изменения перед обновлением; повторный capacity/eval прогон всё равно нужен.</li>
-<li><strong>Альтернативный server.</strong> <a href="https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md">llama.cpp server README</a> - меняющийся навигационный источник. Перед воспроизведением сохраните commit/build, GGUF model, quantization, template и runtime flags. Эта ссылка не вводит новую фиксированную версию llama.cpp для всей книги.</li>
-<li><strong>Основания механизма.</strong> Статьи <a href="https://arxiv.org/abs/2305.13245">GQA</a> и <a href="https://arxiv.org/abs/2309.06180">PagedAttention</a> помогают понять устройство attention и управление KV memory. Они не являются справочником сегодняшних server flags и не гарантируют опубликованный выигрыш на вашей конфигурации.</li>
+<li><a href="https://docs.vllm.ai/en/v0.31.0/serving/online_serving/openai_compatible_server/">OpenAI-compatible server</a> и <a href="https://docs.vllm.ai/en/v0.31.0/configuration/engine_args/">engine arguments</a> - для endpoints, startup flags и поддерживаемых режимов. Сопоставьте client request с фактическим model/tokenizer и chat template. Совпадение формы API оставляет эти параметры существенными.</li>
+<li><a href="https://docs.vllm.ai/en/v0.31.0/configuration/conserving_memory/">Conserving memory</a> и <a href="https://docs.vllm.ai/en/v0.31.0/serving/parallelism_scaling/">parallelism and scaling</a> - для ограничений памяти и распределения работы. Запишите weights, KV cache, длину context, concurrency и GPU topology, чтобы понять причину выбранного ограничения.</li>
+<li><a href="https://docs.vllm.ai/en/v0.31.0/usage/metrics/">Metrics</a> - для выбора наблюдений и единиц. Сопоставьте серверные сигналы с задержкой клиента: TTFT показывает время до первого token, ITL - интервалы последующей генерации. Границу измерения указывайте явно, особенно если между клиентом и backend есть gateway и очередь.</li>
+<li><a href="https://github.com/vllm-project/vllm/releases">vLLM releases</a> - для поиска изменений перед обновлением. Выделите затронутые flags, модельные пути и ограничения, затем повторите нужные capacity и quality cases на candidate.</li>
 </ul>
-<p>Хороший результат чтения - выбранный профиль и объяснение trade-off: например, почему конкретные context/concurrency помещаются в вашу память и какую задержку вы готовы принять. Просто перечень поддерживаемых optimizations ещё не является engineering decision.</p>
-
-<h2>C.7 Эксплуатация: документация механизма не заменяет runbook</h2>
-<p>Для секретов начните с <a href="https://developer.hashicorp.com/vault/docs/concepts/lease">Vault leases</a>: отделите срок жизни и revocation dynamic credential от хранения значения в KV. Наличие secret store не означает, что старый credential перестал работать у конечного provider. В source record отметьте способ выдачи, renewal, отзыв и проверку после restore.</p>
-<p>Для PostgreSQL полезен раздел <a href="https://www.postgresql.org/docs/17/continuous-archiving.html">continuous archiving и PITR, manual 17</a>; для Redis - <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">RDB/AOF persistence</a>. Номер PostgreSQL здесь обозначает версию руководства, а не утверждает, что deployment книги использует PostgreSQL 17. Выбирайте manual установленной major version. Redis-ссылка меняющаяся; сохраняйте версию server и фактические persistence settings.</p>
-<p>Эти руководства объясняют восстановление stores, но не описывают полный recovery contract вашей агентной системы. Добавьте metadata, payloads, keys, checkpoints и external effects. Проверка RPO/RTO из B.5 относится к полезному восстановлению всего выбранного workflow, а не только к успешному старту database.</p>
-<p><a href="https://sre.google/sre-book/effective-troubleshooting/">Google SRE: Effective Troubleshooting</a> помогает строить и проверять гипотезы; <a href="https://sre.google/workbook/canarying-releases/">Canarying Releases</a> - выбирать comparison и stop conditions; <a href="https://sre.google/sre-book/reliable-product-launches/">Reliable Product Launches</a> - готовить выпуск и передачу ответственности. Это методы инженерной работы, не встроенные гарантии AX/Substrate. Привяжите их к своему SLO, владельцам и повторяемым tests, а не копируйте чужой checklist без контекста.</p>
-
-<h2 style="break-before:page">C.8 Практикум: проверить одно утверждение по источникам</h2>
-<p>Практикум выполняется read-only: здесь не нужно разворачивать production, удалять snapshots или проводить fault injection. Выберите одно утверждение из книги, влияющее на решение, например: «использование sourceTag делает snapshot нового Actor независимым от исходного Tag». Важен не быстрый ответ, а возможность показать путь к нему.</p>
+<p>Выбор между увеличением памяти, сокращением context и снижением concurrency зависит от задачи. Для большого документа сокращение context может убрать нужные сведения; для интерактивного помощника длинная очередь может нарушить допустимое ожидание. Сравните варианты при одинаковых входах и отдельно оцените качество результата. Рабочий итог - профиль с объяснимой ценой в памяти, задержке и качестве.</p>
+<p>Если нужен другой backend, начните с <a href="https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md">llama.cpp server README</a>. Это moving-ссылка: перед опытом закрепите commit/build, hash GGUF, quantization, template и flags. Релизный ориентир книги <code>v0.4.1</code> и rolling build - разные способы обозначить поставку. Выбирайте конкретную сборку по поддержке модели, доступному hardware и требуемым операциям API, затем испытывайте тот же workload.</p>
+<p>Статьи <a href="https://arxiv.org/abs/2305.13245">GQA</a> и <a href="https://arxiv.org/abs/2309.06180">PagedAttention</a> полезны для понимания attention и управления KV memory. Их роль - объяснить механизм и устройство опубликованного опыта. Флаги своей сборки ищите в её руководстве, а sizing и выигрыш устанавливайте измерением. В главе 41 этот переход от механизма к бюджету разобран подробнее.</p>
+<h2>C.7 Эксплуатация и проверка полезного восстановления</h2>
+<p>Для эксплуатации источник выбирают по объекту ответственности. Если после restore перестал работать credential, проверьте его issuer и правила отзыва. Если database поднялась, но агент не может продолжить задачу, выясните, каких metadata, payload или ключей ему не хватает. Одно событие «service started» не описывает весь путь возврата полезной работы.</p>
+<p>В <a href="https://developer.hashicorp.com/vault/docs/concepts/lease">Vault leases</a> найдите срок жизни, renewal и revocation dynamic credential. Затем проследите, что соответствующий secrets engine делает у provider. Для значения, сохранённого в KV, нужны правила ротации и отзыва самого конечного credential. Сохранение старого значения в snapshot и доступ к secret store после restore - разные части этой задачи.</p>
+<p>Для PostgreSQL начните с <a href="https://www.postgresql.org/docs/17/continuous-archiving.html">continuous archiving и PITR в manual 17</a>. PITR восстанавливает данные к выбранному моменту с помощью backup и журнала изменений; требуемая цепочка должна быть доступна и пригодна для вашей major version. Номер 17 обозначает версию этого руководства, а не установленную database книги. Для Redis откройте <a href="https://redis.io/docs/latest/operate/oss_and_stack/management/persistence/">RDB/AOF persistence</a> и сопоставьте описанные свойства со своей версией и фактическими settings.</p>
+<p>Дальше соедините store recovery с агентным workflow. У восстановленной Task должны быть нужные Workspace payloads, ключи и checkpoints, а у незавершённого write - способ установить внешний outcome. Выберите прикладной контрольный результат, который можно получить после restore. Потерю progress и время до этого результата считают раздельно; пример RPO/RTO находится в B.5 и B.8. Успешный запуск database закрывает только её часть восстановления.</p>
+<p><a href="https://sre.google/sre-book/effective-troubleshooting/">Effective Troubleshooting</a> помогает строить проверяемые гипотезы. Например, из предположения об истёкшем credential следует конкретная проверка issuer/expiry и разрешённый контрольный запрос. <a href="https://sre.google/workbook/canarying-releases/">Canarying Releases</a> помогает выбрать comparison, ограничить экспозицию и определить stop conditions. <a href="https://sre.google/sre-book/reliable-product-launches/">Reliable Product Launches</a> - подготовить выпуск и передачу ответственности. Эти методы команда связывает со своим workload, SLO и доступными наблюдениями.</p>
+<p>Из чтения должен получиться шаг runbook: какое состояние проверить, какой результат ожидается и кому передать открытый вопрос. Для доступа к storage это может быть проверка нужного principal на synthetic object. Для восстановления - заранее разрешённый drill в отдельной lab области. Область такого опыта определяется отдельно от доступа на чтение документации.</p>
+<h2>C.8 Сквозной разбор зависимости Actor от Tag</h2>
+<h3>Поставить вопрос о конкретной операции</h3>
+<p>Вернёмся к очистке storage. Рассматриваем Substrate <code>v0.3.0</code>, новый Actor, созданный с явно заданным <code>sourceTag</code>, до его первого собственного успешного suspend. Вопрос: появился ли независимый snapshot payload сразу при CreateActor? От ответа зависит, можно ли считать исходный Tag лишней копией.</p>
+<p>Для разбора нужен Git, POSIX shell, доступ к публичному репозиторию и место для исходников. Мы создадим отдельный временный bare repository - хранилище объектов Git без рабочего checkout. Загрузим один закреплённый commit и прочитаем файлы. Команды не запускают upstream-код, не подключаются к cluster API и не удаляют Tag или payload.</p>
+<pre><code class="language-sh">sources_dir=$(mktemp -d)
+git init --bare &quot;$sources_dir/substrate.git&quot;
+sources_rev=ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97
+git -C &quot;$sources_dir/substrate.git&quot; fetch --depth=1 \
+  https://github.com/agent-substrate/substrate.git &quot;$sources_rev&quot;
+git -C &quot;$sources_dir/substrate.git&quot; rev-parse 'FETCH_HEAD^{commit}'
+</code></pre>
+<p>Последняя команда должна напечатать полный SHA из <code>sources_rev</code>. Так вы проверяете выбранный объект. Это ещё не проверка происхождения установленного image. Загрузка с <code>--depth=1</code> экономит историю; для поиска старого изменения потребуется отдельно получить нужные commits. Если нет Git, те же закреплённые файлы можно открыть по ссылкам из C.3 в браузере.</p>
+<h3>Найти поле и пройти путь записи результата</h3>
+<pre><code class="language-sh">git -C &quot;$sources_dir/substrate.git&quot; grep -n \
+  -e source_tag -e sourceTag &quot;$sources_rev&quot; -- \
+  pkg/proto/ateapipb/ateapi.proto docs/api-guide.md \
+  cmd/ateapi/internal/controlapi/actor.go
+git -C &quot;$sources_dir/substrate.git&quot; show \
+  &quot;${sources_rev}:cmd/ateapi/internal/controlapi/actor.go&quot;
+git -C &quot;$sources_dir/substrate.git&quot; show \
+  &quot;${sources_rev}:cmd/ateapi/internal/controlapi/workflow_tag.go&quot;
+</code></pre>
+<p>В schema найдите <code>Actor.source_tag</code>, в API guide - описание <code>CreateActor</code>. Далее читайте <code>ServiceImpl.CreateActor</code> в <code>actor.go</code>: после разрешения source Tag код заполняет <code>outActor.Status.ExternalSnapshot</code> через <code>proto.CloneOf</code> snapshot-записи Tag. Важен тип аргумента. Здесь clone создаёт копию protobuf message с адресом и metadata, а сами файлы по этому адресу остаются прежними. Слово <code>CloneOf</code> без чтения аргумента могло бы увести к противоположному выводу.</p>
+<p>Откройте <code>workflow_tag.go</code> и найдите <code>ensureTagSnapshotCopied</code>. В нём есть отдельный вызов <code>objectstore.CopyPrefix</code> из source prefix в prefix Tag. В <code>ensureTagFinalized</code> результат публикуется в <code>status.snapshot</code>. Это другой переход: создание Tag из external snapshot suspended Actor действительно проходит путь копирования payload.</p>
+<p>Для решения об очистке нужен ещё <code>DeleteTag</code>. Он вызывает <code>ensureTagSnapshotReleased</code>, где используется <code>DeletePrefix</code> для tag-owned snapshot, а затем удаляется запись Tag. Так три участка объясняют одну зависимость: новый Actor получил адрес данных Tag; отдельная операция умеет создавать tag-owned копию; удаление владельца освобождает его данные. Отсутствие <code>CopyPrefix</code> в одном файле само по себе было бы слабым аргументом. Здесь вывод опирается на присваивание конкретного URI, его владельца и связанный cleanup path.</p>
+<p>Теперь полезно сверить собственное чтение с комментарием рядом с присваиванием. Он описывает borrowing до первого собственного suspend. Комментарий помог бы найти нужный механизм, но основание вывода уже видно в операциях с metadata и storage. Если helper непонятен, продолжайте по его определению; останавливаться на названии функции рано.</p>
+<h3>Сформулировать решение с правильной областью действия</h3>
+<p>Новый Actor record не создаёт независимых bytes в рассмотренном пути. Исходный Tag остаётся зависимостью его snapshot. Поэтому очистку нельзя разрешить только по числу созданных Actors или факту их запуска. Нужен inventory ссылок на payload, включая другие borrowers и golden dependencies. Условия перехода на собственную завершённую точку разобраны в главе 39.</p>
+<p>Учебная карточка фиксирует этот узкий результат. Имена полей ниже принадлежат формату отчёта команды, а не API Substrate. Полный commit и пути заданы в командах выше; в рабочую запись перенесите также immutable ссылки и дату:</p>
+<pre><code class="language-yaml">question: independent payload immediately after CreateActor
+source_revision: ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97
+case: explicit sourceTag before first own suspend
+symbols:
+  - ServiceImpl.CreateActor
+  - ActorWorkflow.ensureTagSnapshotCopied
+  - ActorWorkflow.ensureTagSnapshotReleased
+finding: actor initially borrows tag snapshot URI
+source_claim_independent_copy: REFUTED
+deployed_image_mapping: UNKNOWN
+restore_test: NOT_RUN
+decision: keep source tag pending dependency review
+next_check: inventory payload references for selected build
+</code></pre>
+<p><code>REFUTED</code> относится к утверждению о немедленной независимой копии в прочитанном срезе. Для действующей установки сначала установите соответствие сборки, затем её текущие references. Проверка восстановления потребует отдельного разрешённого lab опыта с synthetic данными и прикладным результатом. Поиск по репозиторию не выполняет такой опыт.</p>
+<h3>Разобрать расхождение и закончить поиск</h3>
+<p>Если другое руководство говорит о копировании, уточните операцию: оно может описывать CreateTag, а не CreateActor через sourceTag. Затем сравните версии и условия ветки. Для изменения между версиями используйте diff нужных файлов и прочитайте затронутые helpers. Упоминание clone в рекламном обзоре имеет меньшую точность, чем описание конкретного API path.</p>
+<p>Бывает, что причина всё же в ошибке документации или реализации. Сохраните обе ссылки и минимальный сценарий, на котором они расходятся. Если deployment содержит локальный patch или его происхождение неизвестно, назначьте получение inventory отдельным шагом. Это позволяет закончить текущий разбор: вопрос по исходникам получил ответ, опасная очистка остановлена, следующая проверка определена.</p>
+<h2>C.9 Самостоятельная работа и обновление карты</h2>
+<p>Выберите решение из своей задачи: подобрать клиент MCP, изменить лимит context или разрешить recovery. Сформулируйте один вопрос с наблюдаемым следствием и найдите маршрут в C.2-C.7. Выполните следующие действия:</p>
 <ol>
-<li><strong>Сделайте вопрос точным.</strong> Какой вызов, поле, тип snapshot и версия рассматриваются? Сформулируйте наблюдаемое следствие: безопасно ли удалить исходный payload, сохранив возможность restore?</li>
-<li><strong>Зафиксируйте identity.</strong> Возьмите commit из нужного раздела карты, полную ссылку на файл и интересующий symbol. Отдельно запишите неизвестную или отличающуюся версию deployed image; не приравнивайте её к прочитанному коду.</li>
-<li><strong>Пройдите маршрут.</strong> Найдите объяснение в guide, поле в schema и обработчик в реализации. Для примера сравните Actor creation с Tag workflow. Различайте копирование bytes и сохранение ссылки; проверьте, какие dependencies остаются.</li>
-<li><strong>Составьте evidence card.</strong> Запишите вопрос, версии, найденные ссылки/symbols, вывод, его ограничения и необходимый lab test. Не утверждайте, что restore испытан, если вы только прочитали исходник.</li>
-<li><strong>Передайте другому инженеру.</strong> Пусть он воспроизведёт ход чтения и объяснит, что разрешено решить сейчас, а что требует проверки deployment. Сохраните несогласие или недоступный источник как открытый вопрос.</li>
+<li>Запишите рассматриваемую версию, входы и существенные условия. Назовите другой профиль книги, с которым её легко перепутать.</li>
+<li>Выберите объясняющий источник и точный контракт. Покажите, какие части вопроса каждый из них закрывает.</li>
+<li>Найдите реализацию или тест нужной ветки. Для теста укажите, что исполняется реально и где стоят mocks; для кода - проверку условия и запись результата.</li>
+<li>Составьте карточку: вывод, разрешённое сейчас действие, оставшийся вопрос и способ его проверить. Если нужен опыт, задайте ожидаемый прикладной результат и допустимую область воздействия.</li>
+<li>Передайте запись коллеге. Он должен открыть те же объекты и объяснить, почему принято это решение, без угадывания версии и значения слова «работает».</li>
 </ol>
-<blockquote><p><strong>Учебный вывод для Substrate v0.3.0.</strong> Actor creation через sourceTag заимствует payload URI; CreateTag из внешнего источника имеет отдельный copy path. Поэтому независимость нельзя вывести только из появления нового Actor record. Проверка кода ограничена срезом ccecc788; безопасная deletion/restore policy требует учёта dependencies и отдельного lab test. Это пример source analysis, не результат выполненного restore.</p></blockquote>
-<p>Приложение A помогает обнаружить опасное допущение, B - превратить его в проверяемый критерий допуска, C - найти контракт и реализацию для проверки. Книга заканчивается, но инженерная работа продолжается: сохраняйте версии, ограничивайте выводы полученными evidence и возвращайтесь к затронутым решениям после изменений. Хороший источник нужен не для убедительной ссылки в отчёте, а чтобы следующий инженер мог понять и проверить ваше решение.</p>
+<p>При обновлении начинайте с сохранённых предпосылок решения. Смена API, snapshot format или auth policy направляет повторное чтение и тесты на соответствующие пути. Изменение ссылки на сайте сначала требует найти тот же документ; оно само по себе не меняет runtime. Обновляйте source record и результаты проверки раздельно, чтобы было видно, откуда появился новый вывод.</p>
+<p>В итоге у инженера остаётся понятная цепочка: вопрос, источник нужной версии, объяснение механизма и проверяемое действие. Приложение A помогает провести аудит, B - принять ограниченное решение о допуске, C - найти основание для следующего шага. Этой цепочки должно хватать другому человеку, чтобы продолжить работу, не повторяя весь ваш поиск.</p>
+
 </section></body></html>
