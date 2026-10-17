@@ -12324,70 +12324,164 @@ curl --noproxy '*' --cacert /run/ate/trust-bundle.pem \
 <section class="chapter" id="ch-41">
 <div class="chapter-num">Глава 41</div>
 <h1>Local inference sizing: память GPU, parallelism и эксплуатационные SLO</h1>
-<p>В главе 40 мы проверяли, способен ли агент безопасно дойти до model endpoint. Теперь представим, что сеть исправна, модель загружена, а первый запрос успешно выполнен. Через час одновременно просыпаются несколько Tasks, один приносит большой transcript, и ответы начинают запаздывать. GPU при этом может быть занята на 100%, а пользователь всё равно видит не полезную работу, а ожидание. Что именно оказалось недостаточным: память, вычисления, связь между устройствами или правила допуска в очередь?</p>
-<p><strong>Sizing</strong> - это выбор ресурсов и ограничений сервиса под определённую нагрузку. Он отвечает не только на вопрос «помещается ли модель», но и на вопрос «какие запросы мы обещаем обслужить вовремя, включая отказ части инфраструктуры». Глава 20 объяснила выбор runtime, глава 21 - методику измерения. Здесь свяжем эти решения: рассчитаем память, выберем способ размещения модели и превратим benchmark в эксплуатационный контракт.</p>
-<p>Расчёты ниже относятся прежде всего к autoregressive decoder с обычным attention. Числовой пример - учебный, а не результат испытания конкретной GPU. Для реальной модели нужны её config, точный artifact, выбранный backend и измерения из главы 21.</p>
-
-<h2>Начните с профиля запросов</h2>
-<p>Название модели и количество агентов - слабые исходные данные. Один агент большую часть времени ждёт tools, другой делает длинную генерацию, третий запускает fan-out из нескольких model calls. Пятнадцать Tasks могут давать две активные sequences большую часть дня и пятнадцать одновременно после общего resume. Среднюю нагрузку и такой burst нельзя считать одним режимом.</p>
-<p>Для каждого класса запросов запишите длины input и output после применения реального tokenizer и chat template, arrival rate, пиковый burst, число одновременно генерируемых ответов и deadline. System prompt, schemas tools, история и результаты tools входят в input. Если запрос создаёт несколько вариантов ответа, один HTTP request может породить несколько sequences.</p>
-<p>Отдельно укажите правила длинного хвоста. Например, interactive pool принимает общий context до 8192 tokens и output до 512; длинные разборы идут в отдельный pool. Это допустимая политика, если harness знает о ней и явно обрабатывает превышение лимита. Молчаливое обрезание начала истории способно удалить system instructions или важный tool result и не является безопасным способом сэкономить память.</p>
-<p>Полезно хранить не только отдельные percentiles длин, но и совместные traces. Большие prompts и длинные ответы могут приходить вместе. Кроме того, длинная генерация дольше занимает slot, поэтому распределение <em>активных</em> sequences обычно отличается от распределения входящих запросов. Расчёт «p95 context × средняя concurrency» скрывает именно тот режим, в котором заканчивается KV cache.</p>
-
-<h2>Память GPU состоит из разных бюджетов</h2>
-<p><strong>VRAM</strong> - память accelerator; она хранит не только файл модели. Для каждого устройства рассматривайте следующий баланс:</p>
-<pre><code class="language-text">доступная VRAM &gt;= resident weights + KV cache
-                  + activations и workspace buffers
-                  + runtime и CUDA graphs + запас
+<p>Продолжим сценарий главы 40 и предположим, что сетевой путь уже проверен: Actor доходит до модели, TLS работает, разрешённая операция получает ответ. Теперь несколько Tasks возобновляются одновременно. Один агент передаёт длинную историю, остальные ждут короткий tool call. Сервер продолжает отвечать, но шаги агентов начинают пропускать deadline. Чтобы выбрать исправление, нужно понять, чего именно не хватает: памяти для истории, скорости вычислений или возможности обслужить пришедший поток.</p>
+<p><strong>Sizing</strong> - выбор ресурсов и ограничений сервиса под конкретную работу. На выходе нужен понятный ответ: какие запросы сервис принимает, сколько таких запросов он успевает обслужить и что сохраняется при отказе части оборудования. Глава 20 помогла выбрать runtime и проверить интерфейс модели, глава 21 - измерить полезную производительность. Здесь соберём из этих сведений план размещения и допуска нагрузки.</p>
+<p>Начнём с обычной text-only decoder-модели с full attention. На учебном примере посчитаем память, затем разберём batching, распределение модели и резерв мощности. Расчёт можно выполнить без GPU. Измеренную скорость он не подменяет: архитектуру и лимиты берём из config и выбранного artifact, а capacity под SLO получаем испытанием сервиса.</p>
+<h2>Сначала определите какую работу должен успеть сервис</h2>
+<p>Пятнадцать агентов не означают пятнадцать постоянно работающих генераций. Агент может ждать tool, обращаться к модели несколько раз за шаг или запускать несколько ветвей одновременно. После общего resume обращения сближаются во времени. Для сервера важны сами arrivals - моменты поступления запросов, их длины и допустимое время выполнения.</p>
+<p>Возьмём короткий профиль из главы 20: общий context до 8192 tokens, ответ до 512 tokens. Тогда на сериализованный prompt остаётся не более 7680 tokens. В prompt входят инструкции, schemas tools, история, результаты tools и оформление chat template. Считайте длину tokenizer именно того deployment, который будет обслуживать запрос; число символов и длина исходного списка messages этого не заменяют.</p>
+<p>Для каждого класса сохраните совместные примеры input и output, arrival rate, burst и deadline. Отдельные p95 длины prompt и ответа не показывают, встречаются ли длинные значения вместе. Кроме того, длинная генерация дольше остаётся активной. Поэтому набор запросов, одновременно удерживающих память, отличается от распределения входящих запросов.</p>
+<p>Короткий выбор инструмента и большой анализ документа удобно принять как разные классы. Их можно направить в отдельные pools - группы replicas с общими лимитами. Это защищает интерактивную работу от длинного prefill, но добавляет отдельную очередь, routing и требование к запасу каждого pool. Для редкого длинного запроса сначала сравните такую изоляцию с ценой простоя выделенной мощности.</p>
+<p>Сохраните смысл SLO из главы 21. В нашем коротком сценарии полезен полный допустимый tool call в пределах учебного deadline 2000 ms. Для читаемого человеком stream могут понадобиться другие цели: время до первого содержательного фрагмента и плавность продолжения. Ограничения памяти обслуживают эти обещания, но сами по себе их не доказывают.</p>
+<h2>Из чего складывается память одного устройства</h2>
+<p><strong>VRAM</strong> - память accelerator. В ней размещаются веса, состояние активных запросов и рабочие данные runtime. Для каждого устройства составьте отдельный баланс:</p>
+<pre><code class="language-text">executor budget &gt;= resident weights + KV cache
+                   + прочие allocations + явный запас
 </code></pre>
-<p><strong>Resident weights</strong> - tensors, действительно размещённые на этом устройстве после загрузки. Activations - промежуточные результаты вычислений; workspace - временные buffers kernels. CUDA graphs сохраняют подготовленные последовательности GPU-операций, чтобы уменьшить overhead запуска, но тоже требуют памяти. Последняя часть бюджета покрывает колебания allocations, фрагментацию и допустимую неопределённость, а не даёт право игнорировать измерения.</p>
-<p>Не вычитайте одну allocation дважды. Если startup profiling runtime уже сообщил память вне KV cache, выясните, включены ли туда graph capture и workspace. Во время приёмки смотрите startup peak, steady state и стрессовый prefill: успешная загрузка весов не доказывает, что первое большое вычисление поместится. Возможности уменьшать context, batch и CUDA graphs описаны в <a href="https://docs.vllm.ai/en/v0.31.0/configuration/conserving_memory/">руководстве vLLM по памяти</a>.</p>
-<p>Высокая занятость памяти в <code>nvidia-smi</code> сама по себе не означает утечку. Serving runtime может заранее выделить большой KV pool и использовать внутри него лишь часть blocks. Сопоставляйте физическую allocation с cache occupancy, preemption и количеством активных sequences. Также различайте CUDA OOM и Kubernetes OOMKill из-за host RAM: это разные бюджеты и разные причины отказа.</p>
-<p>У GPU-сервиса остаются CPU, RAM и storage. Нужны tokenizer workers, сетевой frontend, загрузка и распаковка artifacts, pinned buffers, место под checkpoints и временные файлы. При startup host RAM может достигать пика раньше, чем GPU полностью загрузится. CPU offload не превращает host memory в бесплатную VRAM: переносы по interconnect добавляются к критическому пути.</p>
-
-<h2>Посчитайте веса и не смешивайте GB с GiB</h2>
-<p>Для однородного представления начальная оценка проста: <code>weights bytes = число параметров × bits / 8</code>. У условной dense-модели с ровно 8 миллиардами параметров BF16-веса занимают 16 миллиардов bytes, то есть около <strong>14.90 GiB</strong>. Сырые 4-bit значения занимают 4 миллиарда bytes, около <strong>3.73 GiB</strong>. Это нижняя оценка данных, а не размер готового deployment.</p>
-<p><code>1 GB = 10^9 bytes</code>, тогда как <code>1 GiB = 2^30 bytes</code>. Поэтому 24 GB и 24 GiB - не одно и то же. Для расчёта приводите данные runtime, device и model artifact к bytes, а округляйте только итог. Не угадывайте доступную память по маркетинговому названию карты.</p>
-<p>Quantized artifact хранит scales, иногда zero points и tensors другой precision. Kernels могут использовать дополнительные packed representations. Если распределение dtype неоднородно, суммируйте размеры групп tensors, затем сверяйте оценку с памятью после загрузки. Размер скачанного файла, объём tensors на device и peak загрузки могут различаться.</p>
-<p>У <strong>Mixture of Experts, MoE</strong>, часть вычислений выполняют отдельные подсети - experts. Router выбирает, какие из них обработают конкретный token. Поэтому «мало активных параметров на token» описывает вычисления, а не автоматически resident weights. Если experts должны быть доступны в памяти, учитываются все размещённые experts, общие слои и runtime buffers. Expert parallelism распределяет experts и добавляет обмен routed activations. Для такой модели нельзя подставить число активных параметров в dense-формулу и считать вопрос решённым.</p>
-
-<h2>Что KV cache хранит и как его рассчитать</h2>
-<p>При генерации очередного token attention обращается к предыдущим позициям. Чтобы не вычислять их key и value заново на каждом шаге, runtime сохраняет эти tensors в <strong>KV cache</strong>. Это ускоряет decode, но связывает память с длиной контекста и числом активных sequences. Кэш растёт и на prompt, и на уже сгенерированных tokens.</p>
-<p>Для full attention с одинаковыми слоями и одинаковым размером K и V оценка на одну token position выглядит так:</p>
-<pre><code class="language-text">KV bytes/token = 2 × L × Hkv × D × B
+<p>Executor budget - часть памяти, которую разрешено использовать этому исполнителю. Остальная память устройства не обязана быть свободна для него. Resident weights - tensors после загрузки на device. Прочие allocations включают activations, временные buffers вычислительных kernels и служебное состояние runtime. Например, CUDA graphs сохраняют подготовленную последовательность GPU-операций для уменьшения overhead запуска и требуют дополнительной памяти.</p>
+<p>Разделите startup peak и установившийся режим. При загрузке могут одновременно существовать разные представления весов; длинный prefill создаёт другой пик, чем короткий decode. Если runtime уже включил workspace и graph capture в отчёт о памяти вне KV, не вычитайте их повторно. Запас нужен для известных колебаний и неопределённости, а его размер уточняется наблюдением этих режимов. Настройки такого компромисса разобраны в <a href="https://docs.vllm.ai/en/v0.31.0/configuration/conserving_memory/">руководстве vLLM по памяти</a>.</p>
+<p>У GPU-сервиса есть и host RAM: tokenizer, frontend, загрузчик artifacts, pinned buffers и offload тоже занимают ресурсы. CUDA OOM и Kubernetes OOMKill из-за RAM host требуют разных исправлений. CPU offload переносит часть хранения или работы с accelerator, но добавляет доступ к более медленной памяти и обмены в критический путь. Его выбирают под измеренный deadline.</p>
+<p>Для однородных весов начальная арифметика проста: число parameters умножается на bytes на parameter. Ровно 8 миллиардов BF16-значений занимают 16 миллиардов bytes, около 14.90 GiB. При 4-bit packed representation сами значения занимают 4 миллиарда bytes, около 3.73 GiB; к ним прибавляются scales, возможные zero points, tensors другой precision и дополнительные resident representations. Размер скачанного файла не обязательно равен расходу VRAM после загрузки.</p>
+<p>Quantization представляет значения меньшим числом bits; scale задаёт, как интерпретировать компактный числовой код. Такое приближение меняет точность, а способ группировки и поддержка kernels влияют на практический выигрыш. Сравнивайте не только освобождённые GiB, но и качество полного tool roundtrip на своих задачах. Меньшие weights полезны сервису, когда выбранное представление сохраняет нужную функцию модели.</p>
+<p>В расчёте используйте bytes: <code>1 GB = 10^9 bytes</code>, <code>1 GiB = 2^30 bytes</code>. Название карты с числом «24» ещё не задаёт доступные 24 GiB. Нужны фактический объём device, занятые другими consumers ресурсы и выбранный executor budget.</p>
+<p>У MoE, Mixture of Experts, router выбирает для token часть подсетей - experts. Это уменьшает активные вычисления по сравнению с использованием всех experts, но не определяет объём всех размещённых весов. Считать нужно resident experts и общие слои на каждом устройстве. Expert parallelism добавляет собственный обмен activations; число активных parameters нельзя подставлять вместо числа хранимых.</p>
+<h2>Зачем модели нужен KV cache</h2>
+<p>Во время attention текущая позиция формирует query и сопоставляет её с keys предыдущих позиций. Полученные веса используются для смешивания values. Когда начинается следующий шаг генерации, старые keys и values снова нужны. Runtime сохраняет их в <strong>KV cache</strong>, чтобы не пересчитывать историю целиком при каждом новом token.</p>
+<p>Веса модели одинаковы для разных запросов, а KV зависит от их последовательностей tokens. Два независимых диалога используют одну загруженную модель, но удерживают разное состояние attention. Кэш растёт на входной истории и во время генерации. Поэтому успешная загрузка весов отвечает лишь на первый вопрос о памяти.</p>
+<p>Для одинаковых full-attention слоёв с одинаковой размерностью K и V:</p>
+<pre><code class="language-text">KV bytes на token position = 2 × L × Hkv × D × B
 
 L   - число attention layers
-Hkv - число key/value heads, не число query heads
-D   - размерность каждой K/V head
+Hkv - число key/value heads
+D   - размерность K/V head
 B   - bytes на элемент cache
-2   - хранятся и key, и value
+2   - отдельные tensors key и value
 </code></pre>
-<p>При BF16 или FP16 <code>B = 2</code>. Если <code>L = 32</code>, <code>Hkv = 8</code>, <code>D = 128</code>, получаем <code>131072 bytes/token = 128 KiB/token</code>. Одна sequence с 8192 сохранёнными positions требует 1 GiB сырых K/V. Это арифметический результат заданной архитектуры; overhead blocks и прочие allocations сюда ещё не входят.</p>
-<p>Почему важен именно <code>Hkv</code>? В multi-head attention query heads имеют соответствующие K/V heads. В <strong>GQA</strong> несколько query heads используют общую группу K/V; в <strong>MQA</strong> такая группа одна. Например, замена восьми KV heads на 32 увеличит наш cache в четыре раза при прочих равных. Число query heads не позволяет определить этот расход без config модели. Различие объясняется в <a href="https://arxiv.org/abs/2305.13245">работе о grouped-query attention</a>.</p>
-<p>Для неодинаковых слоёв суммируйте их расходы отдельно. Формулу нельзя переносить буквально на MLA с compressed latent state, hybrid attention/state-space модели, encoder-decoder или multimodal stacks. Sliding window может ограничивать сохраняемые positions в части слоёв, но не обязательно во всех. Верный расчёт начинается с architecture и реализации cache в backend, а не с общего числа parameters.</p>
-
-<h2>От одной sequence к общей вместимости</h2>
-<p>В первом приближении расход активного cache равен <code>KV bytes/token × сумма сохранённых positions</code>. В нашем учебном примере получается:</p>
-<table style="break-inside:avoid">
-<thead><tr><th>Нагрузка</th><th>Сумма positions</th><th>Сырые K/V</th></tr></thead>
+<p>Пусть <code>L = 32</code>, <code>Hkv = 8</code>, <code>D = 128</code>, а cache хранится в BF16, то есть <code>B = 2</code>. Получается 131072 bytes на позицию, или 128 KiB. Одна sequence из 8192 сохранённых positions требует 1 GiB сырых K/V. Sequence здесь - отдельная последовательность генерации; один HTTP request с несколькими вариантами ответа может создать несколько sequences.</p>
+<p>В multi-head attention у query heads есть соответствующие K/V heads. <strong>GQA</strong>, grouped-query attention, позволяет группе query heads использовать общие K/V; у <strong>MQA</strong> такая группа одна. В нашем примере замена восьми KV heads на 32 увеличила бы расход в четыре раза. Поэтому нужен именно <code>Hkv</code> из архитектуры, а не только число query heads. Это различие объясняется в <a href="https://arxiv.org/abs/2305.13245">работе о GQA</a>.</p>
+<p>Для heterogeneous layers суммируйте расходы по слоям. MLA с compressed latent state, sliding-window, hybrid state-space, encoder-decoder и multimodal architecture требуют своей модели состояния и проверки backend. В частности, окно может ограничивать историю только части слоёв. Простая формула выше относится к указанному full-attention случаю.</p>
+<h2>Посчитаем бюджет до выбора concurrency</h2>
+<p>Зададим условное устройство с фактическими 24 GiB. Для executor выделим 21 GiB, resident BF16-веса займут ровно 16 миллиардов bytes, прочие allocations - 3 GiB. Добавим отдельный запас 0.5 GiB внутри executor budget. Эти величины - входные допущения упражнения, не характеристики какой-либо модели GPU.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Часть бюджета</th>
+<th>Значение</th>
+<th>Как учитывается</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>Одна sequence длиной 4096</td><td>4096</td><td>0.5 GiB</td></tr>
-<tr><td>Шесть sequences по 8192</td><td>49152</td><td>6 GiB</td></tr>
-<tr><td>Одна sequence длиной 32768</td><td>32768</td><td>4 GiB</td></tr>
-<tr><td>Пятнадцать sequences по 32768</td><td>491520</td><td>60 GiB</td></tr>
-</tbody></table>
-<p>Пусть устройство действительно имеет 24 GiB, а мы <em>условно</em> разрешили executor использовать 21 GiB. После 14.90 GiB BF16-весов и 3 GiB на всё остальное остаётся около <strong>3.10 GiB</strong> для KV. Три sequences по 8192 positions дают арифметический предел почти без внутреннего запаса; одна sequence на 32768 уже не помещается. Число «3» не обещает concurrency или SLO: ограничения compute и реальная allocation могут сработать раньше.</p>
-<p>Если уменьшить только веса, свободного cache может стать больше. Но расход <em>одной position</em> останется 128 KiB, пока cache хранится в BF16. Weight quantization и KV quantization - отдельные решения. FP8 K/V уменьшает сырые данные относительно 16-bit, однако требует совместимых kernels, scales и проверки качества на длинном context и tool calls. Условия описаны в <a href="https://docs.vllm.ai/en/v0.31.0/features/quantization/quantized_kvcache/">документации quantized KV cache</a>. Экономия памяти не равна гарантированному ускорению.</p>
-<p>В реальном allocator positions округляются до blocks. PagedAttention размещает cache блоками и снижает потери от крупных непрерывных резервов, но не устраняет его физическую стоимость. Совместно используемые prefix blocks нужно считать один раз, приватные продолжения - отдельно. Учебная сумма выше предполагает отсутствие sharing и округления; это не показание allocator. Принцип описан в <a href="https://arxiv.org/abs/2309.06180">работе о PagedAttention</a>.</p>
-<p>Prefix caching особенно полезен при длинном одинаковом system prompt: повторный prefill может переиспользовать готовое состояние. Но любой изменившийся prefix уменьшает reuse, а cache eviction и новая replica создают cold path. Эта оптимизация не отменяет генерацию каждого нового token. Не стройте обязательный SLO только на warm cache; механизм и его границы разобраны в <a href="https://docs.vllm.ai/en/v0.31.0/features/automatic_prefix_caching/">руководстве prefix caching</a>.</p>
-
-<h2>Почему свободная память ещё не означает скорость</h2>
-<p><strong>Prefill</strong> обрабатывает входной prompt, <strong>decode</strong> последовательно генерирует продолжение. В обычном decode следующий token зависит от предыдущего: наращивание числа GPU не снимает эту зависимость. При длинном prefill важна вычислительная работа над большим prompt; при небольшом decode batch часто существенны чтение весов и cache, overhead kernels и коммуникация. Конкретный bottleneck определяет профиль, а не название фазы.</p>
-<p>В качестве проверки здравого смысла можно оценить traffic весов. Если бы каждый decode iteration перечитывал 14.90 GiB через memory subsystem с эффективной bandwidth 600 GiB/s, одно лишь это чтение заняло бы около 25 ms. Это условная оценка одного компонента, не прогноз token latency: реальные kernels, cache locality, attention и обмены меняют картину. В batch тот же iteration обслуживает несколько sequences, поэтому aggregate tokens/s может расти без такого же ускорения одного ответа.</p>
-<p>Именно поэтому continuous batching полезен сервису, но не даёт права бесконечно увеличивать batch. Длинный prefill может мешать коротким decode шагам. Chunked prefill позволяет scheduler дробить такую работу; приёмка должна показать влияние на TTFT и плавность stream. Связь batching и latency разобрана в <a href="https://docs.vllm.ai/en/v0.31.0/configuration/optimization/">руководстве vLLM по настройке производительности</a>.</p>
-
-<h2>Tensor parallelism и цена коммуникации</h2>
-<p><strong>Tensor parallelism, TP</strong>, делит поддерживаемые tensors и вычисления внутри слоёв между устройствами одной model replica. GPUs совместно обслуживают запросы, а не получают независимые очереди. Частичные результаты приходится согласовывать через <strong>collectives</strong> - групповые операции обмена. Например, all-reduce агрегирует результаты участников и возвращает итог каждому. В типичной реализации эти обмены повторяются внутри слоёв во время генерации, а не происходят один раз после всего ответа.</p>
+<tr>
+<td>Память устройства</td>
+<td>24 GiB</td>
+<td>Верхняя физическая граница</td>
+</tr>
+<tr>
+<td>Executor budget</td>
+<td>21 GiB</td>
+<td>Внешние 3 GiB в расчёт KV не входят</td>
+</tr>
+<tr>
+<td>Resident weights</td>
+<td>16000000000 bytes</td>
+<td>Около 14.90 GiB внутри executor</td>
+</tr>
+<tr>
+<td>Прочие allocations</td>
+<td>3 GiB</td>
+<td>Без KV и без следующего резерва</td>
+</tr>
+<tr>
+<td>Явный запас</td>
+<td>0.5 GiB</td>
+<td>Дополнительная граница упражнения</td>
+</tr>
+<tr>
+<td>Остаток для KV</td>
+<td>2790481920 bytes</td>
+<td>Около 2.60 GiB</td>
+</tr>
+</tbody>
+</table>
+<p>Для учебного allocator примем block из 16 token positions. При 128 KiB на позицию он занимает 2 MiB. Из остатка помещаются 1330 полных blocks; неполный block отбрасываем. Одна sequence на 8192 positions требует 512 blocks. Значит, по этому консервативному бюджету одновременно помещаются две такие sequences, а третья потребовала бы уже 1536 blocks.</p>
+<p>Размер block в упражнении выбран явно. Для настоящего runtime прочитайте его фактическую организацию cache. PagedAttention разбивает состояние на blocks и уменьшает потери от крупных непрерывных резервов, но не отменяет стоимость данных. Например, две независимые sequences по 17 positions требуют по два blocks при размере 16, а не один общий block на их суммарный остаток. Организация описана в <a href="https://arxiv.org/abs/2309.06180">работе о PagedAttention</a>.</p>
+<p>Без отдельного резерва 0.5 GiB арифметический предел нашего примера был бы равен трём sequences по 8192. С резервом он равен двум. Это не изменение формулы KV, а следствие выбранного допустимого риска. В реальном deployment размер резерва обосновывают пиками и режимами отказа, вместо того чтобы считать лишнюю sequence бесплатной.</p>
+<p>Для sequence на 32768 positions потребовались бы 4 GiB сырых K/V. Увеличение context limit само по себе не создаёт эти bytes. Веса можно уменьшить quantization, а cache - отдельным выбором KV dtype. Если менять только weights, стоимость одной BF16 KV position останется прежней. FP8 KV уменьшает сырые данные относительно 16-bit, но добавляет требования к scales, kernels и проверке качества, особенно на длинной истории и tool calls. Поддержку сверяют с <a href="https://docs.vllm.ai/en/v0.31.0/features/quantization/quantized_kvcache/">документацией KV quantization</a>.</p>
+<p>Prefix caching позволяет переиспользовать уже вычисленный общий prefix. Например, одинаковые инструкции и длинный документ могут не потребовать повторного полного prefill. Это зависит от совпадения prefix и наличия его состояния у выбранной replica; после eviction или cold start путь будет другим. Новые output tokens всё равно нужно вычислять. Эти границы важны при выборе warm и cold сценариев приёмки, как показано в <a href="https://docs.vllm.ai/en/v0.31.0/features/automatic_prefix_caching/">руководстве prefix caching</a>.</p>
+<h2>Практика расчёта и допуска запросов</h2>
+<p>Программа <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/main/examples/ch41_inference_budget.py">examples/ch41_inference_budget.py</a> воспроизводит этот memory sheet и простой admission gate - решение, принять ли запрос в работу. Для запуска достаточно Python 3.13 и стандартной библиотеки:</p>
+<pre><code class="language-sh">python3 examples/ch41_inference_budget.py
+python3 -m unittest discover -s examples -p 'test_ch41_inference_budget.py'
+</code></pre>
+<p>Gate резервирует верхнюю границу <code>prompt_tokens + max_new_tokens</code> для каждой sequence, округляя каждую отдельно. Это консервативная политика без sharing: запрос с prompt 7680 и output cap 512 получает резерв на 8192 positions, даже если ответ в итоге окажется короче. У настоящего serving scheduler cache может выделяться постепенно; он способен принять больше работы, затем столкнуться с ростом cache и preemption. Упражнение выбирает простую проверяемую границу, а не воспроизводит алгоритм vLLM.</p>
+<p>Ключевой расчёт в примере:</p>
+<pre><code class="language-python">blocks = blocks_for_tokens(
+    request.prompt_tokens + request.max_new_tokens,
+    memory.block_tokens,
+) * request.sequences
+</code></pre>
+<p>В demo получаются следующие решения. Limit числа sequences установлен в 3 специально, чтобы третий короткий запрос упёрся именно в память, а не в число slots.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Событие</th>
+<th>Решение</th>
+<th>Объяснение</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Первый короткий запрос</td>
+<td><code>ACCEPT</code></td>
+<td>Занято 512 из 1330 blocks</td>
+</tr>
+<tr>
+<td>Второй короткий запрос</td>
+<td><code>ACCEPT</code></td>
+<td>Занято 1024 blocks</td>
+</tr>
+<tr>
+<td>Третий короткий запрос</td>
+<td><code>REJECT_KV</code></td>
+<td>Требовалось бы 1536 blocks</td>
+</tr>
+<tr>
+<td>Завершить первый, принять новый</td>
+<td><code>ACCEPT</code></td>
+<td>Освобождённый резерв можно использовать снова</td>
+</tr>
+<tr>
+<td>Запрос на 32768 positions в interactive pool</td>
+<td><code>REJECT_CONTEXT</code></td>
+<td>Превышен контракт 8192</td>
+</tr>
+<tr>
+<td>Тот же запрос при context limit 32768</td>
+<td><code>REJECT_KV</code></td>
+<td>В пустом pool всё ещё не хватает памяти</td>
+</tr>
+</tbody>
+</table>
+<p style="break-after:avoid">Часть вывода <code>memory</code>:</p>
+<pre><code class="language-json">{
+  &quot;kv_bytes_per_token&quot;: 131072,
+  &quot;block_bytes&quot;: 2097152,
+  &quot;kv_budget_bytes&quot;: 2790481920,
+  &quot;kv_blocks&quot;: 1330,
+  &quot;max_8192_sequences&quot;: 2,
+  &quot;without_reserve_8192_sequences&quot;: 3
+}
+</code></pre>
+<p>Отклонение не меняет занятый бюджет. Освобождение происходит отдельным <code>release</code> после подтверждённого окончания backend work. Отключение клиента само по себе не доказывает, что генерация остановилась и cache уже освобождён. В распределённом admission нужны согласованный учёт, обработка потери владельца и повторов; здесь gate однопоточный, локальный и без очереди.</p>
+<p>Пример проверяет целочисленную арифметику, округление, несколько sequences и освобождение резерва. Он не загружает weights, не токенизирует текст и не исполняет attention. В нём нет GPU, временной модели decode, prefix sharing, TP/PP, offload или vLLM. Поэтому <code>ACCEPT</code> означает прохождение учебных memory limits; поле <code>slo_proven</code> остаётся <code>false</code>.</p>
+<h2>Почему вместимость и скорость измеряют отдельно</h2>
+<p>Prefill обрабатывает входную историю, decode последовательно добавляет tokens. Full attention при длинном prefill выполняет работу над парами позиций, а при decode каждый следующий шаг обращается к накопленной истории. Следующий token обычной autoregressive generation зависит от предыдущего, поэтому дополнительные GPU не превращают один ответ в произвольное число независимых вычислений.</p>
+<p>При небольшом decode batch заметную роль может играть чтение весов и KV из памяти. Для проверки порядка величины: чтение 14.90 GiB при условной эффективной bandwidth 600 GiB/s заняло бы около 25 ms. Это время одного предполагаемого компонента, не прогноз latency модели. В реальном шаге есть другие kernels и обмены, а характер чтения определяется backend. Выбор устройства нельзя завершить по этой оценке.</p>
+<p>Batch позволяет использовать одно вычисление для нескольких sequences. Поэтому суммарные tokens/s могут расти, хотя отдельный пользователь не получает ответ быстрее. Continuous batching включает новую работу по мере освобождения места; длинный prefill при этом способен повлиять на decode остальных запросов. Chunked prefill делит входную работу на части и позволяет scheduler чередовать её с другой работой. Размер iteration budget выбирают по TTFT и плавности stream, а не по одному aggregate throughput. Механизм настройки разобран в <a href="https://docs.vllm.ai/en/v0.31.0/configuration/optimization/">руководстве vLLM по производительности</a>.</p>
+<p>Посмотрите, какой ресурс исчерпан первым. Рост очереди при свободном KV требует другого опыта, чем регулярная cache preemption. Если время уходит в collectives, увеличение batch limit может не исправить interconnect. Если CPU не успевает подготовить вход, свободная GPU не объясняет проблему сама по себе. Этот разбор определяет следующий эксперимент.</p>
+<h2>Как выбрать между replicas и распределением модели</h2>
+<p>Если модель уже помещается на одном устройстве и проходит single-request SLO, первым кандидатом для увеличения обслуженного потока становятся независимые replicas. Каждая содержит свою модель, cache и очередь и получает отдельные запросы. Понадобится routing: длинные запросы и тёплые prefixes могут распределиться неравномерно. Приёмка должна показать полезный результат всего pool.</p>
+<p><strong>Tensor parallelism, TP</strong>, распределяет tensors и вычисления внутри поддерживаемых слоёв одной replica. <strong>Rank</strong> - участник распределённой группы, обычно процесс со своим устройством. Результаты участников приходится согласовывать во время исполнения слоёв. Например, <a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/collectives.html">all-reduce</a> суммирует частичные результаты и возвращает итог каждому участнику. Такие collectives входят в критический путь генерации и повторяются, а не выполняются один раз после ответа.</p>
 <figure>
 <figcaption>Tensor parallelism: sharded layer and communication repeat during decode</figcaption>
 <svg class="diagram" viewBox="0 0 900 260" role="img" aria-label="Tensor parallelism: sharded layer and communication repeat during decode">
@@ -12409,44 +12503,48 @@ B   - bytes на элемент cache
 <text x="820" y="120" font-size="14" font-weight="700" text-anchor="middle">Next layers</text><text x="820" y="143" font-size="11" text-anchor="middle">then next token</text>
 </svg>
 </figure>
-<p>Схема показывает один фрагмент вычисления, а не полный attention block: конкретный backend может иметь несколько обменов, fusion и другую раскладку. Для выбора TP существенны bandwidth и latency interconnect. NVLink/NVSwitch, PCIe внутри одного host и сеть между hosts дают разные условия. Первая польза TP может состоять просто в том, что модель стала помещаться; удвоение скорости из этого не следует.</p>
-<p>Не делите всю память на TP size автоматически. Часть tensors и buffers остаётся replicated, splits должны поддерживаться архитектурой, а KV heads могут оказаться неделимыми или replicated в выбранном backend. <strong>Rank</strong> - участник распределённой группы, обычно отдельный процесс со своим устройством. Проверяйте память <em>каждого rank</em> и startup cache report. Самый тесный rank ограничивает всю группу, даже если сумма свободной VRAM выглядит достаточной.</p>
-<p>Начните с single-GPU baseline, если он возможен. Затем сравните TP=2 с тем же workload, total context и quality gate. Если TTFT улучшился, но ITL ухудшился, общий показатель tokens/s не заменяет решение по interactive SLO. Для cross-node TP отдельно измеряйте коммуникацию в реальной topology; успешный запуск collectives не является доказательством нужной производительности.</p>
-
-<h2>Pipeline parallelism и независимые replicas</h2>
-<p><strong>Pipeline parallelism, PP</strong>, распределяет группы слоёв по stages: запрос проходит через них последовательно. Между stages передаются activations, а не полная копия модели. Когда достаточно работы для перекрытия, stages могут обслуживать разные части потока; при малом потоке часть устройств ждёт. Эти периоды простоя называют <strong>pipeline bubbles</strong>. Несбалансированные stages и последовательный decode усиливают проблему.</p>
-<p>PP стоит рассмотреть, если модель не помещается на одной GPU, а частые TP collectives слишком дороги для доступного interconnect. Поддержка разбиения и баланс stages зависят от модели и runtime. Сочетание TP внутри быстрой группы устройств и PP между группами также возможно. Проверять нужно худший stage, а не среднюю память по кластеру.</p>
-<p><strong>Независимые replicas</strong> обслуживают разные запросы, каждая со своими weights, queue и cache. Для dense-модели это естественный способ масштабировать число обслуженных запросов, если один экземпляр уже помещается и выполняет single-request SLO. Но дополнительные replicas не делают автоматически быстрее один длинный ответ. В MoE встроенный data parallel режим может быть связан с шардированием experts; независимые deployments и флаг DP нельзя считать синонимами без проверки backend.</p>
-<table style="break-inside:avoid">
-<thead><tr><th>Проблема</th><th>Первый кандидат для сравнения</th><th>Что проверять</th></tr></thead>
+<p>Схема показывает фрагмент слоя, а не все операции конкретного backend. TP может помочь разместить weights и изменить время вычисления. Цена зависит от раскладки tensors и связи устройств: быстрый NVLink/NVSwitch, PCIe и сеть между hosts дают разные условия. Перед cross-node размещением измерьте доступную topology и communication profile. Поддерживаемые варианты размещения описаны в <a href="https://docs.vllm.ai/en/v0.31.0/serving/parallelism_scaling/">руководстве vLLM по parallelism</a>.</p>
+<p>Память всех ranks нельзя получить простым делением на TP size. Часть tensors и buffers остаётся replicated. В частности, в <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/model.py">ModelConfig v0.31.0</a> при TP больше числа KV heads предусматривается их replication, чтобы на GPU оставалась как минимум одна KV head. Совместимость split и фактический cache проверяйте по architecture и каждому rank. Самый тесный участник ограничивает группу.</p>
+<p><strong>Pipeline parallelism, PP</strong>, размещает группы слоёв на разных stages. Данные одного запроса проходят stages последовательно. При достаточном потоке работу можно перекрывать; при дисбалансе stages и малом потоке часть устройств простаивает - возникают pipeline bubbles. PP стоит сравнить, когда модель не помещается, а частые TP collectives слишком дороги. Возможно сочетание TP внутри быстрой группы и PP между группами, если это поддерживает выбранный runtime.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Исходная проблема</th>
+<th>Что сравнить первым</th>
+<th>Какой результат нужен</th>
+</tr>
+</thead>
 <tbody>
-<tr><td>Модель помещается, очередь растёт</td><td>Независимые replicas</td><td>Goodput, балансировка, cold prefix cache</td></tr>
-<tr><td>Один экземпляр не помещается</td><td>TP или PP</td><td>Память по ranks, communication, single-request latency</td></tr>
-<tr><td>Не хватает KV для длинных calls</td><td>Отдельный long-context pool, cache dtype или допустимое сокращение context</td><td>Качество и реальный worst-case context</td></tr>
-<tr><td>Нужна работа при отказе host</td><td>Replicas в разных failure domains</td><td>Capacity после отказа и время прогрева</td></tr>
-</tbody></table>
-<p>Это порядок экспериментов, не универсальная рекомендация купить больше устройств. Распределённые варианты и ограничения изложены в <a href="https://docs.vllm.ai/en/v0.31.0/serving/parallelism_scaling/">руководстве vLLM по parallelism</a>. Если новая topology увеличила сложность, но не улучшила измеряемый контракт, её дополнительная стоимость пока не обоснована.</p>
-
-<h2>Свяжите настройки vLLM с проверяемой гипотезой</h2>
-<p>Для следующих примеров фиксируем <strong>vLLM v0.31.0</strong>; это не обещание одинаковых defaults в будущих версиях. В deployment сохраняйте container digest, CUDA/driver, model revision и полный набор arguments. После обновления повторяется приёмка, а не только проверка, что процесс запустился.</p>
-<table style="break-inside:avoid">
-<thead><tr><th>Настройка</th><th>Какой предел задаёт</th></tr></thead>
-<tbody>
-<tr><td><code>--max-model-len</code></td><td>Общий context запроса, включая output</td></tr>
-<tr><td><code>--gpu-memory-utilization</code></td><td>Доля device memory для данного executor; не эксклюзивная reservation</td></tr>
-<tr><td><code>--kv-cache-memory-bytes</code></td><td>Явный KV budget на GPU; при задании заменяет расчёт по utilization</td></tr>
-<tr><td><code>--max-num-seqs</code></td><td>Sequences за iteration и capacity model runner</td></tr>
-<tr><td><code>--max-num-batched-tokens</code></td><td>Работа scheduler за iteration в tokens</td></tr>
-<tr><td><code>--tensor-parallel-size</code>, <code>--pipeline-parallel-size</code></td><td>Разбиение model replica, не число независимых HTTP backends</td></tr>
-</tbody></table>
-<p>Значения и совместимость сверяются с <a href="https://docs.vllm.ai/en/v0.31.0/configuration/engine_args/">engine arguments этой версии</a>. Ограничение sequences не означает, что остальные запросы отсутствуют: они могут ждать в очереди. Доступный в v0.31.0 <code>--max-num-queued-reqs</code>, несмотря на имя, ограничивает <em>waiting плюс running</em> в API server; это грубый admission valve, а не гарантия queue delay. Связь пределов описана в <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/scheduler.py">SchedulerConfig</a>. Tenant quotas и deadline-aware admission по-прежнему требуют явного владельца.</p>
-<p>Минимальная стартовая гипотеза для уже проверенного text-only artifact в read-only каталоге <code>/srv/models/agent-release</code> может выглядеть так. Каталог заранее содержит pinned weights, config, tokenizer и корректный chat template; команда не скачивает случайную revision по имени. Выбранная модель и backend должны поддерживать chunked prefill: здесь он включён явно, поскольку token budget iteration меньше общего context limit. Без такого режима эту пару limits использовать нельзя.</p>
-<pre><code class="language-bash"># В окружении vLLM v0.31.0; только локальный lab listener.
-vllm serve /srv/models/agent-release \
+<tr>
+<td>Одна replica помещается, очередь растёт</td>
+<td>Независимые replicas</td>
+<td>Рост goodput при сохранении SLO</td>
+</tr>
+<tr>
+<td>Одна replica не помещается</td>
+<td>Поддерживаемые TP или PP</td>
+<td>Память каждого rank и приемлемая задержка</td>
+</tr>
+<tr>
+<td>Редкие длинные запросы мешают коротким</td>
+<td>Отдельный pool или scheduling limits</td>
+<td>Изоляция без чрезмерного простоя</td>
+</tr>
+<tr>
+<td>Нужно пережить потерю host</td>
+<td>Полные replicas в разных failure domains</td>
+<td>Capacity после потери всей затронутой группы</td>
+</tr>
+</tbody>
+</table>
+<p>В MoE режим data parallel конкретного engine может взаимодействовать с размещением experts. Поэтому флаг DP и несколько независимых deployments не всегда описывают одну конструкцию. Называйте топологию явно: сколько полных обслуживающих групп существует и какие устройства обязательны для каждой.</p>
+<h2>Свяжите настройки vLLM с расчётом</h2>
+<p>Для конкретного примера сохраняем профиль книги <strong>vLLM v0.31.0</strong>. Команда ниже предназначена для собственного лабораторного listener. Каталог <code>/srv/models/agent-release</code> заранее содержит проверенный text-only artifact, config, tokenizer и chat template; model revision и container digest фиксируются в описании deployment. Перед запуском замените учебный memory budget расчётом и profiling для этого artifact и устройства.</p>
+<pre><code class="language-sh">vllm serve /srv/models/agent-release \
   --host 127.0.0.1 --port 8000 \
   --served-model-name ax-agent-lab \
   --max-model-len 8192 \
-  --gpu-memory-utilization 0.90 \
+  --kv-cache-memory-bytes 2790481920 \
   --max-num-seqs 2 \
   --max-num-batched-tokens 2048 \
   --enable-chunked-prefill \
@@ -12454,40 +12552,59 @@ vllm serve /srv/models/agent-release \
   --tensor-parallel-size 1 \
   --pipeline-parallel-size 1
 </code></pre>
-<p>Это начало sweep, не production tuning и не доказательство, что любая модель поместится. <code>0.90</code> не связано с условным бюджетом 21 GiB из предыдущего расчёта: здесь startup profiling должен дать фактический cache budget. Output cap из workload задаётся в каждом model request: <code>--max-model-len</code> не заменяет этот предел. Для remote доступа нужен защищённый gateway; binding на loopback сам по себе не организует доступ из Actors. Изменяйте один фактор за эксперимент и записывайте влияние на память, TTFT, ITL, E2E и качество.</p>
-
-<h2>Проверьте SLO и отказ одного узла</h2>
-<p>Полезная capacity - максимальная нагрузка, при которой запросы нужного класса завершаются правильно и вовремя. Она может оказаться ниже memory capacity и ниже throughput saturation. Если очередь уже съела deadline, admission должен отказать явно, а не принять ещё сотню запросов ради красивой utilization.</p>
-<p>Допустим, для коротких tool-selection calls команда выбрала учебные цели: client-observed TTFT p95 до 1 s, E2E p95 до 4 s и не менее 99.5% валидных по schema результатов. Это разные проверки; для доли <em>одновременно</em> правильных и своевременных ответов нужна отдельная goodput-метрика. Rejected, failed и отменённые запросы не должны исчезать из отчёта только потому, что у них нет полного latency sample. Затем проверяется representative trace, credible burst и cold cache, как в главе 21.</p>
-<p>Для capacity после отказа используйте измерение одной replica <em>при заданном SLO</em>. Если условно один экземпляр выдержал 2 requests/s нужного workload, а целевой поток составляет 3 requests/s, две replicas дают 4 requests/s номинально, но только 2 после потери одной. Три дают арифметически 4 после потери одной. Это нижняя оценка: неидеальная маршрутизация, burst и запас могут потребовать большего. Числа здесь иллюстрируют расчёт, а не benchmark.</p>
-<p>Replica, распределённая через TP=2, всё ещё одна replica. Потеря любого обязательного rank выводит из строя всю группу; два устройства внутри одного host не защищают от потери этого host. Размещайте резерв по соответствующим failure domains и проверяйте именно их отказ. Если две независимые replicas находятся на одной машине, node failure уберёт обе.</p>
-<p>Автоматическое масштабирование не обязано спасти текущий burst: новую replica нужно разместить, загрузить weights, прогреть kernels/cache и проверить. Queue age и goodput полезнее одного сигнала GPU utilization. Планируется также rollout: временное сосуществование старой и новой model revisions требует capacity сверх текущего steady state. Если полного SLO при отказе нет, заранее определите degraded mode, его допустимую нагрузку и приоритет запросов.</p>
-
-<div class="keep">
-<h2>Что sizing меняет в harness и AX</h2>
-<p>AX Task должен обращаться к стабильному логическому endpoint, а не выбирать GPU host. Runtime отвечает за cache и batching, inference deployment - за capacity, gateway - за admission и маршрутизацию, harness - за смысл model call, deadline и допустимое продолжение работы. Контракт должен указывать, какие limits применяются на каждом уровне и кто возвращает явный отказ.</p>
-<p>Harness знает, можно ли заменить старую историю компактным state summary, уменьшить output cap или перенести background step. GPU scheduler этого не знает. В частности, tool schemas и результаты нельзя обрезать случайно: изменение input проходит context policy из главы 35 и capability tests из главы 20. Fallback на меньшую модель или CPU допускается только для совместимого profile; более медленный endpoint может сохранить доступность и всё же нарушить deadline всего agent step.</p>
-<p>Не устраивайте лавину retries при перегрузке. Logical call имеет общий deadline и retry budget, а повторные physical attempts наблюдаются отдельно. Если потерялся stream, частичный tool proposal нельзя принимать за готовую операцию. Если внешнее действие уже началось, его неизвестный outcome разрешается через operation ledger и reconciliation из главы 37, а не повторной генерацией команды.</p>
-<p>В traces связывайте Task/Actor, logical model call, backend replica и physical attempt. В metrics оставляйте ограниченные dimensions: pool, model revision, class и result. Отчёт должен позволять отличить ожидание inference от ожидания tools, а нехватку KV - от communication bottleneck. Suspend Actor не является backup KV cache общего model server: возможность продолжить agent run опирается на durable logical state, а не на существование старой GPU allocation.</p>
-</div>
-
-<div class="keep">
-<h2>Практикум расчёта и приёмки</h2>
-<p>Результат практикума - короткий capacity plan с исходными допущениями, таблицей измерений и решением. Если accelerator пока нет, выполните расчёт и подготовку workload; измеренную capacity оставьте незаполненной, не заменяйте её рекламным benchmark другой системы.</p>
-<ol>
-<li><strong>Опишите workload.</strong> Выберите interactive и long-context классы, реальные token lengths, output caps, arrivals, burst и критерии качества. Отдельно задайте поведение при переполнении и отказе host.</li>
-<li><strong>Разберите artifact.</strong> Зафиксируйте architecture, revision, tensors/dtype, attention layers, KV heads и head dimension. Отметьте, где простая формула cache неприменима.</li>
-<li><strong>Постройте memory sheet.</strong> Рассчитайте weights и K/V в bytes, приведите к GiB. Составьте representative и stress сценарии, добавьте отдельные runtime allocations и явно обозначенный запас.</li>
-<li><strong>Снимите baseline.</strong> Запишите startup peak, выделенный cache pool и память по ranks. Проверьте длинный prefill, максимальный допустимый output и освобождение ресурсов после cancellation.</li>
-<li><strong>Сравните размещения.</strong> Если модель помещается, сравните одну replica и независимые replicas. Если нет - поддерживаемые TP/PP варианты. Для каждого сохраните topology и communication profile.</li>
-<li><strong>Выполните sweep.</strong> Используйте protocol главы 21, проверяя одновременно latency, overload, cache preemption и качество. Зафиксируйте последнюю нагрузку, на которой весь контракт выполняется, а не только максимальные tokens/s.</li>
-<li><strong>Проверьте деградацию.</strong> В разрешённом стенде исключите одну replica, затем соответствующий failure domain; повторите cold path и burst. Сопоставьте результат с capacity после отказа и rollout budget.</li>
-<li><strong>Оформите решение.</strong> Запишите допустимые классы и limits, конфигурацию, normal/degraded SLO, владельцев admission и recovery. Укажите, какие изменения model/runtime требуют новой приёмки.</li>
-</ol>
-<p>Итоговое решение должно объяснять причину выбора: «replicas уменьшают очередь», «TP позволяет разместить weights», «отдельный pool защищает короткие calls от длинного context». Формулировка «используем четыре GPU, потому что так быстрее» не содержит проверяемого контракта. Следующая глава добавит другую часть production readiness: secrets, безопасность и восстановление после потери состояния. Запас мощности помогает пережить отказ, но не восстанавливает identity и не отменяет уже совершённые действия.</p>
-<div class="sources"><strong>Источники и дальнейшее чтение</strong>
-<p><a href="https://arxiv.org/abs/2305.13245">GQA</a> и <a href="https://arxiv.org/abs/2309.06180">PagedAttention</a>: attention heads и организация cache. vLLM v0.31.0: <a href="https://docs.vllm.ai/en/v0.31.0/configuration/engine_args/">arguments</a>, <a href="https://docs.vllm.ai/en/v0.31.0/configuration/conserving_memory/">memory</a>, <a href="https://docs.vllm.ai/en/v0.31.0/configuration/optimization/">tuning</a>, <a href="https://docs.vllm.ai/en/v0.31.0/serving/parallelism_scaling/">parallelism</a>, <a href="https://docs.vllm.ai/en/v0.31.0/features/quantization/quantized_kvcache/">KV quantization</a>, <a href="https://docs.vllm.ai/en/v0.31.0/features/automatic_prefix_caching/">prefix cache</a> и <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/scheduler.py">SchedulerConfig</a>. В книге: главы 20-21, 35 и 37.</p>
-</div>
+<p>Здесь явный KV budget связан с учебным расчётом. Он ограничивает cache, а не весь расход VRAM: weights, рабочая память и startup peaks по-прежнему должны поместиться. Альтернативный путь - позволить runtime вывести KV budget из <code style="white-space:nowrap">--gpu-memory-utilization</code>. Эти два режима не складываются: заданный <code style="white-space:nowrap">--kv-cache-memory-bytes</code> заменяет соответствующий расчёт по utilization. Значение utilization относится к экземпляру executor и не создаёт эксклюзивную reservation на GPU; поведение фиксирует <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/cache.py">CacheConfig этой версии</a>.</p>
+<p>Context limit 8192 относится к общей длине запроса и продолжения, а output cap задаётся в model request. <code style="white-space:nowrap">--max-num-seqs</code> ограничивает sequences за iteration и размерность runner, <code style="white-space:nowrap">--max-num-batched-tokens</code> - token budget работы scheduler. Поэтому batch budget 2048 не означает context limit 2048. В команде chunked prefill включён явно: модель и backend должны его поддерживать. Без этого режима указанное соотношение limits не годится.</p>
+<p><code>--max-num-queued-reqs 4</code> в этом срезе считает waiting и running requests в API server, а не только длину очереди. Даже четыре in-flight запроса могут ждать слишком долго. Отдельный admission должен учитывать deadline, tenant quota и доступный ресурс pool. Детали и проверки сочетаний limits находятся в <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/scheduler.py">SchedulerConfig</a>. Loopback listener также не организует защищённый доступ из Actors: его маршрут и authorization проверяются отдельно по главе 40.</p>
+<h2>Какими инструментами проверить гипотезу</h2>
+<p>Для арифметики нужны config архитектуры, dtype tensors и точные bytes. Затем нужны сведения runtime о resident allocations и cache. Сравнивайте три состояния: startup, обычная работа и стрессовый длинный prefill с допустимым output. Сохраняйте model revision, runtime/image digest, driver, GPU topology и arguments рядом с результатом, иначе следующий запуск может оказаться другим опытом.</p>
+<p><code>nvidia-smi</code> удобен для проверки устройства, процессов и общей занятой памяти; его поля описаны в <a href="https://docs.nvidia.com/deploy/nvidia-smi/index.html">руководстве NVIDIA</a>. Большая allocation может быть заранее выделенным KV pool. Для понимания его использования добавьте telemetry runtime: cache occupancy, active/waiting requests, preemption и timings. Для разбора CPU/GPU timeline и обменов можно использовать <a href="https://docs.nvidia.com/nsight-systems/UserGuide/index.html">Nsight Systems</a> с нужными tracing options. Он помогает найти участок ожидания; клиентский нагрузочный опыт показывает, выполняется ли обещание пользователю. Profiling может менять latency, поэтому финальный SLO проверяют в обычном режиме сервиса.</p>
+<p>Сделайте sweep с одним изменяемым фактором: например, sequence limit 1 и 2 при неизменном artifact и trace. По методике главы 21 зафиксируйте отправленные попытки, queue age, TTFT, ITL или inter-chunk latency, E2E, failures и качество. В report оставляйте и отклонённые запросы. Быстрый отказ может защитить уже принятую работу, но не становится своевременным правильным ответом.</p>
+<p>Отдельно проверьте cache-cold запуск, burst после resume, длинный prompt, максимальный output и cancellation. Проверка prefix reuse не заменяет cold path. Выбирайте последнюю нагрузку, при которой выполняется весь контракт: независимые p95 latency и доля валидных ответов не задают автоматически долю запросов, одновременно правильных и своевременных. Для этого нужна совместная проверка результата каждой попытки и goodput.</p>
+<h2>Как рассчитать мощность после отказа</h2>
+<p>Вернёмся к размещению, а не к модели cache. Предположим для отдельного арифметического опыта, что одна replica обслуживает 2 requests/s при выбранном SLO, а требуемый поток равен 3 requests/s. В настоящем плане первое число берут из приёмки нужного workload. В demo оно задано как fixture и не измеряется.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Размещение полных replicas</th>
+<th>Номинально</th>
+<th>После худшей потери одного host</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Две на одном host</td>
+<td>4 requests/s</td>
+<td>0</td>
+</tr>
+<tr>
+<td>Две на двух hosts</td>
+<td>4 requests/s</td>
+<td>2 requests/s</td>
+</tr>
+<tr>
+<td>Три на трёх hosts</td>
+<td>6 requests/s</td>
+<td>4 requests/s</td>
+</tr>
+</tbody>
+</table>
+<p>Третье размещение проходит только арифметическую проверку заданного потока после отказа. В эксперименте <code>placement</code> программа исключает все replicas одного domain и берёт худший остаток. Она не испытывает реальную балансировку, correlated failures или обслуживание burst. Даже при подходящей сумме мощностей перегруженная отдельная очередь может нарушить SLO.</p>
+<p>Одна replica с TP=2 остаётся одной обслуживающей группой. Потеря обязательного rank выводит её из работы; два GPU не означают два независимых резерва. Failure domain выбирается по обещанию сервиса: device, host, rack или зона. Испытание должно исключать соответствующую группу целиком.</p>
+<p>Учтите время до готовности замены: placement, загрузку weights, подготовку kernels, health и безопасный probe. Autoscaling помогает следующей нагрузке, но не обязан успеть к текущему burst. Rollout тоже потребляет запас. Укажите, какой SLO требуется при одновременном обновлении и отказе, а при недостатке мощности определите явный degraded mode и приоритет классов.</p>
+<h2>Как оформить решение и связать его с агентом</h2>
+<p>Capacity plan должен позволить другому инженеру повторить выбор. Запишите допустимые request classes и token limits, memory sheet с источником каждого значения, topology и результаты приёмки. Рядом укажите normal/degraded SLO, допуск перегрузки, failure domains и время подготовки replacement. Изменение artifact, KV dtype, runtime или topology требует новой проверки затронутых свойств.</p>
+<p>Harness отвечает за допустимый context, output cap, deadline и продолжение agent step. Inference runtime управляет kernels, batching и cache; deployment предоставляет capacity, а admission и routing должны иметь явного владельца. AX Task обращается к стабильному логическому endpoint. В срезе AX <code>ac233282</code> это требует явной настройки пользовательского harness; ресурс <code>Model</code> не подключает его автоматически, как разобрано в главах 17 и 20.</p>
+<p>При перегрузке harness может отложить background step, собрать более короткий допустимый context или применить заранее проверенный fallback. Сокращение истории проходит context policy главы 35: случайное удаление instructions и tool results меняет задачу. Более слабая модель требует capability/quality tests главы 20. Дополнительные physical attempts расходуют общий retry budget и наблюдаются отдельно от logical call.</p>
+<p>Частичный stream с tool arguments ещё не является готовым разрешённым действием. Если внешняя mutation уже началась, неизвестный outcome разрешается по operation ledger и reconciliation главы 37, а не повторной генерацией команды. Suspend Actor также не сохраняет KV cache общего model server как backup: продолжение run опирается на durable logical state.</p>
+<p>Итог для инженера - объяснимый выбор: две sequences допускаются по заданному memory budget, replicas выбираются для нужного потока, TP/PP - для поддерживаемого совместного исполнения, резерв распределяется по нужным failure domains. Дальше остаётся вернуть к этому сервису актуальные права и безопасное состояние после аварии. Этому посвящена глава 42: запас мощности и восстановление доверия решают разные части production readiness.</p>
+<div class="sources"><h3>Источники и дальнейшее чтение</h3>
+<ul>
+<li><a href="https://arxiv.org/abs/2305.13245">GQA</a> и <a href="https://arxiv.org/abs/2309.06180">PagedAttention</a>: устройство heads и размещение KV cache.</li>
+<li>vLLM v0.31.0: <a href="https://docs.vllm.ai/en/v0.31.0/configuration/conserving_memory/">memory</a>, <a href="https://docs.vllm.ai/en/v0.31.0/features/quantization/quantized_kvcache/">KV quantization</a>, <a href="https://docs.vllm.ai/en/v0.31.0/features/automatic_prefix_caching/">prefix caching</a> и <a href="https://docs.vllm.ai/en/v0.31.0/configuration/optimization/">performance tuning</a>.</li>
+<li><a href="https://docs.vllm.ai/en/v0.31.0/serving/parallelism_scaling/">Parallelism</a>, <a href="https://docs.nvidia.com/deeplearning/nccl/user-guide/docs/usage/collectives.html">NCCL collectives</a> и <a href="https://arxiv.org/abs/1909.08053">Megatron-LM</a>: распределённые вычисления.</li>
+<li><a href="https://docs.vllm.ai/en/v0.31.0/configuration/engine_args/">Engine arguments</a>, <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/cache.py">CacheConfig</a>, <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/scheduler.py">SchedulerConfig</a> и <a href="https://github.com/vllm-project/vllm/blob/v0.31.0/vllm/config/model.py">ModelConfig</a>.</li>
+<li><a href="https://docs.nvidia.com/deploy/nvidia-smi/index.html">NVIDIA System Management Interface</a>; в книге - главы 20-21, 35 и 37-40.</li>
+</ul>
 </div>
 </section>
 <section class="chapter" id="ch-42">
