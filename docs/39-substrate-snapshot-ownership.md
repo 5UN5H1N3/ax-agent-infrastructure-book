@@ -1,220 +1,230 @@
 # Substrate snapshots: ownership, storage и совместимость
 
-Продолжим инцидент из главы 38. Task `lab/network-017` существует в AX, Actor найден в Substrate, но после потери node работа не продолжается. В object storage есть несколько каталогов с похожими именами. Какой из них можно восстановить? Не удалит ли следующий suspend нужную точку? И не выполнит ли агент повторно изменение, которое внешний сервис уже принял?
+Worker, на котором выполнялась `lab/network-017`, потерян. Из главы 38 у нас остались запись Task, сведения об Actor и подтверждение внешней операции: `op-17` применена, проверка цели ещё не выполнена. Теперь нужно вернуть приложение в среду, где оно сможет эту проверку продолжить. В object storage лежат несколько похожих каталогов, но выбирать самый свежий по имени опасно: он может принадлежать другой lifetime или содержать незавершённый upload.
 
-На эти вопросы не отвечает фраза «у нас включены snapshots». Snapshot - сохранённая часть исполняемой среды с конкретным владельцем, составом и требованиями к восстановлению. Глава 14 объяснила состав снимка и lifecycle. Здесь разберём владение и зависимости: кто создал данные, какая запись на них указывает, какие Actors их заимствуют и какой runtime способен их восстановить. Потеря любого звена способна оставить исправные файлы без пригодного пути восстановления.
+Восстановление начинается с вопроса «на какую завершённую точку указывает нужный ресурс?». Следом возникают ещё три: кто хранит её bytes, какие дополнительные данные нужны для запуска и умеет ли выбранная среда их восстановить. Только после этого имеет смысл нажимать resume. Такая последовательность помогает сохранить диагностические данные и избежать второго сетевого изменения вместо проверки уже сделанного первого.
 
-Здесь используем контракт Substrate [v0.3.0, commit ccecc788](https://github.com/agent-substrate/substrate/tree/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97): `Full`/`Data`, `externalSnapshot`, `localSnapshot` и `snapshotConfig`. Эти имена соответствуют зафиксированной версии, а не любой будущей ветке `main`. Глава 14 объяснила lifecycle; теперь разберём долговечность, заимствование, совместимость и эксплуатационную цену сохранённых точек.
+Глава 14 разобрала lifecycle pause, suspend и resume. Здесь сосредоточимся на долговечности снимков: копировании и заимствовании, границе завершённой записи, совместимости и выборе пути восстановления. Используем **Substrate v0.3.0, commit `ccecc788`**. Указанные ниже `externalSnapshot`, `localSnapshot`, Tag и `snapshotConfig` относятся к этому контракту. Поведение AX рассматриваем по закреплённому срезу `ac233282`.
 
-## Что snapshot сохраняет и что остаётся снаружи
+## Из каких частей складывается восстановление
 
-Представьте ноутбук, который уснул с открытым терминалом. После пробуждения терминал может выглядеть прежним, но сервер уже закрыл SSH session, пароль сменился, а коллега обновил репозиторий. Runtime snapshot даёт похожую иллюзию непрерывности. Он возвращает захваченное вычислительное состояние, но не останавливает внешний мир.
+Snapshot - сохранённое состояние исполняемой среды в составе, который поддерживает выбранный runtime. Часть этого состояния может быть памятью процесса, часть - файлами. Для приложения важен ещё смысл этих данных: какой шаг завершён, какая операция отправлена и на каком основании разрешено продолжать работу.
 
-| Механизм | Что помогает восстановить | Чего сам по себе не доказывает |
+Представьте восстановленный терминал со старым приглашением командной строки. Его экран мог вернуться ровно к прежнему виду, хотя удалённый сервер уже закрыл соединение, срок credentials истёк, а отправленная ранее команда успела изменить конфигурацию. При восстановлении агента происходит то же: сохранённое локальное знание возвращается в мир, который продолжал меняться.
+
+| Что сохраняем | Зачем это нужно в нашем инциденте | Что потребуется дополнительно |
 | --- | --- | --- |
-| Actor snapshot | Поддерживаемое состояние sandbox по выбранному scope | Завершение tool call или актуальность внешней конфигурации |
-| Checkpoint harness | План, шаг, evidence и pending operations в формате приложения | Сохранность process RAM и доступность runtime |
-| Operation ledger | Identity и результат внешних действий, правила повторения | Наличие workspace и готовность Actor |
-| Backup платформы | Согласованную recovery point после потери metadata и storage | Успех восстановления без restore rehearsal |
+| Snapshot Actor | Вернуть поддерживаемые файлы и, при Full, состояние выполнения | Совместимый runtime и доступ к зависимостям |
+| Checkpoint harness | Узнать run, шаг, ожидаемые результаты и незавершённые операции | Проверка версии формата и актуальных внешних фактов |
+| Независимый operation ledger | Установить, что `op-17` уже применена | Проверка инженерной цели и право на следующий шаг |
+| Backup платформы | Вернуть metadata, snapshots и ключи после их потери | Согласованный план restore и проверка полезной работы |
 
-Это взаимодополняющие механизмы. Snapshot может ускорить возвращение к работе; checkpoint объясняет, что делать дальше; ledger предотвращает опасный повтор. Backup позволяет восстановить сами компоненты, которые хранят первые три сущности. Ни один из них не становится заменой остальных только потому, что лежит в долговечном хранилище.
+У этих механизмов разные сроки жизни. Checkpoint в workspace откатится вместе с workspace. Независимый ledger останется новее и поможет восстановить результат операции. Backup должен сохранить компоненты, без которых нельзя прочитать ни checkpoint, ни ledger. При проектировании полезно прямо записать, какое хранилище переживает потерю Worker, а какое - ещё и ошибочное удаление управляющих ресурсов.
 
-## Состав snapshot определяет путь восстановления
+## Как выбрать Full, Data и источник гостевой среды
 
-Scope описывает *что* захвачено, а pause или suspend - *где* это хранится. Full checkpoint на локальном диске не становится durable от полноты содержимого. Data snapshot в object storage, напротив, может пережить node loss, хотя памяти прежнего процесса в нём нет.
+Сначала разделим две оси. Scope определяет состав сохранённого состояния. Место хранения определяет, какие отказы оно переживёт. Полный снимок на потерянной node недоступен независимо от количества захваченных байтов. Более узкий Data snapshot в доступном object storage способен вернуть индивидуальные файлы на другой совместимый Worker.
 
-| Scope | Содержимое | Что увидит приложение после resume |
+`Full` включает process memory, изменения writable rootfs и поддерживаемые durable data. `Data` сохраняет durable data без прежней памяти и rootfs changes. В частности, `DurableDir` - каталог, включаемый в механизм snapshot; он не означает непрерывную репликацию всех записей. Между завершёнными external snapshots новые файлы остаются под риском потери node. Важный checkpoint должен действительно находиться в snapshot-capable volume.
+
+После Data restore нужно отдельно получить среду, которая запустит приложение. При `onResume.fromData=COLD_BOOT` containers стартуют из OCI image с восстановленными данными. При `GOLDEN` индивидуальные данные соединяются с общим подготовленным guest state. Golden возвращает общий старт, а не индивидуальный heap прежней сессии.
+
+| Путь | Из чего возвращается приложение | Когда его стоит рассматривать |
 | --- | --- | --- |
-| `Full` | Process memory, writable rootfs changes и поддерживаемые durable data | При совместимости продолжение захваченной execution; внешние соединения и права требуют перепроверки |
-| `Data` | Данные snapshot-capable volumes, прежде всего `DurableDir`; без прежней памяти и rootfs changes | Сохранённые данные плюс cold boot либо общий golden baseline |
+| Full restore | Захваченная среда и индивидуальные данные | Дорогая повторная инициализация или действительно нужное in-memory state, при проверенной совместимости |
+| Data cold boot | OCI image и сохранённые durable данные | Приложение умеет читать checkpoint и заново устанавливать соединения |
+| Data-on-golden | Общий Full baseline и индивидуальные Data | Многие независимые Actors повторяют одну дорогую подготовку |
 
-`DurableDir` - управляемый runtime каталог, включаемый в Actor checkpoint. Это не обещание непрерывной репликации каждой записи. Изменения между успешными external snapshots остаются под риском потери node. Файл в другом каталоге writable rootfs не попадёт в Data snapshot только потому, что приложение считает его важным.
+Для restartable приложения возможна такая policy; это фрагмент конфигурации, не полный ActorTemplate:
 
-Для `Data` есть существенная настройка `onResume.fromData`. При `COLD_BOOT` runtime запускает containers из OCI image с восстановленными данными. При `GOLDEN` он сочетает durable data конкретного Actor с guest state общего golden snapshot. Второй путь сохраняет подготовленную общую среду, но не возвращает индивидуальный heap агента на момент его suspend.
+```
+snapshotConfig:
+  onPause: SNAPSHOT_CONTENT_SCOPE_FULL
+  onCommit: SNAPSHOT_CONTENT_SCOPE_DATA
+  onResume:
+    fromData: RESUME_SOURCE_COLD_BOOT
+```
 
-В [срезе AX из глав 16-19](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) функция `BuildActorTemplate` создаёт `/workspace` как `DurableDir`, выбирает Data для pause и commit и golden как источник Data resume. Поэтому «workspace сохранился» не означает «тот же agent loop продолжился с прежней RAM». Для Task, использующей другой базовый template, проверяйте его фактическую policy, а не переносите этот вывод автоматически.
+Она позволяет держать Full local pause ради быстрого возврата, а затем сохранять наружу Data для более долгого ожидания. `onCommit` должен быть подмножеством `onPause`: из Full можно выделить Data, а из Data нельзя получить уже не захваченную RAM. Когда вызывать операции, решает orchestration; сами enum не создают таймер автоматического suspend.
 
-Практическое следствие простое: state, необходимый следующему шагу, должен быть сериализован в восстановимый формат. Убедитесь, что путь checkpoint действительно находится в snapshot-capable volume. Full можно использовать как оптимизацию непрерывности, но возможность восстановить progression после Data resume или revert всё равно должна быть частью harness contract.
+В AX [BuildActorTemplate](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go) создаёт `/workspace` как `DurableDir`, выбирает Data для pause и commit и GOLDEN для Data resume. Поэтому в нашем случае нужны индивидуальные данные и пригодный baseline. Если Task использует другой базовый template, сначала прочитайте его policy. Имя проекта AX не определяет состав произвольного пользовательского ActorTemplate.
 
-## Владелец bytes и пользователь snapshot могут различаться
+## Как меняется владелец и кто продолжает зависеть от Tag
 
-Ownership означает обязанность хранить и право удалять конкретные objects. Это не то же самое, что ссылка на них. Actor может читать snapshot, который принадлежит Tag; в таком случае удаление Actor не должно затрагивать чужую копию. Обратное тоже важно: владелец способен удалить bytes, на которые ещё ссылаются живые потребители.
+Ownership описывает ресурс, под которым хранится snapshot и который отвечает за его жизненный цикл. Ссылка даёт потребителю путь к данным, но сама по себе не передаёт владение. Это различие особенно заметно при клонировании.
 
-В v0.3.0 Actor держит одну текущую `externalSnapshot`. После следующего успешного suspend новая точка заменяет предыдущую. Это не встроенная история версий и не retention на неделю. Если точка должна пережить последующие suspend исходного Actor, пока он suspended создают Tag - отдельную копию с отдельным владельцем.
+Actor A выполнил suspend и получил собственную точку S1. Пока A suspended, инженер создаёт Tag T. Workflow копирует snapshot под UID Tag. Теперь есть две независимые копии: одна принадлежит A, вторая T. Следующий успешный suspend A заменит его текущую точку, а копия T сохранится.
+
+Новый Actor B, созданный через `sourceTag=T`, сначала заимствует URI T. Дополнительного копирования payload для B в этот момент нет. Это экономит storage и работу при создании clone, но делает существование T условием будущего восстановления B. Даже работающий B может потерять возможность restore, если Tag удалили после загрузки данных на node.
 
 ![Snapshot ownership: copy and borrowing have different lifetimes](.gitbook/assets/diagrams/39-38.png)  
 *Snapshot ownership: copy and borrowing have different lifetimes*
 
-`CreateActor(sourceTag=T)` не копирует bytes ещё раз. Новый Actor B сначала заимствует URI Tag T. Его первая собственная успешная suspend создаёт actor-owned snapshot B. Теперь замена snapshot A или удаление исходного Actor A не затрагивает T, а удаление B не затрагивает T ни до, ни после этого перехода.
+После первого собственного успешного suspend B получает actor-owned snapshot S2. Прямая зависимость от T заканчивается. Удаление B не должно удалять T, а замена snapshot A не должна трогать его копию. При этом B с Data-on-golden всё ещё нуждается в golden Tag G своего template. «B больше не ссылается на T» и «B не зависит ни от одного Tag» - разные выводы.
 
-Клонирование не является универсальным переносом любой сохранённой среды. В v0.3.0 source Tag должен принадлежать тому же ActorTemplate UID, даже если содержит Data. Явный `sourceTag` также не допускается для template с external volumes: snapshot Actor не умеет клонировать их содержимое. Новый clone не является автоматически копией подключённой database или CSI volume.
+Отдельно определите назначение clone. Для независимой новой задачи нужны новый run и очистка или переосмысление скопированных pending operations. Если B должен продолжить прежний run после потери A, требуется подтверждённая передача владения приложением и исключение конкурирующего исполнителя. Копирование snapshot переносит данные, но не выдаёт право продолжать внешние записи с сохранёнными полномочиями.
 
-Но удаление T *до* собственного suspend B лишает B заимствованной точки. Запущенный clone некоторое время может выглядеть исправным: данные уже загружены на node. Ошибка проявится при следующем restore или после node loss. В этой версии `DeleteTag` не блокируется автоматически наличием borrowers. Inventory зависимостей и остановка конкурентного создания clones - обязанность процедуры cleanup.
+В v0.3.0 [CreateActor](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/actor.go) требует совпадения template UID source Tag и нового Actor, даже для Data. Явный `sourceTag` не допускается у template с external volumes: такой snapshot не клонирует содержимое подключённой CSI volume. Сохранённая копия workspace не создаёт копию внешней database.
 
-Даже после собственного Data suspend B может отдельно зависеть от golden Tag своего template через `onResume.fromData=GOLDEN`. Исчезновение прямой ссылки на T не доказывает независимость от всех Tags. Retention должна учитывать и явное заимствование текущей точки, и источник общего guest state.
+Защита от удаления нужного Tag требует отдельной процедуры. В данном срезе `DeleteTag` не запрещает удаление из-за borrowers; source Tag остаётся разрешимым даже во время очистки его bytes. Следовательно, проверка «сейчас clones не нашлись» недостаточна: новый clone может появиться между проверкой и удалением. Сначала нужно остановить создание новых зависимостей, затем получить актуальный inventory и применить UID/version guards. Эти guards защищают от удаления уже другого объекта под прежним именем, но не заменяют барьер для новых consumers.
 
-## Ownership URI и права доступа к storage
+## Как читать URI и происхождение снимка
 
-`snapshotConfig.storageLocation` задаёт базовый prefix. Control plane дописывает Atespace, вид владельца, его UID и snapshot ID. Например, логическая структура имеет следующий вид:
+Storage URI связывает данные с lifetime владельца. Базовый `snapshotConfig.storageLocation` дополняется Atespace, видом ресурса и UID. Логическая структура выглядит так:
 
 ```
-<location>/atespaces/<atespace>/actors/<actor-uid>
-  /snapshots/<snapshot-id>
+<location>/atespaces/<atespace>/actors/<actor-uid>/snapshots/<snapshot-id>
 <location>/atespaces/<atespace>/tags/<tag-uid>
 ```
 
-Перенос строки в первом пути сделан только для чтения; это один URI. UID отделяет lifetimes: новый `lab/network-017` с тем же human-readable name не становится владельцем objects удалённого Actor. Используйте возвращённый server URI как authoritative reference. Не собирайте production destination из имени и не меняйте status вручную, чтобы «подцепить» найденный каталог.
+Работайте с URI, возвращённым server, а не собирайте destination из human-readable name. Actor с тем же именем после удаления и повторного создания получает новую identity. Старый каталог не становится его текущим snapshot автоматически. Для операции восстановления важны запись ресурса, её ссылка и сведения о том, что именно захвачено.
 
-Manifest Tag копируется вместе с payload и может содержать identity исходного Actor. Это происхождение захваченных данных, а не identity текущего владельца копии. Для cleanup сопоставляйте Tag metadata и его owner prefix; совпадение Actor UID внутри manifest не даёт права удалить tag-owned objects.
+У Tag возможна на первый взгляд странная комбинация: owner - Tag T, а Actor UID внутри скопированного manifest относится к A. Так сохраняется происхождение копии. Оно объясняет, чьё состояние захватили, и не даёт A права удалить tag-owned bytes. Для retention сопоставляют owner metadata и prefix, а для restore - provenance и требования к среде.
 
-Prefix позволяет runtime ограничивать cleanup собственными objects. Однако имя пути не является security boundary. Изоляцию обеспечивает IAM или policy storage backend. Для cross-Atespace clone published Tag остаётся в source Atespace: читающая runtime identity должна получить разрешение на source prefix. Право читать только target prefix не поможет.
+Prefix также не выдаёт права чтения. Их обеспечивает IAM или policy storage backend. При cross-Atespace clone данные остаются в source Atespace, и runtime identity должна иметь доступ именно туда. Scope Tag `PUBLISHED` разрешает использование из других Atespaces на уровне API; он не превращает bucket в анонимно публичный и не делает содержимое безопасным для любого tenant.
 
-`PUBLISHED` означает допустимость использования Tag Actors из других Atespaces, а не анонимный публичный bucket. Перед такой публикацией проверьте содержимое и доступы. В копии могут оставаться приватный checkout, credentials и данные клиента, даже если интерфейс Tag содержит лишь безобидное имя baseline.
+## Где проходит граница завершённой точки
 
-## Durable commit проходит через две системы
+Suspend обновляет metadata и пишет payload в object storage. Единой транзакции между ними нет, поэтому [workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_suspend.go) сохраняет промежуточное состояние. Actor получает `SUSPENDING` и `inProgressSnapshotUri`; прежний `externalSnapshot` пока обозначает предыдущую завершённую точку.
 
-Suspend затрагивает metadata store и object storage без общей транзакции. Поэтому важен не сам факт появления файлов, а порядок публикации пригодной точки. В [suspend workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_suspend.go) сначала записываются `SUSPENDING` и `inProgressSnapshotUri`. Старый `externalSnapshot` ещё обозначает предыдущую завершённую точку.
+На стороне [atelet](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/main.go) сначала загружаются payload files, затем `manifest.json`. Manifest перечисляет состав snapshot и служит маркером завершения upload. После успешного checkpoint и detach workflow освобождает assignment, записывает новый `externalSnapshot`, очищает промежуточные поля и фиксирует `SUSPENDED`. Удаление заменённой actor-owned точки выполняется после этого и может завершиться ошибкой независимо от нового commit.
 
-Atelet загружает snapshot payload files, затем `manifest.json`. Manifest перечисляет файлы и сведения о sandbox. После подтверждения checkpoint и detach workflow освобождает assignment и фиксирует новую external snapshot вместе с `SUSPENDED` и очисткой in-progress fields. Только затем выполняется best-effort удаление прежней actor-owned точки.
+Рассмотрим отказ после загрузки manifest, но до финального обновления metadata. В storage лежит пригодный на вид набор, однако Actor всё ещё указывает на старую completed точку. Автоматический выбор «новейшего каталога» обошёл бы незавершённую lifecycle operation. Вначале нужно выяснить её судьбу и сохранить evidence; вручную переписывать status на найденный prefix опасно.
 
-Отсюда следуют три разных наблюдения. Objects без manifest могут быть частичным upload. Manifest без final status может означать, что bytes записаны, а workflow ещё не закончен. Новый final status с оставшимися старыми objects может означать успешный suspend и ошибку cleanup. Удалять «лишний каталог» только по возрасту во всех трёх случаях опасно.
+Если payload есть, а manifest отсутствует, upload мог оборваться раньше. Если metadata уже указывает на новую completed точку, но старые objects остались, вероятен незавершённый cleanup. Во втором случае лишние bytes не следует считать поддерживаемой историей версий: Actor хранит одну текущую external snapshot, а старые файлы могут быть собраны позднее.
 
-Повторный `SuspendActor` использует persisted progress; уже suspended Actor возвращается без нового checkpoint. Но re-entrant workflow не делает любое повреждение исправимым повтором. При ошибке checkpoint Actor может стать `CRASHED`; тогда нужно прочитать status, определить последнюю completed точку и выбрать recovery с принятым RPO.
+Повторный suspend использует сохранённый progress; уже suspended Actor не создаёт новую точку от одного повтора вызова. Однако ошибка checkpoint способна привести к `CRASHED`. Выбор следующего действия требует чтения status, текущей completed точки и границ допустимой потери. Возможность повторно войти в workflow не означает восстановление любых повреждённых данных.
 
-Успех suspend не гарантирует нулевое количество orphan objects. Если очистка предыдущего snapshot не удалась, новая точка остаётся current, а старые bytes могут лежать до удаления Actor. Такой остаток не является поддерживаемой историей восстановления. Наблюдайте cleanup errors отдельно от успешности durable commit.
+## Что делать после timeout CreateTag
 
-## CreateTag после сбоя требует отдельного recovery
+У [CreateTag](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go) три этапа: reservation имени и storage location, копирование snapshot, затем финализация `status.snapshot`. Source Actor должен быть suspended. Lease Actor защищает копирование от одновременного suspend, который мог бы удалить исходные bytes.
 
-У Tag тоже есть три шага: зарезервировать имя и storage location, скопировать snapshot source Actor под UID Tag, затем заполнить `status.snapshot`. До финализации Tag является pending и не годится для clone. Lease source Actor защищает копирование от одновременного suspend, который удалил бы исходные bytes.
+Если ответ потерялся, первым действием должно быть чтение Tag. В v0.3.0 повтор создания под занятым именем получает `AlreadyExists`, включая pending Tag после сбоя. Это не продолжение незавершённой копии. Состояние нужно разбирать по сохранённой записи.
 
-Важное отличие v0.3.0: [CreateTag не является idempotent continuation](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go). Если процесс упал после reservation, повтор под тем же именем получает `AlreadyExists`. Нельзя считать такой ответ доказательством готовой копии.
+| Что обнаружено после timeout | Следующий шаг |
+| --- | --- |
+| Ready Tag с ожидаемым source/template | Сверить provenance и доступность payload; не создавать копию повторно |
+| Pending Tag, исходный вызов ещё может работать | Сохранить evidence и исключить конкурентное продолжение до cleanup |
+| Подтверждённо оставленная pending запись | Guarded DeleteTag для этой lifetime, затем новая попытка при сохранённом source |
+| Tag с другим UID или происхождением | Остановиться и выяснить, какой ресурс сейчас занимает имя |
 
-После timeout перечитайте Tag по имени. Если `status.snapshot` заполнен и соответствует ожидаемому source/template, операция могла завершиться. Если осталась pending запись, сохраните evidence, исключите продолжающуюся исходную операцию и конкурентное создание/использование Tag. Штатный recovery - удалить именно эту незавершённую запись с UID/version guards, собрать partial copy через `DeleteTag` и создать Tag заново. Не удаляйте ready Tag автоматически в ответ на `AlreadyExists`.
+DeleteTag сначала очищает свой prefix, затем удаляет запись. Повтор удаления может закончить частичный cleanup. Такой порядок сохраняет handle на данные при ошибке. У готового Tag это удалит настоящую recovery point, поэтому превращать любой `AlreadyExists` в автоматическое delete/recreate нельзя.
 
-Новая попытка захватит ту completed точку, которую source Actor держит *теперь*. Если Actor успел ещё раз resume/suspend, это уже другой checkpoint. Для сохранения конкретной диагностической точки удерживайте source suspended до успешной финализации Tag и сверки его provenance. Lease одной RPC не резервирует выбранную точку навсегда.
+Новая попытка снимет копию той точки, которую A держит к этому моменту. Если A успел снова resume/suspend, это уже другой checkpoint. Для сохранения конкретной диагностической точки удерживайте source suspended до финализации Tag и проверки provenance. Lease отдельного RPC не резервирует S1 навсегда.
 
-## Совместимость проверяется на нескольких уровнях
+## Как проверять совместимость восстановления
 
-Совпадение ActorTemplate UID - необходимый сигнал происхождения guest state, но не универсальное доказательство restore compatibility. UID отвечает, под каким template сделан snapshot. Он не заменяет совместимость sandbox binary, CPU architecture, host environment, images и mounts.
+Совместимость удобно разбирать по вопросам. С каким template захвачена среда? Какой SandboxConfig разрешит текущий runtime? Понимает ли он формат snapshot на целевой architecture? Сохраняются ли image, volumes и mount layout? Умеет ли новое приложение прочитать старую schema checkpoint? Совпадение одного UID не отвечает на остальные вопросы.
 
-| Уровень | Что сопоставить | Чем опасна ошибка |
-| --- | --- | --- |
-| Template | Записанный `actorTemplateUid` и текущий template | Прежняя память используется с другой средой |
-| Runtime | Sandbox class, binary digests, snapshot format и node capability | Restore отклоняется или нарушает runtime assumptions |
-| Filesystem | Image digest, rootfs delta, volumes и mount paths | Процесс получает не те данные или layout |
-| Application | Версия state schema и ожидаемые invariants harness | Технически успешный boot продолжает работу неверно |
+ActorTemplate immutable для клиентов. Перепривязать Actor к другому template разрешено в `SUSPENDED`; при доступном прежнем template UpdateActor проверяет одинаковый SandboxConfig, volumes и mounts общих containers. Удалённый старый template лишает эту проверку части материала для сравнения, поэтому наличие разрешённого API update само по себе не доказывает совместимость.
 
-ActorTemplate immutable для клиентов; смена ссылки Actor допускается только в `SUSPENDED`. При существующем старом template проверяются одинаковый SandboxConfig, равные volumes и mounts общих containers. Отдельного запрета на смену `storageLocation` в исполняемом UpdateActor этого среза нет: прежний snapshot URI остаётся в status, а будущие записи могут идти под новым prefix. Доступ и retention нужно согласовать для обоих мест. Если записанный template UID external snapshot отличается, resume workflow запрашивает Data restore и свежий запуск вместо прежнего memory image. Это защитное понижение, а не автоматическая migration файлов: новый код обязан понимать восстановленные данные.
+В external restore несовпадение записанного template UID с текущим приводит к запросу Data restore вместо прежнего Full memory image. Это позволяет не запускать старую память как среду нового template, но не мигрирует файлы. Совместимость schema и восстановление смысла работы остаются обязанностью приложения. Tag, созданный после repoint со старой snapshot, сохраняет template identity захваченного guest state, а не маскирует его новой ссылкой Actor.
 
-После repoint Tag, снятый со старого snapshot, сохраняет identity template, под которым guest state действительно был создан, а не просто текущую ссылку Actor. Иначе clone получил бы старую RAM под видом новой среды. В incident inventory фиксируйте оба значения и не исправляйте provenance вручную.
+Storage location также нужно учитывать отдельно. В UpdateActor этого среза нет отдельного запрета на её изменение через допустимую смену template: старая точка остаётся по прежнему URI, новые записи могут уйти в другой prefix. Для переходного периода нужны доступ и retention в обоих местах.
 
-Manifest содержит sandbox assets и их SHA-256, pause image, identity, scope и список payload files. Но в проверенной [реализации Restore](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/main.go) runtime assets берутся из запроса, разрешённого через текущий SandboxConfig. Наличие старых digests в manifest само по себе не означает, что restore автоматически выберет прежний binary. Меняя cluster runtime, проверяйте восстановление старых snapshots и сохраняйте доступность нужных assets.
+Manifest содержит сведения о sandbox assets, в том числе SHA-256, но [Restore atelet](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/main.go) берёт runtime assets из запроса, разрешённого через текущий SandboxConfig. Старый manifest не выбирает автоматически старый binary. До cluster upgrade сохраните нужные assets и проверьте restore старых точек на целевой среде. Для gVisor существенны также [CPU features](https://gvisor.dev/docs/user_guide/checkpoint_restore/#checkpoint--restore-with-different-cpu-features); переносимость нельзя выводить из того, что оба Worker называются Linux nodes.
 
-[gVisor checkpoint/restore](https://gvisor.dev/docs/user_guide/checkpoint_restore/) также проверяет CPU features целевой машины. Не переносите обещание «можно восстановить на другом Worker» на любой CPU pool или на другой sandbox class. Golden snapshot для gVisor не становится microVM snapshot. При отсутствии проверенного migration path создают новый baseline и восстанавливают приложение из совместимых durable данных.
+## Практика проверки плана восстановления
 
-## Приложение должно переживать откат и новую execution
+[examples/ch39\_restore\_preflight.py](https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/main/examples/ch39_restore_preflight.py) моделирует проверку перед restore, или preflight. На входе - подготовленный inventory Actor, Tag, template, snapshot и независимая квитанция операции. Программа выбирает зависимости и следующий прикладной шаг. Она не подключается к Substrate, не читает настоящие runtime images и не исполняет restore или удаление.
 
-В нашем сценарии операция `op-17` меняет сетевую конфигурацию. Агент записал intent, отправил request, внешний сервис применил изменение, но ответ потерялся до следующего completed checkpoint. После revert память и workspace могут вернуться к состоянию «действие ещё не подтверждено». Внешний сервис не откатится вместе с ними.
+В упражнении node недоступна, поэтому рассматривается external recovery point. Возврат из доступного local checkpoint требует отдельного пути; реальный resume отдаёт local snapshot приоритет, когда он присутствует. Перед выбором более старой external точки оператор также принимает потерю изменений после её capture.
 
-Нельзя повторять write потому, что в восстановленном journal нет result. Harness сверяет operation ID и фактическое состояние target. Если effect подтверждён, он записывает результат и продолжает; если доказано отсутствие effect, выбирает разрешённый retry; если outcome неизвестен, блокирует конфликтующие writes до разрешения неопределённости. Это тот же контракт из главы 37, теперь на границе rollback.
+Учебные dataclasses - нормализованное представление для упражнения. Поля `runtime_profile`, `complete`, `ready` и условные URI `fixture://` не являются форматом Substrate API. Реальный collector должен получить эти сведения из доверенных источников. Даже `available_files` здесь только набор имён; его проверка не доказывает целостность файлов или подлинность manifest.
 
-Есть неприятная деталь: ledger, лежащий только в `/workspace`, откатывается вместе с Data snapshot. Он полезен для progression, но не обеспечивает независимое доказательство внешнего commit. Для критичных actions authoritative operation record должен переживать потерю и откат Actor - например, находиться во внешней транзакционной системе. Запись intent и выполнение HTTP request всё равно требуют отдельного протокола; одно слово «durable» не создаёт распределённую атомарность.
-
-External CSI volumes тоже не откатываются вместе с Actor snapshot. После revert process state может быть старым, а volume новым. Full/Data checkpoint не заменяет database flush/transaction protocol. Перед lifecycle transition завершайте локальные writes по правилам приложения и входите в recovery-safe boundary; после restore проверяйте schema, pending transactions и версии внешних records.
-
-Full restore требует особой осторожности: процесс может продолжить не с entrypoint, а с захваченной инструкции. Код обновления credentials и проверки leases должен срабатывать на восстановление или перед следующим действием, а не только при boot. TCP sessions, DNS caches и tokens могут устареть; старый lease token в heap не возвращает владение. Только после revalidation можно снова открывать mutation gate.
-
-## Golden snapshot ускоряет общий baseline
-
-Golden полезен, когда многие Actors выполняют одинаковую дорогую инициализацию: загружают libraries, подготавливают interpreter или общие tools. Controller создаёт временный Actor в `ate-golden`, готовит среду, делает Full suspend и публикует tag-owned копию. Full здесь нужен даже при Data commit обычных Actors: общий guest state служит основой последующих restores.
-
-Golden не должен содержать готовую пользовательскую задачу. Если заморозить tenant credential, уникальный lock, pending write или уже выбранный run ID, clones могут наследовать одну identity и одно намерение. Общая точка должна быть безопасна для многократного старта независимых executions. Dynamic identity и secrets читают из подходящего механизма после restore или непосредственно перед использованием.
-
-Одной очистки secret-файла недостаточно для Full baseline: значение могло остаться в памяти процесса. Безопаснее не выдавать пользовательский secret во время golden preparation. Проверьте и tenant data в caches, temporary files, Git config, logs и environment. При компрометации нужен вывод старого baseline из использования и rotation credentials, а не только пересборка image.
-
-У Actor, созданного до готовности golden Tag, исходная ссылка может остаться пустой: поздняя готовность template не перепривязывает его автоматически. Отдельно Data-on-golden требует доступного, завершённого golden Tag правильного template; при его отсутствии resume отклоняется. Поэтому template readiness и сохранность golden dependencies входят в deployment gate.
-
-## Storage performance измеряется по выбранному пути
-
-«Snapshot маленький» и «resume быстрый» - разные утверждения. Data commit может существенно уменьшить upload индивидуального Actor. Но Data-on-golden restore читает и индивидуальные данные, и общий guest baseline, если он не доступен локально. Маленькая собственная snapshot не гарантирует маленький cold-node download.
-
-Разделяйте ожидание Worker, mount/attach, получение manifests, download/decompression, подготовку runtime assets и OCI bundles, восстановление sandbox, probe и первый полезный шаг harness. В atelet часть download и подготовки assets выполняется параллельно. Простая сумма длительностей параллельных spans завышает wall-clock latency; анализируйте critical path.
+Запуск из корня репозитория:
 
 ```
-T_ready примерно равен:
-  ожидание capacity и lifecycle lease
-  + mount и manifests
-  + max(download с decompression, assets и OCI preparation)
-  + sandbox restore и readiness probe
-
-T_useful = T_ready + recovery harness + проверенный полезный шаг
+python3 examples/ch39_restore_preflight.py
+python3 -m unittest discover -s examples -p 'test_ch39_restore_preflight.py'
 ```
 
-Это модель измерения, не универсальная формула SLO: конкретные overlaps и cache hits нужно смотреть в traces. Для грубой оценки transfer floor предположим 2 GiB данных и эффективные 256 MiB/s. Одно чтение займёт не меньше примерно восьми секунд до остальных расходов. Десять таких restores создают 20 GiB совокупного трафика; общий канал не даст каждому независимые 256 MiB/s.
+Исходные данные соответствуют такому эпизоду. A сохранил Data snapshot, из него сделали Tag T и создали B. Индивидуальный checkpoint говорит `DISPATCHING`: в момент его записи приложение ещё не знало исход операции. В независимом ledger уже лежит `APPLIED` для того же run, `op-17` и digest действия. Таким образом, старый checkpoint не отменяет установленный в главе 38 факт.
 
-Benchmark должен различать local Full, external Full, Data cold boot, Data-on-golden и первый boot без snapshot. Для каждого пути нужны warm/cold node, размер memory/data, concurrent restores и p50/p95/p99 до полезного результата. Проверяйте также пик disk/RAM и CPU decompression: быстрое чтение объекта может просто перенести bottleneck на node.
+B здесь только получатель сохранённого состояния для проверки плана продолжения старого run. Digest берётся из того же `Action.digest()`, что в примере главы 37. Передача владения run в модели не реализована; закрытый mutation gate сохраняет эту границу даже при успешном preflight.
 
-Full выбирают ради измеренной цены повторной инициализации или нужного in-memory state. Data cold boot подходит restartable приложению с понятным recovery protocol. Data-on-golden полезен для общего warm baseline, но добавляет зависимость и сложность проверки identity. Если преимущество golden не доказано нагрузкой и recovery tests, более простой cold boot может быть лучшим инженерным выбором.
+Сначала программа идёт по committed `external_uri`. Поле in-progress может указывать на более новый набор, но для выбора точки не используется. Затем проверяются владелец, готовность Tag, наличие manifest и перечисленных payload, template и выбранный профиль среды. Для Data-on-golden добавляется вторая зависимость - Full baseline нужного template. На прикладном уровне проверяются schema checkpoint и совпадение identity операции с независимой квитанцией.
 
-## Защита и сроки хранения snapshot
+Ключевые поля результата для заимствованной точки:
 
-Snapshot нужно считать чувствительным исполняемым артефактом, а не безобидным архивом. Full может содержать plaintext secrets и private data в RAM; Data - те же сведения в workspace. Возможность прочитать bytes должна быть ограничена так же строго, как доступ к живой среде. Запрещённое чтение другим tenant является обязательным negative test.
+```
+{
+  "decision": "PREFLIGHT_ONLY",
+  "restore_path": "DATA_ON_GOLDEN",
+  "payload_owner": "TAG:tag-copy",
+  "captured_actor_uid": "actor-a",
+  "local_operation_view": "DISPATCHING",
+  "authoritative_operation": "APPLIED",
+  "next_step": "VERIFY_GOAL",
+  "mutation_gate": "CLOSED",
+  "automatic_mutations": 0
+}
+```
 
-Разделяйте защиту от случайной порчи и защиту от подмены. SHA-256 runtime asset в manifest помогает проверить загруженный binary; он не означает, что все checkpoint payloads имеют собственные проверяемые digests или что manifest подписан. Если attacker может заменить и файл, и ожидаемый hash, один checksum не доказывает доверенное происхождение. Для вашего storage contract отдельно определите integrity checks, доверенный каталог metadata и контроль изменений.
+Здесь одновременно видны происхождение A и владение T. Проверка проходит даже без живого source Actor A: Tag уже имеет свою копию. Следующее действие приложения - проверить цель, а не заново отправлять сетевую запись. Mutation gate остаётся закрытым: предварительная проверка не выдаёт полномочий на изменение инфраструктуры.
 
-Encryption at rest и in transit, scoped runtime credentials и audit read/write/delete выбираются для конкретного backend. Snapshot URI не является credential, но может раскрывать tenant и структуру среды, поэтому не публикуйте его без необходимости. Для encrypted backups сохраняйте возможность получить правильную key version в recovery environment.
+Вторая часть demo подставляет inventory после собственного успешного suspend B. Это подготовленная fixture следующего состояния, не выполненный вызов SuspendActor. B теперь читает actor-owned точку, и T больше не имеет прямого borrower. Но golden Tag G остаётся зависимостью template. Проверка удаления возвращает для T `MANUAL_REVIEW_NO_KNOWN_REFERENCES`, а для G - `HOLD`. Даже первый ответ означает только отсутствие известных ссылок при заявленном полном inventory и барьере создания, а не разрешение удалить ресурс.
 
-Возраст объекта нельзя использовать как единственный критерий удаления. Старый Tag может быть текущим источником тысяч clones; свежий prefix может содержать abandoned partial copy. Retention inventory должен учитывать owner, readiness копии, borrowers, golden dependencies и незавершённые workflows. Физические версии objects и replicas могут пережить логическое удаление - это важно и для расходов, и для требований к удалению чувствительных данных.
+Тесты добавляют повреждённые и неоднозначные входы: manifest без payload, payload без manifest, pending Tag, удалённого owner, чужую actor-owned точку, неизвестный scope, несовпавшую schema и квитанцию другой операции. Если внешний исход неизвестен, план останавливается с `resolve_operation_before_recovery`; автоматический retry не предлагается.
 
-Garbage collector должен работать с lifecycle ownership, а не запускать массовую очистку bucket по предположению. Перед удалением Tag остановите создание новых зависимостей, получите актуальный inventory, проверьте guards и только затем выполняйте точечный cleanup. List Actors без такого барьера оставляет гонку: clone может появиться между проверкой и удалением.
+### Границы учебной проверки
 
-## Backup восстанавливает граф зависимостей
+Модель проверяет локальные правила выбора, а не переносимость бинарного snapshot. Равный `runtime_profile` - доверенная метка fixture; CPU, формат runtime, фактические mounts, IAM и криптографическое происхождение данных не испытываются. Полнота inventory и барьер создания также считаются входными условиями, а не реализованными распределёнными гарантиями.
 
-Даже завершённый Tag остаётся объектом runtime lifecycle: его могут удалить вместе с owner или испортить ошибочным storage cleanup. Backup policy должна отдельно удерживать recovery point и описывать, как вернуть metadata, bytes, keys и совместимую среду. Object replication не исправляет удаление, которое реплицируется, а backup одной database не содержит snapshot payloads.
+При смене template пример требует отдельного review и не имитирует все fallback реального resume workflow. Это намеренно консервативная политика проверки. Поддерживаемая API операция и автоматически разрешённый приложением recovery имеют разные требования. Результат `PREFLIGHT_ONLY` никогда не следует называть успешным restore или доказанной совместимостью стенда.
 
-В recovery inventory сопоставьте Substrate Actor/Tag metadata, полные prefixes referenced snapshots, golden Tags, template и image identities, SandboxConfig assets, key versions и внешние данные приложения. Для AX добавьте Redis resource records и mapping Task к Actor. Не выдавайте backup этих систем в произвольные моменты за один согласованный срез.
+## Как продолжить приложение после отката
 
-RPO - целевое допустимое временное окно потери изменений перед отказом; RTO - допустимое время возвращения к полезной работе. Последний успешный external suspend задаёт возможную точку отката Actor, но внешний ledger может быть новее. Recovery выбирает completed snapshot, восстанавливает progression и согласует его с authoritative operations. Нельзя добиться business consistency простым выравниванием часов файлов.
+В нашем примере snapshot возвращает старое представление операции, а внешний ledger подтверждает её применение. Harness должен сопоставить run, operation ID и точное действие, принять подтверждённый результат и перейти к проверке цели. Если подтверждение относится к другому действию с тем же коротким именем, использовать его нельзя. Поэтому identity операции включает контекст и нормализованный digest, как в главе 37.
 
-Практический restore начинается в изолированной среде с отключёнными mutation credentials и ограниченным egress. Сначала доказывают целостность и совместимость, затем проверяют application state и незавершённые операции. Только после reconciliation разрешают реальные writes. Так тест backup не превращается в повторное выполнение production tool calls.
+Ledger только внутри `/workspace` откатится вместе с Data. Он помогает продолжить локальные шаги, но не даёт независимого доказательства внешнего commit. Для критичных записей authoritative record должен переживать откат Actor. Если исход остаётся неизвестным, сначала ищут квитанцию или достоверно сверяют target по контракту инструмента; право на повтор не появляется от отсутствия результата в старом файле.
 
-## Как разбирать неудачный restore
+Full требует ещё одного пути входа в recovery: процесс может продолжить с захваченной инструкции, минуя обычный entrypoint. Проверку credentials, владения lease и ожидаемой версии target нужно выполнять перед следующей mutation или через поддерживаемый restore-aware механизм. Старый token в памяти не возвращает истёкшие полномочия. Соединения и DNS caches также требуют перепроверки там, где это влияет на действие.
 
-Если `network-017` не восстановился, сохраните evidence до restart или удаления. Нужны Actor UID и state, current/local/in-progress snapshot references, template UID, выбранный boot source, node/runtime version и точная стадия ошибки. В AX проверьте, не произошёл ли уже автоматический recovery: `EnsureActor` в зафиксированном срезе пытается revert crashed Actor, а при неудаче может удалить и создать его заново. Прежнее имя не доказывает прежнюю lifetime и сохранность state.
+External CSI volumes и удалённые databases не откатываются вместе с Actor snapshot. Получается сочетание старого process state и более новых внешних данных. Перед capture приложение должно завершать локальные записи по своему протоколу и сохранять пригодный checkpoint; после restore - согласовывать schema, транзакции и операции. Один успешный запуск runner эту согласованность не подтверждает.
 
-| Наблюдение | Что проверить первым | Чего не делать вслепую |
-| --- | --- | --- |
-| Object не найден | Source URI, owner lifetime, deletion и выбранный source prefix | Подставлять каталог с похожим именем |
-| Permission denied | Runtime identity и read grant на source Atespace | Открывать весь bucket |
-| Full стал Data restore | Template UID mismatch и restore scope | Считать исчезновение RAM случайной потерей |
-| Data-on-golden не стартует | Готовность, UID и доступность golden Tag | Удалять индивидуальный workspace snapshot |
-| Actor running но шаг неверен | Harness schema, ledger, leases и внешний effect | Повторять write по старому intent |
+## Как выбрать baseline и оценить его цену
 
-Storage error, runtime incompatibility и application inconsistency требуют разных исправлений. Revert допустим, когда понятна completed точка и принята потеря изменений после неё. Отсутствующие или несовместимые bytes не становятся корректными от повторного reboot. Перед автоматизацией recovery определите, где требуется остановка и решение оператора.
+Для нового restartable harness полезно начать с Data cold boot: меньше скрытого состояния, понятный старт и явное чтение checkpoint. Затем измерьте, сколько занимает общая подготовка. Если она повторяется у сотен Actors, golden baseline может окупить дополнительную зависимость. Full стоит выбирать ради конкретной экономии или нужной непрерывности, которую вы умеете проверять после восстановления.
 
-## Практикум ownership и восстановления
+Golden должен быть безопасен для многократного старта независимых executions. В общий Full baseline нельзя помещать tenant credentials, уникальное владение lock, pending external write или готовую identity пользовательского run. Удаление secret-файла перед capture не очищает автоматически память процесса. Надёжнее не выдавать пользовательский secret на этапе общей подготовки, а получать актуальные полномочия после restore или перед использованием.
 
-Используйте изолированный Atespace и безопасный внешний сервис, который сохраняет operation IDs. Следующие проверки образуют план лабораторной работы, а не обещание свойств вашего production backend:
+Готовность golden тоже входит в deployment gate. Actor, созданный до появления готового baseline, не получает новую исходную ссылку автоматически просто от изменения статуса template. Для Data-on-golden resume нужны готовый Tag, нужный template и доступ к его данным; отсутствие baseline приводит к отказу этого пути. Безусловно переключать его на cold boot в recovery automation нельзя: приложение должно заранее поддерживать такой старт.
 
-1. Создайте Actor A, запишите marker в `DurableDir`, выполните suspend и сохраните UID, scope, URI и manifest. Сопоставьте завершённый status с доступными payload files.
-2. Создайте ready Tag T, затем clone B. Докажите, что T содержит отдельную копию, а B пока ссылается на T. Suspend A ещё раз и проверьте неизменность копии T.
-3. В B измените marker и выполните собственный suspend. Проверьте новый actor-owned URI. Отдельно определите, нужен ли B golden Tag для следующего Data resume.
-4. На расходуемом clone воспроизведите удаление source Tag до собственного suspend. Зафиксируйте ошибку следующего restore. Не используйте этот тест для реальных baseline или чужих borrowers.
-5. Прервите CreateTag после reservation. Перечитайте pending status, проверьте `AlreadyExists` и отработайте guarded cleanup перед новой попыткой; не считайте retry финализацией.
-6. Сравните Full, Data cold boot и Data-on-golden: marker в volume, индивидуальный RAM counter и rootfs file должны вести себя согласно выбранному составу, а не одинаково.
-7. Обновите Actor на допустимый другой template и проверьте Data fallback, state schema recovery и сохранность provenance. Отдельно испытайте старую точку с планируемым runtime upgrade.
-8. Потеряйте node после успешного external suspend и после только local pause. Сравните recovery point, потерянные изменения и время до полезного шага.
-9. Оборвите ответ внешней операции `op-17`, восстановите более старую точку и докажите, что harness сверяет effect, а не дублирует mutation.
-10. Проверьте cross-Atespace allow и deny, затем восстановите backup в изолированную среду без production writes. Сохраните dependency inventory и измеренные потери и время восстановления, сопоставленные с целями RPO/RTO.
+Измеряйте время до полезного шага, а не только до `RUNNING`. Сначала идут ожидание capacity, mounts и manifests; затем download/decompression и подготовка assets, часть которых может выполняться параллельно; после них - restore, readiness и recovery harness. При анализе traces складывайте последовательные участки и смотрите критический путь параллельных, иначе можно завысить итоговую latency.
 
-Результат практикума - таблица конкретных recovery paths: источник, owner, scope, совместимый runtime, возможная потеря и первое разрешённое действие приложения. Пока такую таблицу нельзя заполнить по evidence, фраза «snapshot работает» означает только один удачный happy path.
+Маленький индивидуальный Data snapshot не гарантирует дешёвый cold-node restore: может понадобиться загрузка большого golden baseline. Например, при условных 2 GiB и эффективных 256 MiB/s только передача займёт около восьми секунд. Десять таких восстановлений означают 20 GiB трафика через общий канал; эти числа - расчёт по заданным допущениям, не benchmark Substrate.
 
-Главный вывод: snapshot ценен не наличием файла, а проверенным способом вернуть полезную работу без потери ownership и повторного внешнего действия. После успешного restore остаётся ещё одна граница: приложение должно дойти до нужных сервисов и не получить лишний доступ. Следующая глава разбирает этот путь через Gateway, DNS, TLS и egress.
+Сравнивайте local Full, external Full, Data cold boot и Data-on-golden отдельно, на warm и cold nodes, при разной конкуренции. Фиксируйте p50/p95/p99 до полезного результата, пик RAM и disk, CPU decompression и фактические cache hits. Если golden не даёт нужного выигрыша, цена сопровождения и восстановления зависимостей может оказаться выше экономии старта.
+
+## Как хранить и удалять recovery points
+
+Начните с графа ссылок. Для Actor нужны текущая и промежуточная точки; для clone - source Tag до собственного suspend; для Data-on-golden - baseline template; для будущих запусков - сам template с его golden reference. Поэтому inventory только живых Actors не даёт полной картины retention. Старый Tag может оставаться необходимым ещё не запущенным задачам.
+
+Штатное удаление должно проходить через lifecycle API с проверками нужной lifetime. Массовая очистка bucket по возрасту обходит этот механизм. При расследовании abandoned upload учитывайте незавершённые workflows; при удалении Tag исключайте создание новых consumers. Даже полный список, прочитанный минуту назад, не является барьером для нового clone.
+
+Snapshot хранит чувствительные данные: Full может содержать secrets в RAM, Data - в workspace, логах и checkout. Нужны scoped credentials, encryption и аудит read/write/delete для выбранного backend. SHA-256 runtime assets в manifest не означает подпись всего snapshot или наличие проверяемого digest у каждого payload. Защита от подмены требует доверенного происхождения metadata и выбранного integrity contract.
+
+Для backup сохраняйте согласованный набор metadata, payload prefixes, Tags, templates, images, SandboxConfig assets и key versions. В AX добавьте Redis resource records и mapping Task к Actor. Replication может повторить ошибочное удаление; версия object или отдельная recovery copy помогает только при существующей policy удержания и проверенном способе вернуть весь набор.
+
+RPO задаёт допустимое окно потери изменений, RTO - время до оговорённого восстановления. Completed external snapshot ограничивает точку возврата Actor, но ledger может содержать более новые подтверждённые действия. Согласованное восстановление соединяет их через application recovery, а не пытается сделать все файлы одинаково старыми.
+
+Проверять backup безопаснее в изолированной среде без production mutation credentials и с ограниченным egress. Сначала проверяются данные и совместимость, затем checkpoint и внешние операции. Полномочия на новые записи выдаются по отдельному решению. Этот порядок делает rehearsal проверкой восстановления, а не повторным исполнением сохранённых production намерений.
+
+## Как закончить расследование потери Worker
+
+Для `lab/network-017` итоговый recovery record должен называть Actor UID, выбранную completed точку, её owner и provenance, фактические зависимости и выбранный restore path. Сохраните также in-progress references, template, runtime assets, schema checkpoint и состояние `op-17`. Так следующий инженер увидит основания решения, даже если прежняя node уже недоступна.
+
+До новых lifecycle calls посмотрите, не изменился ли Actor в результате другого recovery. В AX `EnsureActor` пытается revert существующего crashed Actor, а при неудаче может удалить и создать его заново. Прежнее имя в карточке не доказывает прежнюю lifetime. Именно поэтому сопоставление наблюдений из главы 38 и проверка владельца snapshot должны опираться на актуальный inventory.
+
+Перенос локального preflight на стенд требует отдельных испытаний. В изолированном Atespace проверьте собственный snapshot B после заимствования, отказ при потере golden, прерывание CreateTag, потерю node после local pause и после external suspend. Восстановите старый checkpoint при более новом ledger и убедитесь, что уже применённая операция не отправляется повторно. Для runtime upgrade отдельно восстановите старые Full и Data на целевых Workers; локальные тесты planner этого не заменяют.
+
+После успешного восстановления приложения ещё нужно проверить разрешённые обращения к model API и инструментам. Среда может быть пригодной, но иметь устаревший trust bundle, неверный DNS или недостаточную egress policy. В главе 40 продолжим с восстановленным `lab/network-017` и разберём, как диагностировать этот путь, сохраняя границы доступа.
 
 ### Источники и дальнейшее чтение
 
-- [Substrate v0.3.0 API](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto): scopes, snapshot references и resume sources.
-- [Tag workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go) и [snapshot ownership](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/resources/snapshot.go): copy, borrowing, guards и deletion.
-- [Resume workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_resume.go) и [Suspend workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_suspend.go): Data-on-golden, template fallback и finalization.
-- [Atelet checkpoint/restore](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/main.go) и [sandbox manifests](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/sandbox_assets.go): порядок upload и runtime assets.
-- [AX template construction и EnsureActor](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go): workspace Data policy и crash recovery.
+- [Substrate v0.3.0 API](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto): snapshot scope, Tag и Data resume policy.
+- [Actor create и update](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/actor.go): borrowing, template checks и external volumes.
+- [Tag workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_tag.go) и [owner URI](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/resources/snapshot.go): reservation, copy, provenance и deletion.
+- [Suspend workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_suspend.go), [resume workflow](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/ateapi/internal/controlapi/workflow_resume.go), [atelet](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/main.go) и [sandbox manifests](https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atelet/sandbox_assets.go).
+- [AX template construction и EnsureActor](https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/substrate/client.go); [gVisor checkpoint/restore](https://gvisor.dev/docs/user_guide/checkpoint_restore/).
