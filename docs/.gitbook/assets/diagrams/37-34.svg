@@ -36,9 +36,9 @@
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M362,-246C362,-246 239,-246 239,-246 233,-246 227,-240 227,-234 227,-234 227,-216 227,-216 227,-210 233,-204 239,-204 239,-204 362,-204 362,-204 368,-204 374,-210 374,-216 374,-216 374,-234 374,-234 374,-240 368,-246 362,-246" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<path d="M381,-246C381,-246 220,-246 220,-246 214,-246 208,-240 208,-234 208,-234 208,-216 208,-216 208,-210 214,-204 220,-204 220,-204 381,-204 381,-204 387,-204 393,-210 393,-216 393,-216 393,-234 393,-234 393,-240 387,-246 381,-246" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
 <text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="267" y="-227.4">Root Task</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="241" y="-217">budget=100, broad read</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="222" y="-217">budget=100; read/write/execute</text>
 </g>
 <!-- n1 -->
 <g class="node">
