@@ -3,7 +3,7 @@ from bs4 import BeautifulSoup, Tag
 from markdownify import markdownify as md
 from pathlib import Path
 import re, shutil, sys
-import cairosvg
+from rasterize_svg import render_svg, validate_graphviz_png
 from book_structure import SLUGS, GROUPS, ANCHORS, navigation_title, passport_markdown
 
 root = Path(__file__).resolve().parents[1]
@@ -20,11 +20,7 @@ if docs.exists():
 diagdir.mkdir(parents=True, exist_ok=True)
 
 def svg_to_png(src: Path, dst: Path, width: int):
-    cairosvg.svg2png(
-        bytestring=src.read_bytes(),
-        write_to=str(dst),
-        output_width=width,
-    )
+    dst.write_bytes(render_svg(src.read_bytes(), width))
 
 # Canonical publication artwork is the original approved raster artwork.
 # Do not regenerate cover/social-preview from the later SVG approximations.
@@ -145,12 +141,13 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
         svg_path.write_bytes(svg_bytes)
         out_w = 1800
         out_h = max(240, int(round(out_w * vb_h / vb_w)))
-        cairosvg.svg2png(
-            bytestring=svg_bytes,
-            write_to=str(png_path),
-            output_width=out_w,
-            output_height=out_h,
-        )
+        # The diagrams use a light palette, just like the PDF.  Baking in the
+        # page background keeps labels/edges readable in dark GitBook themes
+        # and transparent-image previews.  Branding retains its own alpha.
+        png_bytes = render_svg(svg_bytes, out_w, out_h, background="white")
+        if svg.find("g", class_="graph"):
+            validate_graphviz_png(svg_bytes, png_bytes)
+        png_path.write_bytes(png_bytes)
         p = soup.new_tag("p")
         im = soup.new_tag("img", src=f".gitbook/assets/diagrams/{stem}.png", alt=caption)
         p.append(im)
