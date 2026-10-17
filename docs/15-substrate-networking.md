@@ -179,7 +179,7 @@ Arbitrary-port ingress этого среза обслуживает HTTP(S), а 
 
 PEP, policy enforcement point, - место исполнения решения о доступе. В Substrate TCP Actor, кроме DNS на destination port 53, перехватывается nftables и передаётся `atunnel`. Тот строит mTLS CONNECT к PEP: обе стороны проверяют сертификаты, а Actor-specific client certificate остаётся в доверенной инфраструктуре tunnel.
 
-PEP проверяет сертификат и затем существование Actor, совпадение UID и running state через control plane. Actor не становится доверенным оттого, что его certificate корректен: identity нужна, чтобы применить именно его ограничения. Приватный ключ tunnel не нужно выдавать процессу агента.
+PEP проверяет сертификат, извлекает atespace/name Actor и сверяет его существование и RUNNING через control plane. В этом handler отдельной сверки Actor UID нет; эти проверки сами по себе не доказывают совпадение lifetime после удаления и повторного создания Actor. Actor не становится доверенным оттого, что его certificate корректен: identity нужна, чтобы применить именно его ограничения. Приватный ключ tunnel не нужно выдавать процессу агента.
 
 Имя в HTTP Host или TLS SNI, Server Name Indication, выбирает сам Actor. Эти значения могут быть входом policy, но не доказательством того, что исходный произвольный IP принадлежит разрешённому сервису. На hostname-based HTTP-пути gateway сам разрешает и набирает разрешённое имя. Разрешить `api.example.test` и затем послать байты на любой original IP - ошибочная модель защиты.
 

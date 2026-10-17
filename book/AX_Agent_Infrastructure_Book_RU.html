@@ -5667,7 +5667,7 @@ python3 -m unittest discover -s examples -p 'test_ch15*.py'
 <p>Arbitrary-port ingress этого среза обслуживает HTTP(S), а не любой raw TCP protocol. Требование SSH, database wire protocol, WebSocket или другого transport нужно проверять на выбранном пути до миграции. Открытый port и успешно созданный CONNECT ещё не доказывают поддержку внутренних bytes и прикладных semantics.</p>
 <h2>Egress ограничивает действия недоверенного Actor</h2>
 <p>PEP, policy enforcement point, - место исполнения решения о доступе. В Substrate TCP Actor, кроме DNS на destination port 53, перехватывается nftables и передаётся <code>atunnel</code>. Тот строит mTLS CONNECT к PEP: обе стороны проверяют сертификаты, а Actor-specific client certificate остаётся в доверенной инфраструктуре tunnel.</p>
-<p>PEP проверяет сертификат и затем существование Actor, совпадение UID и running state через control plane. Actor не становится доверенным оттого, что его certificate корректен: identity нужна, чтобы применить именно его ограничения. Приватный ключ tunnel не нужно выдавать процессу агента.</p>
+<p>PEP проверяет сертификат, извлекает atespace/name Actor и сверяет его существование и RUNNING через control plane. В этом handler отдельной сверки Actor UID нет; эти проверки сами по себе не доказывают совпадение lifetime после удаления и повторного создания Actor. Actor не становится доверенным оттого, что его certificate корректен: identity нужна, чтобы применить именно его ограничения. Приватный ключ tunnel не нужно выдавать процессу агента.</p>
 <p>Имя в HTTP Host или TLS SNI, Server Name Indication, выбирает сам Actor. Эти значения могут быть входом policy, но не доказательством того, что исходный произвольный IP принадлежит разрешённому сервису. На hostname-based HTTP-пути gateway сам разрешает и набирает разрешённое имя. Разрешить <code>api.example.test</code> и затем послать байты на любой original IP - ошибочная модель защиты.</p>
 <p>При этом hostname allowlist не доказывает, что DNS разрешённого имени никогда не укажет на чувствительный внутренний address. Сеть и доступ самого gateway также требуют ограничений. И даже корректный model endpoint может принять конфиденциальные данные: destination restriction не является DLP или проверкой аргументов tool.</p>
 <p>DNS по TCP/UDP 53 идёт через relay к configured resolvers Worker, вне внешнего PEP; per-Actor <code>EgressPolicy</code> не фильтрует эти запросы. Остальной UDP и другие IP protocols блокируются; Actor networking здесь IPv4-only. Поэтому «default-deny egress» нельзя переводить в «у Actor нет никакого канала наружу» или «HTTP/3 заработает после allow port 443». DNS, QUIC и TCP - разные пути.</p>
@@ -12111,27 +12111,52 @@ python3 -m unittest discover -s examples -p 'test_ch39_restore_preflight.py'
 </ul>
 </div>
 </section>
-<section class="chapter" id="ch-40"><div class="chapter-num">Глава 40</div><h1>Gateway и egress: DNS, TLS и проверка реальной доступности</h1>
-<p>Actor <code>lab/network-017</code> из предыдущей главы восстановлен. Workspace на месте, runner отвечает, но агент не может продолжить работу: вызов model API заканчивается timeout. Оператор открывает сетевой доступ шире, запрос проходит, и инцидент кажется закрытым. На деле исправление могло одновременно разрешить доступ к чужим внутренним сервисам. Мы ещё не знаем, что сломалось и какую границу только что убрали.</p>
-<p>Сетевую доступность нужно доказывать в двух направлениях: разрешённая операция работает, а запрещённая не достигает назначения. Глава 15 дала общую схему routing и egress. Здесь проследим один запрос по конкретным DNS/TLS этапам и научимся выбирать шлюз под задачу. Мы разберём путь запроса из sandbox, DNS на обеих сторонах proxy, несколько TLS-соединений внутри одного обращения, выдачу credentials и проверку прикладного протокола. Инженерный результат - минимальный доступ с понятным местом отказа, а не просто зелёный health check.</p>
-
-<h2>Какую задачу решает Gateway</h2>
-<p>Egress означает исходящий трафик: агент обращается к model API, MCP server, Git или другому сервису. Gateway - управляемая точка, через которую проходит этот трафик. Она может выбирать destination, проверять identity вызывающего workload, применять правила доступа и устанавливать следующее соединение. Какие именно действия доступны, зависит от реализации. Обычный TCP proxy не становится MCP-aware шлюзом оттого, что через него идут MCP requests.</p>
-<p>Не путайте этот путь с ingress из главы 15. Ingress router доставляет запрос <em>к</em> logical Actor и при необходимости запускает resume. Egress gateway решает, <em>куда</em> работающий Actor вправе обратиться. Также отдельным продуктовым контрактом является Kubernetes Gateway API: наличие слова Gateway в книге не означает, что правила Substrate записываются в Kubernetes <code>Gateway</code> или <code>HTTPRoute</code>.</p>
-<p>Для конкретных примеров здесь используется Substrate <code>v0.3.0</code>, commit <code>ccecc788</code>. Его разрешения исходящего трафика задаёт вложенный ресурс Actor <code>EgressPolicy</code> с именем <code>default</code>. Название <code>GatewayReady</code> из старого диагностического примера нельзя считать универсальным полем этого API. Проверять нужно реальные resource schema, режим установки, image digest и dataplane. Различайте «API принял правило», «шлюз умеет его исполнить» и «нужная операция действительно прошла».</p>
-
-<table style="break-inside:avoid"><thead><tr><th>Инструмент</th><th>Когда выбирать</th><th>Чего он сам не доказывает</th></tr></thead><tbody>
-<tr><td>Firewall или CNI NetworkPolicy</td><td>Ограничить сетевые пути между Pods, узлами и адресными диапазонами</td><td>Разрешение конкретного HTTPS method, tool или пользовательского действия</td></tr>
-<tr><td>TCP или TLS passthrough proxy</td><td>Передать поддерживаемый protocol, сохранив TLS до origin</td><td>Контроль HTTP body, credential injection или содержание encrypted stream</td></tr>
-<tr><td>HTTP egress proxy с TLS interception</td><td>Авторизовать HTTP requests и изменить headers перед отправкой</td><td>Бизнес-смысл операции и отсутствие утечки через разрешённый API</td></tr>
-<tr><td>MCP-aware gateway или tool broker</td><td>Контролировать tool-level операции, identity, quotas и выдачу credentials</td><td>Полноту policy, безопасность всех tools и совместимость каждого transport</td></tr>
-</tbody></table>
-<p>Эти инструменты дополняют друг друга. NetworkPolicy уменьшает сетевую поверхность gateway, а HTTP policy ограничивает то, что gateway делает по поручению Actor. В стандартной Kubernetes NetworkPolicy разрешения нескольких policy складываются: отдельное широкое allow может открыть путь несмотря на наличие default-deny. Нужен поддерживающий enforcement сетевой plugin и проверка совокупного результата, а не только одного manifest.</p>
-
-<h2>Путь запроса из реального sandbox</h2>
-<p>В Substrate исходящее TCP-соединение Actor, кроме DNS на port 53, перехватывается сетевыми правилами и передаётся <code>atunnel</code>. Тот открывает mTLS HTTP CONNECT к egress policy enforcement point, или PEP - компоненту, который исполняет решение о доступе. CONNECT несёт original <code>IP:port</code>, а не достоверное hostname. Gateway подтверждает Actor identity по сертификату и сверяет его UID и running state через control plane. Затем обрабатывает трафик внутри tunnel согласно доступным правилам.</p>
-<p>На HTTP-пути proxy сам разрешает и набирает имя, которое разрешила policy. Actor не должен получать право dial'ить произвольный IP только потому, что прислал разрешённый Host или SNI. Запрос из admin Pod обходит часть этих звеньев. Его успех доказывает доступность с admin Pod, но не работу перехвата, сертификата Actor, per-Actor policy или trust bundle внутри sandbox.</p>
-
+<section class="chapter" id="ch-40">
+<div class="chapter-num">Глава 40</div>
+<h1>Gateway и egress: DNS, TLS и проверка реальной доступности</h1>
+<p>После восстановления из главы 39 <code>lab/network-017</code> снова может читать workspace и checkpoint. Внешняя операция <code>op-17</code> уже применена; теперь приложению нужно продолжить проверку цели. Но обращение к model endpoint заканчивается ошибкой. Actor работает, значит, искать причину предстоит на следующем участке: от клиента внутри sandbox до нужного приложения на другом конце соединения.</p>
+<p>Этот участок состоит из нескольких решений. Кто превратил имя в адрес? Какой посредник принял TCP connection? Какой сертификат проверил клиент? Кто разрешил запрос и кто вернул HTTP status? Ответы позволяют выбрать следующий диагностический запрос и не менять исправную часть системы. Например, исправление CA внутри Actor не поможет gateway, который сам не доверяет origin.</p>
+<p>В главе 15 мы разобрали общую архитектуру сети. Здесь научимся проверять конкретный путь, выбирать слой ограничения доступа и собирать доказательства для allow и deny. В качестве реализации используем <strong>Substrate v0.3.0, commit <code>ccecc788</code></strong>, в описанном Envoy/sdsmint режиме. Для практики подготовлен локальный HTTPS-эксперимент с настоящей проверкой сертификатов; он поможет увидеть границы, прежде чем переносить методику на Actor.</p>
+<h2>Какую работу выполняет egress gateway</h2>
+<p>Egress - исходящие обращения приложения: к модели, MCP server, Git, telemetry или другому сервису. Gateway - управляемый посредник на этом пути. Через него можно ограничить назначения, проверить identity workload, добавить credential и записать решение в аудит. Какие из этих действий доступны, определяет реализация шлюза.</p>
+<p>Выбирайте инструмент по тому решению, которое нужно принять. Если требуется запретить сетевой маршрут, достаточно подходящего сетевого enforcement. Если нужно запретить один tool при разрешённых остальных tools того же server, потребуется понимание прикладного протокола. Шлюз, который видит только hostname и port, не сможет различить два tool call внутри одного разрешённого HTTPS API.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Инструмент</th>
+<th>Какой вопрос он решает</th>
+<th>Где понадобится другой слой</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Firewall или CNI NetworkPolicy</td>
+<td>Какие сетевые направления доступны workload</td>
+<td>HTTP method, arguments инструмента и полномочия пользователя</td>
+</tr>
+<tr>
+<td>TCP proxy или TLS passthrough</td>
+<td>Куда передать поддерживаемое соединение, сохранив внутренний TLS</td>
+<td>Проверка зашифрованного HTTP body и изменение headers</td>
+</tr>
+<tr>
+<td>HTTP gateway с TLS interception</td>
+<td>Разрешить HTTP request и изменить его перед отправкой</td>
+<td>Смысл операции, корректность результата и защита всех разрешённых данных</td>
+</tr>
+<tr>
+<td>MCP-aware broker</td>
+<td>Разрешить конкретную прикладную операцию с нужной identity</td>
+<td>Безопасность самого tool и целевой системы</td>
+</tr>
+</tbody>
+</table>
+<p>Эти инструменты часто работают вместе. Сетевая policy ограничивает собственный доступ gateway, а прикладной processor сужает действия, которые gateway совершает по поручению Actor. В стандартной Kubernetes NetworkPolicy разрешения нескольких policies <a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">складываются</a>: одна широкая allow может открыть путь при существующей default-deny. Результат зависит и от поддержки policy вашим сетевым plugin.</p>
+<p>Ingress решает другую задачу: доставить входящий запрос к logical Actor и при необходимости возобновить его. Egress ограничивает исходящий выбор работающего приложения. Kubernetes Gateway API - ещё один самостоятельный контракт; слово Gateway в этой главе не означает автоматическое использование Kubernetes <code>Gateway</code> или <code>HTTPRoute</code>.</p>
+<h2>Проследим один запрос из Actor</h2>
+<p>В рассматриваемом Substrate TCP-трафик Actor, кроме DNS-пути на port 53, перехватывается и передаётся <code>atunnel</code>. Тот открывает mTLS HTTP CONNECT к policy enforcement point, или PEP - компоненту, исполняющему решение о доступе. CONNECT передаёт исходный <code>IP:port</code>, который набрал Actor. Это адрес назначения соединения, а не удостоверенное имя приложения.</p>
+<p>На внешнем CONNECT gateway проверяет сертификат Actor и получает из SPIFFE URI его atespace/name. Затем <code>validateActor</code> читает Actor по этому reference и проверяет <code>RUNNING</code>. <strong>В этом handler нет отдельной сверки Actor UID.</strong> Такой запрос к control plane нельзя описывать как доказательство совпадения lifetime после удаления и повторного создания Actor. Для сопоставления incident evidence по-прежнему нужны Actor UID и привязка run из глав 38-39; аутентификация gateway и владение прикладным run решают разные задачи.</p>
+<p>Далее gateway рассматривает внутренний трафик. Для HTTPS он проверяет SNI соединения и authority расшифрованного HTTP request по <code>EgressPolicy</code>. При разрешении HTTP-путь выбирает upstream по проверенному hostname. Поэтому одна и та же операция включает transport, authentication, policy и обращение к origin - приложению, которому предназначался запрос.</p>
 <figure><figcaption>Gateway validation: Actor path and gateway upstream are separate checks</figcaption><svg class="diagram" viewBox="0 0 1040 340" role="img" aria-label="Gateway validation: Actor path and gateway upstream are separate checks"><defs><marker id="arrow40" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs>
 <line x1="165" y1="155" x2="225" y2="155" stroke="#53657a" stroke-width="2" marker-end="url(#arrow40)"/>
 <line x1="370" y1="155" x2="445" y2="155" stroke="#53657a" stroke-width="2" marker-end="url(#arrow40)"/>
@@ -12149,43 +12174,105 @@ python3 -m unittest discover -s examples -p 'test_ch39_restore_preflight.py'
 <rect x="445" y="260" width="145" height="60" rx="12" fill="#f3f5f7" stroke="#495463"/><text x="517" y="283" text-anchor="middle" font-size="14" font-weight="700">Control plane</text><text x="517" y="302" text-anchor="middle" font-size="11">Actor and EgressPolicy</text>
 <rect x="665" y="10" width="145" height="55" rx="12" fill="#edf4ff" stroke="#2d5d9f"/><text x="737" y="33" text-anchor="middle" font-size="14" font-weight="700">Gateway DNS</text><text x="737" y="52" text-anchor="middle" font-size="11">authorized name</text>
 </svg></figure>
-<p>Схема показывает границы диагностики, а не буквальную последовательность всех байтов. DNS Actor и DNS proxy могут выполняться в разные моменты и давать разные ответы. TLS приложения внутри CONNECT и TLS самого CONNECT - разные sessions. В режиме interception появляется ещё TLS от gateway к origin. Поэтому один успешный connect не подтверждает весь путь.</p>
-
-<h2>Что правила позволяют в этой версии</h2>
-<p>Правила <code>EgressPolicy</code> являются набором allow; отсутствие совпадения означает deny. <code>http</code> решает по authority cleartext HTTP request, <code>https</code> предполагает TLS interception и последующую проверку HTTP authority. Exact hostname имеет приоритет перед wildcard, а конкретный port - перед всеми ports. <code>*.example.com</code> совпадает с одним непустым label: <code>api.example.com</code>, но не с <code>example.com</code> или <code>a.api.example.com</code>. Hostname записывается без scheme, path и port.</p>
-<p>В v0.3.0 port для HTTP-решения берётся из исходного dial Actor, переданного CONNECT. Port, написанный внутри Host, не заменяет его. На HTTPS-пути также проверяется SNI connection. Совпавший SNI не освобождает каждый decrypted request от проверки его authority. Это существенно при HTTP/2 и повторном использовании соединений.</p>
-<div class="callout warning"><strong>API и рабочий dataplane не равнозначны</strong><p>В schema v0.3.0 есть <code>tls_passthrough</code>, но реализация <code>SNIRules</code> этой версии не передаёт такие rules в Envoy listener classifier. Passthrough нельзя считать рабочим способом сохранить end-to-end TLS только на основании принятого manifest. Для описанного здесь Envoy/sdsmint пути HTTPS требует поддерживаемого interception и gateway CA. Другой dataplane или версия должны отдельно пройти compatibility tests.</p></div>
-<p>На уровне sandbox обычный UDP, кроме DNS, блокируется; HTTP/3 поверх QUIC нельзя получить простым разрешением port 443. Требование WebSocket, raw TCP, STARTTLS или TLS с certificate pinning тоже следует проверить до переноса приложения. Общая схема API не обещает поддержку этих transports. В частности, замена origin certificate на gateway certificate несовместима с обычным pinning origin leaf.</p>
-<pre><code class="language-yaml"># Body EgressPolicy, не самостоятельный Kubernetes manifest.
-# Parent Actor задаётся отдельно в API request.
-metadata:
+<p>Схема показывает точки проверки. Вызов из admin Pod может обойти перехват, сертификат Actor или его policy. Он полезен для проверки доступности сервера из admin Pod, но не заменяет вызов из нужного sandbox. В инциденте сначала зафиксируйте, откуда получен каждый результат: из Actor, gateway или origin.</p>
+<h2>Имя URL, адрес dial, SNI, authority и SAN</h2>
+<p>Возьмём URL <code>https://models.example.test/v1/probe</code>. Его hostname задаёт ожидаемое приложение. Resolver выбирает IP для connection. В первом TLS-сообщении ClientHello клиент передаёт SNI (Server Name Indication) - имя, по которому сервер или посредник выбирает сертификат и обработку TLS. Само по себе SNI ещё ничего не удостоверяет: имя сообщил клиент. Внутри HTTP/1.1 находится Host, а в HTTP/2 - <code>:authority</code>. Наконец, SAN (Subject Alternative Name) сертификата перечисляет имена, для которых сертификат выпущен.</p>
+<p>Обычно эти имена согласованы, но в диагностике их легко разъединить. Например, URL с IP и вручную добавленный Host не заставляют TLS-клиент проверять сертификат для hostname из Host. А разрешённый SNI ещё не разрешает любой Host внутри установленного соединения. Поэтому проверяют отдельно адрес dial, ожидаемое TLS-имя и HTTP authority.</p>
+<p>В v0.3.0 port для HTTP policy берётся из исходного dial, переданного CONNECT. Port внутри Host не заменяет его. На MITM leg gateway проверяет и SNI connection, и authority каждого request. Это важно для повторного использования connection: новое HTTP-сообщение может назвать другое приложение, хотя TLS-соединение прежнее.</p>
+<p>В <code>EgressPolicy</code> этой версии <code>http</code> применяется к cleartext HTTP, <code>https</code> - к расшифрованному HTTPS. Exact hostname имеет приоритет перед wildcard, named port - перед всеми ports. <code>*.example.com</code> покрывает один непустой label: <code>api.example.com</code>, но не apex <code>example.com</code> и не <code>a.api.example.com</code>. Hostnames записывают без scheme, path и port.</p>
+<p>Ниже body ресурса, не самостоятельный Kubernetes manifest. Parent Actor передаётся отдельно в API request:</p>
+<pre><code class="language-yaml">metadata:
   atespace: lab
   name: default
 rules:
 - https:
-    hostnames: ["models.example.test"]
+    hostnames: [&quot;models.example.test&quot;]
     ports:
       numbers: [443]
 </code></pre>
-<p><code>models.example.test</code> здесь обозначает ваш управляемый лабораторный endpoint. Одного такого body недостаточно для HTTPS: нужны работающий gateway в нужном режиме, DNS и CA projection в Actor. Не добавляйте <code>*</code> для компенсации отсутствующей возможности transport.</p>
-
-<h2>DNS проверяется на обеих сторонах proxy</h2>
-<p>DNS переводит имя в адрес, но ответ DNS не является разрешением на connection. Actor может успешно получить A record, а gateway отказать по policy. И наоборот, runtime resolver Actor может ошибаться, хотя DNS на gateway исправен. На intercepted HTTP-пути gateway затем резолвит разрешённое имя самостоятельно; локальный <code>/etc/hosts</code> Actor не задаёт ему конечный upstream.</p>
-<p>Начните с настроек разрешения имён реального sandbox и того же SDK, который выдаёт ошибку. <code>getent</code> использует системный механизм, включая hosts и источники имён, настроенные через NSS; <code>dig</code> обращается к DNS и помогает увидеть records и TTL. Они не обязаны повторять поведение клиента со своим resolver, proxy или DNS cache. Полезно зафиксировать имя из URL, search domains, A/AAAA, время ответа и gateway DNS result. Не переносите «работает с IP» на «работает с hostname».</p>
-<p>В v0.3.0 DNS Actor идёт через relay к configured resolvers Worker, вне внешнего egress gateway. <code>EgressPolicy</code> не фильтрует эти DNS-запросы и не выключает relay. Поэтому default-deny TCP egress не означает отсутствие DNS-канала. Если threat model требует контроля доменов или защиты от утечек через DNS, это отдельная задача resolver и сетевого enforcement, включая допустимые encrypted DNS endpoints.</p>
-<p>CDN может возвращать несколько адресов и менять их. В dual-stack окружении отдельно проверяют IPv4/IPv6, но наличие AAAA не означает, что выбранный sandbox и proxy умеют этот путь. Тайм-аут только на одном address family легко принять за случайный отказ API. С другой стороны, закреплённый IP полезен для изоляции причины, но плохо подходит как постоянная конфигурация динамического сервиса.</p>
-<p>Hostname allowlist также не защищает автоматически от DNS rebinding: разрешённое имя может начать указывать на private или link-local address. Gateway, способный резолвить пользовательские назначения, рискует стать <em>confused deputy</em> - доверенным посредником, использующим собственный доступ в интересах недоверенного Actor. Нужны ограничения сети самого gateway и проверки resolved destinations. Учитывайте разрешённые внутренние model/MCP endpoints; нельзя бездумно запрещать весь RFC1918 и одновременно ожидать доступ к internal inference.</p>
-
-<h2>Какие имена участвуют в TLS</h2>
-<p>В HTTPS есть как минимум три разных имени. URL задаёт logical destination клиента. SNI передаётся в TLS ClientHello и помогает выбрать certificate или TLS route. HTTP Host либо HTTP/2 <code>:authority</code> задаёт приложение назначения уже внутри соединения. SAN, Subject Alternative Name, перечисляет допустимые имена в certificate; его проверка подтверждает соответствие ожидаемому имени. Подставить только Host при обращении к IP недостаточно: SNI и certificate verification могут всё ещё использовать IP.</p>
-<p>В transparent Substrate path приложение обычно не знает о внешнем CONNECT. <code>atunnel</code> проверяет server certificate PEP и предъявляет Actor-specific client certificate. Это первая trust boundary. Если gateway перехватывает HTTPS, приложение проверяет выданный им leaf через gateway CA, а gateway устанавливает и проверяет TLS к origin. Это ещё две границы. Ошибка CA внутри Actor и ошибка upstream CA на gateway требуют разных исправлений.</p>
-<p>Trust bundle должен попасть в filesystem и быть подключён к используемой TLS library. Для этой версии projection <code>egress-mitm.ate.dev</code> задаётся через <code>systemInfo</code> volume. В примере ниже файл уже смонтирован как <code>/run/ate/trust-bundle.pem</code>. Это public CA material, не private key. Его наличие на диске ещё не означает, что Python, Node.js, Java, Git и curl используют один и тот же trust store.</p>
-<p>Укажите доверенный bundle явно в диагностике и затем настройте <em>реальный</em> клиент. Для Python <a href="https://requests.readthedocs.io/en/latest/user/advanced/#ssl-cert-verification">requests</a> задайте <code>verify</code> с path CA либо <code>REQUESTS_CA_BUNDLE</code> и проверьте, учитывает ли используемый flow environment. У Java отдельный truststore. У Node.js <a href="https://nodejs.org/api/cli.html#node_extra_ca_certsfile"><code>NODE_EXTRA_CA_CERTS</code></a> добавляет anchors и читается при старте процесса; явно заданный клиентом <code>ca</code> меняет этот путь. Решение о добавлении public roots или gateway-only trust должно быть осознанным. Не превращайте <code>curl -k</code> в исправление: с ним исчезает проверка identity TLS peer, которую вы пытаетесь доказать.</p>
-<p>Projection текущих anchors обновляется на Run/Restore, но процесс может держать старый trust store в памяти, особенно после Full restore. Rotation требует overlap, reconnect и при необходимости reload TLS client или перезапуск процесса. Snapshot из главы 39 не делает старый certificate, token или cached session вновь действительным.</p>
-
-<h2>Что на самом деле проверяют команды</h2>
-<p>Следующие команды выполняются <em>внутри нужного Actor</em> на безопасном лабораторном endpoint. Диагностические утилиты лучше заранее включить в отдельный debug image, а не устанавливать packages через открытый internet во время инцидента. Здесь предполагается Linux, GNU <code>timeout</code>, OpenSSL 3 и смонтированный gateway CA. Команды - примеры проверок, а не основание автоматически повторять изменяющий запрос.</p>
-<pre><code class="language-bash">getent ahosts models.example.test
+<p>Имя <code>.test</code> обозначает ваш управляемый лабораторный endpoint. Этот body ограничивает назначение, но не создаёт DNS, CA projection или поддержку нужного протокола. В частности, <code>tls_passthrough</code> присутствует в API v0.3.0, однако <code>SNIRules</code> исключает такие rules из classifier описанного Envoy-пути. Нельзя выбирать его для end-to-end TLS только потому, что schema приняла правило. Приложение с origin certificate pinning потребует поддерживаемого пути без подмены leaf либо изменения своего trust contract.</p>
+<p>WebSocket, gRPC, STARTTLS и другие transports проверяйте по рабочему dataplane. Разрешение TCP port 443 не создаёт HTTP/3 поверх QUIC: для него нужен поддерживаемый UDP-путь. Требования протокола нужно установить до переноса клиента, а не компенсировать неподдерживаемый transport правилом на все назначения.</p>
+<h2>Почему DNS проверяют с двух сторон</h2>
+<p>Actor сначала должен разрешить имя по правилам своего клиента. На intercepted HTTP-пути gateway затем сам резолвит разрешённый hostname для upstream. Между этими действиями могут отличаться resolver, cache, search domains и момент запроса. Ответ Actor не обязан совпасть с ответом gateway.</p>
+<p>В Substrate v0.3.0 DNS Actor проходит через relay к configured resolvers Worker, вне внешнего egress gateway. <code>EgressPolicy</code> не фильтрует эти запросы и не отключает relay. Default-deny для TCP-направлений поэтому не закрывает DNS-канал. Контроль DNS-доменов и защита от утечки через DNS потребуют отдельного resolver и сетевого enforcement.</p>
+<p>Для первого разбора полезны <code>getent ahosts</code> и <code>dig</code>, но они отвечают на разные вопросы. <code>getent</code> использует системные источники разрешения, включая hosts и NSS; <code>dig</code> обращается к DNS. SDK может иметь собственный resolver или cache. Сопоставьте результат с поведением именно того клиента, который выдаёт ошибку, и отдельно проверьте DNS gateway. При dual-stack учитывайте A/AAAA и фактическую поддержку выбранного address family.</p>
+<p><code>curl --resolve</code> позволяет закрепить адрес dial, сохранив hostname URL, SNI и проверку сертификата. Однако gateway на intercepted пути может снова выбрать upstream по своему DNS. Такой эксперимент изолирует resolver клиента, но не обязательно фиксирует конечный backend. Доказывать выбор backend нужно gateway/origin evidence, а не только значением client <code>remote_ip</code>.</p>
+<p>Hostname allowlist также не описывает все допустимые IP за именем. При DNS rebinding разрешённый домен может начать указывать на private или link-local адрес. Ограничивайте назначения, доступные самому gateway, и проверяйте разрешённые внутренние endpoints по вашей модели угроз. Широкий доступ proxy способен превратить его в confused deputy - доверенного посредника, использующего собственные права по поручению недоверенного клиента. Проверки проводите только на своих canaries; реальные metadata credentials и чужие внутренние сервисы для этого не нужны.</p>
+<h2>Где именно проверяется TLS</h2>
+<p>TLS создаёт защищённый канал с конкретным peer. Клиент проверяет, что сертификат действителен, выпущен для ожидаемого имени и связан цепочкой подписей с доверенным CA - центром сертификации. Trust store хранит такие доверенные сертификаты. Если добавить туда CA посредника, клиент сможет принять выпущенный посредником сертификат для нужного имени. Это осознанная передача доверия: gateway получает возможность читать запрос и становится новой границей защиты данных.</p>
+<p>В transparent-пути приложение обычно не знает о внешнем CONNECT. <code>atunnel</code> проверяет PEP и предъявляет сертификат Actor по mTLS. Внутри tunnel приложение проверяет TLS peer. В sdsmint режиме этим peer оказывается gateway с выданным им leaf, а gateway устанавливает ещё одно TLS-соединение к origin. Получаются три проверки с разными участниками.</p>
+<p>Если приложению неизвестен gateway CA, отказ произойдёт до его HTTP request. Если приложение доверяет gateway, но gateway не доверяет origin CA, первая TLS-граница уже пройдена, а вторая ещё нет. Добавление origin CA только внутрь Actor второй случай не исправит. В incident record называйте leg: «client -&gt; gateway» или «gateway -&gt; origin», а не просто «ошибка SSL».</p>
+<p>Проекция <code>egress-mitm.ate.dev</code> через <code>systemInfo</code> volume делает CA material доступным в filesystem Actor. Она не содержит private key и не заставляет все библиотеки автоматически пользоваться этим файлом. Для <code>curl</code> в диагностике можно явно задать <code>--cacert</code>; Python, Node.js, Java и Git требуют настройки своего фактического TLS stack. Проверяйте документацию выбранного SDK и его способ создания клиента, особенно если он задаёт собственный <code>ca</code> или игнорирует environment.</p>
+<p>После Full restore процесс способен сохранить старый trust store в памяти. В v0.3.0 projection перечитывается на Run/Restore, но загруженный приложением pool не обязан обновиться. Rotation требует overlap и понятного момента reload/reconnect. Snapshot возвращает среду, но не продлевает срок сертификата, credentials или прежней TLS session.</p>
+<h2>Практика на настоящем локальном HTTPS</h2>
+<p><a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/main/examples/ch40_https_boundary.py">examples/ch40_https_boundary.py</a> поднимает три HTTPS-сервера в одном процессе Python: учебный gateway, разрешённый origin и canary для запрещённого назначения. Все sockets привязаны к <code>127.0.0.1</code>, ports выбирает система. Через OpenSSL создаются временные test CAs и сертификаты. Клиент и gateway действительно выполняют TLS handshake с проверкой цепочки и hostname.</p>
+<p>Для запуска нужны Python 3.13 и OpenSSL CLI 3.x; сторонние Python packages не нужны:</p>
+<pre><code class="language-sh">python3 examples/ch40_https_boundary.py
+python3 -m unittest discover -s examples -p 'test_ch40_https_boundary.py'
+</code></pre>
+<p>У gateway свой test CA, у двух upstream canaries - другой. Клиент доверяет первому, gateway для upstream - второму. Dial закреплён на loopback с отдельным <code>server_hostname</code>: имена <code>.test</code> не резолвятся через публичный DNS. Это позволяет менять trust или имя, не зависеть от интернета и не отключать verification.</p>
+<p>Сначала запускается <code>/health</code>: origin возвращает 200. Затем тот же путь проверяется через <code>/v1/probe</code>, которому нужен тестовый credential. Ответ - 401 от origin, и это видно в его журнале. Сеть до приложения работает; конкретная прикладная операция ещё не разрешена. После явной настройки тестового credential probe возвращает marker <code>probe_ok</code>, не раскрывая token.</p>
+<p>Для отрицательной проверки canary сначала проверяется напрямую: она жива и отдаёт 200. Затем запрос с её hostname проходит через gateway и получает policy deny. Журнал gateway содержит <code>policy_deny</code>, а origin/canary не получили HTTP request с этим request ID. Отдельный control test временно разрешает этот hostname в учебной конфигурации и доказывает, что маршрут до canary действительно пригоден.</p>
+<table class="keep">
+<thead>
+<tr>
+<th>Сценарий demo</th>
+<th>Что видит клиент</th>
+<th>Где находится подтверждение причины</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>health</code></td>
+<td>200, <code>listener_ok</code></td>
+<td>Origin получил health request</td>
+</tr>
+<tr>
+<td><code>missing_credential</code></td>
+<td>401 от origin</td>
+<td>Gateway allow, затем HTTP request у origin</td>
+</tr>
+<tr>
+<td><code>allowed</code></td>
+<td>200, <code>probe_ok</code></td>
+<td>Обе TLS-границы пройдены, origin подтвердил probe</td>
+</tr>
+<tr>
+<td><code>denied</code></td>
+<td>403 от gateway</td>
+<td>Policy deny, HTTP request не дошёл ни до одного origin</td>
+</tr>
+<tr>
+<td><code>wrong_client_ca</code></td>
+<td>Ошибка TLS, HTTP status отсутствует</td>
+<td>Gateway HTTP handler не получил request</td>
+</tr>
+<tr>
+<td><code>wrong_upstream_ca</code></td>
+<td>502 от gateway</td>
+<td>Client TLS пройден; gateway зафиксировал upstream TLS failure</td>
+</tr>
+</tbody>
+</table>
+<p>Для последнего случая существенная часть вывода выглядит так:</p>
+<pre><code class="language-json">{
+  &quot;status&quot;: 502,
+  &quot;emitter&quot;: &quot;gateway&quot;,
+  &quot;marker&quot;: &quot;upstream_tls_failed&quot;,
+  &quot;client_tls&quot;: &quot;VERIFIED&quot;,
+  &quot;origin_received&quot;: false,
+  &quot;automatic_policy_changes&quot;: 0
+}
+</code></pre>
+<p>Здесь 502 - соглашение учебного gateway, а не универсальный код для Substrate или любого proxy. Причина установлена по обеим сторонам: клиент проверил gateway, затем gateway отклонил origin certificate, не отправив HTTP request. Расширение hostname allowlist не изменит доверие второй TLS-границы.</p>
+<p>В эксперименте каждый запрос получает уникальный ID, по которому сопоставляются события всех трёх серверов. Поле <code>emitter</code> берётся из контролируемой лаборатории и проверяется её журналами. Произвольный <code>X-Lab-Emitter</code>, полученный из внешнего response, не является доказательством происхождения. То же относится к отсутствию request: здесь журнал полный и проверка синхронная; в реальном distributed logging пропуски, sampling и задержка доставки требуют отдельного учёта.</p>
+<h3>Что проверяет и чего не проверяет эксперимент</h3>
+<p>Он исполняет реальные loopback TCP/TLS/HTTP запросы, включая отказ сертификата и policy deny к доступному серверу. Тесты проверяют SNI и authority по отдельности, разграничение trust anchors и отсутствие token в публичном evidence. В примере нет кода, который автоматически расширяет policy после ошибки.</p>
+<p>Это учебный reverse proxy с фиксированными routes и простыми exact-name rules. Он не реализует Substrate, Envoy, mTLS CONNECT, transparent interception, DNS relay, CredentialProvider, wildcard matching, streaming или MCP. Передача фиксированного тестового credential не проверяет настоящий brokering. Внешние сервисы и реальные model API не вызываются; временные ключи удаляются вместе с лабораторией. Успех этого теста не доказывает работоспособность стенда AX/Substrate.</p>
+<h2>Как перенести диагностику внутрь Actor</h2>
+<p>Теперь вернёмся к реальному incident. Зафиксируйте Task atespace/name, прикладной run и incarnation, Actor name и UID, SDK/image versions, время и gateway mode. В AX <code>ac233282</code> нет Task metadata UID; его нельзя подменять Actor UID. Запишите hostname и path без secrets, версию policy и ожидаемый read-only результат.</p>
+<p>Ниже диагностические команды для нужного Actor и вашего лабораторного origin. Предполагаются GNU <code>timeout</code>, OpenSSL 3, curl и смонтированный CA bundle. Утилиты лучше заранее включить в debug image. Endpoint должен принадлежать вам; команды не предназначены для сканирования чужой сети.</p>
+<pre><code class="language-sh">getent ahosts models.example.test
 
 timeout 5s nc -vz models.example.test 443
 
@@ -12202,86 +12289,37 @@ curl --noproxy '*' --cacert /run/ate/trust-bundle.pem \
   -w 'http=%{http_code} peer=%{remote_ip}\n' \
   https://models.example.test/health
 </code></pre>
-<p><code>nc</code> сообщает о TCP connect, но в перехваченном пути это может быть принятие connection локальным tunnel, а не достижение origin. Без ClientHello или HTTP request ещё не сработала проверка destination. <code>openssl s_client</code> показывает TLS; <code>-verify_hostname</code> и <code>-verify_return_error</code> важны, потому что простой диагностический handshake может продолжаться после ошибки проверки certificate. Timeout ограничивает зависание, а не подтверждает deny.</p>
-<p><code>curl</code> добавляет HTTP outcome. <code>--fail-with-body</code> превращает HTTP 4xx/5xx в ненулевой exit code, но 3xx не становится успешной проверкой API: проверяйте ожидаемый status. Здесь redirect намеренно не следует автоматически. <code>--noproxy '*'</code> отключает proxy из environment для этого клиента, но не обходит transparent interception Substrate. Если приложение использует explicit proxy, проведите отдельный test с той же настройкой; для HTTPS proxy его CA проверяется отдельно от CA конечного server.</p>
-<p>Не выгружайте весь environment, headers и verbose trace в общий incident ticket: там могут быть proxy credentials, bearer tokens, cookies и чувствительные response bodies. Для расследования достаточно очищенных адресов, verdict, certificate issuer/SAN, timing и correlation IDs. Debug output с secrets хранится только в разрешённом защищённом месте.</p>
-
-<h2>Как отделить DNS от SNI и маршрута</h2>
-<p>Для обычного direct HTTPS client полезен <code>--resolve</code>: адрес меняется, а имя URL, SNI и certificate verification сохраняются. На своём стенде подставьте актуальный адрес тестового origin:</p>
-<pre><code class="language-bash">curl --noproxy '*' --cacert /run/ate/trust-bundle.pem \
-  --resolve models.example.test:443:192.0.2.20 \
-  --connect-timeout 5 --max-time 15 --fail-with-body \
-  -sS -o /dev/null https://models.example.test/health
-</code></pre>
-<p><code>192.0.2.20</code> - documentation address, не готовый working endpoint. На intercepted hostname-routing path gateway может снова dial'ить hostname по собственному DNS. Тогда этот test изолирует client-side resolver, но <em>не</em> закрепляет upstream gateway. Проверяйте proxy logs и реальный dial address, прежде чем делать вывод «конкретный backend исправен». При explicit proxy DNS также может выполняться на proxy.</p>
-<p>Если TLS завершается ошибкой, сопоставьте ожидаемое имя, отправленный SNI, полученный leaf, issuer, SAN, validity interval и доверенные anchors. Затем отдельно проверьте trust и route gateway к origin. Сертификат с подходящим SAN не доказывает policy allow; разрешённая policy не заставляет принять просроченный certificate. ECH и нестандартный ClientHello нужно проверять на выбранной реализации: схема, основанная на видимом SNI, не получает доступ к скрытому inner name автоматически.</p>
-
-<h2>HTTP response ещё не означает работоспособность агента</h2>
-<p><code>/health</code> может вернуть 200 без model availability, нужных permissions или поддерживаемого API. Следующий test должен воспроизвести минимальную безопасную операцию тем же SDK: правильный URL path, method, content type и authentication. Для inference это короткая ограниченная generation с нужной моделью; для MCP over HTTP - разрешённый read-only вызов по выбранной revision. В modern <code>2026-07-28</code> используется per-request <code>_meta</code>, а discovery клиента не является обязательным предварительным вызовом; legacy <code>2025-11-25</code> использует initialize и свои session/version semantics. Не смешивайте эти профили. Local stdio MCP server имеет другой сетевой путь: outbound connections создаёт его процесс, а не «MCP» как абстракция.</p>
-<p>Streaming проверяют отдельно: появился ли первый полезный chunk, дошёл ли завершающий message, корректно ли работает cancellation. Gateway может буферизовать response, оборвать idle stream или не поддерживать нужный upgrade. Успех короткого GET не доказывает HTTP/2, gRPC или долгую generation. Согласуйте connect, request, idle и end-to-end deadlines с реальной длительностью работы, а не увеличивайте все timeouts до бесконечности.</p>
-<p>HTTP 401/403 может прийти от origin, egress policy, credential provider или другого reverse proxy. Один status без emitter и correlated logs неоднозначен. 502/503 тоже не всегда «model упала»: возможны DNS, upstream TLS, provider failure или перегрузка gateway. А timeout после отправки изменяющей операции оставляет outcome неизвестным. Для <code>op-17</code> из глав 37-39 сначала сверяйте внешний operation ledger или effect; сетевой retry не заменяет idempotency.</p>
-
-<h2>Credentials остаются отдельной границей доступа</h2>
-<p>Credential injection позволяет gateway добавить API credential перед отправкой upstream, не помещая его в env, filesystem или snapshot Actor. Это полезно для длительно живущих агентов с недоверенным кодом. Но «Actor не видит token» не означает «Actor не может использовать его полномочия»: разрешённые вызовы всё равно выполняются с этим credential. Нужны узкие permissions origin, destination allowlist и при необходимости method/tool-level ограничения.</p>
-<p>В Substrate v0.3.0 на Envoy injection требует HTTPS MITM leg и подключённого provider. Если provider отсутствует или leg cleartext, реализация пропускает injection и отправляет request без добавленного credential. Когда provider подключён и FetchSecret действительно выполняется, missing secret или запрещённый scope дают 403, временная недоступность provider - 503. Поэтому само наличие <code>replaceHeaders</code> в policy не является fail-closed проверкой готовности всей установки.</p>
-<p>Есть ещё точное ограничение этой версии: <code>applyEffects</code> использует <code>OVERWRITE_IF_EXISTS_OR_ADD</code> и не проверяет presence placeholder header перед FetchSecret. Нельзя использовать отсутствие Authorization в request как надёжный способ отказаться от injection. Если нужен opt-in отдельного вызова, выделите отдельный route/endpoint и policy boundary либо проверьте реализацию версии, где этот контракт обеспечен.</p>
-<p>Проверка injection выполняется на <em>собственном</em> canary origin с тестовым credential. Origin подтверждает нужную identity и возвращает только безопасный marker, а не значение token. Public echo service, возвращающий входные headers, может раскрыть secret обратно Actor и записать его в workspace или snapshot. Не тестируйте credential brokering посредством отправки production key в чужой diagnostic API.</p>
-
-<h2>MCP gateway выбирают по операциям и trust model</h2>
-<p>Если агенту нужны десятки сервисов, общий gateway может централизовать authentication, quotas и audit. Но сначала выпишите необходимую функцию. Для hostname restriction хватит сетевого proxy. Для запрета конкретного MCP tool, проверки arguments, user-scoped identity или approval нужен processor, понимающий прикладной протокол. Для DLP, контроля утечки данных, требуется отдельная реализация анализа содержимого; обычная EgressPolicy её не добавляет.</p>
-<p>Проверьте, какие transports, streaming, session IDs, redirects и versions поддерживает выбранный шлюз. Кто аутентифицирует Actor и конечного пользователя? Какие права он выдаёт upstream? Как различает два Tasks, восстанавливается после resume и отзывает access? Не передавайте один общеплатформенный token всем downstream services. Шлюз может стать единой точкой отказа и чрезмерно доверенным посредником, поэтому его собственные RBAC, сети, credentials и audit требуют той же дисциплины, что control plane.</p>
-<p>Destination allowlist не запрещает отправлять конфиденциальные данные в разрешённый model API или выполнять нежелательный tool на разрешённом MCP server. Эта граница остаётся у harness, tool authorization и origin. При выборе инструмента используйте главы 24, 36 и 37: сеть уменьшает поверхность, но не понимает автоматически смысл агентного действия.</p>
-
-<h2>Проверки deny должны исключать ложный успех</h2>
-<p>Отказ засчитывается, только если он произошёл на ожидаемой границе и запрос не достиг origin. Несуществующий hostname даёт «ошибку», но ничего не говорит о egress policy. Для отрицательной проверки используйте живой, контролируемый canary endpoint и подтвердите gateway verdict вместе с отсутствием request на canary. Это отличает policy deny от DNS failure, недоступного server и client timeout.</p>
-<table style="break-inside:avoid"><thead><tr><th>Проверка на стенде</th><th>Ожидаемое доказательство</th></tr></thead><tbody>
-<tr><td>Разрешённый hostname и port</td><td>Ожидаемый application result, gateway allow и request на нужном origin</td></tr>
-<tr><td>Живой запрещённый hostname или другой port</td><td>Policy deny; origin не получил request</td></tr>
-<tr><td>Wildcard, apex и nested label</td><td>Работает только предусмотренная область совпадения</td></tr>
-<tr><td>Подмена имени и попытка direct IP к canary</td><td>Нет обращения к произвольному адресу за счёт разрешённого Host/SNI</td></tr>
-<tr><td>Redirect к другому canary hostname</td><td>Каждое новое назначение проходит отдельную проверку</td></tr>
-<tr><td>Revoke policy и уже открытый stream</td><td>Измерен момент отказа новых requests и отдельная судьба in-flight stream</td></tr>
-</tbody></table>
-<p>Private ranges, loopback и link-local проверяют только согласованными безопасными probes к собственным canaries или по инфраструктурным policy tests. Не читайте реальные cloud metadata credentials и не сканируйте чужие internal services. Для DNS rebinding используйте свою test zone и безвредный backend. Задача - подтвердить ограничение, а не получить доступ к секрету.</p>
-
-<h2>Rollout policy и зависимости после resume</h2>
-<p>У gateway несколько независимых caches: policy, DNS, connections, TLS sessions, provider credentials и данные приложения. В Envoy handler v0.3.0 per-Actor policy cache по умолчанию живёт 10 секунд; TTL можно настроить или отключить. Сохранённая новая policy поэтому не означает мгновенный verdict на всех replicas. Сверяйте version и наблюдайте новые requests после обновления, а не только результат PUT.</p>
-<p>Решение для HTTP принимается на request headers, не на каждом байте response. Уже разрешённый stream может продолжаться после revoke. Для настоящего passthrough в реализации, где он поддержан, решение обычно привязано к connection. Срочный отзыв требует отдельного плана: закрытие sessions, блокировка сети или upstream credential revocation с измеренным временем. Ни policy TTL, ни Full snapshot не дают гарантии мгновенно отменить уже отправленное действие.</p>
-<p>До rollout составьте dependency inventory. Model API и MCP принадлежат runtime Actor. Pull OCI image выполняет инфраструктура, а не agent process. NTP и получение certificate могут быть обязанностью host/control plane; разрешать Actor произвольный UDP ради них не нужно. Git clone, package installation и telemetry из Actor, напротив, требуют его egress path. Перенос dependencies в immutable image позволяет оставить production policy уже, но не отменяет DNS и runtime API.</p>
-<p>После resume заново проверьте полезную операцию и deny boundary. Старые connections, loaded trust store, credentials и DNS cache могут не соответствовать новой execution. Сравните непрерывно работающий Actor, fresh boot и восстановленный Actor: единичный успех до suspend не закрывает acceptance восстановления.</p>
-
-<h2>Как разбирать инцидент и измерять задержку</h2>
-<p>Сначала запишите <code>atespace/name</code> Task и её прикладную incarnation, отдельно Actor name и UID, execution identity, URL без secrets, timestamp, SDK/image versions, gateway mode и policy version. В AX <code>ac233282</code> нет Task metadata UID; Actor UID принадлежит API Substrate. Затем двигайтесь от первого неподтверждённого слоя. Если даже DNS Actor не работает, не начинайте с расширения destination allowlist. Если gateway отказал по имени, не меняйте CA. Если TLS прошёл и origin вернул 401, ищите authentication boundary, а не WorkerPool capacity.</p>
-<table style="break-inside:avoid"><thead><tr><th>Симптом</th><th>Следующая проверка</th><th>Опасный поспешный вывод</th></tr></thead><tbody>
-<tr><td>Имя не разрешается</td><td>Resolver Actor, DNS relay, worker DNS, затем отдельно gateway DNS</td><td>«Надо разрешить всё в egress»</td></tr>
-<tr><td>TCP connect есть, дальше timeout</td><td>Inner protocol, ClientHello, gateway classification и upstream dial</td><td>«Сеть уже точно исправна»</td></tr>
-<tr><td>Certificate validation failure</td><td>На какой TLS leg отказ; expected name, CA и validity</td><td>«Надо выключить verification»</td></tr>
-<tr><td>403 или 503</td><td>Emitter, Actor identity, rule match, provider и origin logs</td><td>«Это однозначно ответ model API»</td></tr>
-<tr><td>Health 200, generation не работает</td><td>Actual SDK, protocol, streaming, auth и model queue</td><td>«Gateway проверен полностью»</td></tr>
-</tbody></table>
-<p>Для curl можно собрать <code>time_namelookup</code>, <code>time_connect</code>, <code>time_appconnect</code>, <code>time_starttransfer</code> и <code>time_total</code>. Это накопленные времена от начала transfer; их нельзя сложить как независимые интервалы. В proxied path они включают видимые клиенту legs и не разделяют автоматически все DNS/TLS upstream. Сопоставляйте их с proxy logs, origin timing и model request ID. Точное совпадение таймеров не заменяет correlation.</p>
-<p>Под нагрузкой отдельно наблюдайте gateway connection/stream limits, pending DNS lookups, ext_proc latency, provider latency и origin queue. Retries нескольких слоёв могут усилить перегрузку. Один удачный request через gateway подтверждает функциональность, но не capacity для десятков одновременно активных агентов. Это подводит к главе 41: после проверки пути до inference endpoint нужно разобраться, сколько полезных generations он способен обслужить.</p>
-
-<div class="keep"><h2>Практикум сетевой границы</h2>
-<p>Используйте изолированный Actor, два управляемых HTTPS origins и только тестовые credentials. Подготовьте протокол проверки: input, ожидаемый verdict, наблюдение внутри Actor, gateway record, origin record и итог. Следующие восемь шагов можно выполнять постепенно:</p>
-<ol>
-<li>Зафиксируйте version, dataplane и реальный маршрут Actor. Сравните probe из admin Pod и из sandbox, не принимая первый за доказательство второго.</li>
-<li>Проверьте DNS Actor и gateway отдельно. Временно задайте свой controlled resolver failure и убедитесь, что отличаете его от policy deny.</li>
-<li>Разрешите один hostname и port. Проверьте CA, SAN и read-only application operation тем же SDK, который использует агент.</li>
-<li>Добавьте живой denied canary, неверный port и wildcard boundaries. Подтвердите gateway deny и отсутствие request у origin.</li>
-<li>Проверьте redirect и сохранение hostname при <code>--resolve</code>. По proxy logs определите, чей DNS выбрал upstream.</li>
-<li>На canary credential проверьте configured provider, отказ authorization и provider outage. Не возвращайте token Actor; зафиксируйте поведение request без placeholder.</li>
-<li>Отзовите доступ при открытом stream. Измерьте cache propagation, новые requests и время закрытия существующей операции отдельно.</li>
-<li>Повторите allow/deny и SDK probe после suspend/resume и контролируемой CA rotation. Сохраните recovery evidence без секретов.</li>
-</ol>
-<p>Граница считается проверенной, когда инженер может объяснить, кто выбрал destination, кто подтвердил identity, где принято решение allow/deny, какие TLS legs проверены и что произошло с прикладной операцией. Зелёный status объекта полезен, но он не заменяет эту цепочку.</p>
-<div class="sources" style="font-size:8.2pt"><strong>Источники и дальнейшее чтение</strong><ul>
-<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/pkg/proto/ateapipb/ateapi.proto">Substrate v0.3.0 EgressPolicy API</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/egresspolicy/egresspolicy.go">policy evaluator</a>: matching и ограничение passthrough.</li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/request.go">Request authorization</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/credentials.go">credential implementation</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/policycache.go">policy cache</a>: actual v0.3.0 behavior.</li>
-<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-trust-bundle.md">DNS relay и CA projection</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/manifests/ate-install/atenet-egress-with-sdsmint.yaml">Envoy/sdsmint configuration</a>: раздельные TLS legs.</li>
-<li><a href="https://curl.se/docs/manpage.html">curl options</a>, <a href="https://curl.se/docs/sslcerts.html">certificate verification</a> и <a href="https://everything.curl.dev/usingcurl/connections/name.html">name resolution overrides</a>; <a href="https://docs.openssl.org/3.0/man1/openssl-s_client/">OpenSSL 3 s_client</a>: пределы diagnostic probes.</li>
-<li><a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">Kubernetes NetworkPolicy</a> и <a href="https://www.envoyproxy.io/docs/envoy/latest/configuration/http/http_filters/dynamic_forward_proxy_filter">Envoy dynamic forward proxy</a>: enforcement layers и защита самого proxy.</li>
-</ul></div></div>
+<p>У каждого шага свой предел. <code>nc</code> мог подключиться к локальному tunnel до проверки внутреннего назначения. OpenSSL проверяет TLS, но не авторизацию нужного API; <code>-verify_return_error</code> заставляет завершиться при ошибке verification. curl добавляет HTTP outcome, однако успешная проверка требует ожидаемого status и результата, а не просто exit code 0. <code>--fail-with-body</code> ловит HTTP 4xx/5xx, но 3xx не превращает redirect в доказательство работоспособности API.</p>
+<p><code>--noproxy '*'</code> исключает environment proxy для этого curl, сохраняя transparent interception. Если SDK использует explicit proxy, проверьте отдельно его реальную конфигурацию. У HTTPS proxy собственная TLS-проверка, отличная от проверки конечного сервера. Redirect в примере не следует автоматически: каждое новое назначение должно пройти свою policy и правила передачи credentials.</p>
+<p>Для изоляции resolver клиента можно добавить <code>--resolve models.example.test:443:192.0.2.20</code>, подставив реальный IP своего стенда. <code>192.0.2.20</code> - documentation address. Проверка имени остаётся включённой; на intercepted пути upstream gateway всё равно может выбрать другой адрес по собственному DNS. <code>curl -k</code> для этого опыта не нужен: с ним исчезло бы как раз проверяемое свойство identity TLS peer.</p>
+<p>Не помещайте полный environment, Authorization headers и verbose body в общий incident ticket. Сохраняйте очищенные адреса, request IDs, verdict, certificate issuer/SAN, timing и безопасный marker. Если для расследования действительно нужны чувствительные traces, у них должен быть отдельный защищённый режим доступа и срок хранения.</p>
+<h2>Почему credential injection требует собственной проверки</h2>
+<p>Gateway может добавить credential на пути к upstream, не оставляя его в env или snapshot Actor. Это уменьшает число мест хранения секрета. При этом агент всё ещё использует его полномочия через разрешённые обращения. Нужны ограниченные права origin, узкие destinations и, где необходимо, контроль method/tool и arguments.</p>
+<p>В v0.3.0 <code>applyEffects</code> выполняет injection только на TLS MITM leg при подключённом provider. На cleartext leg или без provider injection пропускается, а request идёт без добавленного credential. Поэтому запись <code>replaceHeaders</code> в policy не является fail-closed проверкой всей установки. При тестировании нужно увидеть, кто реально запросил secret и с чем origin получил обращение.</p>
+<p>Если FetchSecret действительно вызван, missing secret или запрещённый scope приводят к 403, временная недоступность provider - к 503. Есть и второе ограничение: <code>OVERWRITE_IF_EXISTS_OR_ADD</code> добавляет header даже без placeholder в исходном request. Отсутствие Authorization поэтому не является способом отказаться от injection для отдельного вызова. Нужен отдельный route/policy boundary или реализация с проверенным opt-in контрактом.</p>
+<p>Проверяйте brokering на собственном canary origin с тестовым credential. Origin должен подтвердить нужную identity безопасным marker, не возвращая token. Public echo service может раскрыть injected secret обратно Actor; затем он попадёт в logs, workspace или snapshot. Изоляция секрета в gateway сохраняет смысл только вместе с ограничением доступных операций и содержания ответов.</p>
+<h2>Как проверить нужный API и его протокол</h2>
+<p>После health выполните минимальную разрешённую операцию тем же SDK, которым работает агент: нужный path, method, content type, authentication и application result. Для inference это короткий ограниченный запрос к нужной модели; для MCP - read-only операция в выбранном protocol profile. Роли и profiles разбирались в главах 6 и 36. Не навязывайте initialization всем MCP clients: modern профиль книги <code>2026-07-28</code> использует per-request metadata, legacy <code>2025-11-25</code> - initialization и session/version semantics. Локальный stdio server создаёт свои outbound connections отдельным процессом.</p>
+<p>Streaming проверяется дополнительно: первый полезный chunk, завершение сообщения, idle interval и cancellation. Proxy может буферизовать ответ или закрывать соединение по idle timeout, хотя короткий GET проходит. HTTP/2, gRPC, WebSocket и длинная generation требуют проверки реального режима. Повышать deadline имеет смысл после измерения нужного участка ожидания, а не как универсальное лечение всех timeout.</p>
+<p>Если требуется запрет отдельного MCP tool или user-scoped approval, выбирайте gateway, понимающий соответствующую операцию. Сравните transport revisions, authentication конечного пользователя, выдаваемые upstream permissions, streaming, audit и отзыв доступа. Hostname allowlist разрешённого model API не предотвращает отправку туда чувствительных данных; это остаётся задачей harness и прикладной policy. Общий gateway также становится зависимостью всех клиентов, поэтому его собственные сети, RBAC и credentials требуют защиты.</p>
+<p>После timeout изменяющего вызова возвращайтесь к operation contract глав 37-39. Отсутствующий ответ не отменяет уже применённую <code>op-17</code>. Повтор соединения для безопасного probe и повтор внешней mutation - разные решения; второе требует сверки ledger или effect и разрешённого retry.</p>
+<h2>Как учитывать caches и отзыв доступа</h2>
+<p>Policy, DNS, TLS sessions, provider credentials и SDK connections обновляются независимо. В Envoy handler этого среза policy cache имеет default TTL 10 секунд, который можно изменить или отключить. Сохранение новой policy не означает мгновенный verdict на всех replicas. Проверяйте новые requests после обновления и фиксируйте, какой policy revision видел обработчик.</p>
+<p>HTTP-решение принимается при обработке request headers. Уже разрешённый stream может продолжиться после revoke; cache TTL не задаёт срок его принудительного закрытия. Срочный отзыв требует отдельного плана: завершение sessions, сетевое ограничение или отзыв upstream credential. Измеряйте момент отказа новых обращений и судьбу in-flight операции отдельно. Для passthrough в другой поддерживаемой реализации граница решения может вообще проходить по connection.</p>
+<p>После resume проверьте allow, deny и SDK operation заново. Сравните непрерывно работающий Actor, fresh boot и восстановленную среду: loaded trust store и cached sessions могут различаться. Не все зависимости принадлежат Actor: OCI image pull выполняет инфраструктура, а host NTP не требует разрешать произвольный UDP агенту. Git clone, package installation и runtime API из sandbox, напротив, входят в его egress inventory. Подготовка immutable image часто позволяет сузить production destinations.</p>
+<h2>Как завершить расследование</h2>
+<p>Для <code>lab/network-017</code> полезен итог не «интернет работает», а конкретная цепочка: DNS выбран нужным resolver, Actor прошёл предусмотренную authentication, gateway разрешил нужное назначение, проверены нужные TLS legs, origin подтвердил безопасную операцию. Рядом сохраните отрицательную проверку живого canary и основания считать, что запрещённый request не дошёл до него.</p>
+<p>Диагностику начинайте с первого неподтверждённого участка. При client certificate error проверьте ожидаемое имя и trust store; при gateway deny - identity и rule match; при origin 401 - authentication API. HTTP status без emitter и correlated evidence неоднозначен. Тайм-аут сам по себе не доказывает ни policy deny, ни отсутствие эффекта.</p>
+<p>Для latency сопоставьте клиентские накопленные <code>time_namelookup</code>, <code>time_connect</code>, <code>time_appconnect</code>, <code>time_starttransfer</code> и <code>time_total</code> с gateway и origin timing. Их нельзя сложить как независимые интервалы. Наблюдайте connection/stream limits, pending DNS, ext_proc и provider latency, очередь origin и усиливающие нагрузку retries. К концу этой главы нужен проверенный путь до inference endpoint; в главе 41 выясним, какую полезную нагрузку он способен обслужить и как выбирать ресурсы под неё.</p>
+<div class="sources"><h3>Источники и дальнейшее чтение</h3>
+<ul>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/egress.go">Substrate v0.3.0 egress handler</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/request.go">request authorization</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/egresspolicy/egresspolicy.go">policy evaluator</a>.</li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/credentials.go">Credential injection</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/cmd/atenet/internal/router/egress/policycache.go">policy cache</a> и <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/docs/egress-trust-bundle.md">CA projection/DNS relay</a>.</li>
+<li><a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/manifests/ate-install/atenet-egress-with-sdsmint.yaml">Envoy/sdsmint deployment</a>, <a href="https://github.com/agent-substrate/substrate/blob/ccecc788a327dc11dcd6c21ee153f3d0cbb5cc97/internal/atunnel/egress.go">atunnel egress</a>.</li>
+<li><a href="https://curl.se/docs/sslcerts.html">curl certificate verification</a>, <a href="https://everything.curl.dev/usingcurl/connections/name.html">name resolution overrides</a>, <a href="https://docs.openssl.org/3.0/man1/openssl-s_client/">OpenSSL s_client</a> и <a href="https://docs.python.org/3.13/library/ssl.html">Python ssl</a>.</li>
+<li><a href="https://kubernetes.io/docs/concepts/services-networking/network-policies/">Kubernetes NetworkPolicy</a>; protocol profiles и источники MCP - в главах 6 и 36.</li>
+</ul>
+</div>
 </section>
 <section class="chapter" id="ch-41">
 <div class="chapter-num">Глава 41</div>
