@@ -4,7 +4,9 @@ import tempfile
 import unittest
 
 from bs4 import BeautifulSoup
-from example_catalog import check_example_catalog, examples_readme
+from example_catalog import (check_example_catalog, examples_readme,
+                             WEB_SECTION_TARGETS, WEB_SECTION_HEADINGS,
+                             add_web_section_anchors, check_web_section_anchors)
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -68,6 +70,22 @@ class ExampleCatalogTests(unittest.TestCase):
         self.assertIn("../docs/32-labs.md", text)
         self.assertIn("../docs/04-agent-harness.md", text)
         self.assertIn("51572b91c04609b6a234418896bc43fdb64b5bd5", text)
+
+    def test_gitbook_fragments_have_explicit_github_aliases(self):
+        for key, target in WEB_SECTION_TARGETS.items():
+            page, fragment = target.split("#")
+            marker = "### " + WEB_SECTION_HEADINGS[key] + "\n"
+            self.assertTrue(fragment.isascii())
+            generated = add_web_section_anchors(marker, page[:-3])
+            self.assertIn(f'<a id="{fragment}"></a>', generated)
+            self.assertIn(marker, generated)
+
+    def test_missing_heading_cannot_silently_drop_alias(self):
+        with self.assertRaisesRegex(ValueError, "Missing or duplicate"):
+            add_web_section_anchors("# unrelated\n", "00-reading-guide")
+
+    def test_generated_anchor_aliases_are_present(self):
+        self.assertEqual(check_web_section_anchors(ROOT / "docs"), [])
 
 
 if __name__ == "__main__":

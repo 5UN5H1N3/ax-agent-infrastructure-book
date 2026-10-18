@@ -12,7 +12,7 @@ from urllib.parse import unquote
 
 from bs4 import BeautifulSoup
 from book_structure import ANCHORS, SLUGS, GROUPS, navigation_title
-from example_catalog import check_example_catalog, examples_readme
+from example_catalog import check_example_catalog, examples_readme, check_web_section_anchors
 
 
 def check_source(source: Path) -> list[str]:
@@ -187,7 +187,7 @@ def check_artifact_readme(text: str) -> list[str]:
 
 
 def check_docs(docs: Path) -> list[str]:
-    errors = []
+    errors = check_web_section_anchors(docs)
     pages = list(docs.glob("*.md"))
     if len(pages) != 49:
         errors.append("Expected 49 Markdown files")

@@ -5,7 +5,7 @@ from pathlib import Path
 import re, shutil, sys
 from rasterize_svg import render_svg, validate_graphviz_png
 from book_structure import SLUGS, GROUPS, ANCHORS, navigation_title, passport_markdown
-from example_catalog import examples_readme
+from example_catalog import examples_readme, WEB_SECTION_TARGETS, add_web_section_anchors
 
 root = Path(__file__).resolve().parents[1]
 html_path = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / "book/AX_Agent_Infrastructure_Book_RU.html"
@@ -76,8 +76,7 @@ chapter_targets.update({
     "appendix-b": "appendix-b-production-readiness.md",
     "appendix-c": "appendix-c-sources-map.md",
     "version-profiles": "00-reading-guide.md",
-    "examples-guide": "00-reading-guide.md#практика-код-и-каталог-примеров",
-    "lab-dependencies": "32-labs.md#карта-зависимостей-и-маршруты-прохождения",
+    **WEB_SECTION_TARGETS,
 })
 
 titles, fig_no = [], 0
@@ -169,6 +168,7 @@ for idx, (container, slug) in enumerate(zip(chapters, slugs)):
 
     text = md(str(container), heading_style="ATX", bullets="-", strip=["div", "section", "span"])
     text = re.sub(r"\n{4,}", "\n\n\n", text).strip() + "\n"
+    text = add_web_section_anchors(text, slug)
     (docs / f"{slug}.md").write_text(text, encoding="utf-8")
 
 landing = """# AX & Agent Infrastructure
@@ -189,8 +189,8 @@ landing = """# AX & Agent Infrastructure
 
 ## Практика
 
-- [Начать с локального примера и выбрать программу из каталога](00-reading-guide.md#практика-код-и-каталог-примеров): фиксированный код, окружение, воздействие и авторские тесты всех 39 программ.
-- [Карта зависимостей лабораторных](32-labs.md#карта-зависимостей-и-маршруты-прохождения): CPU вместо cloud, необязательный GPU и условия перехода к AX-сценариям.
+- [Начать с локального примера и выбрать программу из каталога](00-reading-guide.md#praktika-kod-i-katalog-primerov): фиксированный код, окружение, воздействие и авторские тесты всех 39 программ.
+- [Карта зависимостей лабораторных](32-labs.md#karta-zavisimostei-i-marshruty-prokhozhdeniya): CPU вместо cloud, необязательный GPU и условия перехода к AX-сценариям.
 
 ## Публичная веб-версия
 

@@ -6,6 +6,38 @@ import re
 from markdownify import markdownify
 from book_structure import ANCHORS, SLUGS
 
+WEB_SECTION_TARGETS = {
+    "examples-guide": "00-reading-guide.md#praktika-kod-i-katalog-primerov",
+    "lab-dependencies": "32-labs.md#karta-zavisimostei-i-marshruty-prokhozhdeniya",
+}
+WEB_SECTION_HEADINGS = {
+    "examples-guide": "Практика: код и каталог примеров",
+    "lab-dependencies": "Карта зависимостей и маршруты прохождения",
+}
+
+
+def add_web_section_anchors(text, slug):
+    """GitBook transliterates heading IDs; explicit IDs also work on GitHub."""
+    for key, target in WEB_SECTION_TARGETS.items():
+        page, fragment = target.split("#")
+        if page != slug + ".md":
+            continue
+        marker = f"### {WEB_SECTION_HEADINGS[key]}\n"
+        if text.count(marker) != 1:
+            raise ValueError(f"Missing or duplicate catalog/map heading: {key}")
+        text = text.replace(marker, f'<a id="{fragment}"></a>\n\n' + marker, 1)
+    return text
+
+
+def check_web_section_anchors(docs):
+    errors = []
+    for target in WEB_SECTION_TARGETS.values():
+        page, fragment = target.split("#")
+        path = Path(docs) / page
+        if path.is_file() and f'<a id="{fragment}"></a>' not in path.read_text(encoding="utf-8"):
+            errors.append(f"Missing cross-edition practice anchor: {target}")
+    return errors
+
 
 def examples_readme(soup):
     guide = soup.find(id="examples-guide")
@@ -16,7 +48,7 @@ def examples_readme(soup):
     for heading in guide.find_all("h4"):
         heading.name = "h2"
     targets = {anchor: f"../docs/{slug}.md" for anchor, slug in zip(ANCHORS, SLUGS)}
-    targets["examples-guide"] = "../docs/00-reading-guide.md#практика-код-и-каталог-примеров"
+    targets.update({key: "../docs/" + target for key, target in WEB_SECTION_TARGETS.items()})
     for link in guide.find_all("a", href=True):
         if link["href"].startswith("#") and link["href"][1:] in targets:
             link["href"] = targets[link["href"][1:]]
