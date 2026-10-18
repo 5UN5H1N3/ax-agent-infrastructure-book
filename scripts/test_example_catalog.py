@@ -183,6 +183,31 @@ class ExampleCatalogTests(unittest.TestCase):
         self.assertIn('MCP continuation: pinned code/corpus/test links differ',
                       check_example_catalog(soup))
 
+    def test_tls_investigation_has_an_explicit_source_boundary(self):
+        soup = self.soup()
+        soup.select_one('p.tls-investigation-source').decompose()
+        self.assertIn('TLS investigation: missing prepared/source boundary',
+                      check_example_catalog(soup))
+
+    def test_tls_investigation_requires_full_revision(self):
+        soup = self.soup()
+        soup.select_one('p.tls-investigation-source')['data-code-ref'] = 'main'
+        self.assertIn('TLS investigation: source revision must be a full SHA',
+                      check_example_catalog(soup))
+
+    def test_tls_investigation_links_cannot_drift_from_revision(self):
+        soup = self.soup()
+        link = soup.select_one('p.tls-investigation-source a')
+        link['href'] = link['href'].replace('/tree/', '/blob/')
+        self.assertIn('TLS investigation: pinned code/corpus/test links differ',
+                      check_example_catalog(soup))
+
+    def test_missing_tls_investigation_files_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            errors = check_example_catalog(self.soup(), directory)
+        self.assertIn('TLS investigation: missing cases.json', errors)
+        self.assertIn('TLS investigation: missing regression test', errors)
+
     def test_missing_mcp_continuation_files_are_reported(self):
         with tempfile.TemporaryDirectory() as directory:
             errors = check_example_catalog(self.soup(), directory)

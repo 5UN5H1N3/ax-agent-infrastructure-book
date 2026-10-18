@@ -113,6 +113,26 @@ def check_example_catalog(soup, root=None):
                 errors.append(f'MCP continuation: missing {name}')
         if not (examples / 'test_ch36_mcp_continuation.py').is_file():
             errors.append('MCP continuation: missing regression test')
+        for name in ('exercise.py', 'cases.json', 'README.md'):
+            if not (examples / 'tls_investigation' / name).is_file():
+                errors.append(f'TLS investigation: missing {name}')
+        if not (examples / 'test_ch03_tls_investigation.py').is_file():
+            errors.append('TLS investigation: missing regression test')
+    investigation = guide.select_one('p.tls-investigation-source')
+    if (investigation is None or 'examples/tls_investigation/' not in investigation.get_text()
+            or 'не содержат' not in investigation.get_text()
+            or 'подготовленных' not in investigation.get_text()
+            or 'не выполняет' not in investigation.get_text()):
+        errors.append('TLS investigation: missing prepared/source boundary')
+    investigation_ref = investigation.get('data-code-ref', '') if investigation else ''
+    if re.fullmatch(r'[0-9a-f]{40}', investigation_ref) is None:
+        errors.append('TLS investigation: source revision must be a full SHA')
+    elif [link.get('href') for link in investigation.find_all('a') if not link.get('href', '').startswith('#')] != [
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/{investigation_ref}/examples/tls_investigation',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{investigation_ref}/examples/tls_investigation/cases.json',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{investigation_ref}/examples/test_ch03_tls_investigation.py',
+    ]:
+        errors.append('TLS investigation: pinned code/corpus/test links differ')
     continuation = guide.select_one('p.mcp-continuation-source')
     if (continuation is None or 'examples/mcp_continuation/' not in continuation.get_text()
             or 'не содержат' not in continuation.get_text()
