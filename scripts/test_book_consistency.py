@@ -1,11 +1,12 @@
 """Regression tests for print-to-web links and known coherence guards."""
 import ast
+import re
 from pathlib import Path
 import tempfile
 import unittest
 
 from bs4 import BeautifulSoup
-from check_book_consistency import check_source, check_docs
+from check_book_consistency import check_source, check_docs, check_artifact_readme
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -140,6 +141,58 @@ class BookConsistencyTests(unittest.TestCase):
                     text = text.replace("* [20. ", "* [99. ")
                 (docs / page.name).write_text(text)
             self.assertTrue(any("Web contents titles" in error for error in check_docs(docs)))
+
+    def test_approval_is_not_a_terminal_result(self):
+        errors = self.errors_for_text(self.text_with_paragraph(3,
+            '<ul><li>terminal result: WaitingForApproval</li></ul>'))
+        self.assertTrue(any("pause is not a terminal" in error for error in errors))
+
+    def test_terminal_run_cannot_silently_retry(self):
+        text = (ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text()
+        text = text.replace('<td>терминальное</td>', '<td>Running</td>')
+        self.assertTrue(any("explicit terminal contract" in error for error in self.errors_for_text(text)))
+
+    def test_approval_state_paths_in_printed_table(self):
+        soup = BeautifulSoup((ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text(), "html.parser")
+        states = {}
+        for row in soup.find(id="ch-3").select("table tbody tr"):
+            cells = row.find_all("td")
+            if len(cells) == 3:
+                states[cells[0].get_text(strip=True)] = cells[2].get_text(" ", strip=True)
+        # Check the declared teaching contract, not a running harness:
+        # restart is not a new logical state; approval resumes the same run.
+        for before, after in zip(["Created", "Running", "WaitingForApproval", "Running", "Verifying"],
+                                 ["Running", "WaitingForApproval", "Running", "Verifying", "Succeeded"]):
+            self.assertIn(after, states[before].split(", "))
+        self.assertIn("Failed", states["WaitingForApproval"].split(", "))
+        self.assertEqual(states["Failed"], "терминальное")
+        self.assertEqual(states["Blocked"], "терминальное")
+
+    def test_trace_scope_regression(self):
+        errors = self.errors_for_text(self.text_with_paragraph(2, "Сохраняйте полный trace"))
+        self.assertTrue(any("trace advice" in error for error in errors))
+
+    def test_no_kvm_platform_regression(self):
+        text = (ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text()
+        start, end = text.index('id="ch-32"'), text.index('id="ch-33"')
+        changed = text[:start] + text[start:end].replace("Systrap", "unspecified") + text[end:]
+        self.assertTrue(any("gVisor platform" in error for error in self.errors_for_text(changed)))
+
+    def test_budget_reserve_regression(self):
+        text = (ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text()
+        self.assertTrue(any("budget/reserve" in error for error in self.errors_for_text(
+            text.replace("root reserve=20", "root reserve=0"))))
+
+    def test_fallback_cover_date_regression(self):
+        text = (ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text()
+        text = re.sub(r"рабочая редакция \d{2}\.\d{2}\.\d{4}", "рабочая редакция 00.00.0000", text)
+        self.assertTrue(any("cover date" in error for error in self.errors_for_text(text)))
+
+    def test_artifact_readme_single_source(self):
+        text = (ROOT / "book/README.md").read_text()
+        self.assertEqual(check_artifact_readme(text), [])
+        self.assertTrue(check_artifact_readme(text + "\n- Google AX: v0.3.1 / e70162a\n"))
+        self.assertTrue(check_artifact_readme(text.replace("../docs/README.md#паспорт-издания", "stale")))
 
 
 if __name__ == "__main__":

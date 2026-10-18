@@ -91,6 +91,12 @@ def check_source(source: Path) -> list[str]:
                    "Лабораторная пара не испытана"):
         if phrase not in passport_text:
             errors.append(f"Edition passport: missing or inconsistent field {phrase!r}")
+    revision = re.search(r"Рабочая редакция от (\d{2}\.\d{2}\.\d{4})", passport_text)
+    if revision is None or "дата последнего согласованного изменения содержания" not in passport_text:
+        errors.append("Edition passport must define the working revision date, not a CI build date")
+    cover_label = soup.select_one(".cover .kicker")
+    if revision and cover_label and revision[1] not in cover_label.get_text():
+        errors.append("Fallback cover date differs from edition passport")
     if len(soup.select("section.chapter figure svg")) != 42:
         errors.append("Edition passport requires 42 chapter diagrams, excluding the cover")
     for badge in soup.select(".badge"):
@@ -128,6 +134,52 @@ def check_source(source: Path) -> list[str]:
     for contract in ("672533541dbf", "UpdateTask", "spec.suspend", "не подтверждённой совместимой сборкой"):
         if contract not in lab:
             errors.append(f"Chapter 32: missing release/compatibility contract {contract}")
+    loop = soup.find(id="ch-3")
+    states = {}
+    for row in loop.select("table tbody tr"):
+        cells = row.find_all("td")
+        if len(cells) == 3 and cells[0].get_text(strip=True) in {
+                "Created", "Running", "WaitingForTool", "WaitingForApproval", "WaitingForInput",
+                "Verifying", "Succeeded", "Blocked", "Failed", "Cancelled"}:
+            states[cells[0].get_text(strip=True)] = cells[2].get_text(" ", strip=True)
+    if "Running" not in states.get("WaitingForApproval", ""):
+        errors.append("Chapter 3: approval wait must remain resumable")
+    for terminal in ("Succeeded", "Blocked", "Failed", "Cancelled"):
+        if states.get(terminal) != "терминальное":
+            errors.append(f"Chapter 3: {terminal} must have an explicit terminal contract")
+    loop_text = loop.get_text(" ", strip=True)
+    if "прикладного run" not in loop_text or "approval_expired" not in loop_text:
+        errors.append("Chapter 3: missing application-run scope or approval expiry policy")
+    for item in loop.find_all("li"):
+        if "terminal result:" in item.get_text() and "WaitingForApproval" in item.get_text():
+            errors.append("Chapter 3: approval pause is not a terminal result")
+    eval_text = soup.find(id="ch-2").get_text(" ", strip=True)
+    if "полный trace" in eval_text or not all(word in eval_text for word in (
+            "чувствительные поля", "правилами доступа", "сроком хранения")):
+        errors.append("Chapter 2: trace advice must define sensitive-content and retention limits")
+    if not all(word in lab for word in ("Systrap", "Platform KVM", "фактическую platform")):
+        errors.append("Chapter 32: no-KVM route must identify a supported gVisor platform")
+    attenuation = next(fig for fig in soup.find(id="ch-37").find_all("figure")
+                       if "Authority attenuation" in fig.get_text())
+    labels = [t.get_text() for t in attenuation.find_all("text")]
+    for label in ("budget=100; root reserve=20; read/write/execute", "read-only, 15",
+                  "branch-write, 30", "execute, 20", "within parent budget"):
+        if label not in labels:
+            errors.append(f"Chapter 37: missing budget/reserve contract {label}")
+    artifact_readme = source.parent / "README.md"
+    if artifact_readme.is_file():
+        errors += check_artifact_readme(artifact_readme.read_text(encoding="utf-8"))
+    return errors
+
+
+def check_artifact_readme(text: str) -> list[str]:
+    errors = []
+    for target in ("../docs/README.md#паспорт-издания",
+                   "../docs/00-reading-guide.md#карта-версий-прикладных-разделов"):
+        if target not in text:
+            errors.append(f"Book README must link to canonical metadata: {target}")
+    if re.search(r"(?:Google AX|Agent Substrate|AX|Substrate)[^\n]*(?:v\d+\.\d+\.\d+|\b[0-9a-f]{7,40}\b)", text):
+        errors.append("Book README must not maintain a second baseline/version table")
     return errors
 
 

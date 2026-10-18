@@ -5,9 +5,14 @@ on:
   push:
     paths:
       - "book/AX_Agent_Infrastructure_Book_RU.html"
+      - "book/README.md"
       - "assets/**"
       - "scripts/inject_cover.py"
       - "scripts/rebuild_diagrams.py"
+      - "scripts/diagram_readability.py"
+      - "scripts/check_pdf_diagrams.py"
+      - "scripts/test_pdf_diagrams.py"
+      - "scripts/test_diagram_readability.py"
       - "scripts/publish_generated_artifacts.py"
       - "scripts/check_book_consistency.py"
       - "scripts/book_structure.py"
@@ -42,12 +47,14 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y graphviz libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
           python -m pip install --upgrade pip
-          python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0" "lxml==6.0.2"
+          python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0" "lxml==6.0.2" "pypdf==6.10.0"
 
       - name: Rebuild diagrams
         run: |
           python scripts/check_book_consistency.py --html book/AX_Agent_Infrastructure_Book_RU.html
           python scripts/test_book_consistency.py
+          python scripts/test_diagram_readability.py
+          python scripts/test_pdf_diagrams.py
           python scripts/rebuild_diagrams.py \
             book/AX_Agent_Infrastructure_Book_RU.html \
             book/.diagram-source.html
@@ -63,6 +70,10 @@ jobs:
           weasyprint \
             book/.print-source.html \
             book/AX_Agent_Infrastructure_Book_RU.pdf
+
+          python scripts/check_pdf_diagrams.py \
+            book/AX_Agent_Infrastructure_Book_RU.pdf \
+            book/.print-source.html
 
           pages="$(pdfinfo book/AX_Agent_Infrastructure_Book_RU.pdf | awk '/^Pages:/ {print $2}')"
           echo "Generated PDF pages: $pages"

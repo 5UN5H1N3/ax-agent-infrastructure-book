@@ -8,10 +8,14 @@ The canonical public edition is:
 
 The PDF is generated with WeasyPrint 68.0.
 
-## Baselines
+## Edition and version profiles
 
-- Google AX: `v0.3.1` / `e70162a`
-- Agent Substrate: `v0.3.0` / `ccecc78`
+The [edition passport](../docs/README.md#паспорт-издания) defines the current
+working revision, formats and verification boundary. The
+[version profile map](../docs/00-reading-guide.md#карта-версий-прикладных-разделов)
+identifies the pinned AX, Substrate and inference profiles used by each route.
+Both are generated from the canonical HTML; this page does not maintain a
+second baseline table.
 
 The projects evolve quickly. Always compare production deployments with the
 upstream version actually in use.

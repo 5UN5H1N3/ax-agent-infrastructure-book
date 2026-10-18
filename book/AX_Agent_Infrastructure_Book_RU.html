@@ -64,7 +64,7 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 </style></head><body>
 <section class="cover">
   <div>
-    <div class="kicker">Инженерная книга / рабочая редакция 12.10.2026</div>
+    <div class="kicker">Инженерная книга / рабочая редакция 18.10.2026</div>
     <h1>AX и агентная инфраструктура</h1>
     <div class="sub">Архитектура, оркестрация, sandboxing, Agent Substrate, MCP, local inference и эксплуатация автономных AI-агентов</div>
   </div>
@@ -81,7 +81,7 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 <tr><td>Название</td><td>AX &amp; Agent Infrastructure / AX и агентная инфраструктура</td></tr>
 <tr><td>Назначение</td><td>Независимое инженерное руководство по выбору, архитектуре и эксплуатации инфраструктуры AI-агентов</td></tr>
 <tr><td>Язык и форматы</td><td>Русский; исходный HTML, PDF A4 и веб-версия GitBook. Термины API и команды сохранены в оригинале</td></tr>
-<tr><td>Редакция</td><td>Рабочая редакция от 13.10.2026 на основе первого публичного выпуска v1.0.0 от 03.10.2026. Это не новый опубликованный релиз</td></tr>
+<tr><td>Редакция</td><td>Рабочая редакция от 18.10.2026: дата последнего согласованного изменения содержания. Основа - первый публичный выпуск v1.0.0 от 03.10.2026. Это не новый опубликованный релиз</td></tr>
 <tr><td>Состав</td><td>44 нумерованные главы (0–43: вводная и 43 основные), 3 приложения (A–C), 42 технические схемы и 14 лабораторных работ в главе 32</td></tr>
 <tr><td>Пагинация</td><td>Зависит от сборки и вёрстки; число страниц указано в свойствах конкретного PDF. Объём первого выпуска не описывает текущую редакцию</td></tr>
 <tr><td>Версионная база</td><td>Несколько фиксированных профилей, перечисленных в карте главы 0. Версия книги, версия проекта, дата спецификации и commit исходников не взаимозаменяемы</td></tr>
@@ -251,7 +251,7 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 <thead><tr><th>Термин</th><th>Что он означает в этой книге</th></tr></thead>
 <tbody>
 <tr><td>задача</td><td>Пользовательская или бизнес-цель: что должно измениться или какой результат нужно получить.</td></tr>
-<tr><td><code>run</code></td><td>Одно логическое выполнение harness: последовательность состояний от принятия цели до завершения, ожидания или ошибки.</td></tr>
+<tr><td><code>run</code></td><td>Одно логическое выполнение harness от принятия цели до терминального исхода. Ожидание входит в тот же run; его identity сохраняется через паузы и перезапуски процесса.</td></tr>
 <tr><td><code>Task</code></td><td>Долговечная единица orchestration. В AX это конкретный ресурс со своим spec, status и lifecycle.</td></tr>
 <tr><td><code>execution</code></td><td>Физическая попытка выполнить <code>run</code> или <code>Task</code>: process, container, Actor placement или другой workload instance.</td></tr>
 <tr><td>coordinator</td><td>Прикладная роль: декомпозирует цель, делегирует части работы, собирает evidence и решает, выполнена ли бизнес-задача.</td></tr>
@@ -722,7 +722,7 @@ figcaption { font-weight:700; font-size:9.6pt; margin:0 0 2mm; color:#33485c; }
 <li>Разделите метрики: task success, tool choice, argument accuracy, unnecessary calls, unsafe proposals, latency, token usage и retries.</li>
 <li>Прогоните несколько повторов там, где используется sampling или допускается несколько корректных планов.</li>
 <li>Проводите shadow run без side effects, затем canary на ограниченном scope.</li>
-<li>Сохраняйте model revision, server version, параметры generation и полный trace.</li>
+<li>Сохраняйте model revision, server version, параметры generation и связный trace разрешённых событий: входные evidence refs, вызовы, решения проверок и результаты. Удаляйте чувствительные поля; вместо credentials и закрытых данных используйте ссылки на защищённые артефакты. Полные prompts и tool payloads сохраняйте только в согласованном защищённом хранилище с правилами доступа и сроком хранения. Подробный контракт telemetry разобран в <a href="#ch-25">главе 25</a>.</li>
 </ol>
 <p>Для tool-using агента одного exact match недостаточно. Допустимы разные последовательности read-only проверок, если они приводят к подтверждённому результату в пределах бюджета. Поэтому evaluator часто сочетает детерминированные проверки и экспертную rubric.</p>
 <p>Пример минимальной scorecard:</p>
@@ -1185,6 +1185,7 @@ ModelError
 <p>Это разделение называется не недоверием к модели, а корректным распределением обязанностей. Даже очень сильная модель не должна вычислять, истёк ли wall-clock deadline, если это может сделать таймер. И не должна подтверждать успешность собственного изменения без независимого чтения.</p>
 <h2>Agent execution лучше моделировать как state machine</h2>
 <p>Цикл <code>while true</code> скрывает важные operational states. Явная state machine делает паузы, восстановление и терминальные исходы видимыми.</p>
+<p>Ниже описаны состояния <strong>прикладного run</strong>, а не phase ресурса AX Task. Один run может пережить несколько запусков процесса. Возврат управления вызывающему коду или освобождение worker на время ожидания не закрывает эту логическую работу.</p>
 <table>
 <thead>
 <tr>
@@ -1202,12 +1203,12 @@ ModelError
 <tr>
 <td>Running</td>
 <td>агент выбирает или выполняет безопасный шаг</td>
-<td>WaitingForTool, WaitingForApproval, Verifying, Failed</td>
+<td>WaitingForTool, WaitingForApproval, WaitingForInput, Verifying, Blocked, Failed, Cancelled</td>
 </tr>
 <tr>
 <td>WaitingForTool</td>
 <td>внешний read/operation ещё не завершён</td>
-<td>Running, Verifying, Failed, Cancelled</td>
+<td>Running, Verifying, Blocked, Failed, Cancelled</td>
 </tr>
 <tr>
 <td>WaitingForApproval</td>
@@ -1215,9 +1216,14 @@ ModelError
 <td>Running, Cancelled, Failed</td>
 </tr>
 <tr>
+<td>WaitingForInput</td>
+<td>требуется недостающий факт от пользователя или системы</td>
+<td>Running, Cancelled, Failed</td>
+</tr>
+<tr>
 <td>Verifying</td>
 <td>проверяется итог или postcondition</td>
-<td>Succeeded, Running, Failed</td>
+<td>Succeeded, Running, Blocked, Failed, Cancelled</td>
 </tr>
 <tr>
 <td>Succeeded</td>
@@ -1226,8 +1232,13 @@ ModelError
 </tr>
 <tr>
 <td>Failed</td>
-<td>продолжение невозможно или исчерпан допустимый budget</td>
-<td>терминальное либо явный operator retry</td>
+<td>неисправимая ошибка, исчерпан budget или истёк срок ожидания</td>
+<td>терминальное</td>
+</tr>
+<tr>
+<td>Blocked</td>
+<td>в текущих условиях нет допустимого пути продолжения</td>
+<td>терминальное</td>
 </tr>
 <tr>
 <td>Cancelled</td>
@@ -1236,8 +1247,9 @@ ModelError
 </tr>
 </tbody>
 </table>
-<p>Waiting не равно failure. Task, который ожидает approval два часа, не должен занимать активный worker и не должен каждые десять секунд повторно спрашивать модель. Он сохраняет checkpoint и возобновляется по событию.</p>
+<p>Waiting не равно failure. Run, который ожидает approval два часа, сохраняет свой ID, checkpoint, owner ожидания и срок. Активный worker можно освободить; опрашивать модель каждые десять секунд не нужно. Решение приходит как событие к прежнему run, а новый процесс загружает его состояние. Перед продолжением код проверяет актуальное разрешение, версию предложения и статус run.</p>
 <p>Failed также не означает «модель однажды ошиблась». Локальная ошибка может привести к repair или альтернативному пути. Terminal failure наступает, когда классифицированная ошибка неисправима в текущем scope, исчерпан budget либо нарушен invariant.</p>
+<p>В этом учебном контракте <code>Succeeded</code>, <code>Blocked</code>, <code>Failed</code> и <code>Cancelled</code> закрывают run. Если operator после исправления причины хочет повторить работу, создаётся новый run со ссылкой на прежний; прежний результат не переписывается. Связь с ранее начатыми внешними операциями сохраняют и сначала сверяют их исход. Номер новой попытки не делает повтор write безопасным.</p>
 <h2>Критерий успеха должен существовать до запуска</h2>
 <p>Фраза «сделай так, чтобы всё работало» не задаёт проверяемого результата. Если success condition не определён, агенту остаётся доверять собственному ощущению завершённости.</p>
 <p>Хороший expected outcome отвечает на вопросы:</p>
@@ -1264,7 +1276,7 @@ ModelError
 <p><strong>Success</strong> - postcondition подтверждён.</p>
 <p><strong>Needs input</strong> - отсутствует факт, который может предоставить пользователь или другая система. Это pause, а не догадка.</p>
 <p><strong>Needs approval</strong> - следующий допустимый шаг имеет side effect выше текущего authority.</p>
-<p><strong>Blocked</strong> - требуемый ресурс недоступен, а альтернативный путь отсутствует.</p>
+<p><strong>Blocked</strong> - требуемый ресурс или capability недоступны, альтернативного допустимого пути нет и контракт не предусматривает ожидание события. В таблице выше это окончательный исход данного run. Если ожидается конкретный вход или approval, используется соответствующее состояние Waiting, а не Blocked.</p>
 <p><strong>Budget exhausted</strong> - достигнут лимит steps, времени, tokens, tool calls, денег или delegation depth.</p>
 <p><strong>No progress</strong> - новые iterations не меняют state и не добавляют evidence.</p>
 <p><strong>Cancelled</strong> - владелец задачи или control plane запросил остановку.</p>
@@ -1429,7 +1441,7 @@ steps:
 <li>write tool недоступен до approved state;</li>
 <li>child authority не шире parent;</li>
 <li>каждый external write имеет operation ID;</li>
-<li>terminal Task не запускает новые actions.</li>
+<li>терминальный прикладной run не возобновляет агентный цикл и не разрешает новый write. Сверка ранее начатых операций остаётся задачей recovery-контура с действующим правом чтения.</li>
 </ul>
 <p>Примеры liveness invariants:</p>
 <ul>
@@ -1440,7 +1452,7 @@ steps:
 <li>WaitingForApproval имеет owner и expiry policy.</li>
 </ul>
 <h2>Observability должна показывать переходы, а не только текст</h2>
-<p>Лог полного conversation history полезен, но недостаточен. Для диагностики нужно восстановить причинную цепочку:</p>
+<p>Для диагностики нужно восстановить причинную цепочку разрешённых событий, не копируя весь conversation history в общий лог:</p>
 <p><code>task - state version - model request - proposal - policy decision - tool operation - observation - transition</code>.</p>
 <p>На каждом step полезно фиксировать:</p>
 <ul>
@@ -1448,7 +1460,7 @@ steps:
 <li>state before/after;</li>
 <li>model/provider request ID;</li>
 <li>выбранный action type;</li>
-<li>tool и нормализованные arguments;</li>
+<li>tool и разрешённые для telemetry поля нормализованных arguments; чувствительный payload остаётся в защищённом хранилище;</li>
 <li>policy/approval decision;</li>
 <li>operation ID;</li>
 <li>latency и resource usage;</li>
@@ -1571,8 +1583,8 @@ steps:
 <li><strong>scope:</strong> DNS, load balancer, certificate inventory и логи только для <code>api.example.com</code>;</li>
 <li><strong>success evidence:</strong> handshake проходит из двух независимых probes, certificate chain валидна, hostname совпадает, error rate вернулся ниже порога;</li>
 <li><strong>forbidden:</strong> выпуск нового сертификата, DNS write и production reload без approval;</li>
-<li><strong>budget:</strong> 20 model steps, 10 минут, 30 tool calls, один write proposal;</li>
-<li><strong>terminal result:</strong> <code>Succeeded</code>, <code>WaitingForApproval</code>, <code>Blocked</code>, <code>Failed</code> или <code>Cancelled</code> с evidence.</li>
+<li><strong>budget:</strong> 20 model steps, 10 минут активного исполнения, 30 tool calls, один write proposal; approval ожидается не более 24 часов, отдельно от активного времени;</li>
+<li><strong>возврат управления:</strong> пауза <code>WaitingForApproval</code> либо терминальный исход <code>Succeeded</code>, <code>Blocked</code>, <code>Failed</code> или <code>Cancelled</code> с evidence. Пауза сохраняет тот же run и не означает, что TLS-инцидент устранён.</li>
 </ul>
 <h3>Шаг 2. Определить state</h3>
 <p>Минимальная schema может содержать:</p>
@@ -1630,6 +1642,7 @@ termination:
   -&gt; Succeeded: сохранить evidence и summary
 </code></pre>
 <p>Если TLS probe расходится между регионами, агент не должен усреднять ответы. Он создаёт новое observation, сужает scope и либо продолжает диагностику в бюджете, либо завершает <code>Blocked</code> с точным описанием недостающей capability.</p>
+<p>Проверьте и две ветки ожидания. Если approval пришло после перезапуска процесса, harness загружает прежний run и proposal, сверяет срок, актуальные права и исход уже начатой операции, затем продолжает без повторного write. Если 24 часа истекли, этот контракт переводит run в <code>Failed</code> с reason <code>approval_expired</code>. Позднее событие не открывает терминальный run и не разрешает действие; для новой работы нужен новый допуск. Другой продукт может выбрать отмену или обновление proposal, но такую policy следует задать явно.</p>
 <h3>Workflow или agent?</h3>
 <p>Полностью детерминированный workflow хорошо подходит для известного случая «сертификат истекает через N дней»: проверить inventory, выпустить replacement, развернуть, проверить. Но incident diagnosis содержит развилки, которые зависят от свежих observations.</p>
 <p>Практичный дизайн здесь гибридный:</p>
@@ -9626,7 +9639,7 @@ kubectl version --client
 go version
 test -c /dev/kvm &amp;&amp; ls -l /dev/kvm
 </code></pre>
-<p style="break-inside:avoid-page">Установите Git, Docker, kubectl, Go и ko по требованиям выбранных исходников. Проверьте DNS, доступ к registry, сборку небольшого Go-приложения и запуск тестового контейнера. Для microVM понадобится KVM по всей цепочке гипервизор → VM → runtime. Наличие device-файла ещё не показывает, что нужный процесс может его открыть. Недоступность KVM запишите сразу: она не мешает исследовать gVisor и CPU inference.</p>
+<p style="break-inside:avoid-page">Установите Git, Docker, kubectl, Go и ko по требованиям выбранных исходников. Проверьте DNS, доступ к registry, сборку небольшого Go-приложения и запуск тестового контейнера. Для microVM понадобится KVM по всей цепочке гипервизор → VM → runtime. Наличие device-файла ещё не показывает, что нужный процесс может его открыть. При недоступном KVM можно продолжить CPU inference и gVisor только с поддерживаемой platform без KVM, например Systrap. Platform KVM у самого gVisor также требует KVM. Проверьте выбранную конфигурацию runtime и сохраните фактическую platform в паспорте стенда; одно имя RuntimeClass этого не доказывает. Различия описаны в <a href="https://gvisor.dev/docs/user_guide/platforms/">руководстве gVisor</a>.</p>
 <p style="break-inside:avoid-page">У тестового контейнера создайте один файл в его writable layer, другой — в явно подключённом volume. Остановите контейнер, затем отдельно пересоздайте его без прежнего writable layer и с прежним volume. Простая остановка обычно сохраняет оба файла; именно пересоздание показывает различие их жизненных циклов. Пользуйтесь только выделенным тестовым объектом. После возврата к чистому состоянию сделайте snapshot VM <code>ax-lab-base</code> и проверьте восстановление на учебной копии. Результат работы — паспорт хоста и понятный откат. Snapshot VM здесь не заменяет согласованный backup будущих PostgreSQL и object storage.</p>
 <h3>Lab 2. Kind и Kubernetes: научиться читать причину отказа</h3>
 <p style="break-inside:avoid-page">До Substrate полезно увидеть обычное HTTP-приложение в Kubernetes. Deployment отвечает за экземпляры процесса, Service даёт устойчивый способ обращения к ним, readiness показывает, можно ли направлять трафик в конкретный экземпляр. Эти обязанности различаются, поэтому «Pod запущен» ещё не объясняет ответ клиента.</p>
@@ -9742,7 +9755,7 @@ kubectl ate get actor lab-counter -a lab32 -o yaml
 </tr>
 <tr>
 <td>В VM нет доступного KVM</td>
-<td>Зафиксировать непроверенную microVM-ветку; продолжить gVisor-маршрут</td>
+<td>Зафиксировать непроверенную microVM-ветку; продолжить gVisor только с поддерживаемой platform без KVM, например Systrap. Если она недоступна в выбранной конфигурации, отметить и эту ветку как непроверенную</td>
 </tr>
 </tbody>
 </table>
@@ -10585,7 +10598,7 @@ python3 -m unittest discover -s examples \
 <tbody>
 <tr>
 <td>Agent run</td>
-<td>Логическая работа над целью с ограничениями и правилами остановки; может пережить несколько запусков процесса</td>
+<td>Логическая работа над целью до терминального исхода; сохраняет identity через паузы и может пережить несколько запусков процесса</td>
 <td>3–4</td>
 </tr>
 <tr>
@@ -11684,10 +11697,11 @@ python3 -m unittest discover -s examples -p 'test_ch37_operation_ledger.py'
 <p>Policy engine выбирают по сложности правил; глава 24 сравнила встроенный gateway, Cedar, OPA и модели отношений. В небольшом executor несколько явных проверок могут быть проще отдельного сервиса. При любом выборе enforcement находится на пути каждой записи, а сведения о principal, target и approval имеют доверенное происхождение. Недоступный ledger или отсутствующее обязательное решение policy останавливают новую запись. Для уже отправленной операции сохраняется путь разрешённой сверки.</p>
 <h2>Как сужать полномочия дочерней задачи</h2>
 <p><strong>Attenuation - выдача более узких полномочий при передаче работы.</strong> Researcher достаточно читать telemetry устройства. Implementer может подготовить diff. Executor получает допуск к точному изменению, а verifier - к read-back и ограниченному probe. Такое разделение уменьшает последствия ошибки в каждой роли и делает понятным, где находится downstream credential.</p>
-<figure><figcaption>Authority attenuation: child may narrow scope, never silently widen it</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Authority attenuation: child may narrow scope, never silently widen it"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="435.0" y1="85" x2="130.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="282.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="435.0" y1="85" x2="350.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="392.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="435.0" y1="85" x2="570.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="502.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="435.0" y1="85" x2="790.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="612.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="350.0" y1="205" x2="350.0" y2="245" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="350.0" y="219.0" text-anchor="middle" font-size="10" fill="#5c6875">cannot widen</text><rect x="350" y="20" rx="12" ry="12" width="170" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="435.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Root Task</text><text x="435.0" y="65" text-anchor="middle" font-size="11" fill="#465569">budget=100; read/write/execute</text><rect x="50" y="140" rx="12" ry="12" width="160" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Researcher</text><text x="130.0" y="185" text-anchor="middle" font-size="11" fill="#465569">read-only, 20</text><rect x="270" y="140" rx="12" ry="12" width="160" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="350.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Implementer</text><text x="350.0" y="185" text-anchor="middle" font-size="11" fill="#465569">branch-write, 35</text><rect x="490" y="140" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="570.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tester</text><text x="570.0" y="185" text-anchor="middle" font-size="11" fill="#465569">execute, 25</text><rect x="710" y="140" rx="12" ry="12" width="160" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="790.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Reviewer</text><text x="790.0" y="185" text-anchor="middle" font-size="11" fill="#465569">read-only, 20</text><rect x="270" y="245" rx="12" ry="12" width="160" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="350.0" y="269" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Child Task</text><text x="350.0" y="290" text-anchor="middle" font-size="11" fill="#465569">narrower branch</text></svg></figure>
+<figure><figcaption>Authority attenuation: child may narrow scope, never silently widen it</figcaption><svg class="diagram" viewBox="0 0 900 335" role="img" aria-label="Authority attenuation: child may narrow scope, never silently widen it"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#53657a"/></marker></defs><line x1="435.0" y1="85" x2="130.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="282.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="435.0" y1="85" x2="350.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="392.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="435.0" y1="85" x2="570.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="502.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="435.0" y1="85" x2="790.0" y2="140" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="612.5" y="106.5" text-anchor="middle" font-size="10" fill="#5c6875">attenuate</text><line x1="350.0" y1="205" x2="350.0" y2="245" stroke="#53657a" stroke-width="2" marker-end="url(#arrow)" /><text x="350.0" y="219.0" text-anchor="middle" font-size="10" fill="#5c6875">cannot widen</text><rect x="350" y="20" rx="12" ry="12" width="170" height="65" fill="#f8efff" stroke="#70459b" stroke-width="1.5"/><text x="435.0" y="44" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Root Task</text><text x="435.0" y="65" text-anchor="middle" font-size="11" fill="#465569">budget=100; root reserve=20; read/write/execute</text><rect x="50" y="140" rx="12" ry="12" width="160" height="65" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.5"/><text x="130.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Researcher</text><text x="130.0" y="185" text-anchor="middle" font-size="11" fill="#465569">read-only, 15</text><rect x="270" y="140" rx="12" ry="12" width="160" height="65" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.5"/><text x="350.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Implementer</text><text x="350.0" y="185" text-anchor="middle" font-size="11" fill="#465569">branch-write, 30</text><rect x="490" y="140" rx="12" ry="12" width="160" height="65" fill="#fff7e8" stroke="#9a6410" stroke-width="1.5"/><text x="570.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Tester</text><text x="570.0" y="185" text-anchor="middle" font-size="11" fill="#465569">execute, 20</text><rect x="710" y="140" rx="12" ry="12" width="160" height="65" fill="#eefaf3" stroke="#287a4b" stroke-width="1.5"/><text x="790.0" y="164" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Reviewer</text><text x="790.0" y="185" text-anchor="middle" font-size="11" fill="#465569">read-only, 15</text><rect x="270" y="245" rx="12" ry="12" width="160" height="65" fill="#f3f5f7" stroke="#495463" stroke-width="1.5"/><text x="350.0" y="269" text-anchor="middle" font-size="14" font-weight="700" fill="#17212b">Child Task</text><text x="350.0" y="290" text-anchor="middle" font-size="11" fill="#465569">within parent budget</text></svg></figure>
 <p>Схема показывает распределение прав и бюджета на примере работы с репозиторием. У root явно присутствуют read, write и execute в пределах своей задачи; child получает только допустимую часть. Для сетевого случая вместо ветки указывают своё устройство и действие. Право дочерней задачи писать должно входить в разрешённое делегирование parent: роль с одним read не может породить writer. Сравнивать нужно допустимые сочетания action, resource и conditions, сохраняя audience, срок и ограничения цепочки из главы 24.</p>
 <p>Enforcement можно устроить двумя способами. Если target умеет выпускать узкий credential, broker получает его для конкретного scope и срока. Если target предоставляет только широкий service account, credential остаётся у доверенного gateway, который проверяет каждый запрос. Во втором случае gateway сам является высокопривилегированным компонентом. Агенту нельзя оставить другой token или сетевой путь, позволяющий обойти эту проверку.</p>
-<p>Budget из 100 условных единиц распределён между children на схеме. Два child, одновременно увидевшие остаток 10, не должны оба получить право потратить 10. Общий счётчик или reservation обновляется атомарно в доверенном контуре. Учитывайте как отдельные расходы попытки, чтения и внешнюю стоимость: отсутствие дополнительного бизнес-эффекта при idempotent retry не делает запрос бесплатным. В коде главы реализован только бюджет отправок одной операции; он переживает повторное открытие ledger.</p>
+<p>На схеме показан остаток общего budget: 100 условных единиц стоимости исполнения. Из него 20 зарезервированы для coordinator: join, проверка результатов и восстановление. Дочерним ветвям выделены 15 + 30 + 20 + 15 = 80 единиц. Лимит Child Task входит в 30 единиц Implementer, а не добавляется к ним. Это учебная единица стоимости, не универсальное число tool calls и не разрешение на действие.</p>
+<p>Два child, одновременно увидевшие остаток 10, не должны оба получить право потратить 10. Общий счётчик или reservation обновляется атомарно в доверенном контуре. Уже учтённые расходы и непогашенные резервы вместе не превышают общий лимит; при передаче резерва в расход ту же сумму повторно не списывают. Учитывайте как отдельные расходы попытки, чтения и внешнюю стоимость: отсутствие дополнительного бизнес-эффекта при idempotent retry не делает запрос бесплатным. В коде главы реализован только бюджет отправок одной операции; он переживает повторное открытие ledger.</p>
 <h2>Как проверить результат и подготовить восстановление</h2>
 <p>После receipt <code>config-18</code> executor может утверждать: backend сообщил о применении <code>op-17</code>. Следующий read проверяет, что нужный путь действительно имеет A=150 сейчас. Затем probe проверяет пользовательскую цель - связность на определённом потоке. Эти уровни полезно сохранить раздельно: поздний read может уже увидеть чужую <code>config-19</code>, а успешная запись local preference не гарантирует выбора пути или устранения потерь.</p>
 <p>До применения задайте наблюдения, по которым примете результат. Для учебного случая можно установить правило: на том же направлении и VRF наблюдаемая доля потерь ниже 1% в двух последовательных минутных окнах, в каждом не менее 100 probes, а контрольный путь не ухудшился относительно сохранённого baseline. Это условие упражнения о сборе evidence. Нулевые потери в маленькой выборке сами по себе не доказывают реальную вероятность потери ниже 1% с выбранной статистической уверенностью. Production-приёмка требует своего метода измерений и окна по SLO.</p>

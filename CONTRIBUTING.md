@@ -47,6 +47,14 @@ Print and web navigation share `scripts/book_structure.py`. If chapters or
 appendices change, update its order and groups, the HTML contents and the
 consistency tests. Rebuild both editions and review the affected PDF pages.
 
+Technical diagram labels must remain at least 8 pt in the final A4 PDF. This
+is an editorial criterion for this edition, not an external standard. The
+diagram builder first preserves a readable composition, then tries stronger
+type or a compact reflow. Run `scripts/test_diagram_readability.py` and, after
+building the PDF, `scripts/check_pdf_diagrams.py PDF REBUILT_PRINT_HTML`.
+Keep the PDF measurement tests and visual review: correct font size alone does
+not prove that arrows, labels and boxes are laid out clearly.
+
 ## Language
 
 The main edition is currently Russian. Technical identifiers and API names are

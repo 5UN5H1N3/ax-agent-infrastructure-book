@@ -5,11 +5,14 @@ on:
   push:
     paths:
       - "book/AX_Agent_Infrastructure_Book_RU.html"
+      - "book/README.md"
       - "assets/**"
       - "scripts/build_webbook.py"
       - "scripts/rasterize_svg.py"
       - "scripts/test_rasterize_svg.py"
       - "scripts/rebuild_diagrams.py"
+      - "scripts/diagram_readability.py"
+      - "scripts/test_diagram_readability.py"
       - "scripts/publish_generated_artifacts.py"
       - "scripts/check_book_consistency.py"
       - "scripts/book_structure.py"
@@ -51,6 +54,7 @@ jobs:
 
       - name: Rebuild diagrams
         run: |
+          python scripts/test_diagram_readability.py
           python scripts/rebuild_diagrams.py \
             book/AX_Agent_Infrastructure_Book_RU.html \
             book/.web-source.html

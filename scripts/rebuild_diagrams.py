@@ -13,9 +13,11 @@ import math
 import re
 import subprocess
 import sys
+import textwrap
 from pathlib import Path
 
 from bs4 import BeautifulSoup
+from diagram_readability import MIN_FONT_PT, PRINT_WIDTH_PT, PRINT_HEIGHT_PT, svg_metrics
 
 
 def fnum(v, default=0.0):
@@ -283,6 +285,75 @@ def render_svg(dot, caption):
     return str(svg)
 
 
+def wrap_label(text, width):
+    # Never split API names or identifiers. A long identifier can occupy its
+    # own line; candidate scoring accounts for its actual Graphviz width.
+    return textwrap.wrap(text, width, break_long_words=False,
+                         break_on_hyphens=False) or [""]
+
+
+def compact_dot(rects, edges, direction, width):
+    """Reflow labels and topology without changing nodes or directed edges.
+
+    Do not retain source-coordinate rank groups: those encode the old wide
+    composition, not dependencies. Graphviz determines ranks from the edges.
+    """
+    lines = [
+        "digraph G {",
+        f'graph [rankdir={direction}, bgcolor="transparent", pad="0.12", margin=0, '
+        'nodesep="0.35", ranksep="0.40", splines=spline, outputorder=edgesfirst];',
+        'node [shape=rect, style="rounded,filled", fontname="DejaVu Sans", fontsize=12, '
+        'margin="0.12,0.08", penwidth=1.6, color="#53657a", fontcolor="#17212b"];',
+        'edge [color="#60748a", penwidth=1.55, arrowsize=0.72, '
+        'fontname="DejaVu Sans", fontsize=11, fontcolor="#34495e"];',
+    ]
+    for rect in rects:
+        texts = rect["texts"] or [{"text": f'Node {rect["id"] + 1}'}]
+        title = '<BR/>'.join(esc(part) for part in wrap_label(texts[0]["text"], width))
+        parts = [f'<B>{title}</B>']
+        for text in texts[1:]:
+            subtitle = '<BR/>'.join(esc(part) for part in wrap_label(text["text"], width))
+            parts.append(f'<FONT POINT-SIZE="11" COLOR="#465569">{subtitle}</FONT>')
+        label = '<' + '<BR/>'.join(parts) + '>'
+        lines.append(f'n{rect["id"]} [label={label}, fillcolor="{rect["fill"]}", '
+                     f'color="{rect["stroke"]}"];')
+    # Keep every edge and label, including repeated fan-out labels.
+    for edge in edges:
+        label = '\\n'.join(wrap_label(edge["label"], width))
+        lines.append(f'n{edge["src"]} -> n{edge["dst"]} [label="{esc(label)}"];')
+    return '\n'.join(lines + ["}"])
+
+
+def readable_svg(caption, rects, edges, notes):
+    original_dot = build_dot(caption, rects, edges, notes)
+    original = render_svg(original_dot, caption)
+    if svg_metrics(original)["min_print_pt"] >= MIN_FONT_PT:
+        return original
+    # First try a typography-only adjustment in the existing composition.
+    # This preserves a good multi-directional loop when only its type is small.
+    stronger_type = original_dot.replace('POINT-SIZE="10"', 'POINT-SIZE="11"').replace('fontsize=9.3,', 'fontsize=11,')
+    stronger_svg = render_svg(stronger_type, caption)
+    if svg_metrics(stronger_svg)["min_print_pt"] >= MIN_FONT_PT:
+        return stronger_svg
+    candidates = []
+    for direction in ("TB", "LR"):
+        for width in (18, 24, 30):
+            markup = render_svg(compact_dot(rects, edges, direction, width), caption)
+            metrics = svg_metrics(markup)
+            # Avoid enlarging a compact graph above its nominal type size.
+            scale = min(1.0, PRINT_WIDTH_PT / metrics["width"],
+                        PRINT_HEIGHT_PT / metrics["height"])
+            score = metrics["min_font"] * scale
+            candidates.append((score, markup, metrics, scale))
+    score, markup, metrics, scale = max(candidates, key=lambda item: item[0])
+    if score < MIN_FONT_PT:
+        raise ValueError(f"Diagram needs a manual split or reflow: {caption} ({score:.2f} pt)")
+    svg = BeautifulSoup(markup, "xml").find("svg")
+    svg["style"] += f';--diagram-width:{metrics["width"] * scale:.4f}pt'
+    svg["data-print-min-pt"] = f"{score:.4f}"
+    return str(svg)
+
+
 def rebuild_html(src: Path, dst: Path):
     soup = BeautifulSoup(src.read_text(encoding="utf-8"), "html.parser")
     figures = soup.find_all("figure")
@@ -296,8 +367,7 @@ def rebuild_html(src: Path, dst: Path):
         rects, edges, notes = extract_graph(svg)
         if len(rects) < 2:
             continue
-        dot = build_dot(caption, rects, edges, notes)
-        new_svg_markup = render_svg(dot, caption)
+        new_svg_markup = readable_svg(caption, rects, edges, notes)
         new_svg = BeautifulSoup(new_svg_markup, "xml").find("svg")
         svg.replace_with(BeautifulSoup(str(new_svg), "html.parser").find("svg"))
         rebuilt += 1
@@ -309,7 +379,7 @@ def rebuild_html(src: Path, dst: Path):
 figure { break-inside: avoid-page !important; margin: 5mm 0 6mm; }
 figure svg.diagram-redrawn {
   display:block;
-  width:100% !important;
+  width:var(--diagram-width, 100%) !important;
   max-width:100% !important;
   height:auto !important;
   max-height:178mm !important;
