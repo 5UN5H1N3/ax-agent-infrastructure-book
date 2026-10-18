@@ -105,6 +105,23 @@ def check_example_catalog(soup, root=None):
                 errors.append(f'Model profile: missing {name}')
         if not (examples / 'test_ch20_model_profile.py').is_file():
             errors.append('Model profile: missing regression test')
+        for name in ('demo.py', 'test_demo.py', 'requirements.txt', 'README.md'):
+            if not (examples / 'trace_context' / name).is_file():
+                errors.append(f'Trace context: missing {name}')
+    trace_entry = guide.select_one('p.trace-context-source')
+    if (trace_entry is None or 'examples/trace_context/' not in trace_entry.get_text()
+            or 'отдельный' not in trace_entry.get_text()
+            or 'не содержат' not in trace_entry.get_text()):
+        errors.append('Trace context: missing separate dependency/source boundary')
+    trace_ref = trace_entry.get('data-code-ref', '') if trace_entry else ''
+    if re.fullmatch(r'[0-9a-f]{40}', trace_ref) is None:
+        errors.append('Trace context: source revision must be a full SHA')
+    elif [link.get('href') for link in trace_entry.find_all('a') if not link.get('href', '').startswith('#')] != [
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/{trace_ref}/examples/trace_context',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{trace_ref}/examples/trace_context/requirements.txt',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{trace_ref}/examples/trace_context/test_demo.py',
+    ]:
+        errors.append('Trace context: pinned code/dependency/test links differ')
     profile_entry = guide.select_one('p.model-profile-source')
     if (profile_entry is None or 'examples/model_profile/' not in profile_entry.get_text()
             or '7d927c1a' not in profile_entry.get_text()

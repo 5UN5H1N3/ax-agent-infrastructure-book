@@ -69,8 +69,10 @@ def check_source(source: Path) -> list[str]:
         errors.append("Chapter 18 must explain the verified Data-on-golden path")
     registry = soup.find(id="version-profiles")
     table = registry.find_next("table") if registry is not None else None
-    if table is None or len(table.select("tbody tr")) != 10:
-        errors.append("Expected the complete ten-row version profile registry")
+    if table is None or len(table.select("tbody tr")) != 11:
+        errors.append("Expected the complete eleven-row version profile registry")
+    elif 'OpenTelemetry Python: локальный учебный профиль' not in table.get_text():
+        errors.append("Missing isolated OpenTelemetry learning profile")
     for number in range(44):
         heading = soup.find(id=f"ch-{number}").find("h1")
         title = heading.get_text(" ", strip=True)

@@ -27,6 +27,13 @@ class BookConsistencyTests(unittest.TestCase):
     def test_current_source(self):
         self.assertEqual(check_source(ROOT / "book/AX_Agent_Infrastructure_Book_RU.html"), [])
 
+    def test_isolated_trace_sdk_profile_is_required(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fixture = Path(directory) / 'book.html'
+            text = (ROOT / 'book/AX_Agent_Infrastructure_Book_RU.html').read_text()
+            fixture.write_text(text.replace('OpenTelemetry Python: локальный учебный профиль', 'Missing SDK profile'))
+            self.assertIn('Missing isolated OpenTelemetry learning profile', check_source(fixture))
+
     def test_missing_version_registry_is_reported(self):
         text = (ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text()
         with tempfile.TemporaryDirectory() as directory:

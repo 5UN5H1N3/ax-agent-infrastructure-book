@@ -8,7 +8,7 @@
 
 **Наблюдаемость, observability, - возможность объяснять поведение системы по доступным сигналам и проверяемому состоянию.** Она помогает двигаться от пользовательского симптома к конкретному участку работы, отличать установленный факт от гипотезы и понимать, каких данных не хватает. Monitoring обычно проверяет заранее выбранные условия: растёт очередь, увеличилась доля ошибок, заканчивается место. Эти подходы дополняют друг друга: alert сообщает о проблеме, а наблюдаемость помогает её исследовать.
 
-В этой главе спроектируем путь расследования одной публикации, выберем сигналы и инструменты, а затем испортим доставку событий в локальной программе. Нас интересует инженерный результат: сможет ли дежурный обосновать вывод и выбрать безопасное действие, когда часть картины потеряна.
+В этой главе спроектируем путь расследования одной публикации и выберем сигналы и инструменты. Затем испортим доставку событий в offline-модели и передадим настоящий trace context между mini-harness и локальным tool. Нас интересует инженерный результат: сможет ли дежурный обосновать вывод и выбрать безопасное действие, когда часть картины потеряна.
 
 ![Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals](.gitbook/assets/diagrams/25-23.png)  
 *Observability graph: один user goal связывает outcome, agent, runtime и infrastructure signals*
@@ -175,7 +175,117 @@ def outcome_sli(goals, start, end, now):
 
 Попробуйте мысленно удалить все diagnostics для `happy`. По ledger цель останется verified, но потребуется исследовать instrumentation или доставку. Теперь сделайте ledger недоступным: результат расследования должен стать `unknown`, даже если в diagnostics есть `tool.verified`. Эти два случая включены в тесты и показывают, почему источники имеют разный вес.
 
-В примере также проверяются bounded metric labels и allowlist атрибутов. Данные `Authorization`, prompt, произвольные strings и попытки подменить identity не попадают в диагностические атрибуты. Это конечная учебная schema, не универсальное DLP: доверенные Context и хранилище не аутентифицированы, строки IDs сами требуют защиты, а допустимые числа могут быть covert channel. Очередь ограничена, но история records хранится без retention в памяти. Нет disk buffer, реального sampling, OTLP propagation, span links и устойчивости после рестарта. Тесты этих преобразований не заменяют интеграцию.
+В примере также проверяются bounded metric labels и allowlist атрибутов. Данные `Authorization`, prompt, произвольные strings и попытки подменить identity не попадают в диагностические атрибуты. Это конечная учебная schema, не универсальное DLP: доверенные Context и хранилище не аутентифицированы, строки IDs сами требуют защиты, а допустимые числа могут быть covert channel. Очередь ограничена, но история records хранится без retention в памяти. В этой offline-модели нет disk buffer, реального sampling, OTLP-export, передачи trace context по сети, span links и устойчивости после рестарта. Тесты этих преобразований не заменяют интеграцию.
+
+## Живой опыт: проследим чтение файла через HTTP
+
+Теперь проверим передачу context на настоящем вызове. Для этого возьмём безопасный `read_file` из сквозного harness главы 4. Mini-harness отправит запрос локальному HTTP-tool, tool прочитает свой временный `batching.py` и вернёт текст с SHA256. Мы знаем ожидаемые bytes, поэтому можем отдельно ответить на два вопроса: файл прочитан правильно и сохранилась ли причинная связь между компонентами.
+
+Код находится в `examples/trace_context/demo.py` этой рабочей редакции. Это один процесс с двумя потоками и двумя явными `TracerProvider`: `learning-harness` и `learning-tool`. Между ними действительно проходит HTTP-запрос через 127.0.0.1 на свободном порту. Отдельные providers позволяют увидеть resources двух компонентов; явное извлечение context проверяет транспортную границу. Такой малый опыт удобен для первого разбора без контейнеров и backend.
+
+### Подготовим отдельное окружение
+
+Проверенный профиль — Linux x86\_64, Python 3.13.5, OpenTelemetry API/SDK 1.45.1. SDK и три остальные зависимости перечислены с hashes в `requirements.txt`; это отдельное дополнение к прежним stdlib-программам. Возьмите полную рабочую копию этой редакции, как указано во входе в практику главы 0. Из корня книги выполните блок ниже; `.venv-trace-l04` должен быть новым каталогом:
+
+```
+set -eu
+test ! -e .venv-trace-l04
+python3 -m venv .venv-trace-l04
+.venv-trace-l04/bin/python -m pip install \
+  --only-binary=:all: --require-hashes \
+  -r examples/trace_context/requirements.txt
+.venv-trace-l04/bin/python -m unittest discover \
+  -s examples/trace_context -p 'test_*.py' -v
+.venv-trace-l04/bin/python -m examples.trace_context.demo \
+  --scenario propagated
+```
+
+Только установка пакетов требует внешней сети. Сам опыт работает на loopback, создаёт и удаляет собственный fixture и завершает сервер после вызова. У него нет настройки внешнего endpoint или произвольного root. Требуются POSIX и разрешение слушать локальный порт. Venv здесь отделяет SDK от окружения остальных примеров; запускать все последующие команды нужно из того же корня, используя его Python.
+
+### От span в памяти до context в заголовке
+
+API даёт операции создания span, текущий context и links. SDK назначает реальные trace/span IDs, принимает решение sampling и завершает spans. `SimpleSpanProcessor` передаёт каждый завершённый span в `ConsoleSpanExporter`. В примере exporter сначала пишет в отдельный буфер каждого компонента, а программа выводит полученные SDK records в JSON. Так в одном stdout видны обе половины опыта. Короткий formatter берёт поля `ReadableSpan`; IDs и parent relationships не подготовлены заранее.
+
+Для опыта sampler явно задан как `ALWAYS_ON`, resource содержит только выбранное имя сервиса, глобальный provider не заменяется. Это помогает получить все четыре spans в маленьком запуске. Синхронный exporter делает вывод понятным: завершение span сразу вызывает export. В рабочем сервисе стоимость такого вызова нужно учитывать; batch/exporter и потери при shutdown проверяют отдельно. Локальный stdout ещё не проверяет доставку OTLP до collector. Устройство этих частей описано в [OTel Python exporters](https://opentelemetry.io/docs/languages/python/exporters/).
+
+При обычном вызове получается такое дерево. Буквы обозначают IDs вашего запуска, а не фиксированные значения программы:
+
+```
+trace T1
+harness.attempt  span A
+  tool.read.client  span C, parent A
+    tool.read.server  span S, parent C (remote)
+      file.read  span F, parent S
+```
+
+Сначала mini-harness открывает span попытки. Внутри него создаётся client span инструмента. Пока именно client span является текущим, propagator внедряет его context в carrier — обычный словарь HTTP-заголовков. На принимающей стороне извлечённый context становится parent для server span:
+
+```
+# Отправитель, внутри текущего tool.read.client:
+carrier = {}
+PROPAGATOR.inject(carrier)
+
+# Получатель, из реально полученных HTTP-заголовков:
+parent = PROPAGATOR.extract(carrier, context=Context())
+with tool_tracer.start_as_current_span(
+        'tool.read.server', context=parent, kind=SpanKind.SERVER):
+    ...  # file.read и ограниченный read_file
+```
+
+`Context()` задаёт пустую исходную основу на входе сервера: потерянный заголовок не будет незаметно заменён случайным ambient context этого процесса. В реальном adapter ту же проверку проводят на каждой границе транспорта и смены исполнения. Автоматическая instrumentation удобна для поддерживаемых HTTP/async библиотек, но полезность её hooks проверяют таким же сквозным запросом. В этой первой работе границу видно непосредственно в двух вызовах `inject`/`extract`. [OTel Python propagation](https://opentelemetry.io/docs/languages/python/propagation/)
+
+В JSON смотрите `wire[0].received_traceparent` и записи `spans`. У server span должен быть тот же `trace_id`, что у client, а `parent_span_id` должен равняться `span_id` client. Поле `remote_parent=true` показывает извлечение удалённого span context. В заголовке переносится ID client, а не самый верхний ID попытки: иначе исчезнет один уровень вызова.
+
+Последний байт `traceparent` — битовая маска, а не одно булево число. В выбранном SDK вы увидите `03`: sampled `0x01` и random-trace-id `0x02`. Проверяйте sampled через маску, а перенос оставьте propagator. Поддержка второго бита есть в [TraceFlags этого SDK](https://github.com/open-telemetry/opentelemetry-python/blob/14971cef9c84c2354cbaf6871090896fad0f9a1a/opentelemetry-api/src/opentelemetry/trace/span.py) и описана в [Trace Context Level 2, Candidate Recommendation Draft](https://www.w3.org/TR/2024/CRD-trace-context-2-20240328/); это не утверждение, что все реализации поддерживают один профиль flags.
+
+### Уберём заголовок и найдём разрыв
+
+```
+.venv-trace-l04/bin/python -m examples.trace_context.demo \
+  --scenario dropped
+```
+
+Этот режим очищает tracing carrier перед HTTP-вызовом. Прикладные заголовки `x-learning-operation-id` и `x-learning-attempt-id` остаются. Чтение всё ещё возвращает правильный hash, но принимающий SDK создаёт новый root: у server span другой trace ID и нет parent. В выводе будет два traces, а проверки `same_client_server_trace` и `server_parent_is_client` станут false. Код выхода 0 означает, что программа успешно воспроизвела заданный разрыв; поле `summary.meaning` прямо называет его намеренным.
+
+Совпадение `learning.operation.id` помогает найти обе части истории по одной прикладной работе. Оно не восстанавливает потерянный parent: внутри работы могли быть параллельные вызовы и повторы. Для дерева нужны исходный context или другая явно сохранённая причинная связь. Здесь мы знаем, какой заголовок удалили, потому что сами контролируем опыт. В инциденте проверяйте отправку, получение и extractor на границе; близость timestamps не выбирает правильного родителя.
+
+Есть и вариант `--scenario invalid`: он передаёт `traceparent` с нулевыми trace/span IDs. Настоящий propagator отвергает такой context, и сервер начинает новый trace. Поэтому при расследовании важно различать «заголовка нет» и «заголовок дошёл, но не принят». Начните с wire-поля, затем сравните IDs и parent у экспортированных spans.
+
+### Возобновим попытку с явной связью
+
+```
+.venv-trace-l04/bin/python -m examples.trace_context.demo \
+  --scenario resumed
+```
+
+Первая попытка помечается `waiting`, её span завершается, а context сохраняется в словарь checkpoint. Вторая получает тот же operation ID, новый attempt ID и новый root trace. При создании root ей передаётся `Link` на первую попытку:
+
+```
+# Предыдущий span уже завершён; saved содержит его context.
+previous = PROPAGATOR.extract(saved, context=Context())
+link = Link(get_current_span(previous).get_span_context())
+with harness_tracer.start_as_current_span(
+        'harness.attempt', context=Context(), links=[link]):
+    ...  # новый client/server/file участок
+```
+
+У нового root `parent_span_id=null`, а в `links` — trace/span IDs завершённой попытки. Так видно и разделение активных участков, и их причинное продолжение. Вторая попытка снова передаёт обычный context своему tool, поэтому внутри неё сохраняется полный client/server путь. Общий operation ID служит для поиска работы целиком, attempt ID — для различения проходов, link — для явной связи между ними. Links известны до создания span, что позволяет sampler учитывать их. [OTel Python links](https://opentelemetry.io/docs/languages/python/instrumentation/#adding-links)
+
+Checkpoint в этой вариации хранится только в памяти. Долгое ожидание и отказ процесса не исполняются; отсутствуют устойчивое сохранение, новый Actor и restore. Для настоящего resume нужно отдельно проверить запись context вместе с состоянием работы, его чтение после сбоя и поддержку links в backend. Восстанавливать можно ту причинную связь, которая была сохранена, а не произвольного «последнего соседа по времени».
+
+| Режим | Наблюдаемый граф | Прикладной результат |
+| --- | --- | --- |
+| propagated | 4 spans, один trace; server parent — client | Синтетический файл прочитан |
+| dropped / invalid | 4 spans, два traces; server стал root. Operation ID общий | Тот же файл прочитан, но propagation нарушен |
+| resumed | 5 spans, два traces; второй attempt — root с link на первый | Один вызов чтения во второй попытке |
+
+### Как перенести этот опыт в свой harness
+
+Сначала назовите операции, которыми владеет приложение: попытка controller, обращение к модели, proposal/admission инструмента, вызов и verification результата. Затем инструментируйте одну границу и проверьте фактический context на обеих сторонах. В нашем опыте mini-harness делает один известный вызов без модели, а ограниченный `read_file` заимствован из неизменённого L01. Полный model loop L01 не переоборудован автоматически; этот шаг показывает механизм для вашего adapter.
+
+Начните самостоятельную проверку с небольшого изменения: перенесите `inject` наружу client span. До запуска предскажите, какой ID окажется parent у server и какой уровень пропадёт. Затем удалите прикладной operation header: текущая schema отклонит запрос до чтения; объясните, какие IDs принадлежат tracing-протоколу, а какие введены самим приложением. Наконец, представьте две причины для одного возобновления и обоснуйте выбор нескольких links вместо выдуманного единственного parent.
+
+В traces экспортируются только выбранные IDs, hash и размер fixture, состояние ожидания и имена операций. Текст файла, arguments и credentials не включаются в атрибуты; автоматического экспорта всех заголовков или baggage нет. Имена resource и прикладные headers здесь задаёт доверенный учебный процесс: они дают correlation, но не authentication. Сервер остаётся локальным учебным HTTP-tool без auth; не открывайте его наружу. Нет OTLP, collector/backend, persistent queue, проверки crash/restore или production sampling. Прежняя offline-модель SLI продолжает отвечать на свой вопрос о population и результате; число полученных spans не становится новым знаменателем качества.
 
 ## Как выбирать инструменты под получившийся контракт
 

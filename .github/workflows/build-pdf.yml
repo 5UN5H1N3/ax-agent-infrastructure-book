@@ -45,6 +45,12 @@ jobs:
         with:
           python-version: "3.13"
 
+      - name: Verify isolated trace context learning profile
+        run: |
+          python -m venv "${{ runner.temp }}/ax-trace-l04"
+          "${{ runner.temp }}/ax-trace-l04/bin/python" -m pip install --only-binary=:all: --require-hashes -r examples/trace_context/requirements.txt
+          "${{ runner.temp }}/ax-trace-l04/bin/python" -m unittest discover -s examples/trace_context -p 'test_*.py' -v
+
       - name: Install PDF and diagram dependencies
         run: |
           sudo apt-get update

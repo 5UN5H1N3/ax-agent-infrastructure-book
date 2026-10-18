@@ -138,6 +138,32 @@ class ExampleCatalogTests(unittest.TestCase):
         self.assertIn('Model profile: pinned code/passport/test links differ',
                       check_example_catalog(soup))
 
+    def test_trace_context_has_a_separate_dependency_boundary(self):
+        soup = self.soup()
+        soup.select_one('p.trace-context-source').decompose()
+        self.assertIn('Trace context: missing separate dependency/source boundary',
+                      check_example_catalog(soup))
+
+    def test_missing_trace_context_files_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            errors = check_example_catalog(self.soup(), directory)
+        self.assertIn('Trace context: missing demo.py', errors)
+        self.assertIn('Trace context: missing requirements.txt', errors)
+        self.assertIn('Trace context: missing test_demo.py', errors)
+
+    def test_trace_context_requires_full_revision(self):
+        soup = self.soup()
+        soup.select_one('p.trace-context-source')['data-code-ref'] = 'main'
+        self.assertIn('Trace context: source revision must be a full SHA',
+                      check_example_catalog(soup))
+
+    def test_trace_context_links_cannot_drift_from_revision(self):
+        soup = self.soup()
+        link = soup.select_one('p.trace-context-source a')
+        link['href'] = link['href'].replace('/tree/', '/blob/')
+        self.assertIn('Trace context: pinned code/dependency/test links differ',
+                      check_example_catalog(soup))
+
 
 if __name__ == "__main__":
     unittest.main()
