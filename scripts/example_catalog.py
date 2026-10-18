@@ -95,6 +95,23 @@ def check_example_catalog(soup, root=None):
         for name in names:
             if not (examples / ("test_"+name)).is_file():
                 errors.append(f"Example catalog: missing author test for {name}")
+        for name in ('harness.py', 'evals.py', 'cases.json', 'README.md'):
+            if not (examples / 'learning_harness' / name).is_file():
+                errors.append(f"Learning companion: missing {name}")
+        if not (examples / 'test_ch04_learning_harness.py').is_file():
+            errors.append('Learning companion: missing common regression test')
+    if 'examples/learning_harness/' not in text or 'не входит в этот старый срез' not in text:
+        errors.append('Learning companion: missing edition-local source boundary')
+    companion = guide.select_one('p.learning-companion-source')
+    companion_ref = companion.get('data-code-ref', '') if companion else ''
+    if re.fullmatch(r'[0-9a-f]{40}', companion_ref) is None:
+        errors.append('Learning companion: source revision must be a full SHA')
+    elif [link.get('href') for link in companion.find_all('a')] != [
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/{companion_ref}/examples/learning_harness',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{companion_ref}/examples/learning_harness/cases.json',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{companion_ref}/examples/test_ch04_learning_harness.py',
+    ]:
+        errors.append('Learning companion: pinned source/corpus/test links differ')
     lab = soup.find(id="lab-dependencies")
     if lab is None:
         errors.append("Lab map: missing dependency entry")

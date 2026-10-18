@@ -6,7 +6,7 @@
 
 ## Получить именно код этого учебного среза
 
-Для приведённых здесь команд закреплён [срез программ книги 51572b91](https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/51572b91c04609b6a234418896bc43fdb64b5bd5/examples). Это commit репозитория книги, а не версия AX или Substrate. Все ссылки «код» и «тест» в каталоге ведут к этому же полному SHA. Редакционная навигация может быть новее кода: повторять опыт следует с закреплёнными программами, а не с произвольным будущим main.
+Для 39 программ каталога закреплён [срез программ книги 51572b91](https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/51572b91c04609b6a234418896bc43fdb64b5bd5/examples). Это commit репозитория книги, а не версия AX или Substrate. Все ссылки «код» и «тест» в каталоге ведут к этому же полному SHA. Редакционная навигация может быть новее кода: повторять эти опыты следует с закреплёнными программами, а не с произвольным будущим main. Отдельный сквозной companion ниже поставляется с более новой редакцией книги и не входит в этот старый срез.
 
 ```
 git clone https://github.com/5UN5H1N3/ax-agent-infrastructure-book.git
@@ -28,6 +28,10 @@ python -m unittest discover -s examples -p 'test_ch04_harness_demo.py' -v
 В первом запуске ожидаются status=completed, evidence.tests.passed=false и source=simulated, затем события repo.read\_file, tests.run, result\_built. Это правильный учебный результат: harness собрал объяснение об известном дефекте. Функция tests.run здесь возвращает fixture, а не запускает тест приложения. Следующая команда действительно запускает авторские проверки harness и должна закончиться OK. Таким образом, «дефект найден», «тест приложения прошёл» и «учебная программа проверена» — три разных утверждения.
 
 ## Как выбрать режим запуска
+
+**Новый сквозной маршрут.** В `examples/learning_harness/` этой редакции находятся ещё две точки запуска: `harness.py` и `evals.py`; их общая проверка — `examples/test_ch04_learning_harness.py`. Это дополнение к 39 программам таблицы, а не незаметная замена их закреплённых версий. Для него возьмите отдельный срез по ссылкам ниже: старый SHA из команды выше не содержит нового каталога. Из корня такой копии выполните `python3 -m examples.learning_harness.harness`, затем `python3 -m examples.learning_harness.evals`. Требуются POSIX, Python и loopback; по умолчанию используются собственный временный файл и HTTP mock, без ключей, GPU и модели. Полный путь обмена разобран в [главе 4](../docs/04-agent-harness.md), оценки подготовленных ответов — в [главе 2](../docs/02-llm-as-compute.md); тот же код даёт локальный старт Lab 10 в [главе 32](../docs/32-labs.md). Флаг `--base-url` companion включает настоящий endpoint только вместе с `--allow-source-upload`; он может передать прочитанный файл и вызвать платную генерацию.
+
+Закреплённый [срез companion 7d927c1a](https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/7d927c1a5cdbfe0620cd41f2c27474fd129db8a6/examples/learning_harness), [полный eval-набор](https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/7d927c1a5cdbfe0620cd41f2c27474fd129db8a6/examples/learning_harness/cases.json) и [общие тесты](https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/7d927c1a5cdbfe0620cd41f2c27474fd129db8a6/examples/test_ch04_learning_harness.py) относятся к одной ревизии. В новой учебной копии репозитория после clone выполните `git switch --detach 7d927c1a5cdbfe0620cd41f2c27474fd129db8a6`, затем команды нового маршрута из корня этой копии. Для примера достаточно стандартной библиотеки; не переключайте существующую рабочую копию с несохранёнными изменениями.
 
 | Режим | Что действительно происходит | Что подготовить |
 | --- | --- | --- |

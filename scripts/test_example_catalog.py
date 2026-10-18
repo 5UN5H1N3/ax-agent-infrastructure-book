@@ -87,6 +87,31 @@ class ExampleCatalogTests(unittest.TestCase):
     def test_generated_anchor_aliases_are_present(self):
         self.assertEqual(check_web_section_anchors(ROOT / "docs"), [])
 
+    def test_new_companion_does_not_claim_the_old_pinned_slice(self):
+        soup = self.soup()
+        self.assertIn('не входит в этот старый срез', soup.find(id='examples-guide').get_text())
+        with tempfile.TemporaryDirectory() as directory:
+            self.assertTrue(any('Learning companion: missing harness.py' in error
+                                for error in check_example_catalog(soup, directory)))
+
+    def test_missing_companion_source_boundary_is_reported(self):
+        source = self.source.replace('не входит в этот старый срез', 'входит в срез')
+        self.assertIn('Learning companion: missing edition-local source boundary',
+                      check_example_catalog(BeautifulSoup(source, 'html.parser')))
+
+    def test_companion_requires_full_revision(self):
+        soup = self.soup()
+        soup.select_one('p.learning-companion-source')['data-code-ref'] = 'main'
+        self.assertIn('Learning companion: source revision must be a full SHA',
+                      check_example_catalog(soup))
+
+    def test_companion_cannot_link_to_a_different_revision(self):
+        soup = self.soup()
+        link = soup.select_one('p.learning-companion-source a')
+        link['href'] = link['href'].replace('/tree/', '/blob/')
+        self.assertIn('Learning companion: pinned source/corpus/test links differ',
+                      check_example_catalog(soup))
+
 
 if __name__ == "__main__":
     unittest.main()
