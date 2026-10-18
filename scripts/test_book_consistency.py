@@ -7,6 +7,7 @@ import unittest
 
 from bs4 import BeautifulSoup
 from check_book_consistency import check_source, check_docs, check_artifact_readme
+from test_readiness_register import ReadinessRegisterTests
 
 ROOT = Path(__file__).resolve().parents[1]
 

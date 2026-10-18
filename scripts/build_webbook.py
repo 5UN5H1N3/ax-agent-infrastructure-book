@@ -6,6 +6,7 @@ import re, shutil, sys
 from rasterize_svg import render_svg, validate_graphviz_png
 from book_structure import SLUGS, GROUPS, ANCHORS, navigation_title, passport_markdown
 from example_catalog import examples_readme, WEB_SECTION_TARGETS, add_web_section_anchors
+from readiness_register import build_register, serialize
 
 root = Path(__file__).resolve().parents[1]
 html_path = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / "book/AX_Agent_Infrastructure_Book_RU.html"
@@ -31,6 +32,7 @@ shutil.copy2(root / "assets/favicon.svg", assets / "favicon.svg")
 svg_to_png(root / "assets/favicon.svg", assets / "favicon.png", 512)
 
 soup = BeautifulSoup(html_path.read_text(encoding="utf-8"), "html.parser")
+(root / 'book/readiness-readonly-register.json').write_text(serialize(build_register(soup)), encoding='utf-8')
 
 slugs = SLUGS
 

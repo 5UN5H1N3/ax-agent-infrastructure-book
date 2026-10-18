@@ -17,6 +17,9 @@ on:
       - "scripts/check_book_consistency.py"
       - "scripts/book_structure.py"
       - "scripts/test_book_consistency.py"
+      - "scripts/readiness_register.py"
+      - "scripts/test_readiness_register.py"
+      - "book/readiness-readonly-register.json"
       - "scripts/example_catalog.py"
       - "scripts/test_example_catalog.py"
       - "examples/**"
@@ -108,6 +111,6 @@ jobs:
           python scripts/publish_generated_artifacts.py \
             --branch main \
             --message "docs: publish collision-free redrawn diagrams [skip ci]" \
-            docs examples/README.md
+            docs examples/README.md book/readiness-readonly-register.json
 
 # Publication trigger: chapter 27

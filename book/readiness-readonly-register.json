@@ -1,0 +1,670 @@
+{
+  "schema_version": 1,
+  "profile_id": "network-readonly-plan",
+  "evidence_scope": "unexecuted_plan",
+  "phase": "pre_canary",
+  "candidate_inventory": null,
+  "release_owner": null,
+  "profile": {
+    "scope": "Один lab tenant, synthetic данные; результат — отчёт с источниками, временем чтения и оставшимися пробелами. В inventory предстоит закрепить сборки, модель, adapters, sandbox class и конфигурацию.",
+    "rights": "Только inventory_read и metrics_read на согласованных lab targets; без shell, делегирования и tools изменения сетевых объектов. Запись собственного отчёта, progress и платформенных metadata нужна и проверяется отдельно: read-only относится к управляемым сетевым целям.",
+    "limits": "Не более двух активных run, 20 шагов и 10 tool attempts суммарно на run; срок результата — 120 секунд от приёма. До испытаний команда задаёт token и денежный бюджеты выбранной модели, SLO и допустимый запас. Эти числа — условия упражнения, не измеренная capacity.",
+    "recovery": "Учебные цели: RPO 5 минут, RTO 30 минут для оговорённого отказа; проверяются progress и полезный отчёт. Backup, keys и runbook должны быть доступны вне отказавшей площадки.",
+    "canary": "После отдельного допуска — малая группа и synthetic задания при тех же лимитах. Объём, длительность и покрытие классов задач задаются в G2-plan до старта. Неожиданный write, чужие данные или превышение жёсткого бюджета останавливают выдачу новой работы."
+  },
+  "criteria": [
+    {
+      "id": "P1",
+      "title": "Запущена именно проверенная сборка",
+      "applicability": "required",
+      "applicability_reason": "Применим. Нужен состав candidate, а не список версий на ноутбуке.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер платформы",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "P1-inventory",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "P1-inventory : Сопоставить фактические digests, исходники, model, adapters и policy; manifest воспроизводит запущенный набор.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "P1-cold",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "P1-cold : Без cache нового Worker получить нужные images и assets; итоговый отчёт относится к тому же набору.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "P2",
+      "title": "Работает выбранная комбинация компонентов",
+      "applicability": "required",
+      "applicability_reason": "Применим. Даже чтения зависят от совместимости компонентов.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер интеграции",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "P2-flow",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "P2-flow : Пройти create/setup, model request, MCP read и завершение; oracle проверяет содержание отчёта.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "P2-resume",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "P2-resume : Повторить полезную работу после suspend/resume для каждого выбранного sandbox class.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "P3",
+      "title": "Нагрузка укладывается в измеренный запас",
+      "applicability": "required",
+      "applicability_reason": "Применим. Два одновременных run тоже требуют измерения предела и запаса.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер производительности",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "P3-load",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "P3-load : Подать штатный поток, burst и потерю оговорённой capacity; измерить задержку, качество и размер очереди.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "P3-admission",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "P3-admission : Превысить предел двух активных run; лишняя работа получает явный отказ или ограниченное ожидание.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "P4",
+      "title": "Отказ зависимости имеет ограниченный эффект",
+      "applicability": "required",
+      "applicability_reason": "Применим. Используются сеть, stores и данные восстановления.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер платформы",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "P4-dependencies",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "P4-dependencies : Поочерёдно отключить используемые DNS, registry, model/tool endpoints, stores и payload storage; ожидание ограничено, восстановленная задача даёт отчёт.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "S1",
+      "title": "Control plane доступен только нужным identities",
+      "applicability": "required",
+      "applicability_reason": "Применим. Чтение не даёт права обращаться к любому API.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер по доступу",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "S1-identities",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S1-identities : Проверить allowed и denied identity для каждого API, включая обход proxy; причина отказа различима.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "S2",
+      "title": "Egress ограничивает фактический путь sandbox",
+      "applicability": "required",
+      "applicability_reason": "Применим. Sandbox должен читать только оговорённые endpoints.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер по сети",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "S2-egress",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S2-egress : Из Actor проверить allowed/denied адреса и обход proxy; после смены policy и resume старый путь не расширяет доступ.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "S3",
+      "title": "Sandbox и tenant isolation соответствуют угрозе",
+      "applicability": "required",
+      "applicability_reason": "Применим. Данные одного tenant нельзя выдавать другому.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер по изоляции",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "S3-tenant",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S3-tenant : Проверить свои и чужие objects, Workspace, snapshots и credentials; после reuse Worker чужих данных нет.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "S4",
+      "title": "Credentials ограничены и действительно отзываются",
+      "applicability": "required",
+      "applicability_reason": "Применим. Read credentials и ключи хранилищ требуют отзыва.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер по доступу",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "S4-rotation",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S4-rotation : Сменить canary credential; provider принимает новый и отклоняет старый, в том числе после restore.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "S5",
+      "title": "Tools, skills и writes проходят разные проверки",
+      "applicability": "partial",
+      "applicability_reason": "Частично. Проверяются чтения и запрет mutation. Разрешённого write нет.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Разработчик adapters",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "S5-schema",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S5-schema : Проверить неверные arguments, чужую цель, подменённую инструкцию и разрешённое чтение; контроль отделяет deny от неисправности.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "S5-no-write",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S5-no-write : Сверить allowlist, effective credentials, UI и прямой API: mutation отклонена, независимое чтение цели не находит effect.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "S6",
+      "title": "Debug доступ и audit имеют независимый контроль",
+      "applicability": "required",
+      "applicability_reason": "Применим. Ограничение tools не защищает само по себе debug и audit.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Ответственный за безопасность",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "S6-debug",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S6-debug : Проверить штатные debug interfaces и закрытие break-glass; старый вход перестаёт действовать.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "S6-audit",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "S6-audit : Workload не меняет историю прав и outcomes; потеря доставки обнаруживается и обрабатывается по принятому правилу.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "H1",
+      "title": "Бюджеты ограничивают всю работу",
+      "applicability": "partial",
+      "applicability_reason": "Частично. Лимиты применимы; делегирование и write approval выключены.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Разработчик harness",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "H1-limits",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "H1-limits : Превысить steps, tool attempts, wall time и остальные заданные бюджеты, отменить run; новая работа прекращается, делегирование отклоняется.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "H2",
+      "title": "Запуск и завершение имеют прикладной результат",
+      "applicability": "partial",
+      "applicability_reason": "Частично. Нужны чтение и отчёт; ожидание write approval исключено.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Владелец прикладного результата",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "H2-oracle",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "H2-oracle : Проверить валидный отчёт, ошибку child command, exit 0 без отчёта и недоступный вход; oracle и UI различают исходы.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "H3",
+      "title": "Ошибки tools имеют ограниченную стратегию обработки",
+      "applicability": "required",
+      "applicability_reason": "Применим. Ошибки чтения способны запустить бесконечные повторы.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Разработчик harness",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "H3-errors",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "H3-errors : Ввести malformed result, schema mismatch, deny, rate limit и timeout; причина сохранена, retries конечны и не обходят deny.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "H4",
+      "title": "Неизвестный outcome удерживает write gate закрытым",
+      "applicability": "proposed_NA",
+      "applicability_reason": "Предложено N/A только для изменяющих tool-вызовов к сетевым целям: они исключены. Основание ещё должны подтвердить P1-inventory и S5-no-write.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [
+        "P1-inventory",
+        "S5-no-write"
+      ],
+      "owner_role": "Владелец сервиса",
+      "assignee": null,
+      "cases": [],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "H5",
+      "title": "Durable progress достаточен для продолжения",
+      "applicability": "required",
+      "applicability_reason": "Применим. Отчёт и progress должны пережить остановку процесса.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Разработчик harness",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "H5-checkpoint",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "H5-checkpoint : Восстановить процесс и более ранний checkpoint; шаг, revision, pending reads и актуальные права определены без догадки.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "H5-eval",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "H5-eval : На фиксированном наборе проверить correctness и safety candidate до и после restore; подготовленные ответы L02 не заменяют ответы этой модели.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "R1",
+      "title": "Backup возвращает согласованный набор зависимостей",
+      "applicability": "required",
+      "applicability_reason": "Применим. Внутренние записи, Workspace и снимки остаются частью профиля.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер восстановления",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "R1-closure",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "R1-closure : Собрать и прочитать recovery set с metadata, payload, keys и borrowed/golden references; ссылки разрешаются.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "R2",
+      "title": "Restore из чистой среды укладывается в цели",
+      "applicability": "required",
+      "applicability_reason": "Применим. Теряются и принятые read-only задачи, и отчёты.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер восстановления",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "R2-restore",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "R2-restore : Другой оператор восстанавливает отчёт из чистой среды; измерены окно потери и полное время восстановления относительно целей.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "R2-offsite",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "R2-offsite : При отказе площадки получить runbook, backup и keys; недоступная обязательная зависимость остаётся открытой.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "R3",
+      "title": "Восстановление сохраняет текущие права и единственного writer",
+      "applicability": "partial",
+      "applicability_reason": "Частично. Внешний mutation writer исключён; writers внутреннего state и текущие права остаются.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер восстановления",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "R3-rights",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "R3-rights : После restore старый credential не действует, текущая policy соблюдена и запись progress принадлежит одному исполнителю.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "O1",
+      "title": "Историю можно собрать по logical run",
+      "applicability": "required",
+      "applicability_reason": "Применим. История чтений нужна и после переноса.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Инженер наблюдаемости",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "O1-trace",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "O1-trace : Собрать run до и после relocation по identity, Task/Actor, Worker и model/tool attempts; чужие старые события не примешаны.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "O2",
+      "title": "Измеряются результат пользователя и причины задержки",
+      "applicability": "required",
+      "applicability_reason": "Применим. Успех пользователя — содержательный отчёт в срок.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Владелец SLO",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "O2-sli",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "O2-sli : На размеченных заданиях проверить числитель и знаменатель SLI, ошибки, отмены и просрочки; метрики не скрывают плохие исходы.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "O3",
+      "title": "Alert приводит к проверяемому действию",
+      "applicability": "required",
+      "applicability_reason": "Применим. Живой процесс может перестать выдавать отчёты.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Ответственный за дежурство",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "O3-alert",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "O3-alert : Сбой без отчёта вызывает alert; дежурный получает его, исполняет runbook и проверяет полезный результат.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "O4",
+      "title": "Операторы получают нужные данные без раскрытия secrets",
+      "applicability": "required",
+      "applicability_reason": "Применим. Оператору нужны данные без значений secrets.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Ответственный за дежурство",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "O4-evidence",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "O4-evidence : Другой инженер находит logs и runbook обычными правами, включая отказ площадки; redaction сохраняет IDs и скрывает credentials.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "G1",
+      "title": "Отчёт закрывает обязательные критерии текущего этапа",
+      "applicability": "required",
+      "applicability_reason": "Применим. Свидетельства привязываются к candidate и этапу.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Ответственный за выпуск",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "G1-review",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "G1-review : Проверить все ID, candidate, cases, людей и применимость; удаление обязательного отчёта сохраняет HOLD.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "G2",
+      "title": "Canary даёт относящиеся к работе сервиса наблюдения",
+      "applicability": "required",
+      "applicability_reason": "Применим. План canary и её результаты принадлежат разным этапам.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Владелец canary",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "G2-plan",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "G2-plan : До canary согласовать candidate/control, предел воздействия, классы задач, stop conditions и прекращение новой работы.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "G2-observe",
+          "stage": "before_expand",
+          "required": true,
+          "expected": "G2-observe (before_expand): Перед расширением получить реальные наблюдения canary, сравнить с control и абсолютными SLO; недостающий класс задач остаётся открытым.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    },
+    {
+      "id": "G3",
+      "title": "Обратный путь и эксплуатационная передача выполнимы",
+      "applicability": "required",
+      "applicability_reason": "Применим. Нужны обратный путь и передача дежурному.",
+      "applicability_approved_by": null,
+      "supporting_case_ids": [],
+      "owner_role": "Ответственный за выпуск",
+      "assignee": null,
+      "cases": [
+        {
+          "id": "G3-rollback",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "G3-rollback : В lab проверить возврат совместимой сборки и state либо выбранный forward recovery; изменение прав не теряется.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        },
+        {
+          "id": "G3-handoff",
+          "stage": "pre_canary",
+          "required": true,
+          "expected": "G3-handoff : Другой дежурный получает inventory, alerts, runbook, stop/rollback права и открытые вопросы.",
+          "status": "SKIPPED",
+          "reason": "План проверки; выполнение не зарегистрировано.",
+          "evidence": []
+        }
+      ],
+      "criterion_closed": false,
+      "decision_basis": "Нет выполненных обязательных cases и согласованного основания закрытия."
+    }
+  ],
+  "decision": "HOLD",
+  "decision_basis": "Нужны inventory, назначенные люди и результаты обязательных cases текущего этапа.",
+  "canary_observed": false,
+  "production_ready": false
+}

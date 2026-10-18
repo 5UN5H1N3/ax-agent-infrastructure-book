@@ -13,12 +13,15 @@ from urllib.parse import unquote
 from bs4 import BeautifulSoup
 from book_structure import ANCHORS, SLUGS, GROUPS, navigation_title
 from example_catalog import check_example_catalog, examples_readme, check_web_section_anchors
+from readiness_register import check_register
 
 
 def check_source(source: Path) -> list[str]:
     soup = BeautifulSoup(source.read_text(encoding="utf-8"), "html.parser")
     errors = []
     root = source.parent.parent
+    errors += check_register(soup, root / 'book/readiness-readonly-register.json'
+                             if (root / 'scripts/readiness_register.py').is_file() else None)
     errors += check_example_catalog(soup, root if (root / "examples").is_dir() else None)
     if len(soup.select("section.chapter h1")) != 47:
         errors.append("Expected 47 chapter and appendix headings")
