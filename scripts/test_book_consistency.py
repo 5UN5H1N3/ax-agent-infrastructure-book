@@ -27,6 +27,58 @@ class BookConsistencyTests(unittest.TestCase):
     def test_current_source(self):
         self.assertEqual(check_source(ROOT / "book/AX_Agent_Infrastructure_Book_RU.html"), [])
 
+    def test_first_pass_entry_precedes_example_catalog(self):
+        soup = BeautifulSoup((ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text(), "html.parser")
+        chapter = soup.find(id="ch-0")
+        entry = chapter.select_one(".reader-entry")
+        self.assertIsNotNone(entry)
+        self.assertEqual([h.get_text() for h in entry.find_all("h3")], [
+            "Что нужно знать на входе", "Первый проход: от запроса к проверенному ответу"])
+        self.assertIn("JSON", entry.get_text())
+        self.assertIn("HTTP", entry.get_text())
+        self.assertEqual({a["href"] for a in entry.find_all("a")},
+                         {"#ch-1", "#ch-2", "#ch-3", "#ch-4"})
+        self.assertLess(str(chapter).index('class="reader-entry"'),
+                        str(chapter).index('id="examples-guide"'))
+
+    def test_five_roles_and_answer_key_precede_full_stack(self):
+        soup = BeautifulSoup((ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text(), "html.parser")
+        chapter = soup.find(id="ch-1")
+        walkthrough = chapter.select_one(".request-walkthrough")
+        self.assertIsNotNone(walkthrough)
+        roles = walkthrough.select("ol > li > strong")
+        self.assertEqual(len(roles), 5)
+        for role, name in zip(roles, ("Пользователь", "Harness", "Модель", "Инструмент", "Внешняя система")):
+            self.assertTrue(role.get_text().startswith(name))
+        self.assertEqual(walkthrough.h3.get_text(), "Проверьте себя на одном ответе")
+        self.assertIn("Разбор.", walkthrough.get_text())
+        self.assertLess(str(chapter).index('class="request-walkthrough"'),
+                        str(chapter).index("<figure>"))
+        self.assertLess(str(chapter).index('class="request-walkthrough"'),
+                        str(chapter).index("<table>"))
+
+    def test_later_vocabulary_links_to_relevant_chapters(self):
+        soup = BeautifulSoup((ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text(), "html.parser")
+        route = soup.find(id="ch-1").select_one(".vocabulary-route")
+        self.assertIsNotNone(route)
+        for terms, destinations in ((["Retry", "idempotency", "Checkpoint", "Fan-out/fan-in"],
+                                     {"#ch-10", "#ch-5", "#ch-7"}),
+                                    (["Lifecycle", "Quota"], {"#ch-14", "#ch-13", "#ch-34"})):
+            paragraph = next(p for p in route.find_all("p") if terms[0] in p.get_text())
+            for term in terms:
+                self.assertIn(term, paragraph.get_text())
+            self.assertEqual({a["href"] for a in paragraph.find_all("a")}, destinations)
+        for link in route.find_all("a"):
+            self.assertIsNotNone(soup.select_one(link["href"]).find("h1"))
+
+    def test_intro_keeps_reference_map_and_term_contract(self):
+        soup = BeautifulSoup((ROOT / "book/AX_Agent_Infrastructure_Book_RU.html").read_text(), "html.parser")
+        tables = soup.find(id="ch-1").find_all("table")
+        self.assertEqual(len(tables[0].select("tbody tr")), 7)
+        terms = [row.td.get_text() for row in tables[1].select("tbody tr")]
+        self.assertEqual(terms, ["задача", "run", "Task", "execution", "coordinator",
+                                 "orchestrator", "validation", "verification"])
+
     def test_isolated_trace_sdk_profile_is_required(self):
         with tempfile.TemporaryDirectory() as directory:
             fixture = Path(directory) / 'book.html'
