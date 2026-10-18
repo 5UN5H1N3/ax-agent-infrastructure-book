@@ -183,6 +183,7 @@ python -m unittest discover -s examples -p 'test_ch04_harness_demo.py' -v</code>
 <p class="learning-companion-source" data-code-ref="7d927c1a5cdbfe0620cd41f2c27474fd129db8a6">Закреплённый <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/7d927c1a5cdbfe0620cd41f2c27474fd129db8a6/examples/learning_harness">срез companion 7d927c1a</a>, <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/7d927c1a5cdbfe0620cd41f2c27474fd129db8a6/examples/learning_harness/cases.json">полный eval-набор</a> и <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/7d927c1a5cdbfe0620cd41f2c27474fd129db8a6/examples/test_ch04_learning_harness.py">общие тесты</a> относятся к одной ревизии. В новой учебной копии репозитория после clone выполните <code>git switch --detach 7d927c1a5cdbfe0620cd41f2c27474fd129db8a6</code>, затем команды нового маршрута из корня этой копии. Для примера достаточно стандартной библиотеки; не переключайте существующую рабочую копию с несохранёнными изменениями.</p>
 <p class="model-profile-source" data-code-ref="9072815ae2625165642cda208e694a46b3863ef8"><strong>Первый модельный профиль.</strong> Каталог <code>examples/model_profile/</code> продолжает маршрут L01/L02; срезы 51572b91 и 7d927c1a не содержат этого дополнения. Возьмите <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/9072815ae2625165642cda208e694a46b3863ef8/examples/model_profile">закреплённый код L03</a>, <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/9072815ae2625165642cda208e694a46b3863ef8/examples/model_profile/qwen3_06b_profile.json">паспорт Qwen3-0.6B</a> и <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/9072815ae2625165642cda208e694a46b3863ef8/examples/test_ch20_model_profile.py">его тесты</a> из одной ревизии. В новой учебной копии репозитория после clone выполните <code>git switch --detach 9072815ae2625165642cda208e694a46b3863ef8</code>; не переключайте существующую копию с несохранёнными изменениями. Из корня этой копии запустите <code>python3 -m examples.model_profile.profile</code>: он читает карточку без сети и модели. Инструкция <code>examples/model_profile/README.md</code> описывает остальные режимы. Флаг <code>--plan</code> только печатает команды; загрузка и запуск выполняются читателем отдельно. Флаг <code>--check</code> читает локальную поставку, а <code>--collect-eval</code> обращается к своему endpoint только с явным разрешением передачи синтетического кода. Заполненная карточка и последовательность допуска разобраны в <a href="#ch-20">главе 20</a>. Дополнение не меняет 39 программ каталога и закреплённый код L01/L02.</p>
 <p class="trace-context-source" data-code-ref="70f4878603c740329ad42a7741545e6a4387f79c"><strong>Живой trace context.</strong> Дополнение <code>examples/trace_context/</code> показывает передачу W3C context от mini-harness к локальному HTTP-tool, намеренный разрыв и resume через span link. Закреплённые срезы каталога 51572b91, L01/L02 7d927c1a и L03 9072815a не содержат этого дополнения. Используйте полную копию книги на commit <code>70f4878603c740329ad42a7741545e6a4387f79c</code>: <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/70f4878603c740329ad42a7741545e6a4387f79c/examples/trace_context">код и инструкция</a>, <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/70f4878603c740329ad42a7741545e6a4387f79c/examples/trace_context/requirements.txt">зависимости</a>, <a href="https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/70f4878603c740329ad42a7741545e6a4387f79c/examples/trace_context/test_demo.py">тест</a>. Это отдельный профиль OpenTelemetry Python API/SDK 1.45.1. Он требует установки четырёх пакетов в отдельный venv, POSIX и разрешённый loopback. Старые 39 программ остаются на стандартной библиотеке. По умолчанию новый пример создаёт собственный временный <code>batching.py</code>, читает его через 127.0.0.1 и выводит настоящие SDK spans; модель, collector и AX не запускаются. Установка и разбор опыта — в <a href="#ch-25">главе 25</a>.</p>
+<p class="mcp-continuation-source"><strong>Продолжение вызова MCP.</strong> В <code>examples/mcp_continuation/</code> текущей рабочей редакции находится проверяемый разбор дополнительного ввода и долгой task; старые закреплённые срезы каталога и L01–L04 не содержат этих файлов. Он использует стандартную библиотеку, читает подготовленные сообщения без сети и не запускает захват. Пошаговое объяснение — в <a href="#ch-36">главе 36</a>, команды и ключ упражнения — в <code>README.md</code> дополнения. До публикации используйте полную рабочую копию этой редакции.</p>
 <table id="example-modes"><thead><tr><th>Режим</th><th>Что действительно происходит</th><th>Что подготовить</th></tr></thead><tbody>
 <tr><td>М — модель в памяти</td><td>Расчёт и проверка фиксированных данных. Ни сеть, ни стенд не используются; штатный результат печатается в stdout.</td><td>Python. Файлы пользовательских проектов не читаются.</td></tr>
 <tr><td>В — временные файлы</td><td>Собственные файлы или SQLite в TemporaryDirectory; каталог автоматически убирается при штатном выходе.</td><td>Python/sqlite3 и место во временном каталоге. При аварийном убийстве процесса проверьте оставшиеся учебные файлы.</td></tr>
@@ -11814,12 +11815,347 @@ python3 -m unittest discover -s examples \
 <p>Заранее решите, какие сведения вообще разрешено отправлять выбранному server. Даже read tool может передать приватный prefix, путь к файлу или содержимое ticket стороннему сервису. Этот egress проверяется до отправки, как endpoint policy главы 35. Ответ и description также могут содержать инструкции постороннего автора. Host сохраняет их происхождение, а допустимость дальнейшего действия проверяет независимо от текста.</p>
 <p><a href="https://modelcontextprotocol.io/docs/2026-07-28/tutorials/security/security_best_practices">Security best practices</a> отдельно рассматривают SSRF через metadata и redirects, компрометацию локальных servers и перехват handles. На практике доверие к поставщику закрепляют endpoint или package digest, разрешёнными сетями и контролируемым credential scope. Секреты исключают из model input и обычных logs; audit хранит principal, contract revision, IDs и защищённые references. Для расширения прав нужен отдельный обоснованный шаг, а не цикл получения всё более широкого token после каждого отказа.</p>
 <h2>Дополнительный ввод и длительная работа</h2>
-<p>Предположим, <code>network.start_capture</code> требует уточнить interface. В modern MCP server может вернуть <code>resultType: input_required</code>. В <a href="https://modelcontextprotocol.io/specification/2026-07-28/basic/patterns/mrtr">MRTR</a> <code>inputRequests</code> задаёт запросы дополнительного ввода, а <code>requestState</code> переносит opaque состояние продолжения. Client обслуживает поддерживаемый ввод и повторяет исходный метод с новым JSON-RPC ID, соответствующими <code>inputResponses</code> и точным requestState. Server защищает его integrity, если от него зависят права или бизнес-логика.</p>
-<p>Это управляемое продолжение: host решает, допустим ли вопрос, кому его показать и какие данные раскрыть. Для цепочки нужны предел раундов, общий deadline и budget. Вопрос об interface помогает собрать arguments; подтверждение применения конфигурации требует более точного approval с target, diff и preconditions главы 37. Client упражнения заявляет пустые capabilities и останавливается на неизвестном variant результата. Он не притворяется, что <code>input_required</code> уже является успешным наблюдением.</p>
-<p>Отдельный случай — sampling, запрос server к модели через host. В профиле <code>2026-07-28</code> эта возможность deprecated, как указано в architecture overview. Если существующий adapter на неё опирается, поддержку проверяют явно. Дополнительный model call требует собственного допуска данных и расходует budget host; эти расходы следует учитывать наряду с исходным запросом, а не прятать внутри tool latency.</p>
-<p>Для захвата пакетов на несколько минут полезен явный job handle. Backend должен сохранять соответствующее состояние и разрешать доступ к нему по policy, тогда reconnect не теряет работу. Если <code>capture_id</code> существует только в RAM одной replica, общий HTTP endpoint этого не исправит. В журнале harness сохраняются handle, server, владелец, TTL и связь с application operation.</p>
-<p>Вместо собственного job API можно выбрать согласованное <a href="https://modelcontextprotocol.io/extensions/tasks/overview">Tasks extension</a>. Обе стороны заявляют <code>io.modelcontextprotocol/tasks</code> в extensions capabilities. Server может вернуть <code>resultType: task</code> с taskId; client сохраняет ID и опрашивает <code>tasks/get</code> по рекомендованному интервалу. Дополнительный ввод передаётся через <code>tasks/update</code>. Cooperative <code>tasks/cancel</code> сообщает намерение остановить работу, но не гарантирует остановку downstream и не отменяет уже произошедший эффект.</p>
-<p>Здесь три разных имени: MCP taskId, AX Task identity и операция harness. Храните их соответствие явно. Потеря ответа при создании job оставляет открытым вопрос, появился ли он; повтор должен учитывать contract дедупликации backend. Даже долговечный handle помогает только после того, как client смог его получить или восстановить через отдельный lookup.</p>
+<p>Во время диагностики packet loss инженер хочет снять короткую сводку на <code>lab-edge-1</code>, но ещё не выбрал interface. Здесь полезно разделить два события: сначала собрать недостающий параметр, затем выполнить захват. Если сама работа займёт минуты, понадобится ещё и способ вернуться к её результату после разрыва соединения. Разберём эти переходы по сообщениям.</p>
+<p>Ниже — подготовленный учебный обмен из <code>examples/mcp_continuation/traces.json</code>. Программа сверяет сообщения и состояния, не подключаясь к MCP peer или устройству. Название <code>network.start_capture</code>, operation ID и поля сводки принадлежат нашему contract. Профиль протокола остаётся <code>2026-07-28</code>: <a href="https://github.com/modelcontextprotocol/modelcontextprotocol/blob/1155ca460e5097019f32769b38dcba194432e2fb/docs/specification/2026-07-28/basic/patterns/mrtr.mdx">MRTR закреплён на 1155ca46</a>, <a href="https://github.com/modelcontextprotocol/ext-tasks/blob/899c1bbc869567670093face3591b39c28ce3219/specification/2026-07-28/tasks.md">Tasks — на 899c1bbc</a>. Эти два механизма согласуются отдельно; наличие базового MCP ещё не означает поддержку Tasks.</p>
+<h3>Сначала определим допустимый захват</h3>
+<p>Host уже получил отдельное разрешение на учебный захват: только <code>lab-edge-1/eth1</code>, до 12 packets и 4096 bytes. Короткий вариант ограничен одной секундой, долгий — максимум 120 секундами. Захват не меняет конфигурацию маршрутизатора, но расходует ресурсы и может раскрыть трафик. Поэтому scope и пределы нужны до отправки вызова. Выбор interface заполняет параметр внутри этого разрешения; форма не расширяет его.</p>
+<p>В tool contract interface необязателен: adapter умеет запросить уточнение, когда его не указали. Это полезно для интерактивного host. Для полностью автоматического workflow удобнее получить interface заранее из проверенного inventory и сразу передать его в arguments. Host выбирает этот путь по доступности достоверных данных и человека, который может ответить.</p>
+<h3>Первый запрос заканчивается вопросом</h3>
+<p>Client сообщает поддержку form elicitation в metadata самого request. <code>operation_id</code> остаётся прикладным именем захвата; JSON-RPC ID <code>41</code> нужен для доставки ответа именно на этот запрос:</p>
+<pre data-mcp-message="mrtr.1.request">{
+  "jsonrpc": "2.0",
+  "id": 41,
+  "method": "tools/call",
+  "params": {
+    "name": "network.start_capture",
+    "arguments": {
+      "operation_id": "capture-op-01",
+      "device": "lab-edge-1",
+      "duration_ms": 1000,
+      "max_packets": 12,
+      "max_bytes": 4096
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name": "capture-fixture-host", "version": "1.0.0"},
+      "io.modelcontextprotocol/clientCapabilities": {"elicitation": {"form": {}}}
+    }
+  }
+}</pre>
+
+<p>Server отвечает на <code>41</code> variant <code>input_required</code>. Для этого обмена он ещё не выдал ни сводку, ни job handle. Ключ <code>pick_interface</code> связывает конкретный вопрос с будущим ответом; вложенный <code>elicitation/create</code> не отправляется отдельным самопроизвольным RPC от server:</p>
+<pre data-mcp-message="mrtr.1.response">{
+  "jsonrpc": "2.0",
+  "id": 41,
+  "result": {
+    "resultType": "input_required",
+    "inputRequests": {
+      "pick_interface": {
+        "method": "elicitation/create",
+        "params": {
+          "mode": "form",
+          "message": "Which lab interface should the capture use?",
+          "requestedSchema": {
+            "type": "object",
+            "properties": {"interface": {"type": "string", "enum": ["eth0", "eth1"]}},
+            "required": ["interface"]
+          }
+        }
+      }
+    },
+    "requestState": "fixture-state-01"
+  }
+}</pre>
+
+<p>На этом JSON-RPC round trip завершён, а прикладная работа ждёт ввода. Host сохраняет исходные method, name и arguments, вопрос с ключом <code>pick_interface</code> и точную строку <code>requestState</code>. Продолжение привязывается к этому вызову и этому server, а не к любому следующему tool call. В маленьком fixture строка <code>fixture-state-01</code> — только метка. В реальном adapter она переносит состояние server; client не декодирует её, не исправляет поля внутри и не использует как credential.</p>
+<p>Server должен проверять integrity, если состояние влияет на доступ или бизнес-логику. Практический payload связывают с проверенным principal, исходной операцией и сроком действия. HMAC или AEAD защищает от подмены; отдельный server-side учёт нужен, если state допустимо использовать только один раз. Подпись сама по себе не делает продолжение одноразовым. Учебный replay проверяет точность переноса строки, без реализации этих механизмов защиты.</p>
+<h3>Host проверяет вопрос и продолжает вызов</h3>
+<p>Перед показом формы host устанавливает, какой server спрашивает, поддерживает ли client этот вид ввода и соответствует ли вопрос текущей работе. Затем пересекает варианты server с собственной policy. В форме предложены <code>eth0</code> и <code>eth1</code>; по нашим условиям разрешён только <code>eth1</code>. Ответ <code>eth0</code> может удовлетворять form schema и всё равно нарушать scope host. Пароли и API keys через form elicitation не собирают.</p>
+<p>Пользователь выбирает <code>eth1</code>. Client повторяет <code>tools/call</code> с прежними name и arguments, добавляет <code>inputResponses</code> рядом с ними в params и возвращает state без изменения. Новый ID <code>42</code> обозначает новый самостоятельный RPC. Ключ ответа остаётся <code>pick_interface</code>, а operation ID — <code>capture-op-01</code>:</p>
+<pre data-mcp-message="mrtr.2.request">{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "method": "tools/call",
+  "params": {
+    "name": "network.start_capture",
+    "arguments": {
+      "operation_id": "capture-op-01",
+      "device": "lab-edge-1",
+      "duration_ms": 1000,
+      "max_packets": 12,
+      "max_bytes": 4096
+    },
+    "requestState": "fixture-state-01",
+    "inputResponses": {"pick_interface": {"action": "accept", "content": {"interface": "eth1"}}},
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name": "capture-fixture-host", "version": "1.0.0"},
+      "io.modelcontextprotocol/clientCapabilities": {"elicitation": {"form": {}}}
+    }
+  }
+}</pre>
+
+<p>Server проверяет продолжение и ввод, выполняет ограниченную операцию и отвечает уже на <code>42</code>. В нашем подготовленном trace последним результатом служит такая сводка:</p>
+<pre data-mcp-message="mrtr.2.response">{
+  "jsonrpc": "2.0",
+  "id": 42,
+  "result": {
+    "resultType": "complete",
+    "isError": false,
+    "content": [{"type": "text", "text": "Prepared capture summary; no device was contacted."}],
+    "structuredContent": {
+      "operation_id": "capture-op-01",
+      "device": "lab-edge-1",
+      "interface": "eth1",
+      "packet_count": 12,
+      "captured_bytes": 768,
+      "truncated": false,
+      "source": "paper-fixture"
+    }
+  }
+}</pre>
+
+<p>Host принимает её по тому же принципу, что read_route выше: проверяет device, выбранный interface, operation ID, типы, объём и отсутствие усечения. Лишь здесь появляется пригодный для следующего шага результат. Значения <code>12</code> и <code>768</code> взяты из fixture; поле <code>source: paper-fixture</code> сохраняет это происхождение.</p>
+<table class="keep">
+<thead><tr><th>Точка обмена</th><th>Что сохраняет host</th><th>Что уже можно заключить</th></tr></thead>
+<tbody>
+<tr><td>После ответа на 41</td><td>Исходный вызов, вопрос, opaque state, остаток deadline</td><td>Нужен ввод; результата захвата и handle ещё нет</td></tr>
+<tr><td>Перед отправкой 42</td><td>Тот же operation ID, проверенный ответ, связь с 41</td><td>Параметр допустим в пределах прежнего scope</td></tr>
+<tr><td>После ответа на 42</td><td>Проверенная сводка и её происхождение</td><td>Учебный результат получен; исход прежнего config write по-прежнему отдельный вопрос</td></tr>
+</tbody></table>
+<p>На всю цепочку действует один deadline и budget: наш checker допускает максимум два раунда ввода, восемь exchanges и 130 секунд виртуального времени. Новый вопрос не обнуляет эти пределы. Реальному host нужны также ограничение размера формы и ответа, управляемое ожидание человека и понятное завершение при исчерпании времени.</p>
+<h3>Отказ от ввода и несовместимый client</h3>
+<p>Ответ формы <code>action: decline</code> означает явный отказ, а <code>action: cancel</code> — закрытие без подтверждения. В обоих случаях наш contract заканчивает вызов с <code>isError: true</code> и сообщением «захват не начат». Host не выбирает interface вместо пользователя и не запускает цикл повторных вопросов. Эти два пути есть в fixture как отдельные сценарии. Закрытие формы ещё не является методом отмены уже работающей task: в данном обмене task вообще не создавалась.</p>
+<p>Если client не заявил elicitation, server не должен присылать ему такой вопрос. Когда без уточнения выполнить contract невозможно, получается понятный protocol error. Для того же вызова с пустыми client capabilities сценарий <code>unsupported_form</code> содержит ответ:</p>
+<pre data-mcp-message="unsupported_form.1.response">{
+  "jsonrpc": "2.0",
+  "id": 41,
+  "error": {
+    "code": -32021,
+    "message": "Missing required client capability",
+    "data": {"requiredCapabilities": {"elicitation": {"form": {}}}}
+  }
+}</pre>
+
+<p>Теперь host может объяснить причину: этому workflow нужен заранее известный interface либо client с поддержкой формы. Увеличение retries не добавит capability. Старый <code>ch36_mcp_stdio.py</code> намеренно остаётся read-only client с пустыми capabilities; неожиданный <code>input_required</code> он отвергает. Новое дополнение не меняет его обещаний.</p>
+<h3>Если работа продолжается после ответа</h3>
+<p>Уточнение закончилось до захвата. Но сам захват может длиться до двух минут; удерживать исходный RPC всё это время неудобно. Здесь нужен handle — устойчивое имя уже принятой работы. Его последующее использование требует состояния на стороне backend и проверки доступа к нему. Opaque continuation state и job handle решают разные задачи: первый помогает закончить исходный вызов с недостающим вводом, второй позволяет наблюдать работу, которая уже получила отдельную жизнь.</p>
+<p>Можно оставить собственные tools <code>start_capture</code> и <code>get_capture</code>, если интеграция уже умеет работать с <code>capture_id</code>. Тогда статусы, TTL, cancellation и формат результата определяет ваш contract. <a href="https://modelcontextprotocol.io/extensions/tasks/overview">Tasks extension</a> задаёт общий способ такого наблюдения для совместимых hosts. В варианте ниже interface уже указан, а отдельный operation ID <code>capture-op-02</code> обозначает другой учебный захват.</p>
+<p>Сначала client получил discovery, в котором server заявил расширение. Пакет показан целиком; ответ относится к запросу 40 из fixture. Поля <code>cacheScope</code> и <code>ttlMs</code> обязательны для полного DiscoverResult этого профиля: здесь ответ можно кешировать 60 секунд только в пределах того же authorization context. Короткое stdio-демо выше сокращает discovery до версии и capabilities; оно не является проверкой полного соответствия schema. В новом разборе используются полные ответы:</p>
+<pre data-mcp-message="tasks.0.response">{
+  "jsonrpc": "2.0",
+  "id": 40,
+  "result": {
+    "resultType": "complete",
+    "supportedVersions": ["2026-07-28"],
+    "capabilities": {"tools": {}, "extensions": {"io.modelcontextprotocol/tasks": {}}},
+    "cacheScope": "private",
+    "ttlMs": 60000
+  }
+}</pre>
+
+<p>Client также объявляет <code>io.modelcontextprotocol/tasks</code> в capabilities каждого request. Он готов принять обычный результат или task handle; отдельного флага «создать task» этот профиль не требует. Выбор делает server:</p>
+<pre data-mcp-message="tasks.1.request">{
+  "jsonrpc": "2.0",
+  "id": 51,
+  "method": "tools/call",
+  "params": {
+    "name": "network.start_capture",
+    "arguments": {
+      "operation_id": "capture-op-02",
+      "device": "lab-edge-1",
+      "duration_ms": 120000,
+      "max_packets": 12,
+      "max_bytes": 4096,
+      "interface": "eth1"
+    },
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name": "capture-fixture-host", "version": "1.0.0"},
+      "io.modelcontextprotocol/clientCapabilities": {
+        "elicitation": {"form": {}},
+        "extensions": {"io.modelcontextprotocol/tasks": {}}
+      }
+    }
+  }
+}</pre>
+
+<p>Ответ на 51 содержит поля task прямо внутри result. Это форма <code>CreateTaskResult</code> в <a href="https://github.com/modelcontextprotocol/ext-tasks/blob/899c1bbc869567670093face3591b39c28ce3219/schema/2026-07-28/schema.json">закреплённой schema расширения</a>; дополнительного объекта <code>task</code> здесь нет:</p>
+<pre data-mcp-message="tasks.1.response">{
+  "jsonrpc": "2.0",
+  "id": 51,
+  "result": {
+    "resultType": "task",
+    "taskId": "task-fixture-01",
+    "status": "working",
+    "createdAt": "2026-10-18T10:00:00Z",
+    "lastUpdatedAt": "2026-10-18T10:00:00Z",
+    "ttlMs": 300000,
+    "pollIntervalMs": 1000
+  }
+}</pre>
+
+<p>Server вправе вернуть этот handle только после durable creation: последующий <code>tasks/get</code> уже должен находить task. Настоящая реализация связывает handle с owner, сохраняет его состояние и проверяет доступ на каждом запросе. Host записывает server, owner, TTL и связь operation ID с MCP taskId. Identity AX Task хранится отдельно: её совпадение с taskId нельзя предполагать. В fixture <code>task-fixture-01</code> — очевидное учебное имя, не образец безопасного bearer token; дисковая устойчивость по подготовленным сообщениям не проверяется.</p>
+<p><code>ttlMs: 300000</code> задаёт пять минут хранения от createdAt. Это не обещание завершить захват за пять минут и не новый deadline host. <code>pollIntervalMs: 1000</code> предлагает подождать секунду перед опросом. Виртуальные времена fixture позволяют проверить расписание без реального ожидания.</p>
+<h3>Два уровня завершения при опросе</h3>
+<p>Через секунду client обращается по taskId с новым RPC ID 52. Повторять <code>tools/call</code> для проверки progress не требуется:</p>
+<pre data-mcp-message="tasks.2.request">{
+  "jsonrpc": "2.0",
+  "id": 52,
+  "method": "tasks/get",
+  "params": {
+    "taskId": "task-fixture-01",
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name": "capture-fixture-host", "version": "1.0.0"},
+      "io.modelcontextprotocol/clientCapabilities": {
+        "elicitation": {"form": {}},
+        "extensions": {"io.modelcontextprotocol/tasks": {}}
+      }
+    }
+  }
+}</pre>
+
+<p>Ответ имеет <code>resultType: complete</code>, потому что запрос состояния обслужен. При этом <code>status: working</code> говорит, что сам захват ещё продолжается. Число 5000 задаёт новый рекомендуемый интервал:</p>
+<pre data-mcp-message="tasks.2.response">{
+  "jsonrpc": "2.0",
+  "id": 52,
+  "result": {
+    "resultType": "complete",
+    "taskId": "task-fixture-01",
+    "status": "working",
+    "createdAt": "2026-10-18T10:00:00Z",
+    "lastUpdatedAt": "2026-10-18T10:00:01Z",
+    "ttlMs": 300000,
+    "pollIntervalMs": 5000
+  }
+}</pre>
+
+<p>Следующий poll происходит на шестой секунде: 1000 + 5000 миллисекунд. Запрашивается тот же handle, RPC ID теперь 53:</p>
+<pre data-mcp-message="tasks.3.request">{
+  "jsonrpc": "2.0",
+  "id": 53,
+  "method": "tasks/get",
+  "params": {
+    "taskId": "task-fixture-01",
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name": "capture-fixture-host", "version": "1.0.0"},
+      "io.modelcontextprotocol/clientCapabilities": {
+        "elicitation": {"form": {}},
+        "extensions": {"io.modelcontextprotocol/tasks": {}}
+      }
+    }
+  }
+}</pre>
+
+<p>На этот раз task завершилась. Вложенный <code>result</code> имеет форму обычного результата исходного tool. Подготовленный захват достиг лимита 12 packets раньше максимальных 120 секунд:</p>
+<pre data-mcp-message="tasks.3.response">{
+  "jsonrpc": "2.0",
+  "id": 53,
+  "result": {
+    "resultType": "complete",
+    "taskId": "task-fixture-01",
+    "status": "completed",
+    "createdAt": "2026-10-18T10:00:00Z",
+    "lastUpdatedAt": "2026-10-18T10:00:06Z",
+    "ttlMs": 300000,
+    "pollIntervalMs": 1000,
+    "result": {
+      "resultType": "complete",
+      "isError": false,
+      "content": [
+        {"type": "text", "text": "Prepared capture summary; no device was contacted."}
+      ],
+      "structuredContent": {
+        "operation_id": "capture-op-02",
+        "device": "lab-edge-1",
+        "interface": "eth1",
+        "packet_count": 12,
+        "captured_bytes": 768,
+        "truncated": false,
+        "source": "paper-fixture"
+      }
+    }
+  }
+}</pre>
+
+<p>Нужно прочитать оба уровня. Внешние <code>resultType: complete</code> и <code>status: completed</code> подтверждают получение конечного tool result. Затем host проверяет его <code>isError</code> и предметную сводку. У task может быть статус completed с вложенным <code>isError: true</code>: tool завершил попытку с предметной ошибкой. Статус <code>failed</code> расширение оставляет для JSON-RPC error и поля <code>error</code>. Эти исходы требуют разных сообщений пользователю и разных правил повторения.</p>
+<p>Потерянный после создания handle не восстанавливается из нового JSON-RPC ID. Если ответ на исходный start потерян, сначала нужен lookup по application operation ID или другой механизм reconciliation backend. Если сохранённый taskId перестал находиться после TTL, это означает недоступность записи, а не доказанное отсутствие захвата. Host сохраняет известные данные и исход «не установлен»; автоматический повтор start может создать новую работу.</p>
+<h3>Ввод и отмена внутри уже созданной task</h3>
+<p>Обычный MRTR удобно закончить до создания task: например, сначала выбрать interface, затем запустить длительный захват. Во время самой работы может понадобиться другой ввод. В вариации <code>task_input</code> захват уже идёт, а server запрашивает формат будущей сводки. На шестой секунде тот же poll 53 возвращает другую ветку состояния:</p>
+<pre data-mcp-message="task_input.3.response">{
+  "jsonrpc": "2.0",
+  "id": 53,
+  "result": {
+    "resultType": "complete",
+    "taskId": "task-fixture-01",
+    "status": "input_required",
+    "createdAt": "2026-10-18T10:00:00Z",
+    "lastUpdatedAt": "2026-10-18T10:00:06Z",
+    "ttlMs": 300000,
+    "pollIntervalMs": 5000,
+    "inputRequests": {
+      "choose_format": {
+        "method": "elicitation/create",
+        "params": {
+          "mode": "form",
+          "message": "Choose the summary format.",
+          "requestedSchema": {
+            "type": "object",
+            "properties": {"format": {"type": "string", "enum": ["compact"]}},
+            "required": ["format"]
+          }
+        }
+      }
+    }
+  }
+}</pre>
+
+<p>Здесь <code>input_required</code> находится в поле <code>status</code> task, а внешний resultType остаётся complete. Вопрос принадлежит сохранённой task. Host показывает его один раз и отправляет ответ методом <code>tasks/update</code>, а не повторяет исходный start_capture:</p>
+<pre data-mcp-message="task_input.4.request">{
+  "jsonrpc": "2.0",
+  "id": 54,
+  "method": "tasks/update",
+  "params": {
+    "taskId": "task-fixture-01",
+    "inputResponses": {"choose_format": {"action": "accept", "content": {"format": "compact"}}},
+    "_meta": {
+      "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+      "io.modelcontextprotocol/clientInfo": {"name": "capture-fixture-host", "version": "1.0.0"},
+      "io.modelcontextprotocol/clientCapabilities": {
+        "elicitation": {"form": {}},
+        "extensions": {"io.modelcontextprotocol/tasks": {}}
+      }
+    }
+  }
+}</pre>
+
+<p>Server подтверждает приём ответа таким сообщением:</p>
+<pre data-mcp-message="task_input.4.response">{"jsonrpc": "2.0", "id": 54, "result": {"resultType": "complete"}}</pre>
+
+<p>Ack не обещает, что состояние уже изменилось на следующем poll. Host продолжает наблюдать task и запоминает отвеченные ключи. При временно прежнем <code>input_required</code> вопрос с ключом <code>choose_format</code> не нужно снова показывать или отвечать на него без конца. Один ключ сохраняет смысл в течение жизни task; новый вопрос получает новый ключ. В fixture конечный ответ приходит на следующий <code>tasks/get</code> с ID 55.</p>
+<p>Отмена устроена похожим образом: client отправляет <code>tasks/cancel</code> с taskId, server возвращает ack. После этого результат может оказаться cancelled, а может completed, если работа успела закончиться. Сценарий <code>cancel_race</code> специально показывает второй исход. Это cooperative cancellation, поэтому подтверждение запроса отмены нельзя записывать как «захват остановлен» или как rollback уже выполненного изменения. Host может прекратить ожидание, но должен сохранять смысл последнего известного состояния.</p>
+<h3>Выбор механизма для своей интеграции</h3>
+<table>
+<thead><tr><th>Что требуется</th><th>Подходящий механизм</th><th>Проверка перед выбором</th></tr></thead>
+<tbody>
+<tr><td>Уточнить один параметр до результата</td><td>MRTR и поддерживаемая elicitation</td><td>Кто ответит, какие данные допустимы, как завершить отказ или timeout</td></tr>
+<tr><td>Заранее известные параметры, короткий вызов</td><td>Обычный tools/call</td><td>Достаточны ли contract, deadline и проверка результата</td></tr>
+<tr><td>Вернуться к длительной работе из разных совместимых hosts</td><td>Tasks extension</td><td>Поддержка обеих сторон, durable storage, owner binding и TTL</td></tr>
+<tr><td>У backend уже есть собственный job API</td><td>Явные start/get tools либо adapter в Tasks</td><td>Что даёт общий формат и где хранится соответствие двух handles</td></tr>
+</tbody></table>
+<p>Для production client выбирайте SDK по фактической поддержке этих веток, а затем выполняйте contract tests на своём server. Нужны точный protocol revision, объявление capabilities на каждом request, форма ввода с проверкой policy, перенос state, обработка обоих результатов tools/call и управление ожиданием task. Если конкретной возможности нет, интеграция должна выбрать заранее известные arguments или вернуть понятный отказ. Молчаливое принятие неизвестного variant теряет смысл операции.</p>
+<p>Отдельная возможность — sampling: server просит model call через host. В профиле <code>2026-07-28</code> она deprecated. Наш fixture не объявляет её и не выполняет model calls. Для существующей интеграции с sampling нужны явная поддержка, допуск передаваемых данных и общий model budget host; form elicitation не включает эту возможность автоматически.</p>
+<h3>Запустить разбор и проверить себя</h3>
+<p>Из корня полной рабочей копии этой редакции выполните:</p>
+<pre>python3 -m examples.mcp_continuation.trace --case mrtr --messages
+python3 -m examples.mcp_continuation.trace --case tasks --messages
+python3 -m unittest discover -s examples \
+  -p 'test_ch36_mcp_continuation.py' -v</pre>
+<p>Дополнение использует стандартную библиотеку Python. Без <code>--case</code> проверяются восемь подготовленных сценариев, включая отказ от формы, отсутствие capabilities, ввод внутри task и гонку отмены. JSON-вывод содержит ledger: request ID, method, виртуальное время, сохранение state, operation ID, taskId и состояние host. Исход <code>fixture_summary</code> обозначает проверенный учебный trace. Код выхода 0 у сценария отказа означает, что ожидаемый отказ воспроизведён; нарушение проверяемого перехода даёт код 2.</p>
+<p>До запуска объясните, почему в MRTR ответа на 41 недостаточно для следующего шага расследования. Затем измените в копии trace один факт: повторите ID 41 вместо 42; замените ответ eth1 на eth0; перенесите второй poll с 6000 на 5999 ms. Укажите, какая связь или граница нарушена в каждом случае. Наконец, прочитайте <code>task_input</code> и <code>cancel_race</code>: где host вправе записать только «ответ отправлен» или «отмена запрошена», а где уже есть конечный результат? Ключ самопроверки и команды остальных вариантов находятся в <code>examples/mcp_continuation/README.md</code>.</p>
+<p>Checker ограничен этим учебным contract: до восьми exchanges, два раунда ввода, 16 KiB на JSON message и маленькая фиксированная schema формы. Времена подготовлены, state сравнивается как opaque строка, capture summaries заданы заранее. Программа не реализует MCP transport или SDK, не испытывает HMAC/AEAD, authentication, durable storage, restart, реальный таймер либо устройство. Такой fixture помогает проверить понимание сообщений и сохранить regression cases. Работающий adapter всё ещё требует отдельных интеграционных проверок этих границ.</p>
 <h2>Подключение внутри AX и приёмка интеграции</h2>
 <p>В срезе AX <code>ac233282</code> <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/internal/workspace/setup.go">SetupWorkspace</a> подготавливает файлы, Git repos и skills path. <a href="https://github.com/google/ax/blob/ac2332829f22360ff97b0ba34d94dd0dd782f17e/runner/runner.go">Runner</a> запускает команду Task. Установка пакета или готовый Workspace ещё требуют прикладного probe: protocol client должен запуститься из фактического окружения harness, прочитать нужный объект и принять его результат.</p>
 <p>Для stdio проверьте executable, cwd, зависимости, environment и OS permissions именно внутри Actor. Для HTTP — путь DNS/TLS, proxy, credentials и доступность upstream. После resume runtime соединения создаются заново; состояние незавершённых operations сверяется по журналу. Сохранённый на диске config не доказывает, что token ещё действителен, а восстановленная память процесса не превращает прежний TCP connection в работающий канал.</p>
