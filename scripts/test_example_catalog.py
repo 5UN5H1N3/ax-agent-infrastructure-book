@@ -164,6 +164,32 @@ class ExampleCatalogTests(unittest.TestCase):
         self.assertIn('Trace context: pinned code/dependency/test links differ',
                       check_example_catalog(soup))
 
+    def test_mcp_continuation_has_an_explicit_prepared_source_boundary(self):
+        soup = self.soup()
+        soup.select_one('p.mcp-continuation-source').decompose()
+        self.assertIn('MCP continuation: missing prepared/source boundary',
+                      check_example_catalog(soup))
+
+    def test_mcp_continuation_requires_full_revision(self):
+        soup = self.soup()
+        soup.select_one('p.mcp-continuation-source')['data-code-ref'] = 'main'
+        self.assertIn('MCP continuation: source revision must be a full SHA',
+                      check_example_catalog(soup))
+
+    def test_mcp_continuation_links_cannot_drift_from_revision(self):
+        soup = self.soup()
+        link = soup.select_one('p.mcp-continuation-source a')
+        link['href'] = link['href'].replace('/tree/', '/blob/')
+        self.assertIn('MCP continuation: pinned code/corpus/test links differ',
+                      check_example_catalog(soup))
+
+    def test_missing_mcp_continuation_files_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            errors = check_example_catalog(self.soup(), directory)
+        self.assertIn('MCP continuation: missing traces.json', errors)
+        self.assertIn('MCP continuation: missing SOURCES.json', errors)
+        self.assertIn('MCP continuation: missing regression test', errors)
+
 
 if __name__ == "__main__":
     unittest.main()

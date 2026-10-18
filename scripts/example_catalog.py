@@ -108,6 +108,25 @@ def check_example_catalog(soup, root=None):
         for name in ('demo.py', 'test_demo.py', 'requirements.txt', 'README.md'):
             if not (examples / 'trace_context' / name).is_file():
                 errors.append(f'Trace context: missing {name}')
+        for name in ('trace.py', 'traces.json', 'README.md', 'SOURCES.json'):
+            if not (examples / 'mcp_continuation' / name).is_file():
+                errors.append(f'MCP continuation: missing {name}')
+        if not (examples / 'test_ch36_mcp_continuation.py').is_file():
+            errors.append('MCP continuation: missing regression test')
+    continuation = guide.select_one('p.mcp-continuation-source')
+    if (continuation is None or 'examples/mcp_continuation/' not in continuation.get_text()
+            or 'не содержат' not in continuation.get_text()
+            or 'подготовленные' not in continuation.get_text()):
+        errors.append('MCP continuation: missing prepared/source boundary')
+    continuation_ref = continuation.get('data-code-ref', '') if continuation else ''
+    if re.fullmatch(r'[0-9a-f]{40}', continuation_ref) is None:
+        errors.append('MCP continuation: source revision must be a full SHA')
+    elif [link.get('href') for link in continuation.find_all('a') if not link.get('href', '').startswith('#')] != [
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/{continuation_ref}/examples/mcp_continuation',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{continuation_ref}/examples/mcp_continuation/traces.json',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{continuation_ref}/examples/test_ch36_mcp_continuation.py',
+    ]:
+        errors.append('MCP continuation: pinned code/corpus/test links differ')
     trace_entry = guide.select_one('p.trace-context-source')
     if (trace_entry is None or 'examples/trace_context/' not in trace_entry.get_text()
             or 'отдельный' not in trace_entry.get_text()
