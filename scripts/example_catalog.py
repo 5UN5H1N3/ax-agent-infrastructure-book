@@ -100,6 +100,25 @@ def check_example_catalog(soup, root=None):
                 errors.append(f"Learning companion: missing {name}")
         if not (examples / 'test_ch04_learning_harness.py').is_file():
             errors.append('Learning companion: missing common regression test')
+        for name in ('profile.py', 'qwen3_06b_profile.json', 'README.md'):
+            if not (examples / 'model_profile' / name).is_file():
+                errors.append(f'Model profile: missing {name}')
+        if not (examples / 'test_ch20_model_profile.py').is_file():
+            errors.append('Model profile: missing regression test')
+    profile_entry = guide.select_one('p.model-profile-source')
+    if (profile_entry is None or 'examples/model_profile/' not in profile_entry.get_text()
+            or '7d927c1a' not in profile_entry.get_text()
+            or 'не содержат' not in profile_entry.get_text()):
+        errors.append('Model profile: missing edition-local source boundary')
+    profile_ref = profile_entry.get('data-code-ref', '') if profile_entry else ''
+    if re.fullmatch(r'[0-9a-f]{40}', profile_ref) is None:
+        errors.append('Model profile: source revision must be a full SHA')
+    elif [link.get('href') for link in profile_entry.find_all('a') if not link.get('href', '').startswith('#')] != [
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/tree/{profile_ref}/examples/model_profile',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{profile_ref}/examples/model_profile/qwen3_06b_profile.json',
+        f'https://github.com/5UN5H1N3/ax-agent-infrastructure-book/blob/{profile_ref}/examples/test_ch20_model_profile.py',
+    ]:
+        errors.append('Model profile: pinned code/passport/test links differ')
     if 'examples/learning_harness/' not in text or 'не входит в этот старый срез' not in text:
         errors.append('Learning companion: missing edition-local source boundary')
     companion = guide.select_one('p.learning-companion-source')

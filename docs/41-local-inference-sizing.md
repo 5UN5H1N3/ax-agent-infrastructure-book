@@ -172,6 +172,10 @@ Batch позволяет использовать одно вычисление 
 
 ## Свяжите настройки vLLM с расчётом
 
+Заполненный CPU/GGUF-паспорт главы 20 показывает, откуда взять architecture, dtype и bytes. Для него head\_dim 128, layers 28, KV heads 8, один slot 8192 и f16 дают идеальные 896 MiB KV. Эти числа не относятся к условной модели расчёта этой главы. Особенно важно брать head\_dim из metadata: отношение hidden\_size к числу query heads у выбранного Qwen дало бы неверные 64 вместо 128.
+
+Для маршрута ниже готовят отдельную полную HF/Safetensors-поставку: model/config/tokenizer/template, закреплённые revisions, лицензию и поддерживаемое выбранным runtime сочетание architecture/quantization/tool parser. CPU GGUF не становится каталогом `agent-release` после переименования. Возможность использовать GGUF в каком-либо backend требует отдельной проверки его ограничений; заполненный L03-профиль такого допуска не даёт. Повторите gates поставки, интерфейса, eval и capacity для нового runtime; его ответы и peak VRAM заранее неизвестны.
+
 Для конкретного примера сохраняем профиль книги **vLLM v0.31.0**. Команда ниже предназначена для собственного лабораторного listener. Каталог `/srv/models/agent-release` заранее содержит проверенный text-only artifact, config, tokenizer и chat template; model revision и container digest фиксируются в описании deployment. Перед запуском замените учебный memory budget расчётом и profiling для этого artifact и устройства.
 
 ```

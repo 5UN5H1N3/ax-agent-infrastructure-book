@@ -112,6 +112,32 @@ class ExampleCatalogTests(unittest.TestCase):
         self.assertIn('Learning companion: pinned source/corpus/test links differ',
                       check_example_catalog(soup))
 
+    def test_model_profile_has_its_own_source_boundary(self):
+        soup = self.soup()
+        soup.select_one('p.model-profile-source').decompose()
+        self.assertIn('Model profile: missing edition-local source boundary',
+                      check_example_catalog(soup))
+
+    def test_missing_model_profile_files_are_reported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            errors = check_example_catalog(self.soup(), directory)
+        self.assertIn('Model profile: missing profile.py', errors)
+        self.assertIn('Model profile: missing qwen3_06b_profile.json', errors)
+        self.assertIn('Model profile: missing regression test', errors)
+
+    def test_model_profile_requires_full_revision(self):
+        soup = self.soup()
+        soup.select_one('p.model-profile-source')['data-code-ref'] = 'main'
+        self.assertIn('Model profile: source revision must be a full SHA',
+                      check_example_catalog(soup))
+
+    def test_model_profile_links_cannot_drift_from_revision(self):
+        soup = self.soup()
+        link = soup.select_one('p.model-profile-source a')
+        link['href'] = link['href'].replace('/tree/', '/blob/')
+        self.assertIn('Model profile: pinned code/passport/test links differ',
+                      check_example_catalog(soup))
+
 
 if __name__ == "__main__":
     unittest.main()
