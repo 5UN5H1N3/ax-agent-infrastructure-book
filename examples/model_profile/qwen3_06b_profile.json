@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "id": "qwen3-06b-q8-cpu-learning-v1",
+  "purpose": "First synthetic read-only code-review trial, not a production or quality recommendation",
+  "author_review": {
+    "metadata_checked": true,
+    "full_model_checksum_checked_locally": false,
+    "runtime_built": false,
+    "real_model_interface_tested": false,
+    "real_model_eval_tested": false
+  },
+  "artifact_repository": "Qwen/Qwen3-0.6B-GGUF",
+  "artifact_revision": "23749fefcc72300e3a2ad315e1317431b06b590a",
+  "source_repository_reference": "Qwen/Qwen3-0.6B",
+  "source_revision_reference": "c1899de289a04d12100db370d81485cdf75e47ca",
+  "conversion_parent_revision": null,
+  "provenance_note": "The card identifies the source repository, not an exact conversion parent. The source revision is a pinned reference snapshot, not a proved conversion lineage.",
+  "license_label": "Apache-2.0",
+  "files": [
+    {
+      "name": "Qwen3-0.6B-Q8_0.gguf",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/Qwen3-0.6B-Q8_0.gguf",
+      "bytes": 639446688,
+      "sha256": "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+    },
+    {
+      "name": "LICENSE.gguf.txt",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/LICENSE",
+      "bytes": 11544,
+      "sha256": "5de36594c10839788a8c589443a8ef9d8b8d17c65a1b5807206ae037fc36c6bd"
+    },
+    {
+      "name": "MODEL_CARD.md",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/23749fefcc72300e3a2ad315e1317431b06b590a/README.md",
+      "bytes": 6236,
+      "sha256": "44adabae2153c3a7bb741b86fbffd48736bc95118831935fdfc4d3cc1854f2f5"
+    },
+    {
+      "name": "source-config.json",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/config.json",
+      "bytes": 726,
+      "sha256": "660db3b73d788119c04535e48cf9be5f55bc3100841a718637ae695b442f27dd"
+    },
+    {
+      "name": "source-tokenizer_config.json",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/tokenizer_config.json",
+      "bytes": 9732,
+      "sha256": "d5d09f07b48c3086c508b30d1c9114bd1189145b74e982a265350c923acd8101"
+    },
+    {
+      "name": "LICENSE.source.txt",
+      "url": "https://huggingface.co/Qwen/Qwen3-0.6B/resolve/c1899de289a04d12100db370d81485cdf75e47ca/LICENSE",
+      "bytes": 11343,
+      "sha256": "832dd9e00a68dd83b3c3fb9f5588dad7dcf337a0db50f7d9483f310cd292e92e"
+    }
+  ],
+  "gguf_metadata": {
+    "version": 3,
+    "architecture": "qwen3",
+    "quantization": "Q8_0",
+    "file_type": 7,
+    "layers": 28,
+    "query_heads": 16,
+    "kv_heads": 8,
+    "head_dim": 128,
+    "hidden_size": 1024,
+    "context_length": 40960,
+    "publisher_card_context_tokens": 32768,
+    "context_note": "GGUF metadata and reference config record 40960; the publisher card states 32768. The selected 8192 trial is below both; neither maximum has been tested here.",
+    "tokenizer_model": "gpt2",
+    "eos_token_id": 151645,
+    "pad_token_id": 151643,
+    "embedded_template_sha256": "57f1fd00f0013a2be96aa79b857391f27e23df5b5f847072b524c897e24d0361",
+    "reference_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8"
+  },
+  "runtime": {
+    "repository": "https://github.com/ggml-org/llama.cpp.git",
+    "commit": "6e66cb5d4e9a2b4f02820a9f3053422b92ec4d51",
+    "backend": "CPU only",
+    "alias": "review-code",
+    "host": "127.0.0.1",
+    "port": 8080,
+    "context_tokens": 8192,
+    "parallel_slots": 1,
+    "threads": 2,
+    "cache_k_type": "f16",
+    "cache_v_type": "f16",
+    "jinja": true,
+    "reasoning": "off",
+    "temperature": 0.7,
+    "top_p": 0.8,
+    "top_k": 20,
+    "min_p": 0.0,
+    "presence_penalty": 1.5,
+    "seed": 42,
+    "effective_template": "embedded in the pinned GGUF, no external override",
+    "observed_format_handler": null,
+    "built_binary_sha256": null
+  },
+  "harness": {
+    "code_reference": "7d927c1a5cdbfe0620cd41f2c27474fd129db8a6",
+    "source_sha256": {
+      "examples/learning_harness/harness.py": "5246a15c5fb8d18bfc745e3751be16633a856f460b742273dc96ff262c8b1048",
+      "examples/learning_harness/evals.py": "26ecbde47e7c445c911bf633b0f2c79577e2f1d4bee89cbce5786c74ba9ba71c",
+      "examples/learning_harness/cases.json": "b56fd01cd50e39d0c718a72659ab1fe09e85695f3d3f88e9ef2285451848a2c1",
+      "examples/ch20_inference_contract.py": "ef2a066653ff95644c5edfb70ed6e0f1fe64533c47fece96428fc60b6f0a7618",
+      "examples/ch32_batching_exercise.py": "5f3d3c05c36f2dbe966d8ecce547019f344d9a5b41ee5551d4c37167b580da6a"
+    },
+    "model_calls": 3,
+    "file_reads": 2,
+    "max_output_tokens": 512,
+    "seconds_per_case": 120,
+    "reason_for_deadline": "Initial CPU smoke allowance, not an interactive SLO",
+    "credential_mode": "none; loopback synthetic fixtures only"
+  },
+  "memory": {
+    "kv_element_bytes": 2,
+    "provisional_free_ram_budget_bytes": 4294967296,
+    "measured_ram_peak_bytes": null,
+    "measured_ttft_seconds": null,
+    "note": "File bytes plus idealized KV are an arithmetic reference, not a measured RAM bound. Buffers, alignment, runtime and OS require headroom."
+  },
+  "admission": {
+    "delivery": "NOT_CHECKED_LOCALLY",
+    "runtime_identity": "NOT_RECORDED",
+    "interface": "NOT_RUN",
+    "quality": "NOT_RUN",
+    "capacity": "NOT_RUN"
+  }
+}
