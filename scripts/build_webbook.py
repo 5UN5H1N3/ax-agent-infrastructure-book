@@ -5,6 +5,7 @@ from pathlib import Path
 import re, shutil, sys
 from rasterize_svg import render_svg, validate_graphviz_png
 from book_structure import SLUGS, GROUPS, ANCHORS, navigation_title, passport_markdown
+from example_catalog import examples_readme
 
 root = Path(__file__).resolve().parents[1]
 html_path = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else root / "book/AX_Agent_Infrastructure_Book_RU.html"
@@ -75,6 +76,8 @@ chapter_targets.update({
     "appendix-b": "appendix-b-production-readiness.md",
     "appendix-c": "appendix-c-sources-map.md",
     "version-profiles": "00-reading-guide.md",
+    "examples-guide": "00-reading-guide.md#практика-код-и-каталог-примеров",
+    "lab-dependencies": "32-labs.md#карта-зависимостей-и-маршруты-прохождения",
 })
 
 titles, fig_no = [], 0
@@ -184,6 +187,11 @@ landing = """# AX & Agent Infrastructure
 
 Для последовательного освоения начните с [руководства по чтению](00-reading-guide.md) и двигайтесь по оглавлению. Для эксплуатационной задачи можно сразу перейти к AX, Substrate, security, local inference или troubleshooting.
 
+## Практика
+
+- [Начать с локального примера и выбрать программу из каталога](00-reading-guide.md#практика-код-и-каталог-примеров): фиксированный код, окружение, воздействие и авторские тесты всех 39 программ.
+- [Карта зависимостей лабораторных](32-labs.md#карта-зависимостей-и-маршруты-прохождения): CPU вместо cloud, необязательный GPU и условия перехода к AX-сценариям.
+
 ## Публичная веб-версия
 
 - [Читать книгу в GitBook](https://romandocs.gitbook.io/ax-agent-infrastructure/)
@@ -203,6 +211,7 @@ rewrite_internal_links(passport, chapter_targets)
 passport_text = passport_markdown(passport, md)
 landing = landing.replace("{edition_passport}", passport_text)
 (docs / "README.md").write_text(landing, encoding="utf-8")
+(root / "examples/README.md").write_text(examples_readme(soup), encoding="utf-8")
 
 groups = GROUPS
 

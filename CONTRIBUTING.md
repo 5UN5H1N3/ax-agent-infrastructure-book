@@ -47,6 +47,14 @@ Print and web navigation share `scripts/book_structure.py`. If chapters or
 appendices change, update its order and groups, the HTML contents and the
 consistency tests. Rebuild both editions and review the affected PDF pages.
 
+The examples launch guide and catalog live in `examples-guide` in the canonical
+HTML. `scripts/build_webbook.py` derives both the GitBook guide and
+`examples/README.md` from it; do not edit the generated README independently.
+Keep its pinned code/test links consistent with the actual example files and
+record byte-level comparison against that commit when changing the code slice.
+Maintain the lab dependency map in chapter 32, including partial host-only
+routes and the AX integration gate. Run `scripts/test_example_catalog.py`.
+
 Technical diagram labels must remain at least 8 pt in the final A4 PDF. This
 is an editorial criterion for this edition, not an external standard. The
 diagram builder first preserves a readable composition, then tries stronger

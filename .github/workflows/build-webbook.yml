@@ -17,6 +17,9 @@ on:
       - "scripts/check_book_consistency.py"
       - "scripts/book_structure.py"
       - "scripts/test_book_consistency.py"
+      - "scripts/example_catalog.py"
+      - "scripts/test_example_catalog.py"
+      - "examples/**"
       - ".github/workflows/build-webbook.yml"
 
 permissions:
@@ -66,6 +69,7 @@ jobs:
         run: |
           python scripts/check_book_consistency.py --html book/AX_Agent_Infrastructure_Book_RU.html --docs docs
           python scripts/test_book_consistency.py
+          python scripts/test_example_catalog.py
           python scripts/rasterize_svg.py docs/.gitbook/assets/diagrams
           test -f docs/README.md
           test -f docs/SUMMARY.md
@@ -94,6 +98,6 @@ jobs:
           python scripts/publish_generated_artifacts.py \
             --branch main \
             --message "docs: publish collision-free redrawn diagrams [skip ci]" \
-            docs
+            docs examples/README.md
 
 # Publication trigger: chapter 27

@@ -17,7 +17,11 @@ class RasterizationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.svg=(ROOT/'docs/.gitbook/assets/diagrams/36-32.svg').read_bytes()
-        cls.width,cls.height=1800,282
+        # The published composition may be reflowed for print readability.
+        # Exercise its actual aspect ratio; 282 px described an obsolete SVG.
+        _,_,width,height=map(float,ET.fromstring(cls.svg).attrib['viewBox'].split())
+        cls.width=1800
+        cls.height=max(240,round(cls.width*height/width))
         cls.png=raster.render_svg(cls.svg,cls.width,cls.height)
 
     def changed(self, remove):

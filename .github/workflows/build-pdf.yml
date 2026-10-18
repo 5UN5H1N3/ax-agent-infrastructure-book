@@ -17,6 +17,9 @@ on:
       - "scripts/check_book_consistency.py"
       - "scripts/book_structure.py"
       - "scripts/test_book_consistency.py"
+      - "scripts/example_catalog.py"
+      - "scripts/test_example_catalog.py"
+      - "examples/**"
       - ".github/workflows/build-pdf.yml"
 
 permissions:
@@ -47,12 +50,13 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y graphviz libpango-1.0-0 libpangoft2-1.0-0 poppler-utils
           python -m pip install --upgrade pip
-          python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0" "lxml==6.0.2" "pypdf==6.10.0"
+          python -m pip install "weasyprint==68.0" "beautifulsoup4==4.15.0" "lxml==6.0.2" "pypdf==6.10.0" "markdownify==1.2.3"
 
       - name: Rebuild diagrams
         run: |
           python scripts/check_book_consistency.py --html book/AX_Agent_Infrastructure_Book_RU.html
           python scripts/test_book_consistency.py
+          python scripts/test_example_catalog.py
           python scripts/test_diagram_readability.py
           python scripts/test_pdf_diagrams.py
           python scripts/rebuild_diagrams.py \

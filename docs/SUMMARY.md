@@ -54,7 +54,7 @@
 
 ## VI. Практика и reference architectures
 
-* [32. Практикум: 14 последовательных лабораторных работ](32-labs.md)
+* [32. Практикум: 14 лабораторных работ и маршруты прохождения](32-labs.md)
 * [33. Две референсные multi-agent архитектуры](33-reference-multi-agent-architectures.md)
 * [34. Mental models, glossary и cheatsheets](34-mental-models-glossary-cheatsheets.md)
 

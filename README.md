@@ -244,24 +244,17 @@ observe → diagnose → propose → approve → execute → verify
 
 Также есть production engineering, HA, backup/restore, disaster recovery, capacity planning, performance и большой troubleshooting/runbook-раздел.
 
+## Начать практику
+
+Для первого локального опыта не нужны AX, Kubernetes, GPU или ключ модели. В [едином входе и каталоге примеров](examples/README.md) собраны все 39 программ: фиксированный срез кода, проверенное окружение, команды, учебная цель, ожидаемый результат и авторский тест. Там же объяснено, где работают только fixtures, где создаются файлы и процессы, а где явно включается настоящий HTTP-запрос. Начните с harness главы 4, затем выберите один опыт под свой вопрос.
+
+Тот же каталог включён в [главу 0 веб-книги](docs/00-reading-guide.md#практика-код-и-каталог-примеров) и общий PDF. Это программы репозитория книги, а не установщик AX/Substrate; для них не нужны зависимости сборки издания.
+
 ## Практические лабораторные
 
-Книга содержит последовательный lab track:
+[Практикум главы 32](docs/32-labs.md) содержит 14 работ и [карту зависимостей](docs/32-labs.md#карта-зависимостей-и-маршруты-прохождения), а не обязательную линейную установку всего стека. Работы 1–6 разбирают VM, Kubernetes, Substrate, Actor/snapshot и выбранный runtime. Работы 7–8 — интеграционный барьер AX, 9 проверяет сеть, 10 — цикл модели и harness. Без cloud account сначала поднимается CPU endpoint из 11, затем с ним выполняется 10; GPU-ветка 12 необязательна. Работы 13 и 14 — независимые прикладные сценарии после проверок 8–10: программная задача и ограниченное инфраструктурное изменение.
 
-1. подготовка Linux VM в Proxmox/KVM;
-2. Kind и необходимый минимум Kubernetes;
-3. Agent Substrate;
-4. WorkerPool / ActorTemplate / Actor;
-5. suspend → snapshot → resume;
-6. gVisor и microVM;
-7. AX и первый Task;
-8. Workspace + Git + Skills + MCP;
-9. network/egress restrictions;
-10. cloud LLM;
-11. CPU local inference;
-12. NVIDIA + vLLM + Qwen;
-13. software-engineering multi-agent workflow;
-14. infrastructure/network workflow с read-only diagnostics → approval → restricted action → verification.
+Для этого маршрута нужна отдельная VM относительно главы 26. Если интеграция AX не прошла, зависимые опыты останавливаются; остаются доступны Substrate и локальные host-части serving, но их успех не подтверждает работу AX. Условия допуска и статус частично выполненных работ заданы в карте, чтобы не приходилось восстанавливать порядок из команд разных глав.
 
 ## Два практических multi-agent сценария
 
@@ -310,9 +303,16 @@ Verification Agent
 │   ├── AX_Agent_Infrastructure_Book_RU.html
 │   ├── AX_Agent_Infrastructure_Book_RU.pdf
 │   └── CHECKSUMS.sha256
+├── examples/
+│   ├── README.md                  # единый вход и каталог
+│   ├── ch*.py                     # учебные программы
+│   └── test_ch*.py                # авторские проверки
+├── docs/                         # генерируемая веб-книга
+├── scripts/                      # сборка и проверки издания
 └── .github/
     └── workflows/
-        └── build-pdf.yml
+        ├── build-pdf.yml
+        └── build-webbook.yml
 ```
 
 PDF собирается автоматически из HTML через **WeasyPrint 68.0**, что позволяет хранить текстовый источник в Git и воспроизводимо получать публикуемый документ.

@@ -12,11 +12,14 @@ from urllib.parse import unquote
 
 from bs4 import BeautifulSoup
 from book_structure import ANCHORS, SLUGS, GROUPS, navigation_title
+from example_catalog import check_example_catalog, examples_readme
 
 
 def check_source(source: Path) -> list[str]:
     soup = BeautifulSoup(source.read_text(encoding="utf-8"), "html.parser")
     errors = []
+    root = source.parent.parent
+    errors += check_example_catalog(soup, root if (root / "examples").is_dir() else None)
     if len(soup.select("section.chapter h1")) != 47:
         errors.append("Expected 47 chapter and appendix headings")
     ids = {tag["id"] for tag in soup.find_all(id=True)}
@@ -223,7 +226,11 @@ def check_docs(docs: Path) -> list[str]:
         errors.append("Web contents groups differ from shared navigation")
     source = docs.parent / "book/AX_Agent_Infrastructure_Book_RU.html"
     if source.is_file():
-        passport = BeautifulSoup(source.read_text(encoding="utf-8"), "html.parser").find(id="edition-passport")
+        source_soup = BeautifulSoup(source.read_text(encoding="utf-8"), "html.parser")
+        catalog = docs.parent / "examples/README.md"
+        if not catalog.is_file() or catalog.read_text(encoding="utf-8") != examples_readme(source_soup):
+            errors.append("Repository examples README differs from canonical reader guide")
+        passport = source_soup.find(id="edition-passport")
         if passport:
             for landing in (docs / "README.md",):
                 text = landing.read_text(encoding="utf-8")
