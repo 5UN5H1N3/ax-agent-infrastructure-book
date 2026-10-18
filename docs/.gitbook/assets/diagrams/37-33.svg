@@ -1,87 +1,87 @@
-<svg aria-label="Safe tool execution: model proposal is only the first stage" class="diagram diagram-redrawn" height="179.92" role="img" viewBox="0 0 900.92 179.92" width="900.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 166.96)">
+<svg aria-label="Safe tool execution: model proposal is only the first stage" class="diagram diagram-redrawn" data-print-min-pt="11.0000" height="421.28" role="img" viewBox="0 0 175.28 421.28" width="175.28" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 412.64)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
 <g class="edge">
 <title>n0-&gt;n1</title>
-<path d="M119.44,-77C133.19,-77 148.03,-77 162.42,-77" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="162.7,-79.52 169.9,-77 162.7,-74.48 162.7,-79.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M86,-367.92C86,-360.81 86,-352.42 86,-344.66" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="88.52,-344.39 86,-337.19 83.48,-344.39 88.52,-344.39" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M310.3,-77C324.64,-77 339.57,-77 353.34,-77" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="353.67,-79.52 360.86,-77 353.66,-74.48 353.67,-79.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M86,-300.92C86,-293.81 86,-285.42 86,-277.66" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="88.52,-277.39 86,-270.19 83.48,-277.39 88.52,-277.39" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n2&#45;&gt;n3 -->
 <g class="edge">
 <title>n2-&gt;n3</title>
-<path d="M459.17,-90.56C489.52,-99.1 528.65,-110.11 559.44,-118.77" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="559.06,-121.28 566.68,-120.81 560.43,-116.43 559.06,-121.28" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="512" y="-115.56">high impact</text>
+<path d="M56.72,-233.71C51.74,-229.5 47.17,-224.58 44,-219 40.73,-213.23 39.09,-206.36 38.36,-199.78" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="40.85,-199.29 37.88,-192.27 35.83,-199.61 40.85,-199.29" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="76.5" y="-210.2">high impact</text>
 </g>
 <!-- n2&#45;&gt;n4 -->
 <g class="edge">
 <title>n2-&gt;n4</title>
-<path d="M459.17,-63.44C488.99,-55.05 527.28,-44.28 557.81,-35.69" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="558.75,-38.04 565,-33.66 557.39,-33.19 558.75,-38.04" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="512" y="-58.56">allowed</text>
+<path d="M102.6,-233.98C106.03,-229.46 109.16,-224.33 111,-219 122.43,-185.82 108.63,-145.85 96.92,-120.92" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="99.12,-119.68 93.7,-114.31 94.59,-121.89 99.12,-119.68" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="136.5" y="-171.2">allowed</text>
 </g>
 <!-- n3&#45;&gt;n4 -->
 <g class="edge">
 <title>n3-&gt;n4</title>
-<path d="M611,-111.65C611,-94 611,-68.79 611,-49.43" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="613.52,-49.27 611,-42.07 608.48,-49.27 613.52,-49.27" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="603" y="-74.56">grant</text>
+<path d="M49.21,-155.75C55.37,-145.36 63.29,-131.97 70.03,-120.6" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="72.33,-121.66 73.83,-114.18 67.99,-119.09 72.33,-121.66" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="79" y="-132.2">grant</text>
 </g>
 <!-- n4&#45;&gt;n5 -->
 <g class="edge">
 <title>n4-&gt;n5</title>
-<path d="M657.02,-21C684.72,-21 720.68,-21 751.38,-21" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="751.46,-23.52 758.66,-21 751.46,-18.48 751.46,-23.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="708" y="-23.56">post-check</text>
+<path d="M84,-77.75C84,-67.65 84,-54.72 84,-43.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="86.52,-43.38 84,-36.18 81.48,-43.38 86.52,-43.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="114" y="-54.2">post-check</text>
 </g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M107,-98C107,-98 12,-98 12,-98 6,-98 0,-92 0,-86 0,-86 0,-68 0,-68 0,-62 6,-56 12,-56 12,-56 107,-56 107,-56 113,-56 119,-62 119,-68 119,-68 119,-86 119,-86 119,-92 113,-98 107,-98" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-79.4">LLM proposal</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="32" y="-69">tool + args</text>
+<path d="M128.5,-404C128.5,-404 43.5,-404 43.5,-404 37.5,-404 31.5,-398 31.5,-392 31.5,-392 31.5,-380 31.5,-380 31.5,-374 37.5,-368 43.5,-368 43.5,-368 128.5,-368 128.5,-368 134.5,-368 140.5,-374 140.5,-380 140.5,-380 140.5,-392 140.5,-392 140.5,-398 134.5,-404 128.5,-404" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="40.5" y="-388.9">LLM proposal</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="55" y="-377.7">tool + args</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M298,-98C298,-98 182,-98 182,-98 176,-98 170,-92 170,-86 170,-86 170,-68 170,-68 170,-62 176,-56 182,-56 182,-56 298,-56 298,-56 304,-56 310,-62 310,-68 310,-68 310,-86 310,-86 310,-92 304,-98 298,-98" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="184" y="-79.4">Schema validate</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="208" y="-69">types/ranges</text>
+<path d="M139,-337C139,-337 33,-337 33,-337 27,-337 21,-331 21,-325 21,-325 21,-313 21,-313 21,-307 27,-301 33,-301 33,-301 139,-301 139,-301 145,-301 151,-307 151,-313 151,-313 151,-325 151,-325 151,-331 145,-337 139,-337" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="30" y="-321.9">Schema validate</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="49.5" y="-310.7">types/ranges</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M447,-98C447,-98 373,-98 373,-98 367,-98 361,-92 361,-86 361,-86 361,-68 361,-68 361,-62 367,-56 373,-56 373,-56 447,-56 447,-56 453,-56 459,-62 459,-68 459,-68 459,-86 459,-86 459,-92 453,-98 447,-98" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="377.5" y="-79.4">Authorize</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="375" y="-69">identity/scope</text>
+<path d="M122.5,-270C122.5,-270 49.5,-270 49.5,-270 43.5,-270 37.5,-264 37.5,-258 37.5,-258 37.5,-246 37.5,-246 37.5,-240 43.5,-234 49.5,-234 49.5,-234 122.5,-234 122.5,-234 128.5,-234 134.5,-240 134.5,-246 134.5,-246 134.5,-258 134.5,-258 134.5,-264 128.5,-270 122.5,-270" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="53.5" y="-254.9">Authorize</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="46.5" y="-243.7">identity/scope</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M643,-154C643,-154 579,-154 579,-154 573,-154 567,-148 567,-142 567,-142 567,-124 567,-124 567,-118 573,-112 579,-112 579,-112 643,-112 643,-112 649,-112 655,-118 655,-124 655,-124 655,-142 655,-142 655,-148 649,-154 643,-154" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="581" y="-135.4">Approval</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="585.5" y="-125">if required</text>
+<path d="M66,-192C66,-192 12,-192 12,-192 6,-192 0,-186 0,-180 0,-180 0,-168 0,-168 0,-162 6,-156 12,-156 12,-156 66,-156 66,-156 72,-156 78,-162 78,-168 78,-168 78,-180 78,-180 78,-186 72,-192 66,-192" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="9" y="-176.9">Approval</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="10.5" y="-165.7">if required</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M645,-42C645,-42 577,-42 577,-42 571,-42 565,-36 565,-30 565,-30 565,-12 565,-12 565,-6 571,0 577,0 577,0 645,0 645,0 651,0 657,-6 657,-12 657,-12 657,-30 657,-30 657,-36 651,-42 645,-42" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="581" y="-23.4">Executor</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="579" y="-13">idempotency</text>
+<path d="M117,-114C117,-114 51,-114 51,-114 45,-114 39,-108 39,-102 39,-102 39,-90 39,-90 39,-84 45,-78 51,-78 51,-78 117,-78 117,-78 123,-78 129,-84 129,-90 129,-90 129,-102 129,-102 129,-108 123,-114 117,-114" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="54" y="-98.9">Executor</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="48" y="-87.7">idempotency</text>
 </g>
 <!-- n5 -->
 <g class="node">
 <title>n5</title>
-<path d="M863,-42C863,-42 771,-42 771,-42 765,-42 759,-36 759,-30 759,-30 759,-12 759,-12 759,-6 765,0 771,0 771,0 863,0 863,0 869,0 875,-6 875,-12 875,-12 875,-30 875,-30 875,-36 869,-42 863,-42" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="791.5" y="-23.4">Verifier</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="773" y="-13">authoritative read</text>
+<path d="M131,-36C131,-36 37,-36 37,-36 31,-36 25,-30 25,-24 25,-24 25,-12 25,-12 25,-6 31,0 37,0 37,0 131,0 131,0 137,0 143,-6 143,-12 143,-12 143,-24 143,-24 143,-30 137,-36 131,-36" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="58.5" y="-20.9">Verifier</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="34" y="-9.7">authoritative read</text>
 </g>
 </g>
 </svg>

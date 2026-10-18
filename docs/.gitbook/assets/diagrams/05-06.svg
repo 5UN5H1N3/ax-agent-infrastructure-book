@@ -1,96 +1,102 @@
-<svg aria-label="Источники контекста и граница snapshot: результат сервиса проверяется отдельно" class="diagram diagram-redrawn" height="373.92" role="img" viewBox="0 0 808.42 373.92" width="808.42" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 360.96)">
+<svg aria-label="Источники контекста и граница snapshot: результат сервиса проверяется отдельно" class="diagram diagram-redrawn" data-print-min-pt="8.5340" height="239.28" role="img" viewBox="0 0 633.78 239.28" width="633.78" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 230.64)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
 <g class="edge">
 <title>n0-&gt;n1</title>
-<path d="M97.5,-305.76C97.5,-290.72 97.5,-270.02 97.5,-253.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="100.02,-253.41 97.5,-246.21 94.98,-253.41 100.02,-253.41" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="114.5" y="-273.56">сверка</text>
+<path d="M66.5,-175.85C66.5,-165.42 66.5,-152.83 66.5,-141.59" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="69.02,-141.27 66.5,-134.07 63.98,-141.27 69.02,-141.27" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="86.5" y="-152.2">сверка</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M141.35,-203.88C177.05,-187.51 227.48,-164.38 264.89,-147.22" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="266.22,-149.38 271.72,-144.08 264.12,-144.8 266.22,-149.38" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="231" y="-171.56">сборка</text>
+<path d="M106.16,-87.85C127.09,-76.17 152.87,-61.77 174.65,-49.6" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="175.92,-51.78 180.98,-46.07 173.46,-47.38 175.92,-51.78" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="173.5" y="-64.2">сборка</text>
 </g>
 <!-- n3&#45;&gt;n2 -->
 <g class="edge">
 <title>n3-&gt;n2</title>
-<path d="M315.5,-203.76C315.5,-188.72 315.5,-168.02 315.5,-151.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="318.02,-151.41 315.5,-144.21 312.98,-151.41 318.02,-151.41" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="331" y="-171.56">выбор</text>
+<path d="M220.5,-87.85C220.5,-77.42 220.5,-64.83 220.5,-53.59" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="223.02,-53.27 220.5,-46.07 217.98,-53.27 223.02,-53.27" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="239" y="-64.2">выбор</text>
 </g>
 <!-- n4&#45;&gt;n2 -->
 <g class="edge">
 <title>n4-&gt;n2</title>
-<path d="M479.02,-203.76C445.56,-187.44 398.48,-164.48 363.42,-147.37" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="364.15,-144.93 356.57,-144.04 361.94,-149.46 364.15,-144.93" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="453.5" y="-171.56">фрагменты</text>
+<path d="M354.91,-92.8C330.62,-80.37 297.4,-63.37 270.07,-49.38" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="271.18,-47.11 263.62,-46.07 268.88,-51.6 271.18,-47.11" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="349.5" y="-64.2">фрагменты</text>
 </g>
 <!-- n4&#45;&gt;n6 -->
 <g class="edge">
 <title>n4-&gt;n6</title>
-<path d="M523.31,-203.85C528.14,-169.2 537.5,-102 537.5,-102 537.5,-102 563.2,-71.31 582.77,-47.95" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="584.9,-49.33 587.59,-42.19 581.04,-46.09 584.9,-49.33" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="557" y="-120.56">данные</text>
+<path d="M397,-92.6C402.55,-81.23 409.94,-66.11 416.36,-52.95" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="418.72,-53.86 419.62,-46.29 414.19,-51.65 418.72,-53.86" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="434.5" y="-64.2">данные</text>
 </g>
 <!-- n5&#45;&gt;n6 -->
 <g class="edge">
 <title>n5-&gt;n6</title>
-<path d="M671.5,-101.76C658.52,-86.31 640.53,-64.9 626.46,-48.15" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="628.03,-46.1 621.47,-42.21 624.17,-49.34 628.03,-46.1" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="698.5" y="-69.56">RAM, если включена</text>
+<path d="M517.37,-87.85C501.81,-76.42 482.72,-62.39 466.4,-50.39" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="467.82,-48.31 460.53,-46.07 464.84,-52.37 467.82,-48.31" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="556" y="-64.2">RAM, если включена</text>
 </g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M183,-348C183,-348 12,-348 12,-348 6,-348 0,-342 0,-336 0,-336 0,-318 0,-318 0,-312 6,-306 12,-306 12,-306 183,-306 183,-306 189,-306 195,-312 195,-318 195,-318 195,-336 195,-336 195,-342 189,-348 183,-348" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="49" y="-329.4">Сервис тестов</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-319">принятые jobs и их результаты</text>
+<path d="M121,-222C121,-222 12,-222 12,-222 6,-222 0,-216 0,-210 0,-210 0,-188 0,-188 0,-182 6,-176 12,-176 12,-176 121,-176 121,-176 127,-176 133,-182 133,-188 133,-188 133,-210 133,-210 133,-216 127,-222 121,-222" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="18" y="-207.4">Сервис тестов</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="9" y="-196.2">принятые jobs и их</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="31.5" y="-185.2">результаты</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M175.5,-246C175.5,-246 19.5,-246 19.5,-246 13.5,-246 7.5,-240 7.5,-234 7.5,-234 7.5,-216 7.5,-216 7.5,-210 13.5,-204 19.5,-204 19.5,-204 175.5,-204 175.5,-204 181.5,-204 187.5,-210 187.5,-216 187.5,-216 187.5,-234 187.5,-234 187.5,-240 181.5,-246 175.5,-246" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="48.5" y="-227.4">State и ledger</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="21.5" y="-217">run, намерения, наблюдения</text>
+<path d="M112.5,-134C112.5,-134 20.5,-134 20.5,-134 14.5,-134 8.5,-128 8.5,-122 8.5,-122 8.5,-100 8.5,-100 8.5,-94 14.5,-88 20.5,-88 20.5,-88 112.5,-88 112.5,-88 118.5,-88 124.5,-94 124.5,-100 124.5,-100 124.5,-122 124.5,-122 124.5,-128 118.5,-134 112.5,-134" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="17.5" y="-119.4">State и ledger</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="19.5" y="-108.2">run, намерения,</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="30" y="-97.2">наблюдения</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M402,-144C402,-144 229,-144 229,-144 223,-144 217,-138 217,-132 217,-132 217,-114 217,-114 217,-108 223,-102 229,-102 229,-102 402,-102 402,-102 408,-102 414,-108 414,-114 414,-114 414,-132 414,-132 414,-138 408,-144 402,-144" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="259" y="-125.4">Context запроса</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="231" y="-115">выбранные данные для модели</text>
+<path d="M288,-46C288,-46 153,-46 153,-46 147,-46 141,-40 141,-34 141,-34 141,-12 141,-12 141,-6 147,0 153,0 153,0 288,0 288,0 294,0 300,-6 300,-12 300,-12 300,-34 300,-34 300,-40 294,-46 288,-46" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="164" y="-31.4">Context запроса</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="150" y="-20.2">выбранные данные для</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="198.5" y="-9.2">модели</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M396,-246C396,-246 235,-246 235,-246 229,-246 223,-240 223,-234 223,-234 223,-216 223,-216 223,-210 229,-204 235,-204 235,-204 396,-204 396,-204 402,-204 408,-210 408,-216 408,-216 408,-234 408,-234 408,-240 402,-246 396,-246" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="254.5" y="-227.4">History и memory</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="237" y="-217">диалог и выбранные заметки</text>
+<path d="M279.5,-134C279.5,-134 161.5,-134 161.5,-134 155.5,-134 149.5,-128 149.5,-122 149.5,-122 149.5,-100 149.5,-100 149.5,-94 155.5,-88 161.5,-88 161.5,-88 279.5,-88 279.5,-88 285.5,-88 291.5,-94 291.5,-100 291.5,-100 291.5,-122 291.5,-122 291.5,-128 285.5,-134 279.5,-134" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="159.5" y="-119.4">History и memory</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="158.5" y="-108.2">диалог и выбранные</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="196" y="-97.2">заметки</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M585.5,-246C585.5,-246 455.5,-246 455.5,-246 449.5,-246 443.5,-240 443.5,-234 443.5,-234 443.5,-216 443.5,-216 443.5,-210 449.5,-204 455.5,-204 455.5,-204 585.5,-204 585.5,-204 591.5,-204 597.5,-210 597.5,-216 597.5,-216 597.5,-234 597.5,-234 597.5,-240 591.5,-246 585.5,-246" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="457.5" y="-227.4">Файлы workspace</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="475" y="-217">код и артефакты</text>
+<path d="M448.5,-129C448.5,-129 328.5,-129 328.5,-129 322.5,-129 316.5,-123 316.5,-117 316.5,-117 316.5,-105 316.5,-105 316.5,-99 322.5,-93 328.5,-93 328.5,-93 448.5,-93 448.5,-93 454.5,-93 460.5,-99 460.5,-105 460.5,-105 460.5,-117 460.5,-117 460.5,-123 454.5,-129 448.5,-129" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="325.5" y="-113.9">Файлы workspace</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="337" y="-102.7">код и артефакты</text>
 </g>
 <!-- n5 -->
 <g class="node">
 <title>n5</title>
-<path d="M770.5,-144C770.5,-144 606.5,-144 606.5,-144 600.5,-144 594.5,-138 594.5,-132 594.5,-132 594.5,-114 594.5,-114 594.5,-108 600.5,-102 606.5,-102 606.5,-102 770.5,-102 770.5,-102 776.5,-102 782.5,-108 782.5,-114 782.5,-114 782.5,-132 782.5,-132 782.5,-138 776.5,-144 770.5,-144" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="639" y="-125.4">RAM процесса</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="608.5" y="-115">живые объекты и соединения</text>
+<path d="M597.5,-134C597.5,-134 497.5,-134 497.5,-134 491.5,-134 485.5,-128 485.5,-122 485.5,-122 485.5,-100 485.5,-100 485.5,-94 491.5,-88 497.5,-88 497.5,-88 597.5,-88 597.5,-88 603.5,-88 609.5,-94 609.5,-100 609.5,-100 609.5,-122 609.5,-122 609.5,-128 603.5,-134 597.5,-134" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="498" y="-119.4">RAM процесса</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="494.5" y="-108.2">живые объекты и</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="512" y="-97.2">соединения</text>
 </g>
 <!-- n6 -->
 <g class="node">
 <title>n6</title>
-<path d="M684.5,-42C684.5,-42 524.5,-42 524.5,-42 518.5,-42 512.5,-36 512.5,-30 512.5,-30 512.5,-12 512.5,-12 512.5,-6 518.5,0 524.5,0 524.5,0 684.5,0 684.5,0 690.5,0 696.5,-6 696.5,-12 696.5,-12 696.5,-30 696.5,-30 696.5,-36 690.5,-42 684.5,-42" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="548.5" y="-23.4">Snapshot среды</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="526.5" y="-13">состав зависит от механизма</text>
+<path d="M483.5,-46C483.5,-46 377.5,-46 377.5,-46 371.5,-46 365.5,-40 365.5,-34 365.5,-34 365.5,-12 365.5,-12 365.5,-6 371.5,0 377.5,0 377.5,0 483.5,0 483.5,0 489.5,0 495.5,-6 495.5,-12 495.5,-12 495.5,-34 495.5,-34 495.5,-40 489.5,-46 483.5,-46" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="374.5" y="-31.4">Snapshot среды</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="376.5" y="-20.2">состав зависит от</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="398" y="-9.2">механизма</text>
 </g>
 </g>
 </svg>

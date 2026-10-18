@@ -181,7 +181,7 @@ Model size и публичный benchmark дают ориентир, но produ
 4. Разделите метрики: task success, tool choice, argument accuracy, unnecessary calls, unsafe proposals, latency, token usage и retries.
 5. Прогоните несколько повторов там, где используется sampling или допускается несколько корректных планов.
 6. Проводите shadow run без side effects, затем canary на ограниченном scope.
-7. Сохраняйте model revision, server version, параметры generation и полный trace.
+7. Сохраняйте model revision, server version, параметры generation и связный trace разрешённых событий: входные evidence refs, вызовы, решения проверок и результаты. Удаляйте чувствительные поля; вместо credentials и закрытых данных используйте ссылки на защищённые артефакты. Полные prompts и tool payloads сохраняйте только в согласованном защищённом хранилище с правилами доступа и сроком хранения. Подробный контракт telemetry разобран в [главе 25](25-observability.md).
 
 Для tool-using агента одного exact match недостаточно. Допустимы разные последовательности read-only проверок, если они приводят к подтверждённому результату в пределах бюджета. Поэтому evaluator часто сочетает детерминированные проверки и экспертную rubric.
 

@@ -144,20 +144,26 @@ LLM полезна для классификации неоднозначных 
 
 Цикл `while true` скрывает важные operational states. Явная state machine делает паузы, восстановление и терминальные исходы видимыми.
 
+Ниже описаны состояния **прикладного run**, а не phase ресурса AX Task. Один run может пережить несколько запусков процесса. Возврат управления вызывающему коду или освобождение worker на время ожидания не закрывает эту логическую работу.
+
 | Состояние | Значение | Допустимый следующий переход |
 | --- | --- | --- |
 | Created | objective принят, выполнение ещё не началось | Running, Cancelled |
-| Running | агент выбирает или выполняет безопасный шаг | WaitingForTool, WaitingForApproval, Verifying, Failed |
-| WaitingForTool | внешний read/operation ещё не завершён | Running, Verifying, Failed, Cancelled |
+| Running | агент выбирает или выполняет безопасный шаг | WaitingForTool, WaitingForApproval, WaitingForInput, Verifying, Blocked, Failed, Cancelled |
+| WaitingForTool | внешний read/operation ещё не завершён | Running, Verifying, Blocked, Failed, Cancelled |
 | WaitingForApproval | требуется решение человека или policy owner | Running, Cancelled, Failed |
-| Verifying | проверяется итог или postcondition | Succeeded, Running, Failed |
+| WaitingForInput | требуется недостающий факт от пользователя или системы | Running, Cancelled, Failed |
+| Verifying | проверяется итог или postcondition | Succeeded, Running, Blocked, Failed, Cancelled |
 | Succeeded | доказан expected outcome | терминальное |
-| Failed | продолжение невозможно или исчерпан допустимый budget | терминальное либо явный operator retry |
+| Failed | неисправимая ошибка, исчерпан budget или истёк срок ожидания | терминальное |
+| Blocked | в текущих условиях нет допустимого пути продолжения | терминальное |
 | Cancelled | выполнение остановлено владельцем или системой | терминальное |
 
-Waiting не равно failure. Task, который ожидает approval два часа, не должен занимать активный worker и не должен каждые десять секунд повторно спрашивать модель. Он сохраняет checkpoint и возобновляется по событию.
+Waiting не равно failure. Run, который ожидает approval два часа, сохраняет свой ID, checkpoint, owner ожидания и срок. Активный worker можно освободить; опрашивать модель каждые десять секунд не нужно. Решение приходит как событие к прежнему run, а новый процесс загружает его состояние. Перед продолжением код проверяет актуальное разрешение, версию предложения и статус run.
 
 Failed также не означает «модель однажды ошиблась». Локальная ошибка может привести к repair или альтернативному пути. Terminal failure наступает, когда классифицированная ошибка неисправима в текущем scope, исчерпан budget либо нарушен invariant.
+
+В этом учебном контракте `Succeeded`, `Blocked`, `Failed` и `Cancelled` закрывают run. Если operator после исправления причины хочет повторить работу, создаётся новый run со ссылкой на прежний; прежний результат не переписывается. Связь с ранее начатыми внешними операциями сохраняют и сначала сверяют их исход. Номер новой попытки не делает повтор write безопасным.
 
 ## Критерий успеха должен существовать до запуска
 
@@ -194,7 +200,7 @@ Success condition полезно отделять от completion report. Сна
 
 **Needs approval** - следующий допустимый шаг имеет side effect выше текущего authority.
 
-**Blocked** - требуемый ресурс недоступен, а альтернативный путь отсутствует.
+**Blocked** - требуемый ресурс или capability недоступны, альтернативного допустимого пути нет и контракт не предусматривает ожидание события. В таблице выше это окончательный исход данного run. Если ожидается конкретный вход или approval, используется соответствующее состояние Waiting, а не Blocked.
 
 **Budget exhausted** - достигнут лимит steps, времени, tokens, tool calls, денег или delegation depth.
 
@@ -377,7 +383,7 @@ Agent оправдан, если:
 - write tool недоступен до approved state;
 - child authority не шире parent;
 - каждый external write имеет operation ID;
-- terminal Task не запускает новые actions.
+- терминальный прикладной run не возобновляет агентный цикл и не разрешает новый write. Сверка ранее начатых операций остаётся задачей recovery-контура с действующим правом чтения.
 
 Примеры liveness invariants:
 
@@ -389,7 +395,7 @@ Agent оправдан, если:
 
 ## Observability должна показывать переходы, а не только текст
 
-Лог полного conversation history полезен, но недостаточен. Для диагностики нужно восстановить причинную цепочку:
+Для диагностики нужно восстановить причинную цепочку разрешённых событий, не копируя весь conversation history в общий лог:
 
 `task - state version - model request - proposal - policy decision - tool operation - observation - transition`.
 
@@ -399,7 +405,7 @@ Agent оправдан, если:
 - state before/after;
 - model/provider request ID;
 - выбранный action type;
-- tool и нормализованные arguments;
+- tool и разрешённые для telemetry поля нормализованных arguments; чувствительный payload остаётся в защищённом хранилище;
 - policy/approval decision;
 - operation ID;
 - latency и resource usage;
@@ -520,8 +526,8 @@ AX отвечает за надёжную execution substrate. Agent runtime о�
 - **scope:** DNS, load balancer, certificate inventory и логи только для `api.example.com`;
 - **success evidence:** handshake проходит из двух независимых probes, certificate chain валидна, hostname совпадает, error rate вернулся ниже порога;
 - **forbidden:** выпуск нового сертификата, DNS write и production reload без approval;
-- **budget:** 20 model steps, 10 минут, 30 tool calls, один write proposal;
-- **terminal result:** `Succeeded`, `WaitingForApproval`, `Blocked`, `Failed` или `Cancelled` с evidence.
+- **budget:** 20 model steps, 10 минут активного исполнения, 30 tool calls, один write proposal; approval ожидается не более 24 часов, отдельно от активного времени;
+- **возврат управления:** пауза `WaitingForApproval` либо терминальный исход `Succeeded`, `Blocked`, `Failed` или `Cancelled` с evidence. Пауза сохраняет тот же run и не означает, что TLS-инцидент устранён.
 
 ### Шаг 2. Определить state
 
@@ -592,6 +598,8 @@ Created
 ```
 
 Если TLS probe расходится между регионами, агент не должен усреднять ответы. Он создаёт новое observation, сужает scope и либо продолжает диагностику в бюджете, либо завершает `Blocked` с точным описанием недостающей capability.
+
+Проверьте и две ветки ожидания. Если approval пришло после перезапуска процесса, harness загружает прежний run и proposal, сверяет срок, актуальные права и исход уже начатой операции, затем продолжает без повторного write. Если 24 часа истекли, этот контракт переводит run в `Failed` с reason `approval_expired`. Позднее событие не открывает терминальный run и не разрешает действие; для новой работы нужен новый допуск. Другой продукт может выбрать отмену или обновление proposal, но такую policy следует задать явно.
 
 ### Workflow или agent?
 

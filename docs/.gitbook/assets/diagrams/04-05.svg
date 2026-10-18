@@ -1,109 +1,109 @@
-<svg aria-label="Agent harness: control loop, adapters, policy и evidence" class="diagram diagram-redrawn" height="377.92" role="img" viewBox="0 0 584.92 377.92" width="584.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 364.96)">
+<svg aria-label="Agent harness: control loop, adapters, policy и evidence" class="diagram diagram-redrawn" height="387.42" role="img" viewBox="0 0 603.92 387.42" width="603.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 374.46)">
 <title>G</title>
 <!-- n0&#45;&gt;n2 -->
 <g class="edge">
 <title>n0-&gt;n2</title>
-<path d="M101.09,-244.16C124.88,-239.44 153.78,-233.7 179.63,-228.57" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="180.26,-231.01 186.83,-227.14 179.27,-226.07 180.26,-231.01" stroke="#60748a" stroke-width="1.55"></polygon>
+<path d="M101.02,-252.51C126.73,-247.58 158.53,-241.49 186.55,-236.12" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="187.36,-238.53 193.96,-234.7 186.42,-233.58 187.36,-238.53" stroke="#60748a" stroke-width="1.55"></polygon>
 </g>
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M91.74,-184.78C117,-189.67 150.22,-196.09 179.54,-201.76" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="179.35,-204.29 186.9,-203.18 180.31,-199.34 179.35,-204.29" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="144" y="-200.56">context</text>
+<path d="M93.67,-192.08C120.5,-197.22 155.88,-204 186.66,-209.9" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="186.43,-212.42 193.97,-211.3 187.37,-207.47 186.43,-212.42" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="147.5" y="-209.2">context</text>
 </g>
 <!-- n2&#45;&gt;n3 -->
 <g class="edge">
 <title>n2-&gt;n3</title>
-<path d="M293,-236C314.5,-246.5 336,-257 336,-257 336,-257 402.18,-288.59 448.05,-310.49" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="447.08,-312.82 454.66,-313.65 449.25,-308.27 447.08,-312.82" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="368" y="-289.56">prompt</text>
+<path d="M299.24,-244.61C320.99,-255.74 343,-267 343,-267 343,-267 413.55,-298.12 462.52,-319.72" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="461.67,-322.1 469.28,-322.7 463.71,-317.49 461.67,-322.1" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="379.5" y="-302.2">prompt</text>
 </g>
 <!-- n2&#45;&gt;n4 -->
 <g class="edge">
 <title>n2-&gt;n4</title>
-<path d="M311.13,-224.89C349.43,-231.09 398.41,-239.02 435.58,-245.03" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="435.34,-247.55 442.85,-246.21 436.15,-242.57 435.34,-247.55" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="368" y="-241.56">call</text>
+<path d="M318.2,-232.49C359.4,-238.88 413.29,-247.24 453.2,-253.42" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="452.98,-255.94 460.48,-254.55 453.75,-250.96 452.98,-255.94" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="379.5" y="-250.2">call</text>
 </g>
 <!-- n2&#45;&gt;n5 -->
 <g class="edge">
 <title>n2-&gt;n5</title>
-<path d="M311.13,-195.81C325.13,-191.41 336,-188 336,-188 336,-188 380.56,-184.84 421.89,-181.9" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="422.29,-184.4 429.29,-181.38 421.93,-179.38 422.29,-184.4" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="368" y="-190.56">read/write</text>
+<path d="M318.2,-213.51C354.73,-207.84 401.24,-200.63 439.13,-194.76" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="439.86,-197.19 446.59,-193.6 439.08,-192.21 439.86,-197.19" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="379.5" y="-213.2">read/write</text>
 </g>
 <!-- n2&#45;&gt;n6 -->
 <g class="edge">
 <title>n2-&gt;n6</title>
-<path d="M286.97,-193.94C310.28,-180.65 336,-166 336,-166 336,-166 390.44,-142.82 434.79,-123.94" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="435.89,-126.2 441.53,-121.06 433.92,-121.57 435.89,-126.2" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="368" y="-168.56">before action</text>
+<path d="M299.24,-201.39C320.99,-190.26 343,-179 343,-179 343,-179 404.96,-151.67 453.05,-130.46" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="454.17,-132.72 459.74,-127.51 452.14,-128.11 454.17,-132.72" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="379.5" y="-182.2">before action</text>
 </g>
 <!-- n3&#45;&gt;n2 -->
 <g class="edge">
 <title>n3-&gt;n2</title>
-<path d="M454.91,-310.22C439.5,-301.35 425,-293 425,-293 425,-293 400,-121 400,-121 400,-121 336,-121 336,-121 336,-121 299.87,-160.49 274.44,-188.28" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
-<polygon fill="#7a6a8e" points="272.52,-186.66 269.51,-193.67 276.23,-190.06 272.52,-186.66" stroke="#7a6a8e" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="368" y="-123.56">result</text>
+<path d="M471.2,-318.45C455.59,-309.43 441,-301 441,-301 441,-301 416,-52 416,-52 416,-52 343,-52 343,-52 343,-52 295.6,-146.25 271.18,-194.81" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
+<polygon fill="#7a6a8e" points="268.88,-193.78 267.89,-201.34 273.38,-196.04 268.88,-193.78" stroke="#7a6a8e" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="379.5" y="-55.2">result</text>
 </g>
 <!-- n4&#45;&gt;n2 -->
 <g class="edge">
 <title>n4-&gt;n2</title>
-<path d="M455.3,-232.9C439.74,-223.71 425,-215 425,-215 425,-215 400,0 400,0 400,0 336,0 336,0 336,0 284.33,-129.18 261.09,-187.27" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
-<polygon fill="#7a6a8e" points="258.74,-186.37 258.4,-193.99 263.42,-188.24 258.74,-186.37" stroke="#7a6a8e" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="368" y="-2.56">observation</text>
+<path d="M471.2,-240.45C455.59,-231.43 441,-223 441,-223 441,-223 416,0 416,0 416,0 343,0 343,0 343,0 291.33,-133.98 268.09,-194.24" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
+<polygon fill="#7a6a8e" points="265.64,-193.59 265.4,-201.21 270.34,-195.4 265.64,-193.59" stroke="#7a6a8e" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="379.5" y="-3.2">observation</text>
 </g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M89,-275C89,-275 12,-275 12,-275 6,-275 0,-269 0,-263 0,-263 0,-245 0,-245 0,-239 6,-233 12,-233 12,-233 89,-233 89,-233 95,-233 101,-239 101,-245 101,-245 101,-263 101,-263 101,-269 95,-275 89,-275" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-256.4">Goal/Event</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="38" y="-246">input</text>
+<path d="M89,-283.5C89,-283.5 12,-283.5 12,-283.5 6,-283.5 0,-277.5 0,-271.5 0,-271.5 0,-252.5 0,-252.5 0,-246.5 6,-240.5 12,-240.5 12,-240.5 89,-240.5 89,-240.5 95,-240.5 101,-246.5 101,-252.5 101,-252.5 101,-271.5 101,-271.5 101,-277.5 95,-283.5 89,-283.5" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-264.9">Goal/Event</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="36.5" y="-253.7">input</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M79.5,-198C79.5,-198 21.5,-198 21.5,-198 15.5,-198 9.5,-192 9.5,-186 9.5,-186 9.5,-168 9.5,-168 9.5,-162 15.5,-156 21.5,-156 21.5,-156 79.5,-156 79.5,-156 85.5,-156 91.5,-162 91.5,-168 91.5,-168 91.5,-186 91.5,-186 91.5,-192 85.5,-198 79.5,-198" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="23.5" y="-179.4">Context</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="24.5" y="-169">assembler</text>
+<path d="M81.5,-205.5C81.5,-205.5 19.5,-205.5 19.5,-205.5 13.5,-205.5 7.5,-199.5 7.5,-193.5 7.5,-193.5 7.5,-174.5 7.5,-174.5 7.5,-168.5 13.5,-162.5 19.5,-162.5 19.5,-162.5 81.5,-162.5 81.5,-162.5 87.5,-162.5 93.5,-168.5 93.5,-174.5 93.5,-174.5 93.5,-193.5 93.5,-193.5 93.5,-199.5 87.5,-205.5 81.5,-205.5" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="23.5" y="-186.9">Context</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="21.5" y="-175.7">assembler</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M299,-236C299,-236 199,-236 199,-236 193,-236 187,-230 187,-224 187,-224 187,-206 187,-206 187,-200 193,-194 199,-194 199,-194 299,-194 299,-194 305,-194 311,-200 311,-206 311,-206 311,-224 311,-224 311,-230 305,-236 299,-236" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="201" y="-217.4">Run controller</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="215.5" y="-207">state + gates</text>
+<path d="M306,-244.5C306,-244.5 206,-244.5 206,-244.5 200,-244.5 194,-238.5 194,-232.5 194,-232.5 194,-213.5 194,-213.5 194,-207.5 200,-201.5 206,-201.5 206,-201.5 306,-201.5 306,-201.5 312,-201.5 318,-207.5 318,-213.5 318,-213.5 318,-232.5 318,-232.5 318,-238.5 312,-244.5 306,-244.5" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="208" y="-225.9">Run controller</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="218" y="-214.7">state + gates</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M517,-352C517,-352 467,-352 467,-352 461,-352 455,-346 455,-340 455,-340 455,-322 455,-322 455,-316 461,-310 467,-310 467,-310 517,-310 517,-310 523,-310 529,-316 529,-322 529,-322 529,-340 529,-340 529,-346 523,-352 517,-352" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="478" y="-333.4">LLM</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="469" y="-323">inference</text>
+<path d="M537.5,-361.5C537.5,-361.5 481.5,-361.5 481.5,-361.5 475.5,-361.5 469.5,-355.5 469.5,-349.5 469.5,-349.5 469.5,-330.5 469.5,-330.5 469.5,-324.5 475.5,-318.5 481.5,-318.5 481.5,-318.5 537.5,-318.5 537.5,-318.5 543.5,-318.5 549.5,-324.5 549.5,-330.5 549.5,-330.5 549.5,-349.5 549.5,-349.5 549.5,-355.5 543.5,-361.5 537.5,-361.5" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="495.5" y="-342.9">LLM</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="483.5" y="-331.7">inference</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M529,-275C529,-275 455,-275 455,-275 449,-275 443,-269 443,-263 443,-263 443,-245 443,-245 443,-239 449,-233 455,-233 455,-233 529,-233 529,-233 535,-233 541,-239 541,-245 541,-245 541,-263 541,-263 541,-269 535,-275 529,-275" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="457" y="-256.4">Tools/MCP</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="463.5" y="-246">side effects</text>
+<path d="M546.5,-283.5C546.5,-283.5 472.5,-283.5 472.5,-283.5 466.5,-283.5 460.5,-277.5 460.5,-271.5 460.5,-271.5 460.5,-252.5 460.5,-252.5 460.5,-246.5 466.5,-240.5 472.5,-240.5 472.5,-240.5 546.5,-240.5 546.5,-240.5 552.5,-240.5 558.5,-246.5 558.5,-252.5 558.5,-252.5 558.5,-271.5 558.5,-271.5 558.5,-277.5 552.5,-283.5 546.5,-283.5" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="474.5" y="-264.9">Tools/MCP</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="477.5" y="-253.7">side effects</text>
 </g>
 <!-- n5 -->
 <g class="node">
 <title>n5</title>
-<path d="M542.5,-198C542.5,-198 441.5,-198 441.5,-198 435.5,-198 429.5,-192 429.5,-186 429.5,-186 429.5,-168 429.5,-168 429.5,-162 435.5,-156 441.5,-156 441.5,-156 542.5,-156 542.5,-156 548.5,-156 554.5,-162 554.5,-168 554.5,-168 554.5,-186 554.5,-186 554.5,-192 548.5,-198 542.5,-198" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="443.5" y="-179.4">State/Memory</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="454.5" y="-169">persist/retrieve</text>
+<path d="M560,-205.5C560,-205.5 459,-205.5 459,-205.5 453,-205.5 447,-199.5 447,-193.5 447,-193.5 447,-174.5 447,-174.5 447,-168.5 453,-162.5 459,-162.5 459,-162.5 560,-162.5 560,-162.5 566,-162.5 572,-168.5 572,-174.5 572,-174.5 572,-193.5 572,-193.5 572,-199.5 566,-205.5 560,-205.5" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="461" y="-186.9">State/Memory</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="467" y="-175.7">persist/retrieve</text>
 </g>
 <!-- n6 -->
 <g class="node">
 <title>n6</title>
-<path d="M547,-121C547,-121 437,-121 437,-121 431,-121 425,-115 425,-109 425,-109 425,-91 425,-91 425,-85 431,-79 437,-79 437,-79 547,-79 547,-79 553,-79 559,-85 559,-91 559,-91 559,-109 559,-109 559,-115 553,-121 547,-121" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="439" y="-102.4">Policy + budget</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="443.5" y="-92">allow/deny/approve</text>
+<path d="M566,-127.5C566,-127.5 453,-127.5 453,-127.5 447,-127.5 441,-121.5 441,-115.5 441,-115.5 441,-96.5 441,-96.5 441,-90.5 447,-84.5 453,-84.5 453,-84.5 566,-84.5 566,-84.5 572,-84.5 578,-90.5 578,-96.5 578,-96.5 578,-115.5 578,-115.5 578,-121.5 572,-127.5 566,-127.5" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="456.5" y="-108.9">Policy + budget</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="455" y="-97.7">allow/deny/approve</text>
 </g>
 </g>
 </svg>

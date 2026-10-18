@@ -1,117 +1,126 @@
-<svg aria-label="AX Task в срезе ac233282: synchronous lifecycle под per-resource lock" class="diagram diagram-redrawn" height="363.92" role="img" viewBox="0 0 1071.92 363.92" width="1071.92" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
-<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 350.96)">
+<svg aria-label="AX Task в срезе ac233282: synchronous lifecycle под per-resource lock" class="diagram diagram-redrawn" data-print-min-pt="9.3855" height="559.28" role="img" viewBox="0 0 576.28 559.28" width="576.28" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 550.64)">
 <title>G</title>
 <!-- n0&#45;&gt;n1 -->
 <g class="edge">
 <title>n0-&gt;n1</title>
-<path d="M170.71,-191C204.32,-191 245.73,-191 280.33,-191" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="280.41,-193.52 287.61,-191 280.41,-188.48 280.41,-193.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="250.5" y="-193.56">gRPC</text>
+<path d="M59,-484.28C59,-471.17 59,-454.18 59,-438.75" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="61.52,-438.52 59,-431.32 56.48,-438.52 61.52,-438.52" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="73.5" y="-449.2">gRPC</text>
 </g>
 <!-- n1&#45;&gt;n2 -->
 <g class="edge">
 <title>n1-&gt;n2</title>
-<path d="M415.02,-201.54C452.64,-207.88 500.72,-215.99 540.14,-222.63" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="539.87,-225.14 547.39,-223.86 540.71,-220.17 539.87,-225.14" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="468.5" y="-216.56">lock + state</text>
+<path d="M48.13,-362.71C43.01,-344.17 38,-320.54 38,-299 38,-299 38,-299 38,-121 38,-101.89 42.41,-81.09 47.18,-64.16" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="49.63,-64.77 49.24,-57.16 44.79,-63.35 49.63,-64.77" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="71.5" y="-207.2">lock + state</text>
 </g>
 <!-- n1&#45;&gt;n3 -->
 <g class="edge">
 <title>n1-&gt;n3</title>
-<path d="M415.16,-177.39C429.19,-174.35 440,-172 440,-172 440,-172 490.71,-164.99 537.29,-158.54" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="537.64,-161.04 544.43,-157.55 536.95,-156.04 537.64,-161.04" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="468.5" y="-174.56">direct RPC</text>
+<path d="M96.55,-362.89C110.16,-350.88 125.37,-337.47 138.32,-326.05" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="139.99,-327.94 143.72,-321.29 136.66,-324.16 139.99,-327.94" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="152" y="-339.2">direct RPC</text>
 </g>
 <!-- n3&#45;&gt;n4 -->
 <g class="edge">
 <title>n3-&gt;n4</title>
-<path d="M684.78,-148C734.89,-148 802.64,-148 854.7,-148" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="854.74,-150.52 861.94,-148 854.74,-145.48 854.74,-150.52" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="764.5" y="-150.56">assign + start</text>
+<path d="M176.21,-274.85C179.67,-264.22 183.87,-251.34 187.58,-239.94" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="189.98,-240.7 189.81,-233.07 185.19,-239.14 189.98,-240.7" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="223.5" y="-251.2">assign + start</text>
 </g>
 <!-- n4&#45;&gt;n5 -->
 <g class="edge">
 <title>n4-&gt;n5</title>
-<path d="M934,-121.87C934,-103.63 934,-79.12 934,-59.45" fill="none" stroke="#60748a" stroke-width="1.55"></path>
-<polygon fill="#60748a" points="936.52,-59.37 934,-52.17 931.48,-59.37 936.52,-59.37" stroke="#60748a" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="926" y="-84.56">/readyz</text>
+<path d="M191.33,-186.85C188.64,-176.32 185.38,-163.58 182.49,-152.27" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="184.87,-151.42 180.65,-145.07 179.99,-152.67 184.87,-151.42" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="208" y="-163.2">/readyz</text>
 </g>
 <!-- n5&#45;&gt;n2 -->
 <g class="edge">
 <title>n5-&gt;n2</title>
-<path d="M895.73,-52.19C863.48,-74.85 822,-104 822,-104 822,-104 797,-166 797,-166 797,-166 738.78,-188.13 688.29,-207.33" fill="none" stroke="#7a6a8e" stroke-width="1.55"></path>
-<polygon fill="#7a6a8e" points="687.37,-204.98 681.54,-209.89 689.16,-209.69 687.37,-204.98" stroke="#7a6a8e" stroke-width="1.55"></polygon>
-<text fill="#34495e" font-family="DejaVu Sans" font-size="9.30" text-anchor="middle" x="764.5" y="-193.56">observation</text>
+<path d="M146.92,-98.85C132.71,-87.64 115.19,-73.82 99.55,-61.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="101.09,-59.49 93.88,-57.01 97.97,-63.45 101.09,-59.49" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="160" y="-75.2">observation</text>
 </g>
 <!-- n0 -->
 <g class="node">
 <title>n0</title>
-<path d="M158.5,-217C158.5,-217 54.5,-217 54.5,-217 48.5,-217 42.5,-211 42.5,-205 42.5,-205 42.5,-177 42.5,-177 42.5,-171 48.5,-165 54.5,-165 54.5,-165 158.5,-165 158.5,-165 164.5,-165 170.5,-171 170.5,-177 170.5,-177 170.5,-205 170.5,-205 170.5,-211 164.5,-217 158.5,-217" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="56.5" y="-198.4">Manifest + CLI</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="68" y="-188">create / resume</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="66" y="-178">suspend / delete</text>
+<path d="M106,-530.5C106,-530.5 12,-530.5 12,-530.5 6,-530.5 0,-524.5 0,-518.5 0,-518.5 0,-496.5 0,-496.5 0,-490.5 6,-484.5 12,-484.5 12,-484.5 106,-484.5 106,-484.5 112,-484.5 118,-490.5 118,-496.5 118,-496.5 118,-518.5 118,-518.5 118,-524.5 112,-530.5 106,-530.5" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="9" y="-515.9">Manifest + CLI</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="15" y="-504.7">create / resume</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="13" y="-493.7">suspend / delete</text>
 </g>
 <!-- n1 -->
 <g class="node">
 <title>n1</title>
-<path d="M403,-222C403,-222 300,-222 300,-222 294,-222 288,-216 288,-210 288,-210 288,-172 288,-172 288,-166 294,-160 300,-160 300,-160 403,-160 403,-160 409,-160 415,-166 415,-172 415,-172 415,-210 415,-210 415,-216 409,-222 403,-222" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="319" y="-203.4">ax-server</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="302" y="-193">validate + reconcile</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="316" y="-183">synchronously</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="310" y="-173">one request path</text>
+<path d="M103.5,-431C103.5,-431 14.5,-431 14.5,-431 8.5,-431 2.5,-425 2.5,-419 2.5,-419 2.5,-375 2.5,-375 2.5,-369 8.5,-363 14.5,-363 14.5,-363 103.5,-363 103.5,-363 109.5,-363 115.5,-369 115.5,-375 115.5,-375 115.5,-419 115.5,-419 115.5,-425 109.5,-431 103.5,-431" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="26.5" y="-416.4">ax-server</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="30" y="-405.2">validate +</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="34" y="-394.2">reconcile</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="19" y="-383.2">synchronously</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="11.5" y="-372.2">one request path</text>
 </g>
 <!-- n2 -->
 <g class="node">
 <title>n2</title>
-<path d="M669.5,-261C669.5,-261 559.5,-261 559.5,-261 553.5,-261 547.5,-255 547.5,-249 547.5,-249 547.5,-221 547.5,-221 547.5,-215 553.5,-209 559.5,-209 559.5,-209 669.5,-209 669.5,-209 675.5,-209 681.5,-215 681.5,-221 681.5,-221 681.5,-249 681.5,-249 681.5,-255 675.5,-261 669.5,-261" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="596" y="-242.4">Redis</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="571" y="-232">resource + status</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="561.5" y="-222">lock + watch Pub/Sub</text>
+<path d="M106,-57C106,-57 12,-57 12,-57 6,-57 0,-51 0,-45 0,-45 0,-12 0,-12 0,-6 6,0 12,0 12,0 106,0 106,0 112,0 118,-6 118,-12 118,-12 118,-45 118,-45 118,-51 112,-57 106,-57" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="40.5" y="-42.4">Redis</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="9" y="-31.2">resource + status</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="23" y="-20.2">lock + watch</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="36.5" y="-9.2">Pub/Sub</text>
 </g>
 <!-- n3 -->
 <g class="node">
 <title>n3</title>
-<path d="M672.5,-174C672.5,-174 556.5,-174 556.5,-174 550.5,-174 544.5,-168 544.5,-162 544.5,-162 544.5,-134 544.5,-134 544.5,-128 550.5,-122 556.5,-122 556.5,-122 672.5,-122 672.5,-122 678.5,-122 684.5,-128 684.5,-134 684.5,-134 684.5,-162 684.5,-162 684.5,-168 678.5,-174 672.5,-174" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="558.5" y="-155.4">Agent Substrate</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="579.5" y="-145">Actor lifecycle</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="582" y="-135">runtime truth</text>
+<path d="M222,-321C222,-321 116,-321 116,-321 110,-321 104,-315 104,-309 104,-309 104,-287 104,-287 104,-281 110,-275 116,-275 116,-275 222,-275 222,-275 228,-275 234,-281 234,-287 234,-287 234,-309 234,-309 234,-315 228,-321 222,-321" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="113" y="-306.4">Agent Substrate</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="129.5" y="-295.2">Actor lifecycle</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="132" y="-284.2">runtime truth</text>
 </g>
 <!-- n4 -->
 <g class="node">
 <title>n4</title>
-<path d="M994,-174C994,-174 874,-174 874,-174 868,-174 862,-168 862,-162 862,-162 862,-134 862,-134 862,-128 868,-122 874,-122 874,-122 994,-122 994,-122 1000,-122 1006,-128 1006,-134 1006,-134 1006,-162 1006,-162 1006,-168 1000,-174 994,-174" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="876" y="-155.4">Worker + Runner</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="883.5" y="-145">sandbox, Workspace</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="902" y="-135">child process</text>
+<path d="M252,-233C252,-233 142,-233 142,-233 136,-233 130,-227 130,-221 130,-221 130,-199 130,-199 130,-193 136,-187 142,-187 142,-187 252,-187 252,-187 258,-187 264,-193 264,-199 264,-199 264,-221 264,-221 264,-227 258,-233 252,-233" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="139" y="-218.4">Worker + Runner</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="139.5" y="-207.2">sandbox, Workspace</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="160.5" y="-196.2">child process</text>
 </g>
 <!-- n5 -->
 <g class="node">
 <title>n5</title>
-<path d="M1004,-52C1004,-52 864,-52 864,-52 858,-52 852,-46 852,-40 852,-40 852,-12 852,-12 852,-6 858,0 864,0 864,0 1004,0 1004,0 1010,0 1016,-6 1016,-12 1016,-12 1016,-40 1016,-40 1016,-46 1010,-52 1004,-52" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="866" y="-33.4">Readiness snapshot</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="892.5" y="-23">poll by ax-server</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="892.5" y="-13">up to 15 seconds</text>
+<path d="M240,-145C240,-145 110,-145 110,-145 104,-145 98,-139 98,-133 98,-133 98,-111 98,-111 98,-105 104,-99 110,-99 110,-99 240,-99 240,-99 246,-99 252,-105 252,-111 252,-111 252,-133 252,-133 252,-139 246,-145 240,-145" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="107" y="-130.4">Readiness snapshot</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="128" y="-119.2">poll by ax-server</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="127.5" y="-108.2">up to 15 seconds</text>
 </g>
 <!-- n6 -->
 <g class="node">
 <title>n6</title>
-<path d="M201,-294C201,-294 12,-294 12,-294 6,-294 0,-288 0,-282 0,-282 0,-264 0,-264 0,-258 6,-252 12,-252 12,-252 201,-252 201,-252 207,-252 213,-258 213,-264 213,-264 213,-282 213,-282 213,-288 207,-294 201,-294" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="14" y="-275.4">No queue / no ax-controller</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="29.5" y="-265">unfinished work is not replayed</text>
+<path d="M249,-536.5C249,-536.5 155,-536.5 155,-536.5 149,-536.5 143,-530.5 143,-524.5 143,-524.5 143,-490.5 143,-490.5 143,-484.5 149,-478.5 155,-478.5 155,-478.5 249,-478.5 249,-478.5 255,-478.5 261,-484.5 261,-490.5 261,-490.5 261,-524.5 261,-524.5 261,-530.5 255,-536.5 249,-536.5" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="155" y="-521.9">No queue / no</text>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="158.5" y="-509.9">ax-controller</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="152" y="-498.7">unfinished work is</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="167" y="-487.7">not replayed</text>
 </g>
 <!-- n7 -->
 <g class="node">
 <title>n7</title>
-<path d="M695,-338C695,-338 534,-338 534,-338 528,-338 522,-332 522,-326 522,-326 522,-308 522,-308 522,-302 528,-296 534,-296 534,-296 695,-296 695,-296 701,-296 707,-302 707,-308 707,-308 707,-326 707,-326 707,-332 701,-338 695,-338" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="536" y="-319.4">Lock lease: 30 seconds</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="545" y="-309">current code has no renewal</text>
+<path d="M389.5,-536.5C389.5,-536.5 298.5,-536.5 298.5,-536.5 292.5,-536.5 286.5,-530.5 286.5,-524.5 286.5,-524.5 286.5,-490.5 286.5,-490.5 286.5,-484.5 292.5,-478.5 298.5,-478.5 298.5,-478.5 389.5,-478.5 389.5,-478.5 395.5,-478.5 401.5,-484.5 401.5,-490.5 401.5,-490.5 401.5,-524.5 401.5,-524.5 401.5,-530.5 395.5,-536.5 389.5,-536.5" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="295.5" y="-521.9">Lock lease: 30</text>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="316.5" y="-509.9">seconds</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="297" y="-498.7">current code has</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="313.5" y="-487.7">no renewal</text>
 </g>
 <!-- n8 -->
 <g class="node">
 <title>n8</title>
-<path d="M1034,-251C1034,-251 834,-251 834,-251 828,-251 822,-245 822,-239 822,-239 822,-221 822,-221 822,-215 828,-209 834,-209 834,-209 1034,-209 1034,-209 1040,-209 1046,-215 1046,-221 1046,-221 1046,-239 1046,-239 1046,-245 1040,-251 1034,-251" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
-<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="836" y="-232.4">No cross-system transaction</text>
-<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="852.5" y="-222">Redis and Substrate may diverge</text>
+<path d="M547,-542C547,-542 439,-542 439,-542 433,-542 427,-536 427,-530 427,-530 427,-485 427,-485 427,-479 433,-473 439,-473 439,-473 547,-473 547,-473 553,-473 559,-479 559,-485 559,-485 559,-530 559,-530 559,-536 553,-542 547,-542" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="436" y="-527.4">No cross-system</text>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="454" y="-515.4">transaction</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="465.5" y="-504.2">Redis and</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="452" y="-493.2">Substrate may</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="472" y="-482.2">diverge</text>
 </g>
 </g>
 </svg>
