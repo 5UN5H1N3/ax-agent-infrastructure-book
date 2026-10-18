@@ -1,0 +1,2 @@
+# Optional, isolated environment for the L04 trace-context lesson.
+.venv-trace-l04/
