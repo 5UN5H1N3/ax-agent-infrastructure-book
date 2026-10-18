@@ -1,0 +1,49 @@
+{
+  "protocol_version": "2026-07-28",
+  "core_commit": "1155ca460e5097019f32769b38dcba194432e2fb",
+  "tasks_commit": "899c1bbc869567670093face3591b39c28ce3219",
+  "sources": [
+    {
+      "file": "core-schema.json",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/1155ca460e5097019f32769b38dcba194432e2fb/schema/2026-07-28/schema.json",
+      "sha256": "ef70b61f99b6d2e5e3b46863822eab08dff6a45bedc7a08914e0e5b133f40203",
+      "bytes": 181474
+    },
+    {
+      "file": "mrtr.mdx",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/1155ca460e5097019f32769b38dcba194432e2fb/docs/specification/2026-07-28/basic/patterns/mrtr.mdx",
+      "sha256": "a8671eb2a0d292c0dcbae19666ff4fc3d97f294ce8107e9f38259cc5a02a066b",
+      "bytes": 13386
+    },
+    {
+      "file": "elicitation.mdx",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/modelcontextprotocol/1155ca460e5097019f32769b38dcba194432e2fb/docs/specification/2026-07-28/client/elicitation.mdx",
+      "sha256": "74351d1081681695536e59a55588a67ed66a76db6057846c263ce2f465fab4c2",
+      "bytes": 28212
+    },
+    {
+      "file": "tasks-schema.json",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/ext-tasks/899c1bbc869567670093face3591b39c28ce3219/schema/2026-07-28/schema.json",
+      "sha256": "bf30afb7ac251e3e22c037b7a685f60ef6603031b5484c0d08b1fa0bbe86d460",
+      "bytes": 99192
+    },
+    {
+      "file": "tasks-spec-schema.json",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/ext-tasks/899c1bbc869567670093face3591b39c28ce3219/schema/2026-07-28/spec.schema.json",
+      "sha256": "78f0902444e03fc687f262ce796a48af06c02bc67be3d1bf36b7a2ffbb83d0fa",
+      "bytes": 147847
+    },
+    {
+      "file": "tasks-types.ts",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/ext-tasks/899c1bbc869567670093face3591b39c28ce3219/schema/2026-07-28/spec.types.ts",
+      "sha256": "a34751c63a0858e42764fe74079f4a3dca82e323f0e1d1570510c713f74de8a8",
+      "bytes": 98793
+    },
+    {
+      "file": "tasks.md",
+      "url": "https://raw.githubusercontent.com/modelcontextprotocol/ext-tasks/899c1bbc869567670093face3591b39c28ce3219/specification/2026-07-28/tasks.md",
+      "sha256": "5fc22b9b5ff248703927c69855f751a061c2d6170f4dc3923204452f859f91a5",
+      "bytes": 34156
+    }
+  ]
+}

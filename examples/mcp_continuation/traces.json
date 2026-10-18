@@ -1,0 +1,1350 @@
+{
+  "mrtr": {
+    "kind": "mrtr",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {}
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "duration_ms": 1000,
+              "max_packets": 12,
+              "max_bytes": 4096
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "result": {
+            "resultType": "input_required",
+            "inputRequests": {
+              "pick_interface": {
+                "method": "elicitation/create",
+                "params": {
+                  "mode": "form",
+                  "message": "Which lab interface should the capture use?",
+                  "requestedSchema": {
+                    "type": "object",
+                    "properties": {
+                      "interface": {
+                        "type": "string",
+                        "enum": [
+                          "eth0",
+                          "eth1"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "interface"
+                    ]
+                  }
+                }
+              }
+            },
+            "requestState": "fixture-state-01"
+          }
+        }
+      },
+      {
+        "at_ms": 100,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "duration_ms": 1000,
+              "max_packets": 12,
+              "max_bytes": 4096
+            },
+            "requestState": "fixture-state-01",
+            "inputResponses": {
+              "pick_interface": {
+                "action": "accept",
+                "content": {
+                  "interface": "eth1"
+                }
+              }
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "result": {
+            "resultType": "complete",
+            "isError": false,
+            "content": [
+              {
+                "type": "text",
+                "text": "Prepared capture summary; no device was contacted."
+              }
+            ],
+            "structuredContent": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "interface": "eth1",
+              "packet_count": 12,
+              "captured_bytes": 768,
+              "truncated": false,
+              "source": "paper-fixture"
+            }
+          }
+        }
+      }
+    ]
+  },
+  "decline": {
+    "kind": "mrtr",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {}
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "duration_ms": 1000,
+              "max_packets": 12,
+              "max_bytes": 4096
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "result": {
+            "resultType": "input_required",
+            "inputRequests": {
+              "pick_interface": {
+                "method": "elicitation/create",
+                "params": {
+                  "mode": "form",
+                  "message": "Which lab interface should the capture use?",
+                  "requestedSchema": {
+                    "type": "object",
+                    "properties": {
+                      "interface": {
+                        "type": "string",
+                        "enum": [
+                          "eth0",
+                          "eth1"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "interface"
+                    ]
+                  }
+                }
+              }
+            },
+            "requestState": "fixture-state-01"
+          }
+        }
+      },
+      {
+        "at_ms": 100,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "duration_ms": 1000,
+              "max_packets": 12,
+              "max_bytes": 4096
+            },
+            "requestState": "fixture-state-01",
+            "inputResponses": {
+              "pick_interface": {
+                "action": "decline"
+              }
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "result": {
+            "resultType": "complete",
+            "isError": true,
+            "content": [
+              {
+                "type": "text",
+                "text": "Input declined; capture not started."
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "cancel": {
+    "kind": "mrtr",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {}
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "duration_ms": 1000,
+              "max_packets": 12,
+              "max_bytes": 4096
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "result": {
+            "resultType": "input_required",
+            "inputRequests": {
+              "pick_interface": {
+                "method": "elicitation/create",
+                "params": {
+                  "mode": "form",
+                  "message": "Which lab interface should the capture use?",
+                  "requestedSchema": {
+                    "type": "object",
+                    "properties": {
+                      "interface": {
+                        "type": "string",
+                        "enum": [
+                          "eth0",
+                          "eth1"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "interface"
+                    ]
+                  }
+                }
+              }
+            },
+            "requestState": "fixture-state-01"
+          }
+        }
+      },
+      {
+        "at_ms": 100,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "duration_ms": 1000,
+              "max_packets": 12,
+              "max_bytes": 4096
+            },
+            "requestState": "fixture-state-01",
+            "inputResponses": {
+              "pick_interface": {
+                "action": "cancel"
+              }
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 42,
+          "result": {
+            "resultType": "complete",
+            "isError": true,
+            "content": [
+              {
+                "type": "text",
+                "text": "Input cancelled; capture not started."
+              }
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "unsupported_form": {
+    "kind": "unsupported",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {}
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {}
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-01",
+              "device": "lab-edge-1",
+              "duration_ms": 1000,
+              "max_packets": 12,
+              "max_bytes": 4096
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {}
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "error": {
+            "code": -32021,
+            "message": "Missing required client capability",
+            "data": {
+              "requiredCapabilities": {
+                "elicitation": {
+                  "form": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "unsupported_tasks": {
+    "kind": "unsupported",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {}
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {},
+              "extensions": {
+                "io.modelcontextprotocol/tasks": {}
+              }
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-02",
+              "device": "lab-edge-1",
+              "duration_ms": 120000,
+              "max_packets": 12,
+              "max_bytes": 4096,
+              "interface": "eth1"
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {}
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 41,
+          "error": {
+            "code": -32021,
+            "message": "Missing required client capability",
+            "data": {
+              "requiredCapabilities": {
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "tasks": {
+    "kind": "tasks",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {},
+              "extensions": {
+                "io.modelcontextprotocol/tasks": {}
+              }
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 51,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-02",
+              "device": "lab-edge-1",
+              "duration_ms": 120000,
+              "max_packets": 12,
+              "max_bytes": 4096,
+              "interface": "eth1"
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 51,
+          "result": {
+            "resultType": "task",
+            "taskId": "task-fixture-01",
+            "status": "working",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:00Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 1000
+          }
+        }
+      },
+      {
+        "at_ms": 1000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 52,
+          "method": "tasks/get",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 52,
+          "result": {
+            "resultType": "complete",
+            "taskId": "task-fixture-01",
+            "status": "working",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:01Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 5000
+          }
+        }
+      },
+      {
+        "at_ms": 6000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 53,
+          "method": "tasks/get",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 53,
+          "result": {
+            "resultType": "complete",
+            "taskId": "task-fixture-01",
+            "status": "completed",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:06Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 1000,
+            "result": {
+              "resultType": "complete",
+              "isError": false,
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Prepared capture summary; no device was contacted."
+                }
+              ],
+              "structuredContent": {
+                "operation_id": "capture-op-02",
+                "device": "lab-edge-1",
+                "interface": "eth1",
+                "packet_count": 12,
+                "captured_bytes": 768,
+                "truncated": false,
+                "source": "paper-fixture"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "task_input": {
+    "kind": "tasks",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {},
+              "extensions": {
+                "io.modelcontextprotocol/tasks": {}
+              }
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 51,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-02",
+              "device": "lab-edge-1",
+              "duration_ms": 120000,
+              "max_packets": 12,
+              "max_bytes": 4096,
+              "interface": "eth1"
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 51,
+          "result": {
+            "resultType": "task",
+            "taskId": "task-fixture-01",
+            "status": "working",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:00Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 1000
+          }
+        }
+      },
+      {
+        "at_ms": 1000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 52,
+          "method": "tasks/get",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 52,
+          "result": {
+            "resultType": "complete",
+            "taskId": "task-fixture-01",
+            "status": "working",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:01Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 5000
+          }
+        }
+      },
+      {
+        "at_ms": 6000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 53,
+          "method": "tasks/get",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 53,
+          "result": {
+            "resultType": "complete",
+            "taskId": "task-fixture-01",
+            "status": "input_required",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:06Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 5000,
+            "inputRequests": {
+              "choose_format": {
+                "method": "elicitation/create",
+                "params": {
+                  "mode": "form",
+                  "message": "Choose the summary format.",
+                  "requestedSchema": {
+                    "type": "object",
+                    "properties": {
+                      "format": {
+                        "type": "string",
+                        "enum": [
+                          "compact"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "format"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      {
+        "at_ms": 6000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 54,
+          "method": "tasks/update",
+          "params": {
+            "taskId": "task-fixture-01",
+            "inputResponses": {
+              "choose_format": {
+                "action": "accept",
+                "content": {
+                  "format": "compact"
+                }
+              }
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 54,
+          "result": {
+            "resultType": "complete"
+          }
+        }
+      },
+      {
+        "at_ms": 11000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 55,
+          "method": "tasks/get",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 55,
+          "result": {
+            "resultType": "complete",
+            "taskId": "task-fixture-01",
+            "status": "completed",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:11Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 1000,
+            "result": {
+              "resultType": "complete",
+              "isError": false,
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Prepared capture summary; no device was contacted."
+                }
+              ],
+              "structuredContent": {
+                "operation_id": "capture-op-02",
+                "device": "lab-edge-1",
+                "interface": "eth1",
+                "packet_count": 12,
+                "captured_bytes": 768,
+                "truncated": false,
+                "source": "paper-fixture"
+              }
+            }
+          }
+        }
+      }
+    ]
+  },
+  "cancel_race": {
+    "kind": "tasks",
+    "exchanges": [
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "method": "server/discover",
+          "params": {
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 40,
+          "result": {
+            "resultType": "complete",
+            "supportedVersions": [
+              "2026-07-28"
+            ],
+            "capabilities": {
+              "tools": {},
+              "extensions": {
+                "io.modelcontextprotocol/tasks": {}
+              }
+            },
+            "cacheScope": "private",
+            "ttlMs": 60000
+          }
+        }
+      },
+      {
+        "at_ms": 0,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 51,
+          "method": "tools/call",
+          "params": {
+            "name": "network.start_capture",
+            "arguments": {
+              "operation_id": "capture-op-02",
+              "device": "lab-edge-1",
+              "duration_ms": 120000,
+              "max_packets": 12,
+              "max_bytes": 4096,
+              "interface": "eth1"
+            },
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 51,
+          "result": {
+            "resultType": "task",
+            "taskId": "task-fixture-01",
+            "status": "working",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:00Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 1000
+          }
+        }
+      },
+      {
+        "at_ms": 1000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 52,
+          "method": "tasks/get",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 52,
+          "result": {
+            "resultType": "complete",
+            "taskId": "task-fixture-01",
+            "status": "working",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:01Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 5000
+          }
+        }
+      },
+      {
+        "at_ms": 1000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 54,
+          "method": "tasks/cancel",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 54,
+          "result": {
+            "resultType": "complete"
+          }
+        }
+      },
+      {
+        "at_ms": 6000,
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 53,
+          "method": "tasks/get",
+          "params": {
+            "taskId": "task-fixture-01",
+            "_meta": {
+              "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+              "io.modelcontextprotocol/clientInfo": {
+                "name": "capture-fixture-host",
+                "version": "1.0.0"
+              },
+              "io.modelcontextprotocol/clientCapabilities": {
+                "elicitation": {
+                  "form": {}
+                },
+                "extensions": {
+                  "io.modelcontextprotocol/tasks": {}
+                }
+              }
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 53,
+          "result": {
+            "resultType": "complete",
+            "taskId": "task-fixture-01",
+            "status": "completed",
+            "createdAt": "2026-10-18T10:00:00Z",
+            "lastUpdatedAt": "2026-10-18T10:00:06Z",
+            "ttlMs": 300000,
+            "pollIntervalMs": 1000,
+            "result": {
+              "resultType": "complete",
+              "isError": false,
+              "content": [
+                {
+                  "type": "text",
+                  "text": "Prepared capture summary; no device was contacted."
+                }
+              ],
+              "structuredContent": {
+                "operation_id": "capture-op-02",
+                "device": "lab-edge-1",
+                "interface": "eth1",
+                "packet_count": 12,
+                "captured_bytes": 768,
+                "truncated": false,
+                "source": "paper-fixture"
+              }
+            }
+          }
+        }
+      }
+    ]
+  }
+}
