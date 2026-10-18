@@ -1,0 +1,117 @@
+{
+  "format": "tls-investigation-v1",
+  "synthetic": true,
+  "scope": "api.example.com",
+  "notice": "Prepared observations, not captured traffic or cryptographic verification. Certificate IDs are labels, not fingerprints.",
+  "cases": {
+    "chain": {
+      "packets": {
+        "initial": {
+          "id": "A0", "at": "2026-10-18T10:00:00Z", "source": "probe-summary",
+          "expected_hostname": "api.example.com", "client_profile": "strict-r1",
+          "trust_anchors": ["R1"], "intermediate_cache": [], "aia_fetch": false,
+          "clock_offsets_seconds": {"east": 0, "west": 1},
+          "probes": [
+            {"region": "east", "address": "192.0.2.10", "sni": "api.example.com", "leaf": "L1", "serial": "01A7", "hostname_match": true, "path_ok": false, "error": "issuer_unavailable"},
+            {"region": "west", "address": "198.51.100.20", "sni": "api.example.com", "leaf": "L1", "serial": "01A7", "hostname_match": true, "path_ok": true, "error": null}
+          ],
+          "leaf": {"id": "L1", "issuer": "I1", "san": ["api.example.com"], "not_before": "2026-10-01T00:00:00Z", "not_after": "2027-01-01T00:00:00Z"}
+        },
+        "dns": {
+          "id": "A1", "at": "2026-10-18T10:00:10Z", "source": "dns-and-dial-join",
+          "host": "api.example.com", "authoritative_serial": 2026101801,
+          "expected_by_region": {"east": "192.0.2.10", "west": "198.51.100.20"},
+          "client_answers": {"east": "192.0.2.10", "west": "198.51.100.20"},
+          "gateway_or_proxy": false, "pool_stable_for_observation_window": true
+        },
+        "peer": {
+          "id": "A2", "at": "2026-10-18T10:00:20Z", "source": "peer-certificate-list",
+          "host": "api.example.com", "sni": "api.example.com",
+          "east": {"address": "192.0.2.10", "sent": ["L1"]},
+          "west": {"address": "198.51.100.20", "sent": ["L1", "I1"]}
+        },
+        "inventory": {
+          "id": "A3", "at": "2026-10-18T10:00:30Z", "source": "approved-certificate-inventory",
+          "certificates": [
+            {"id": "L1", "issuer": "I1", "serial": "01A7", "is_ca": false},
+            {"id": "I1", "issuer": "R1", "serial": "10C1", "is_ca": true, "not_before": "2025-01-01T00:00:00Z", "not_after": "2028-01-01T00:00:00Z"},
+            {"id": "R1", "issuer": "R1", "serial": "1001", "is_ca": true, "trust_anchor": true}
+          ]
+        },
+        "verify": {
+          "id": "A4", "at": "2026-10-18T10:00:40Z", "source": "prepared-offline-comparison",
+          "captured_from": "A2", "intermediate_from": "A3", "client_profile": "strict-r1",
+          "trust_anchors": ["R1"], "intermediate_cache": [], "aia_fetch": false,
+          "verification_time": "2026-10-18T10:00:00Z", "expected_hostname": "api.example.com",
+          "network_used": false, "revocation": "not_evaluated",
+          "before": {"chain": ["L1"], "extra_untrusted": [], "path_ok": false},
+          "after": {"chain": ["L1"], "extra_untrusted": ["I1"], "path_ok": true},
+          "hostname_match": true, "time_checks_ok": true
+        },
+        "history": {
+          "id": "A5", "at": "2026-10-18T10:00:50Z", "source": "east-lb-config-history",
+          "target": "east/api.example.com", "current_revision": "r17",
+          "deployed_at": "2026-10-18T09:55:00Z", "previous_revision": "r16",
+          "previous_bundle": ["L1", "I1"], "current_bundle": ["L1"],
+          "leaf_serial_before": "01A7", "leaf_serial_after": "01A7",
+          "changed_field": "certificate_bundle"
+        }
+      },
+      "key": {
+        "first_read_options": ["peer", "dns", "inventory"],
+        "minimal_discriminating_evidence": ["A0", "A2", "A3", "A4"],
+        "full_worked_order": ["initial", "dns", "peer", "inventory", "verify", "history"],
+        "finding": "The observed east peer omits I1; the strict-r1 profile cannot build this path without it.",
+        "finding_evidence": ["A0", "A1", "A2", "A3", "A4", "A5"],
+        "phase": "WaitingForApproval", "incident_restored": false,
+        "proposal": {"target": "east/api.example.com", "expected_revision": "r17", "desired_bundle": ["L1", "I1"], "rollback_revision": "r16", "executed": false},
+        "remaining": ["Re-read current revision and authority before any write", "Approval for the exact diff", "Post-change independent probes and error-rate window"],
+        "unavailable_inventory_and_verify": {"phase": "Blocked", "reason": "Cannot confirm path under the client trust profile; request the missing evidence, do not renew the leaf by guesswork."}
+      }
+    },
+    "dns": {
+      "packets": {
+        "initial": {
+          "id": "B0", "at": "2026-10-18T10:00:00Z", "source": "probe-summary",
+          "expected_hostname": "api.example.com", "trust_anchors": ["R1"],
+          "clock_offsets_seconds": {"east": 0, "west": 1},
+          "probes": [
+            {"region": "east", "address": "192.0.2.10", "sni": "api.example.com", "serial": "00B2", "san": ["legacy.example.com"], "hostname_match": false, "path_ok": true},
+            {"region": "west", "address": "198.51.100.20", "sni": "api.example.com", "serial": "01A7", "san": ["api.example.com"], "hostname_match": true, "path_ok": true}
+          ],
+          "leaf_validity": {"00B2": ["2026-10-01T00:00:00Z", "2027-01-01T00:00:00Z"], "01A7": ["2026-10-01T00:00:00Z", "2027-01-01T00:00:00Z"]}
+        },
+        "dns": {
+          "id": "B1", "at": "2026-10-18T10:00:10Z", "source": "authoritative-and-client-answers",
+          "host": "api.example.com", "authoritative_serial": 2026101807,
+          "authoritative_address": "198.51.100.20", "changed_at": "2026-10-18T09:58:00Z",
+          "east_answer": "192.0.2.10", "east_remaining_ttl_seconds": 140,
+          "west_answer": "198.51.100.20", "gateway_or_proxy": false
+        },
+        "address_control": {
+          "id": "B2", "at": "2026-10-18T10:00:20Z", "source": "prepared-same-client-address-control",
+          "region": "east", "address": "198.51.100.20", "sni": "api.example.com",
+          "expected_hostname": "api.example.com", "trust_anchors": ["R1"],
+          "serial": "01A7", "hostname_match": true, "path_ok": true,
+          "changed_variable": "dial_address", "normal_dns_path_verified": false
+        },
+        "cache": {
+          "id": "B3", "at": "2026-10-18T10:00:30Z", "source": "east-resolver-cache-entry",
+          "host": "api.example.com", "address": "192.0.2.10",
+          "cached_at": "2026-10-18T09:57:30Z", "original_ttl_seconds": 300,
+          "expires_at": "2026-10-18T10:02:30Z", "serve_stale": false, "ttl_override": false
+        }
+      },
+      "key": {
+        "first_read_options": ["dns", "address_control"],
+        "full_worked_order": ["initial", "dns", "address_control", "cache"],
+        "finding": "The east client still uses an old cached address within its original TTL; the current address passes the prepared same-client check.",
+        "finding_evidence": ["B0", "B1", "B2", "B3"],
+        "phase": "WaitingForTool", "incident_restored": false, "write_proposal": null,
+        "scheduled_read": {"at": "2026-10-18T10:03:00Z", "deadline": "2026-10-18T10:04:00Z", "owner": "incident-workflow", "read": "east client DNS followed by TLS on its normal path", "executed": false},
+        "remaining": ["Observe normal DNS after cache expiry", "Repeat TLS without address override", "Check the independent second probe and error-rate window"],
+        "cache_unavailable": "The old destination is supported by B0-B2; its TTL mechanism is still unconfirmed. Read cache policy/history or report the narrower finding."
+      }
+    }
+  }
+}
