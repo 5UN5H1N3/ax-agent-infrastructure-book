@@ -1,0 +1,108 @@
+<svg aria-label="Gateway validation: Actor path and gateway upstream are separate checks" class="diagram diagram-redrawn" data-print-min-pt="11.0000" height="353.28" role="img" viewBox="0 0 385.78 353.28" width="385.78" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 344.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M98.14,-289.7C90.3,-280.9 81.3,-270.78 73.41,-261.92" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="75.07,-260 68.4,-256.3 71.31,-263.35 75.07,-260" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0&#45;&gt;n5 -->
+<g class="edge">
+<title>n0-&gt;n5</title>
+<path d="M137.86,-289.7C144.28,-282.48 151.49,-274.39 158.23,-266.82" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="160.36,-268.22 163.27,-261.16 156.6,-264.86 160.36,-268.22" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge">
+<title>n1-&gt;n2</title>
+<path d="M83.48,-219.88C99.39,-210.95 119.18,-199.84 136.92,-189.88" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="138.3,-191.99 143.35,-186.27 135.83,-187.6 138.3,-191.99" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M203.96,-139.73C210.93,-132.33 218.7,-124.07 225.7,-116.64" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="227.77,-118.11 230.87,-111.14 224.1,-114.65 227.77,-118.11" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge">
+<title>n3-&gt;n4</title>
+<path d="M247,-74.84C247,-68.29 247,-60.62 247,-53.26" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="249.52,-53.25 247,-46.05 244.48,-53.25 249.52,-53.25" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n6&#45;&gt;n2 -->
+<g class="edge">
+<title>n6-&gt;n2</title>
+<path d="M274.34,-214.9C260.1,-206.97 243.93,-197.95 229.19,-189.74" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="230.04,-187.33 222.53,-186.03 227.59,-191.73 230.04,-187.33" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n7&#45;&gt;n3 -->
+<g class="edge">
+<title>n7-&gt;n3</title>
+<path d="M295.6,-144.84C287.42,-136.29 277.43,-125.84 268.64,-116.64" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="270.42,-114.85 263.62,-111.39 266.78,-118.34 270.42,-114.85" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M145.5,-336C145.5,-336 90.5,-336 90.5,-336 84.5,-336 78.5,-330 78.5,-324 78.5,-324 78.5,-302 78.5,-302 78.5,-296 84.5,-290 90.5,-290 90.5,-290 145.5,-290 145.5,-290 151.5,-290 157.5,-296 157.5,-302 157.5,-302 157.5,-324 157.5,-324 157.5,-330 151.5,-336 145.5,-336" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="99.5" y="-321.4">Actor</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="94.5" y="-310.2">SDK and</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="87.5" y="-299.2">application</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M94,-256C94,-256 12,-256 12,-256 6,-256 0,-250 0,-244 0,-244 0,-232 0,-232 0,-226 6,-220 12,-220 12,-220 94,-220 94,-220 100,-220 106,-226 106,-232 106,-232 106,-244 106,-244 106,-250 100,-256 94,-256" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="27" y="-240.9">atunnel</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="9" y="-229.7">mTLS CONNECT</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M218.5,-186C218.5,-186 147.5,-186 147.5,-186 141.5,-186 135.5,-180 135.5,-174 135.5,-174 135.5,-152 135.5,-152 135.5,-146 141.5,-140 147.5,-140 147.5,-140 218.5,-140 218.5,-140 224.5,-140 230.5,-146 230.5,-152 230.5,-152 230.5,-174 230.5,-174 230.5,-180 224.5,-186 218.5,-186" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="144.5" y="-171.4">Egress PEP</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="149.5" y="-160.2">identity and</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="166.5" y="-149.2">policy</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M295.5,-111C295.5,-111 198.5,-111 198.5,-111 192.5,-111 186.5,-105 186.5,-99 186.5,-99 186.5,-87 186.5,-87 186.5,-81 192.5,-75 198.5,-75 198.5,-75 295.5,-75 295.5,-75 301.5,-75 307.5,-81 307.5,-87 307.5,-87 307.5,-99 307.5,-99 307.5,-105 301.5,-111 295.5,-111" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="195.5" y="-95.9">Upstream path</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="211.5" y="-84.7">DNS and TLS</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M278,-46C278,-46 216,-46 216,-46 210,-46 204,-40 204,-34 204,-34 204,-12 204,-12 204,-6 210,0 216,0 216,0 278,0 278,0 284,0 290,-6 290,-12 290,-12 290,-34 290,-34 290,-40 284,-46 278,-46" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="213" y="-31.4">Origin API</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="219" y="-20.2">effect and</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="221.5" y="-9.2">response</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M222.5,-261C222.5,-261 143.5,-261 143.5,-261 137.5,-261 131.5,-255 131.5,-249 131.5,-249 131.5,-227 131.5,-227 131.5,-221 137.5,-215 143.5,-215 143.5,-215 222.5,-215 222.5,-215 228.5,-215 234.5,-221 234.5,-227 234.5,-227 234.5,-249 234.5,-249 234.5,-255 228.5,-261 222.5,-261" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="148" y="-246.4">Actor DNS</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="140.5" y="-235.2">relay to worker</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="171" y="-224.2">DNS</text>
+</g>
+<!-- n6 -->
+<g class="node">
+<title>n6</title>
+<path d="M356.5,-261C356.5,-261 271.5,-261 271.5,-261 265.5,-261 259.5,-255 259.5,-249 259.5,-249 259.5,-227 259.5,-227 259.5,-221 265.5,-215 271.5,-215 271.5,-215 356.5,-215 356.5,-215 362.5,-215 368.5,-221 368.5,-227 368.5,-227 368.5,-249 368.5,-249 368.5,-255 362.5,-261 356.5,-261" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="268.5" y="-246.4">Control plane</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="287" y="-235.2">Actor and</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="279.5" y="-224.2">EgressPolicy</text>
+</g>
+<!-- n7 -->
+<g class="node">
+<title>n7</title>
+<path d="M356,-181C356,-181 268,-181 268,-181 262,-181 256,-175 256,-169 256,-169 256,-157 256,-157 256,-151 262,-145 268,-145 268,-145 356,-145 356,-145 362,-145 368,-151 368,-157 368,-157 368,-169 368,-169 368,-175 362,-181 356,-181" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="266" y="-165.9">Gateway DNS</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="265" y="-154.7">authorized name</text>
+</g>
+</g>
+</svg>

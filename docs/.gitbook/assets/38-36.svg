@@ -1,0 +1,78 @@
+<svg aria-label="AX control path at ac233282: direct reconciliation and Pub/Sub watch" class="diagram diagram-redrawn" data-print-min-pt="11.0000" height="309.28" role="img" viewBox="0 0 331.78 309.28" width="331.78" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 300.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M228.96,-255.82C218.8,-245.27 205.55,-231.52 193.96,-219.48" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="195.58,-217.53 188.77,-214.09 191.95,-221.02 195.58,-217.53" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="228" y="-232.2">gRPC</text>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge">
+<title>n1-&gt;n2</title>
+<path d="M117.11,-179.38C101.33,-173.84 85.04,-165.5 73.5,-153 65.55,-144.39 61.31,-132.16 59.06,-121.33" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="61.52,-120.77 57.79,-114.12 56.55,-121.64 61.52,-120.77" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="114" y="-144.2">direct lifecycle</text>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="114" y="-132.2">RPC</text>
+</g>
+<!-- n1&#45;&gt;n4 -->
+<g class="edge">
+<title>n1-&gt;n4</title>
+<path d="M161.5,-167.79C159.48,-155.46 159.29,-140.36 166.5,-129 168.98,-125.1 172.07,-121.66 175.57,-118.64" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="177.16,-120.59 181.35,-114.22 174.1,-116.58 177.16,-120.59" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="209.5" y="-138.2">records + locks</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M56.5,-77.75C56.5,-67.65 56.5,-54.72 56.5,-43.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="59.02,-43.38 56.5,-36.18 53.98,-43.38 59.02,-43.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="94.5" y="-54.2">Actor runtime</text>
+</g>
+<!-- n4&#45;&gt;n0 -->
+<g class="edge">
+<title>n4-&gt;n0</title>
+<path d="M247.61,-114.1C250.43,-118.7 253.02,-123.84 254.5,-129 266.16,-169.67 258.52,-219.36 251.97,-248.46" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="249.45,-248.16 250.25,-255.75 254.35,-249.32 249.45,-248.16" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="287.5" y="-194.2">watch via</text>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="287.5" y="-182.2">ax-server</text>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M281.5,-292C281.5,-292 209.5,-292 209.5,-292 203.5,-292 197.5,-286 197.5,-280 197.5,-280 197.5,-268 197.5,-268 197.5,-262 203.5,-256 209.5,-256 209.5,-256 281.5,-256 281.5,-256 287.5,-256 293.5,-262 293.5,-268 293.5,-268 293.5,-280 293.5,-280 293.5,-286 287.5,-292 281.5,-292" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="224.5" y="-276.9">ax CLI</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="206.5" y="-265.7">typed request</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M205.5,-214C205.5,-214 129.5,-214 129.5,-214 123.5,-214 117.5,-208 117.5,-202 117.5,-202 117.5,-180 117.5,-180 117.5,-174 123.5,-168 129.5,-168 129.5,-168 205.5,-168 205.5,-168 211.5,-168 217.5,-174 217.5,-180 217.5,-180 217.5,-202 217.5,-202 217.5,-208 211.5,-214 205.5,-214" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="135" y="-199.4">ax-server</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="152" y="-188.2">API +</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="126.5" y="-177.2">TaskReconciler</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M101,-114C101,-114 12,-114 12,-114 6,-114 0,-108 0,-102 0,-102 0,-90 0,-90 0,-84 6,-78 12,-78 12,-78 101,-78 101,-78 107,-78 113,-84 113,-90 113,-90 113,-102 113,-102 113,-108 107,-114 101,-114" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="9" y="-98.9">Substrate API</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="17" y="-87.7">Actor lifecycle</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M86.5,-36C86.5,-36 26.5,-36 26.5,-36 20.5,-36 14.5,-30 14.5,-24 14.5,-24 14.5,-12 14.5,-12 14.5,-6 20.5,0 26.5,0 26.5,0 86.5,0 86.5,0 92.5,0 98.5,-6 98.5,-12 98.5,-12 98.5,-24 98.5,-24 98.5,-30 92.5,-36 86.5,-36" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="32" y="-20.9">Runner</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="23.5" y="-9.7">inside Actor</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M282,-114C282,-114 187,-114 187,-114 181,-114 175,-108 175,-102 175,-102 175,-90 175,-90 175,-84 181,-78 187,-78 187,-78 282,-78 282,-78 288,-78 294,-84 294,-90 294,-90 294,-102 294,-102 294,-108 288,-114 282,-114" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="216" y="-98.9">Redis</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="184" y="-87.7">store and Pub/Sub</text>
+</g>
+</g>
+</svg>

@@ -1,0 +1,95 @@
+<svg aria-label="Resume on demand: запрос может разбудить suspended actor" class="diagram diagram-redrawn" data-print-min-pt="10.8646" height="510.28" role="img" viewBox="0 0 161.28 510.28" width="161.28" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 501.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M65,-456.92C65,-449.81 65,-441.42 65,-433.66" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="67.52,-433.39 65,-426.19 62.48,-433.39 67.52,-433.39" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge">
+<title>n1-&gt;n2</title>
+<path d="M65,-389.75C65,-379.65 65,-366.72 65,-355.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="67.52,-355.38 65,-348.18 62.48,-355.38 67.52,-355.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="104.5" y="-366.2">locate/resume</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M65,-311.75C65,-301.65 65,-288.72 65,-277.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="67.52,-277.38 65,-270.18 62.48,-277.38 67.52,-277.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="83" y="-288.2">assign</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge">
+<title>n3-&gt;n4</title>
+<path d="M65,-233.75C65,-223.65 65,-210.72 65,-199.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="67.52,-199.38 65,-192.18 62.48,-199.38 67.52,-199.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="86.5" y="-210.2">hydrate</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge">
+<title>n4-&gt;n5</title>
+<path d="M65,-155.75C65,-145.65 65,-132.72 65,-121.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="67.52,-121.38 65,-114.18 62.48,-121.38 67.52,-121.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="81" y="-132.2">ready</text>
+</g>
+<!-- n5&#45;&gt;n6 -->
+<g class="edge">
+<title>n5-&gt;n6</title>
+<path d="M65,-77.75C65,-67.65 65,-54.72 65,-43.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="67.52,-43.38 65,-36.18 62.48,-43.38 67.52,-43.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="86.5" y="-54.2">forward</text>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M118,-493C118,-493 12,-493 12,-493 6,-493 0,-487 0,-481 0,-481 0,-469 0,-469 0,-463 6,-457 12,-457 12,-457 118,-457 118,-457 124,-457 130,-463 130,-469 130,-469 130,-481 130,-481 130,-487 124,-493 118,-493" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="9" y="-477.9">Inbound request</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="43" y="-466.7">to actor</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M97,-426C97,-426 33,-426 33,-426 27,-426 21,-420 21,-414 21,-414 21,-402 21,-402 21,-396 27,-390 33,-390 33,-390 97,-390 97,-390 103,-390 109,-396 109,-402 109,-402 109,-414 109,-414 109,-420 103,-426 97,-426" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="42" y="-410.9">atenet</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="30" y="-399.7">park request</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M107.5,-348C107.5,-348 22.5,-348 22.5,-348 16.5,-348 10.5,-342 10.5,-336 10.5,-336 10.5,-324 10.5,-324 10.5,-318 16.5,-312 22.5,-312 22.5,-312 107.5,-312 107.5,-312 113.5,-312 119.5,-318 119.5,-324 119.5,-324 119.5,-336 119.5,-336 119.5,-342 113.5,-348 107.5,-348" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="19.5" y="-332.9">Control plane</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="38.5" y="-321.7">find state</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M103,-270C103,-270 27,-270 27,-270 21,-270 15,-264 15,-258 15,-258 15,-246 15,-246 15,-240 21,-234 27,-234 27,-234 103,-234 103,-234 109,-234 115,-240 115,-246 115,-246 115,-258 115,-258 115,-264 109,-270 103,-270" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="24" y="-254.9">Free worker</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="50" y="-243.7">claim</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M89,-192C89,-192 41,-192 41,-192 35,-192 29,-186 29,-180 29,-180 29,-168 29,-168 29,-162 35,-156 41,-156 41,-156 89,-156 89,-156 95,-156 101,-162 101,-168 101,-168 101,-180 101,-180 101,-186 95,-192 89,-192" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="38" y="-176.9">Restore</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="39.5" y="-165.7">snapshot</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M104.5,-114C104.5,-114 25.5,-114 25.5,-114 19.5,-114 13.5,-108 13.5,-102 13.5,-102 13.5,-90 13.5,-90 13.5,-84 19.5,-78 25.5,-78 25.5,-78 104.5,-78 104.5,-78 110.5,-78 116.5,-84 116.5,-90 116.5,-90 116.5,-102 116.5,-102 116.5,-108 110.5,-114 104.5,-114" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="22.5" y="-98.9">mTLS tunnel</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="38.5" y="-87.7">to worker</text>
+</g>
+<!-- n6 -->
+<g class="node">
+<title>n6</title>
+<path d="M80.5,-36C80.5,-36 49.5,-36 49.5,-36 43.5,-36 37.5,-30 37.5,-24 37.5,-24 37.5,-12 37.5,-12 37.5,-6 43.5,0 49.5,0 49.5,0 80.5,0 80.5,0 86.5,0 92.5,-6 92.5,-12 92.5,-12 92.5,-24 92.5,-24 92.5,-30 86.5,-36 80.5,-36" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="46.5" y="-20.9">Actor</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="49.5" y="-9.7">serve</text>
+</g>
+</g>
+</svg>

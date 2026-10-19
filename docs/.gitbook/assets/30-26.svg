@@ -1,0 +1,102 @@
+<svg aria-label="Когда AX является разумным кандидатом, а когда это избыточный слой" class="diagram diagram-redrawn" data-print-min-pt="11.0000" height="329.28" role="img" viewBox="0 0 453.28 329.28" width="453.28" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 320.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M79.17,-264.77C76.01,-254.26 72.22,-241.64 68.84,-230.42" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="71.18,-229.45 66.7,-223.28 66.35,-230.9 71.18,-229.45" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="86" y="-241.2">нет</text>
+</g>
+<!-- n0&#45;&gt;n2 -->
+<g class="edge">
+<title>n0-&gt;n2</title>
+<path d="M120.6,-265C140.88,-251.81 166.34,-235.25 186.29,-222.27" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="187.9,-224.24 192.56,-218.2 185.15,-220.01 187.9,-224.24" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="168.5" y="-241.2">да</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M208.73,-181.91C201.76,-170.32 192.37,-154.71 184.27,-141.23" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="186.28,-139.68 180.41,-134.81 181.96,-142.27 186.28,-139.68" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="208" y="-153.2">нет</text>
+</g>
+<!-- n2&#45;&gt;n4 -->
+<g class="edge">
+<title>n2-&gt;n4</title>
+<path d="M239.15,-181.91C253.22,-169.98 272.29,-153.8 288.49,-140.07" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="290.46,-141.71 294.32,-135.13 287.2,-137.86 290.46,-141.71" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="284.5" y="-153.2">да</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge">
+<title>n4-&gt;n5</title>
+<path d="M304.71,-87.77C296.89,-76.86 287.44,-63.68 279.17,-52.14" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="281.21,-50.66 274.97,-46.28 277.11,-53.6 281.21,-50.66" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="301.5" y="-64.2">да</text>
+</g>
+<!-- n4&#45;&gt;n6 -->
+<g class="edge">
+<title>n4-&gt;n6</title>
+<path d="M337.29,-87.77C345.11,-76.86 354.56,-63.68 362.83,-52.14" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="364.89,-53.6 367.03,-46.28 360.79,-50.66 364.89,-53.6" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="366" y="-64.2">нет</text>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M148,-312C148,-312 24,-312 24,-312 18,-312 12,-306 12,-300 12,-300 12,-277 12,-277 12,-271 18,-265 24,-265 24,-265 148,-265 148,-265 154,-265 160,-271 160,-277 160,-277 160,-300 160,-300 160,-306 154,-312 148,-312" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="21" y="-297.4">Нужна изоляция +</text>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="64.5" y="-285.4">state?</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="63" y="-274.2">decision</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M108,-223C108,-223 12,-223 12,-223 6,-223 0,-217 0,-211 0,-211 0,-189 0,-189 0,-183 6,-177 12,-177 12,-177 108,-177 108,-177 114,-177 120,-183 120,-189 120,-189 120,-211 120,-211 120,-217 114,-223 108,-223" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="47.5" y="-208.4">Нет</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="9" y="-197.2">queue / workflow /</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="51.5" y="-186.2">Job</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M281,-218C281,-218 157,-218 157,-218 151,-218 145,-212 145,-206 145,-206 145,-194 145,-194 145,-188 151,-182 157,-182 157,-182 281,-182 281,-182 287,-182 293,-188 293,-194 293,-194 293,-206 293,-206 293,-212 287,-218 281,-218" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="154" y="-202.9">Много idle agents?</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="170.5" y="-191.7">logical &gt; physical</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M215,-134.5C215,-134.5 119,-134.5 119,-134.5 113,-134.5 107,-128.5 107,-122.5 107,-122.5 107,-100.5 107,-100.5 107,-94.5 113,-88.5 119,-88.5 119,-88.5 215,-88.5 215,-88.5 221,-88.5 227,-94.5 227,-100.5 227,-100.5 227,-122.5 227,-122.5 227,-128.5 221,-134.5 215,-134.5" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="154.5" y="-119.9">Нет</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="116" y="-108.7">K8s/Temporal may</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="148.5" y="-97.7">suffice</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M377.5,-135C377.5,-135 264.5,-135 264.5,-135 258.5,-135 252.5,-129 252.5,-123 252.5,-123 252.5,-100 252.5,-100 252.5,-94 258.5,-88 264.5,-88 264.5,-88 377.5,-88 377.5,-88 383.5,-88 389.5,-94 389.5,-100 389.5,-100 389.5,-123 389.5,-123 389.5,-129 383.5,-135 377.5,-135" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="298" y="-120.4">Нужен</text>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="261.5" y="-108.4">suspend/resume?</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="281.5" y="-97.2">fast rehydrate</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M292.5,-46C292.5,-46 225.5,-46 225.5,-46 219.5,-46 213.5,-40 213.5,-34 213.5,-34 213.5,-12 213.5,-12 213.5,-6 219.5,0 225.5,0 225.5,0 292.5,0 292.5,0 298.5,0 304.5,-6 304.5,-12 304.5,-12 304.5,-34 304.5,-34 304.5,-40 298.5,-46 292.5,-46" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="249.5" y="-31.4">Да</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="222.5" y="-20.2">AX/Substrate</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="231.5" y="-9.2">candidate</text>
+</g>
+<!-- n6 -->
+<g class="node">
+<title>n6</title>
+<path d="M424,-46C424,-46 342,-46 342,-46 336,-46 330,-40 330,-34 330,-34 330,-12 330,-12 330,-6 336,0 342,0 342,0 424,0 424,0 430,0 436,-6 436,-12 436,-12 436,-34 436,-34 436,-40 430,-46 424,-46" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="370.5" y="-31.4">Нет</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="339" y="-20.2">simpler runtime</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="372" y="-9.2">first</text>
+</g>
+</g>
+</svg>

@@ -1,0 +1,80 @@
+<svg aria-label="Recovery gates: trusted bootstrap, isolated restore, reconciliation, controlled writes" class="diagram diagram-redrawn" data-print-min-pt="11.0000" height="278.28" role="img" viewBox="0 0 352.28 278.28" width="352.28" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 269.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n2 -->
+<g class="edge">
+<title>n0-&gt;n2</title>
+<path d="M78.59,-219.7C88.09,-209.79 100.12,-197.24 110.36,-186.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="112.37,-188.12 115.53,-181.18 108.73,-184.63 112.37,-188.12" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n2 -->
+<g class="edge">
+<title>n1-&gt;n2</title>
+<path d="M181.31,-214.7C172.67,-205.81 162.73,-195.59 154.05,-186.67" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="155.65,-184.7 148.83,-181.3 152.04,-188.22 155.65,-184.7" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M150.42,-144.84C159.76,-136.14 171.21,-125.48 181.2,-116.17" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="183.03,-117.91 186.58,-111.15 179.6,-114.22 183.03,-117.91" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n3&#45;&gt;n5 -->
+<g class="edge">
+<title>n3-&gt;n5</title>
+<path d="M205,-74.84C205,-68.29 205,-60.62 205,-53.26" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="207.52,-53.25 205,-46.05 202.48,-53.25 207.52,-53.25" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n4&#45;&gt;n3 -->
+<g class="edge">
+<title>n4-&gt;n3</title>
+<path d="M254.1,-139.73C245.99,-132.18 236.93,-123.75 228.83,-116.2" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="230.38,-114.2 223.4,-111.14 226.95,-117.89 230.38,-114.2" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M112,-256C112,-256 12,-256 12,-256 6,-256 0,-250 0,-244 0,-244 0,-232 0,-232 0,-226 6,-220 12,-220 12,-220 112,-220 112,-220 118,-220 124,-226 124,-232 124,-232 124,-244 124,-244 124,-250 118,-256 112,-256" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="9" y="-240.9">Trust bootstrap</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="12" y="-229.7">old writers fenced</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M245,-261C245,-261 161,-261 161,-261 155,-261 149,-255 149,-249 149,-249 149,-227 149,-227 149,-221 155,-215 161,-215 161,-215 245,-215 245,-215 251,-215 257,-221 257,-227 257,-227 257,-249 257,-249 257,-255 251,-261 245,-261" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="165" y="-246.4">Backup set</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="158" y="-235.2">state, payloads,</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="190" y="-224.2">keys</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M184,-181C184,-181 80,-181 80,-181 74,-181 68,-175 68,-169 68,-169 68,-157 68,-157 68,-151 74,-145 80,-145 80,-145 184,-145 184,-145 190,-145 196,-151 196,-157 196,-157 196,-169 196,-169 196,-175 190,-181 184,-181" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="77" y="-165.9">Isolated restore</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="85" y="-154.7">verify references</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M253.5,-111C253.5,-111 156.5,-111 156.5,-111 150.5,-111 144.5,-105 144.5,-99 144.5,-99 144.5,-87 144.5,-87 144.5,-81 150.5,-75 156.5,-75 156.5,-75 253.5,-75 253.5,-75 259.5,-75 265.5,-81 265.5,-87 265.5,-87 265.5,-99 265.5,-99 265.5,-105 259.5,-111 253.5,-111" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="173" y="-95.9">Reconcile</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="153.5" y="-84.7">effects and access</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M323,-186C323,-186 233,-186 233,-186 227,-186 221,-180 221,-174 221,-174 221,-152 221,-152 221,-146 227,-140 233,-140 233,-140 323,-140 323,-140 329,-140 335,-146 335,-152 335,-152 335,-174 335,-174 335,-180 329,-186 323,-186" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="230" y="-171.4">External truth</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="248.5" y="-160.2">ledger and</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="255.5" y="-149.2">receipts</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M237,-46C237,-46 173,-46 173,-46 167,-46 161,-40 161,-34 161,-34 161,-12 161,-12 161,-6 167,0 173,0 173,0 237,0 237,0 243,0 249,-6 249,-12 249,-12 249,-34 249,-34 249,-40 243,-46 237,-46" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="170" y="-31.4">Admission</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="170" y="-20.2">canary, then</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="188" y="-9.2">writes</text>
+</g>
+</g>
+</svg>

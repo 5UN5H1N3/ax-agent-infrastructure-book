@@ -1,0 +1,83 @@
+<svg aria-label="Context engineering: finite budget is assembled, not magically remembered" class="diagram diagram-redrawn" data-print-min-pt="11.0000" height="307.28" role="img" viewBox="0 0 427.28 307.28" width="427.28" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 298.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n3 -->
+<g class="edge">
+<title>n0-&gt;n3</title>
+<path d="M92.34,-243.87C111.69,-232.08 135.36,-217.67 154.43,-206.05" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="155.87,-208.12 160.71,-202.23 153.25,-203.82 155.87,-208.12" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="155" y="-220.2">priority</text>
+</g>
+<!-- n1&#45;&gt;n3 -->
+<g class="edge">
+<title>n1-&gt;n3</title>
+<path d="M189,-248.82C189,-237.44 189,-222.33 189,-209.66" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="191.52,-209.35 189,-202.15 186.48,-209.35 191.52,-209.35" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M306.4,-248.82C283.11,-236.16 251.34,-218.89 226.72,-205.5" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="227.83,-203.24 220.3,-202.01 225.42,-207.67 227.83,-203.24" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="289" y="-220.2">retrieve</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge">
+<title>n3-&gt;n4</title>
+<path d="M189,-165.82C189,-155.84 189,-142.99 189,-131.45" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="191.52,-131.29 189,-124.09 186.48,-131.29 191.52,-131.29" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="227.5" y="-142.2">pack/compact</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge">
+<title>n4-&gt;n5</title>
+<path d="M189,-77.87C189,-67.21 189,-54.4 189,-43.46" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="191.52,-43.43 189,-36.23 186.48,-43.43 191.52,-43.43" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="210.5" y="-54.2">request</text>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M100,-290C100,-290 12,-290 12,-290 6,-290 0,-284 0,-278 0,-278 0,-256 0,-256 0,-250 6,-244 12,-244 12,-244 100,-244 100,-244 106,-244 112,-250 112,-256 112,-256 112,-278 112,-278 112,-284 106,-290 100,-290" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="9" y="-275.4">System policy</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="39" y="-264.2">stable</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="23.5" y="-253.2">instructions</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M228.5,-285C228.5,-285 149.5,-285 149.5,-285 143.5,-285 137.5,-279 137.5,-273 137.5,-273 137.5,-261 137.5,-261 137.5,-255 143.5,-249 149.5,-249 149.5,-249 228.5,-249 228.5,-249 234.5,-249 240.5,-255 240.5,-261 240.5,-261 240.5,-273 240.5,-273 240.5,-279 234.5,-285 228.5,-285" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="146.5" y="-269.9">Goal + state</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="155.5" y="-258.7">current task</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M398,-285C398,-285 278,-285 278,-285 272,-285 266,-279 266,-273 266,-273 266,-261 266,-261 266,-255 272,-249 278,-249 278,-249 398,-249 398,-249 404,-249 410,-255 410,-261 410,-261 410,-273 410,-273 410,-279 404,-285 398,-285" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="275" y="-269.9">Retrieved memory</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="288" y="-258.7">selected evidence</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M250.5,-202C250.5,-202 127.5,-202 127.5,-202 121.5,-202 115.5,-196 115.5,-190 115.5,-190 115.5,-178 115.5,-178 115.5,-172 121.5,-166 127.5,-166 127.5,-166 250.5,-166 250.5,-166 256.5,-166 262.5,-172 262.5,-178 262.5,-178 262.5,-190 262.5,-190 262.5,-196 256.5,-202 250.5,-202" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="124.5" y="-186.9">Context assembler</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="138.5" y="-175.7">budget + ordering</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M240.5,-124C240.5,-124 137.5,-124 137.5,-124 131.5,-124 125.5,-118 125.5,-112 125.5,-112 125.5,-90 125.5,-90 125.5,-84 131.5,-78 137.5,-78 137.5,-78 240.5,-78 240.5,-78 246.5,-78 252.5,-84 252.5,-90 252.5,-90 252.5,-112 252.5,-112 252.5,-118 246.5,-124 240.5,-124" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="134.5" y="-109.4">Context window</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="157.5" y="-98.2">finite token</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="169.5" y="-87.2">budget</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M217.5,-36C217.5,-36 160.5,-36 160.5,-36 154.5,-36 148.5,-30 148.5,-24 148.5,-24 148.5,-12 148.5,-12 148.5,-6 154.5,0 160.5,0 160.5,0 217.5,0 217.5,0 223.5,0 229.5,-6 229.5,-12 229.5,-12 229.5,-24 229.5,-24 229.5,-30 223.5,-36 217.5,-36" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="175" y="-20.9">LLM</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="157.5" y="-9.7">next action</text>
+</g>
+</g>
+</svg>

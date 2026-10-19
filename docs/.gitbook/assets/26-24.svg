@@ -1,0 +1,104 @@
+<svg aria-label="Три лабораторные топологии: растёт не «мощность Kubernetes», а реалистичность отказов и операционная цена" class="diagram diagram-redrawn" data-print-min-pt="10.8006" height="273.28" role="img" viewBox="0 0 500.78 273.28" width="500.78" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 264.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M216.04,-209.85C189.64,-195.03 155.12,-175.65 129.29,-161.15" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="130.43,-158.9 122.92,-157.58 127.96,-163.3 130.43,-158.9" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="203.5" y="-186.2">1 VM</text>
+</g>
+<!-- n0&#45;&gt;n2 -->
+<g class="edge">
+<title>n0-&gt;n2</title>
+<path d="M255.5,-209.85C255.5,-196.28 255.5,-178.91 255.5,-164.94" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="258.02,-164.78 255.5,-157.58 252.98,-164.78 258.02,-164.78" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="275.5" y="-186.2">1–3 VM</text>
+</g>
+<!-- n0&#45;&gt;n3 -->
+<g class="edge">
+<title>n0-&gt;n3</title>
+<path d="M290.36,-209.85C309.07,-197.96 332.38,-183.15 352.65,-170.27" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="354.11,-172.33 358.84,-166.34 351.41,-168.07 354.11,-172.33" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="351" y="-186.2">3+ VM</text>
+</g>
+<!-- n1&#45;&gt;n4 -->
+<g class="edge">
+<title>n1-&gt;n4</title>
+<path d="M89.2,-121.49C86.23,-106.19 81.8,-83.38 78.25,-65.09" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="80.63,-64.16 76.79,-57.57 75.68,-65.12 80.63,-64.16" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="106" y="-87.2">быстро</text>
+</g>
+<!-- n2&#45;&gt;n5 -->
+<g class="edge">
+<title>n2-&gt;n5</title>
+<path d="M255.5,-121.49C255.5,-106.19 255.5,-83.38 255.5,-65.09" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="258.02,-64.77 255.5,-57.57 252.98,-64.77 258.02,-64.77" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="287" y="-87.2">постоянно</text>
+</g>
+<!-- n3&#45;&gt;n6 -->
+<g class="edge">
+<title>n3-&gt;n6</title>
+<path d="M403.79,-110.9C405.44,-100.24 407.37,-87.82 409.18,-76.18" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="411.67,-76.56 410.29,-69.06 406.69,-75.78 411.67,-76.56" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="445.5" y="-87.2">реалистично</text>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M299.5,-256C299.5,-256 211.5,-256 211.5,-256 205.5,-256 199.5,-250 199.5,-244 199.5,-244 199.5,-222 199.5,-222 199.5,-216 205.5,-210 211.5,-210 211.5,-210 299.5,-210 299.5,-210 305.5,-210 311.5,-216 311.5,-222 311.5,-222 311.5,-244 311.5,-244 311.5,-250 305.5,-256 299.5,-256" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="208.5" y="-241.4">Proxmox/KVM</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="219" y="-230.2">virtualization</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="243" y="-219.2">host</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M137,-157.5C137,-157.5 48,-157.5 48,-157.5 42,-157.5 36,-151.5 36,-145.5 36,-145.5 36,-133.5 36,-133.5 36,-127.5 42,-121.5 48,-121.5 48,-121.5 137,-121.5 137,-121.5 143,-121.5 149,-127.5 149,-133.5 149,-133.5 149,-145.5 149,-145.5 149,-151.5 143,-157.5 137,-157.5" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="45" y="-142.4">Docker + Kind</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="48" y="-131.2">container nodes</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M306,-157.5C306,-157.5 205,-157.5 205,-157.5 199,-157.5 193,-151.5 193,-145.5 193,-145.5 193,-133.5 193,-133.5 193,-127.5 199,-121.5 205,-121.5 205,-121.5 306,-121.5 306,-121.5 312,-121.5 318,-127.5 318,-133.5 318,-133.5 318,-145.5 318,-145.5 318,-151.5 312,-157.5 306,-157.5" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="243" y="-142.4">k3s</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="202" y="-131.2">persistent homelab</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M428,-168C428,-168 371,-168 371,-168 365,-168 359,-162 359,-156 359,-156 359,-123 359,-123 359,-117 365,-111 371,-111 371,-111 428,-111 428,-111 434,-111 440,-117 440,-123 440,-123 440,-156 440,-156 440,-162 434,-168 428,-168" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="368" y="-153.4">kubeadm</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="379.5" y="-142.2">explicit</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="368" y="-131.2">Kubernetes</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="370" y="-120.2">mechanics</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M133,-57.5C133,-57.5 12,-57.5 12,-57.5 6,-57.5 0,-51.5 0,-45.5 0,-45.5 0,-23.5 0,-23.5 0,-17.5 6,-11.5 12,-11.5 12,-11.5 133,-11.5 133,-11.5 139,-11.5 145,-17.5 145,-23.5 145,-23.5 145,-45.5 145,-45.5 145,-51.5 139,-57.5 133,-57.5" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="9" y="-42.9">Быстрая итерация</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="24" y="-31.7">manifests · APIs ·</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="33" y="-20.7">reset/recreate</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M329,-57.5C329,-57.5 182,-57.5 182,-57.5 176,-57.5 170,-51.5 170,-45.5 170,-45.5 170,-23.5 170,-23.5 170,-17.5 176,-11.5 182,-11.5 182,-11.5 329,-11.5 329,-11.5 335,-11.5 341,-17.5 341,-23.5 341,-23.5 341,-45.5 341,-45.5 341,-51.5 335,-57.5 329,-57.5" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="179" y="-42.9">Долгоживущая среда</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="208.5" y="-31.7">storage · ingress</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="238" y="-20.7">· edge</text>
+</g>
+<!-- n6 -->
+<g class="node">
+<title>n6</title>
+<path d="M452.5,-69C452.5,-69 378.5,-69 378.5,-69 372.5,-69 366.5,-63 366.5,-57 366.5,-57 366.5,-12 366.5,-12 366.5,-6 372.5,0 378.5,0 378.5,0 452.5,0 452.5,0 458.5,0 464.5,-6 464.5,-12 464.5,-12 464.5,-57 464.5,-57 464.5,-63 458.5,-69 452.5,-69" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="379" y="-54.4">Production</text>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="383" y="-42.4">rehearsal</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="375.5" y="-31.2">CNI · CSI · LB ·</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="386" y="-20.2">upgrades ·</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="391" y="-9.2">recovery</text>
+</g>
+</g>
+</svg>

@@ -1,0 +1,89 @@
+<svg aria-label="MCP 2026-07-28: stateless request model and discovery" class="diagram diagram-redrawn" data-print-min-pt="11.0000" height="389.28" role="img" viewBox="0 0 278.78 389.28" width="278.78" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(8.64 380.64)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M81.84,-335.83C76.15,-331.8 71.07,-326.9 67.5,-321 54.65,-299.75 56.22,-270.65 59.69,-250.27" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="62.17,-250.74 61.04,-243.19 57.22,-249.8 62.17,-250.74" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="107.5" y="-312.2">optional probe</text>
+</g>
+<!-- n0&#45;&gt;n2 -->
+<g class="edge">
+<title>n0-&gt;n2</title>
+<path d="M141.29,-335.72C145.39,-331.03 149.7,-325.9 153.5,-321 158.61,-314.39 163.85,-306.97 168.49,-300.13" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="170.65,-301.44 172.57,-294.05 166.47,-298.63 170.65,-301.44" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="183" y="-312.2">per call</text>
+</g>
+<!-- n1&#45;&gt;n4 -->
+<g class="edge">
+<title>n1-&gt;n4</title>
+<path d="M65.82,-206.92C66.19,-193.15 66.95,-173.3 68.5,-156 69.52,-144.65 71.14,-132.13 72.66,-121.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="75.18,-121.74 73.74,-114.25 70.2,-121.01 75.18,-121.74" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="92" y="-171.2">discover</text>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M183.85,-257.58C184.17,-241.52 184.65,-217.52 185.01,-199.52" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="187.53,-199.47 185.16,-192.22 182.49,-199.37 187.53,-199.47" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="223" y="-222.2">headers/meta</text>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge">
+<title>n3-&gt;n4</title>
+<path d="M161.04,-155.94C145.16,-144.87 124.34,-130.36 107.33,-118.5" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="108.6,-116.31 101.26,-114.26 105.72,-120.45 108.6,-116.31" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="168" y="-132.2">authorized</text>
+</g>
+<!-- n4&#45;&gt;n5 -->
+<g class="edge">
+<title>n4-&gt;n5</title>
+<path d="M76.5,-77.75C76.5,-67.65 76.5,-54.72 76.5,-43.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="79.02,-43.38 76.5,-36.18 73.98,-43.38 79.02,-43.38" stroke="#60748a" stroke-width="1.55"></polygon>
+<text fill="#34495e" font-family="DejaVu Sans" font-size="11.00" text-anchor="middle" x="95" y="-54.2">invoke</text>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M158.5,-372C158.5,-372 92.5,-372 92.5,-372 86.5,-372 80.5,-366 80.5,-360 80.5,-360 80.5,-348 80.5,-348 80.5,-342 86.5,-336 92.5,-336 92.5,-336 158.5,-336 158.5,-336 164.5,-336 170.5,-342 170.5,-348 170.5,-348 170.5,-360 170.5,-360 170.5,-366 164.5,-372 158.5,-372" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="89.5" y="-356.9">MCP client</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="94.5" y="-345.7">2026-07-28</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M119,-243C119,-243 12,-243 12,-243 6,-243 0,-237 0,-231 0,-231 0,-219 0,-219 0,-213 6,-207 12,-207 12,-207 119,-207 119,-207 125,-207 131,-213 131,-219 131,-219 131,-231 131,-231 131,-237 125,-243 119,-243" fill="#f3f5f7" stroke="#495463" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="13" y="-227.9">server/discover</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="9" y="-216.7">versions/capabilities</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M234.5,-294C234.5,-294 132.5,-294 132.5,-294 126.5,-294 120.5,-288 120.5,-282 120.5,-282 120.5,-270 120.5,-270 120.5,-264 126.5,-258 132.5,-258 132.5,-258 234.5,-258 234.5,-258 240.5,-258 246.5,-264 246.5,-270 246.5,-270 246.5,-282 246.5,-282 246.5,-288 240.5,-294 234.5,-294" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="141" y="-278.9">RPC request</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="129.5" y="-267.7">_meta version/caps</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M231,-192C231,-192 140,-192 140,-192 134,-192 128,-186 128,-180 128,-180 128,-168 128,-168 128,-162 134,-156 140,-156 140,-156 231,-156 231,-156 237,-156 243,-162 243,-168 243,-168 243,-180 243,-180 243,-186 237,-192 231,-192" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="137" y="-176.9">HTTP gateway</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="138" y="-165.7">route/meter/auth</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M113,-114C113,-114 40,-114 40,-114 34,-114 28,-108 28,-102 28,-102 28,-90 28,-90 28,-84 34,-78 40,-78 40,-78 113,-78 113,-78 119,-78 125,-84 125,-90 125,-90 125,-102 125,-102 125,-108 119,-114 113,-114" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="37" y="-98.9">MCP server</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="37" y="-87.7">stateless core</text>
+</g>
+<!-- n5 -->
+<g class="node">
+<title>n5</title>
+<path d="M102.5,-36C102.5,-36 50.5,-36 50.5,-36 44.5,-36 38.5,-30 38.5,-24 38.5,-24 38.5,-12 38.5,-12 38.5,-6 44.5,0 50.5,0 50.5,0 102.5,0 102.5,0 108.5,0 114.5,-6 114.5,-12 114.5,-12 114.5,-24 114.5,-24 114.5,-30 108.5,-36 102.5,-36" fill="#fff0f0" stroke="#a23d3d" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="49" y="-20.9">Tool/API</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="11.00" text-anchor="start" x="47.5" y="-9.7">side effect</text>
+</g>
+</g>
+</svg>

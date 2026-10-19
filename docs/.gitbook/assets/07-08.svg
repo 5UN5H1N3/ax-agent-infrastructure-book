@@ -1,0 +1,71 @@
+<svg aria-label="Multi-agent workflow ревью: одна ревизия, две ветви и проверяемая сборка" class="diagram diagram-redrawn" height="350.92" role="img" viewBox="0 0 520.42 350.92" width="520.42" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+<g class="graph" transform="scale(1 1) rotate(0) translate(12.96 337.96)">
+<title>G</title>
+<!-- n0&#45;&gt;n1 -->
+<g class="edge">
+<title>n0-&gt;n1</title>
+<path d="M208.55,-282.8C188.89,-269.55 163.07,-252.14 142.32,-238.15" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="143.71,-236.05 136.33,-234.12 140.9,-240.23 143.71,-236.05" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0&#45;&gt;n2 -->
+<g class="edge">
+<title>n0-&gt;n2</title>
+<path d="M268.68,-282.8C288.49,-269.55 314.5,-252.14 335.41,-238.15" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="336.86,-240.21 341.44,-234.12 334.05,-236.03 336.86,-240.21" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n1&#45;&gt;n3 -->
+<g class="edge">
+<title>n1-&gt;n3</title>
+<path d="M134.82,-191.83C153.02,-178.87 176.97,-161.82 197.27,-147.36" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="198.76,-149.39 203.16,-143.16 195.84,-145.29 198.76,-149.39" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n2&#45;&gt;n3 -->
+<g class="edge">
+<title>n2-&gt;n3</title>
+<path d="M342.97,-191.83C324.63,-178.87 300.49,-161.82 280.04,-147.36" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="281.44,-145.26 274.1,-143.16 278.53,-149.38 281.44,-145.26" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n3&#45;&gt;n4 -->
+<g class="edge">
+<title>n3-&gt;n4</title>
+<path d="M238.5,-90.81C238.5,-78.08 238.5,-62.61 238.5,-49.56" fill="none" stroke="#60748a" stroke-width="1.55"></path>
+<polygon fill="#60748a" points="241.02,-49.4 238.5,-42.2 235.98,-49.4 241.02,-49.4" stroke="#60748a" stroke-width="1.55"></polygon>
+</g>
+<!-- n0 -->
+<g class="node">
+<title>n0</title>
+<path d="M345.5,-325C345.5,-325 131.5,-325 131.5,-325 125.5,-325 119.5,-319 119.5,-313 119.5,-313 119.5,-295 119.5,-295 119.5,-289 125.5,-283 131.5,-283 131.5,-283 345.5,-283 345.5,-283 351.5,-283 357.5,-289 357.5,-295 357.5,-295 357.5,-313 357.5,-313 357.5,-319 351.5,-325 345.5,-325" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="198" y="-306.4">Coordinator</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="133.5" y="-296">цель · входная ревизия · два контракта</text>
+</g>
+<!-- n1 -->
+<g class="node">
+<title>n1</title>
+<path d="M201,-234C201,-234 12,-234 12,-234 6,-234 0,-228 0,-222 0,-222 0,-204 0,-204 0,-198 6,-192 12,-192 12,-192 201,-192 201,-192 207,-192 213,-198 213,-204 213,-204 213,-222 213,-222 213,-228 207,-234 201,-234" fill="#eefaf3" stroke="#287a4b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="47.5" y="-215.4">Ветвь исходника</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="14" y="-205">путь ошибки · ссылки на исходник</text>
+</g>
+<!-- n2 -->
+<g class="node">
+<title>n2</title>
+<path d="M482.5,-234C482.5,-234 260.5,-234 260.5,-234 254.5,-234 248.5,-228 248.5,-222 248.5,-222 248.5,-204 248.5,-204 248.5,-198 254.5,-192 260.5,-192 260.5,-192 482.5,-192 482.5,-192 488.5,-192 494.5,-198 494.5,-204 494.5,-204 494.5,-222 494.5,-222 494.5,-228 488.5,-234 482.5,-234" fill="#fff7e8" stroke="#9a6410" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="327.5" y="-215.4">Ветвь тестов</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="262.5" y="-205">ожидание · готовый отчёт · ограничения</text>
+</g>
+<!-- n3 -->
+<g class="node">
+<title>n3</title>
+<path d="M347.5,-143C347.5,-143 129.5,-143 129.5,-143 123.5,-143 117.5,-137 117.5,-131 117.5,-131 117.5,-103 117.5,-103 117.5,-97 123.5,-91 129.5,-91 129.5,-91 347.5,-91 347.5,-91 353.5,-91 359.5,-97 359.5,-103 359.5,-103 359.5,-131 359.5,-131 359.5,-137 353.5,-143 347.5,-143" fill="#f8efff" stroke="#70459b" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="192" y="-124.4">Fan-in в коде</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="164.5" y="-114">revision · attempt · покрытие</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="131.5" y="-104">основания и противоречия сохраняются</text>
+</g>
+<!-- n4 -->
+<g class="node">
+<title>n4</title>
+<path d="M334.5,-42C334.5,-42 142.5,-42 142.5,-42 136.5,-42 130.5,-36 130.5,-30 130.5,-30 130.5,-12 130.5,-12 130.5,-6 136.5,0 142.5,0 142.5,0 334.5,0 334.5,0 340.5,0 346.5,-6 346.5,-12 346.5,-12 346.5,-30 346.5,-30 346.5,-36 340.5,-42 334.5,-42" fill="#edf4ff" stroke="#2d5d9f" stroke-width="1.6"></path>
+<text fill="#17212b" font-family="DejaVu Sans" font-size="12.00" font-weight="bold" text-anchor="start" x="152.5" y="-23.4">Содержательная сборка</text>
+<text fill="#465569" font-family="DejaVu Sans" font-size="10.00" text-anchor="start" x="144.5" y="-13">единый черновик · без публикации</text>
+</g>
+</g>
+</svg>
